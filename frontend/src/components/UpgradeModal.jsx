@@ -1,10 +1,11 @@
 // frontend/src/components/UpgradeModal.jsx
 import React, { useState } from 'react';
-import { X, Crown, Check, Sparkles, Zap, ShieldCheck } from 'lucide-react';
+import { X, Crown, Check, Sparkles, Zap, ShieldCheck, CreditCard, FileText } from 'lucide-react';
 import { apiFetch } from '../api/client';
 
 export default function UpgradeModal({ isOpen, onClose, onUpgraded }) {
   const [loading, setLoading] = useState(false);
+  const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'yearly'
 
   if (!isOpen) return null;
 
@@ -13,7 +14,7 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded }) {
     try {
       const res = await apiFetch('/usage/upgrade', {
         method: 'POST',
-        body: JSON.stringify({ plan: 'pro' }),
+        body: JSON.stringify({ plan: 'pro', cycle: billingCycle }),
       });
       if (res.ok) {
         if (onUpgraded) onUpgraded('pro');
@@ -27,12 +28,14 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded }) {
     }
   };
 
+  const displayPrice = billingCycle === 'yearly' ? '₹1,099' : '₹1,499';
+
   return (
     <div style={{
       position: 'fixed',
       top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(15, 23, 42, 0.6)',
-      backdropFilter: 'blur(4px)',
+      background: 'rgba(15, 23, 42, 0.65)',
+      backdropFilter: 'blur(5px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -50,6 +53,7 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded }) {
         position: 'relative',
         padding: '32px 28px',
       }}>
+        {/* Close Button */}
         <button
           type="button"
           onClick={onClose}
@@ -72,7 +76,8 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded }) {
           <X size={18} />
         </button>
 
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        {/* Top Header */}
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <div style={{
             width: '56px',
             height: '56px',
@@ -95,35 +100,81 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded }) {
             Unlock unlimited volume, AI smart replies, and maximum engagement.
           </p>
 
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '4px', margin: '18px 0 6px' }}>
-            <span style={{ fontSize: '38px', fontWeight: 800, color: 'var(--text-main)' }}>$29</span>
+          {/* Billing Cycle Switch */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: 'var(--bg-subtle)',
+            padding: '3px',
+            borderRadius: '10px',
+            marginTop: '16px',
+            border: '1px solid var(--border-subtle)',
+          }}>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('monthly')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '8px',
+                border: 'none',
+                background: billingCycle === 'monthly' ? 'var(--primary, #6366f1)' : 'transparent',
+                color: billingCycle === 'monthly' ? '#ffffff' : 'var(--text-muted)',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('yearly')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '8px',
+                border: 'none',
+                background: billingCycle === 'yearly' ? 'var(--primary, #6366f1)' : 'transparent',
+                color: billingCycle === 'yearly' ? '#ffffff' : 'var(--text-muted)',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Yearly (Save 25%)
+            </button>
+          </div>
+
+          {/* Price */}
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '4px', margin: '16px 0 4px' }}>
+            <span style={{ fontSize: '38px', fontWeight: 800, color: 'var(--text-main)' }}>{displayPrice}</span>
             <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>/ month</span>
           </div>
-          <span style={{ fontSize: '11.5px', color: '#059669', fontWeight: 700, background: '#ecfdf5', padding: '3px 10px', borderRadius: '99px' }}>
-            Save 20% with annual billing
-          </span>
+          {billingCycle === 'yearly' && (
+            <div style={{ fontSize: '11.5px', color: '#059669', fontWeight: 600 }}>
+              ₹13,188 billed annually + 2 months free
+            </div>
+          )}
         </div>
 
-        {/* Feature checklist */}
+        {/* Feature Highlights */}
         <div style={{
           background: 'var(--bg-subtle)',
-          borderRadius: '14px',
-          padding: '18px',
-          marginBottom: '24px',
+          borderRadius: '16px',
+          padding: '16px 20px',
+          marginBottom: '20px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px',
-          fontSize: '13px',
+          gap: '10px',
         }}>
           {[
             'Unlimited automated DMs & comment replies',
-            'Unlimited active automation rules',
-            'Smart AI reply generator powered by OpenAI GPT-4o',
-            'Fuzzy keyword & sentiment matching',
-            'Priority webhook dispatch queue',
-            'Detailed analytics & CSV lead export',
-          ].map((text, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            'Unlimited keyword automation rules',
+            'Dynamic {username} lead personalization',
+            'Priority Meta Graph API queue delivery',
+            '18% GST Tax Invoice for Indian businesses',
+            'UPI, Net Banking & RuPay/Cards accepted',
+          ].map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text-main)' }}>
               <div style={{
                 width: '18px',
                 height: '18px',
@@ -135,13 +186,29 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded }) {
                 justifyContent: 'center',
                 flexShrink: 0,
               }}>
-                <Check size={12} strokeWidth={3} />
+                <Check size={11} strokeWidth={3.5} />
               </div>
-              <span style={{ color: 'var(--text-main)' }}>{text}</span>
+              <span>{item}</span>
             </div>
           ))}
         </div>
 
+        {/* Payment Methods Banner */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          fontSize: '11.5px',
+          color: 'var(--text-muted)',
+          marginBottom: '20px',
+          flexWrap: 'wrap',
+        }}>
+          <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Pay securely via:</span>
+          <span>Google Pay</span> • <span>PhonePe</span> • <span>Paytm</span> • <span>UPI</span> • <span>Cards</span> • <span>NetBanking</span>
+        </div>
+
+        {/* CTA Button */}
         <button
           type="button"
           onClick={handleUpgrade}
@@ -150,17 +217,22 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded }) {
             width: '100%',
             padding: '14px',
             borderRadius: '12px',
-            background: 'linear-gradient(135deg, #6366f1, #7c3aed)',
-            color: '#fff',
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            color: '#ffffff',
             border: 'none',
             fontSize: '14.5px',
             fontWeight: 700,
             cursor: loading ? 'not-allowed' : 'pointer',
-            boxShadow: '0 6px 18px rgba(99, 102, 241, 0.4)',
+            boxShadow: '0 8px 24px rgba(99, 102, 241, 0.4)',
+            transition: 'all 0.15s ease',
           }}
         >
-          {loading ? 'Activating Pro Plan...' : 'Upgrade to Pro Now — $29/mo'}
+          {loading ? 'Activating Pro Plan...' : `Upgrade to Pro Now — ${displayPrice}/mo`}
         </button>
+
+        <p style={{ fontSize: '11.5px', color: 'var(--text-light)', textAlign: 'center', marginTop: '12px', margin: '12px 0 0' }}>
+          Instant activation. Cancel anytime in 1-click with no questions asked.
+        </p>
       </div>
     </div>
   );
