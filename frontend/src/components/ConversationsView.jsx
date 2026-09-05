@@ -5,7 +5,7 @@ import { apiFetch } from '../api/client';
 
 const AVATAR_COLORS = ['#a855f7', '#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#06b6d4', '#6366f1'];
 
-export default function ConversationsView({ conversations: initialConversations = [], onRefresh }) {
+export default function ConversationsView({ conversations: initialConversations = [], onRefresh, selectedAccountId }) {
   const [conversationsList, setConversationsList] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [replyInput, setReplyInput] = useState('');
@@ -58,38 +58,36 @@ export default function ConversationsView({ conversations: initialConversations 
 
   // Sync incoming props
   useEffect(() => {
-    if (initialConversations && initialConversations.length > 0) {
-      const normalized = initialConversations.map((c, i) => normalizeConvo(c, i));
-      setConversationsList(normalized);
-      setSelectedId((prev) => {
-        if (prev && normalized.some((item) => item.id === prev)) return prev;
-        return normalized[0]?.id;
-      });
-    }
+    const normalized = (initialConversations || []).map((c, i) => normalizeConvo(c, i));
+    setConversationsList(normalized);
+    setSelectedId((prev) => {
+      if (prev && normalized.some((item) => item.id === prev)) return prev;
+      return normalized[0]?.id || null;
+    });
   }, [initialConversations, normalizeConvo]);
 
   // Refresh conversations from API
   const refreshConversations = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const res = await apiFetch('/conversations');
+      const query = selectedAccountId ? `?account_id=${encodeURIComponent(selectedAccountId)}` : '';
+      const res = await apiFetch(`/conversations${query}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.conversations && data.conversations.length > 0) {
-          const normalized = data.conversations.map((c, i) => normalizeConvo(c, i));
-          setConversationsList(normalized);
-          setSelectedId((prev) => {
-            if (prev && normalized.some((item) => item.id === prev)) return prev;
-            return normalized[0]?.id;
-          });
-        }
+        const rawList = data.conversations || [];
+        const normalized = rawList.map((c, i) => normalizeConvo(c, i));
+        setConversationsList(normalized);
+        setSelectedId((prev) => {
+          if (prev && normalized.some((item) => item.id === prev)) return prev;
+          return normalized[0]?.id || null;
+        });
       }
     } catch (e) {
       console.error('Error refreshing conversations:', e);
     } finally {
       setIsRefreshing(false);
     }
-  }, [normalizeConvo]);
+  }, [normalizeConvo, selectedAccountId]);
 
   // Auto-refresh poll every 5 seconds to show incoming DMs live
   useEffect(() => {

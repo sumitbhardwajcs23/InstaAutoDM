@@ -30,6 +30,8 @@ export default function App() {
   const [rules, setRules] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [account, setAccount] = useState(null);
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [notification, setNotification] = useState(null);
 
   // Sync dark mode class
@@ -63,19 +65,27 @@ export default function App() {
   }, []);
 
   // Fetch all user data
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (targetAccId) => {
     if (!user) return;
+    const activeAccId = targetAccId !== undefined ? targetAccId : selectedAccountId;
+    const queryParam = activeAccId ? `?account_id=${activeAccId}` : '';
 
     try {
-      // 1. Fetch dashboard stats + account
-      const statsRes = await apiFetch('/dashboard/stats');
+      // 0. Fetch list of all accounts for this user
+      const accountsRes = await apiFetch('/instagram/accounts');
+      if (accountsRes.ok) {
+        const accsData = await accountsRes.json();
+        setAccounts(accsData.accounts || []);
+      }
+
+      // 1. Fetch dashboard stats + active account
+      const statsRes = await apiFetch(`/dashboard/stats${queryParam}`);
       if (statsRes.ok) {
         const d = await statsRes.json();
-        // Normalize backend field names → React prop names
         setStats({
           dmsSent: d.totalDmsSent ?? 0,
           dmsLimit: d.dmLimit ?? 1000,
-          dmRemaining: d.dmRemaining ?? 380,
+          dmRemaining: d.dmRemaining ?? Math.max(0, (d.dmLimit || 1000) - (d.totalDmsSent || 0)),
           commentsReplied: d.commentsReplied ?? 0,
           commentsRepliedChange: d.commentsRepliedChange ?? 0,
           activeRules: d.activeRules ?? 0,
@@ -84,21 +94,21 @@ export default function App() {
           accountHealthy: d.accountHealthy ?? false,
           recentConversations: d.recent_conversations || [],
         });
-        if (d.account) setAccount(d.account);
+        setAccount(d.account || null);
         if (d.user) {
           setUser(prev => ({ ...prev, name: d.user.name, plan: d.user.plan }));
         }
       }
 
       // 2. Fetch rules
-      const rulesRes = await apiFetch('/rules');
+      const rulesRes = await apiFetch(`/rules${queryParam}`);
       if (rulesRes.ok) {
         const rulesData = await rulesRes.json();
         setRules(rulesData.rules || []);
       }
 
       // 3. Fetch conversations
-      const convRes = await apiFetch('/conversations');
+      const convRes = await apiFetch(`/conversations${queryParam}`);
       if (convRes.ok) {
         const convData = await convRes.json();
         setConversations(convData.conversations || []);
@@ -106,11 +116,16 @@ export default function App() {
     } catch (e) {
       console.error('Error fetching dashboard data:', e);
     }
-  }, [user]);
+  }, [user, selectedAccountId]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleSelectAccount = (accId) => {
+    setSelectedAccountId(accId);
+    loadData(accId);
+  };
 
   // Handlers
   const handleLogout = () => {
@@ -170,7 +185,7 @@ export default function App() {
         onLogout={handleLogout}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
-        unreadCount={conversations.length || 12}
+        unreadCount={conversations.length}
       />
 
       {/* Main Content Pane */}
@@ -188,6 +203,10 @@ export default function App() {
         {/* Topbar */}
         <Topbar
           user={user}
+          account={account}
+          accounts={accounts}
+          onSelectAccount={handleSelectAccount}
+          onOpenConnect={() => setIsConnectIgOpen(true)}
           onOpenUpgrade={() => setIsUpgradeOpen(true)}
           onLogout={handleLogout}
           onSearch={(q) => console.log('Searching for:', q)}
@@ -237,11 +256,14 @@ export default function App() {
               rules={rules}
               conversations={conversations}
               account={account}
+              accounts={accounts}
+              onSelectAccount={handleSelectAccount}
               onNavigate={setActiveTab}
               onOpenCreateRule={() => setIsCreateRuleOpen(true)}
               onOpenUpgrade={() => setIsUpgradeOpen(true)}
               onOpenConnect={() => setIsConnectIgOpen(true)}
               onToggleRule={handleToggleRule}
+              onRefresh={loadData}
             />
           )}
 
@@ -255,7 +277,11 @@ export default function App() {
           )}
 
           {activeTab === 'conversations' && (
-            <ConversationsView conversations={conversations} onRefresh={loadData} />
+            <ConversationsView 
+              conversations={conversations} 
+              onRefresh={loadData} 
+              selectedAccountId={selectedAccountId || account?.id} 
+            />
           )}
 
           {activeTab === 'simulator' && (
@@ -288,6 +314,7 @@ export default function App() {
         isOpen={isCreateRuleOpen}
         onClose={() => setIsCreateRuleOpen(false)}
         onRuleCreated={handleRuleCreated}
+        accountId={selectedAccountId || account?.id}
       />
 
       <ConnectIgModal

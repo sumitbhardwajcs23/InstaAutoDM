@@ -5,14 +5,17 @@ const db = require('../db');
 
 const FREE_CAP = parseInt(process.env.FREE_PLAN_DM_LIMIT || '1000', 10);
 
-function getAccountForUser(userId) {
-  return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' LIMIT 1").get(userId);
+function getAccountForUser(userId, accountId) {
+  if (accountId) {
+    return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
+  }
+  return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
 }
 
 // GET /api/dashboard/stats
 router.get('/stats', (req, res) => {
   const userId = req.user.id;
-  const account = getAccountForUser(userId);
+  const account = getAccountForUser(userId, req.query.account_id);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
 
   if (!account || !user) {
@@ -63,7 +66,9 @@ router.get('/stats', (req, res) => {
       status: account.status,
       followersCount: account.followers_count,
       disclosure_message: account.disclosure_message,
-      token_expires_at: account.token_expires_at
+      token_expires_at: account.token_expires_at,
+      updated_at: account.updated_at,
+      connected_at: account.connected_at
     },
     user: { id: user.id, name: user.name, email: user.email, plan: user.plan },
     totalDmsSent,

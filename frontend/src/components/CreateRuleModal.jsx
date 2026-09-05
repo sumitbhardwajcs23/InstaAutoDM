@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { X, Zap, Send, MessageCircle, Info } from 'lucide-react';
 import { apiFetch } from '../api/client';
 
-export default function CreateRuleModal({ isOpen, onClose, onRuleCreated }) {
+export default function CreateRuleModal({ isOpen, onClose, onRuleCreated, accountId }) {
   const [name, setName] = useState('');
   const [triggerKeyword, setTriggerKeyword] = useState('');
   const [actionType, setActionType] = useState('dm');
@@ -23,6 +23,7 @@ export default function CreateRuleModal({ isOpen, onClose, onRuleCreated }) {
       const res = await apiFetch('/rules', {
         method: 'POST',
         body: JSON.stringify({
+          account_id: accountId,
           name: name.trim(),
           trigger_keyword: triggerKeyword.trim(),
           type: actionType === 'comment' ? 'comment_to_dm' : 'dm_keyword_reply',

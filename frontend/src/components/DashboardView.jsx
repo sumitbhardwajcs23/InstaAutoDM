@@ -1,5 +1,5 @@
 // frontend/src/components/DashboardView.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Instagram,
   Send,
@@ -17,21 +17,28 @@ import {
   Clock,
   Activity,
   Sparkles,
+  Users,
 } from 'lucide-react';
+import { apiFetch } from '../api/client';
 
 export default function DashboardView({
   stats,
   rules = [],
   conversations = [],
   account,
+  accounts = [],
   user,
   onNavigate,
   onOpenCreateRule,
   onOpenUpgrade,
   onOpenConnect,
   onToggleRule,
+  onSelectAccount,
+  onRefresh,
 }) {
   const [selectedPeriod, setSelectedPeriod] = useState('Last 30 days');
+  const [activity, setActivity] = useState(null);
+  const [loadingActivity, setLoadingActivity] = useState(false);
 
   // Real stats & account binding
   const isConnected = !!(account && (account.status === 'connected' || stats?.connected));
@@ -46,6 +53,99 @@ export default function DashboardView({
   const changePercent = stats?.commentsRepliedChange ?? 0;
   // Use real recent conversations from stats or props
   const recentConvos = stats?.recentConversations?.length > 0 ? stats.recentConversations : conversations.slice(0, 4);
+
+  // Fetch real activity analytics dynamically
+  useEffect(() => {
+    let isMounted = true;
+    const fetchActivity = async () => {
+      setLoadingActivity(true);
+      try {
+        const query = account?.id ? `?account_id=${encodeURIComponent(account.id)}&days=7` : '?days=7';
+        const res = await apiFetch(`/analytics/activity${query}`);
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          setActivity(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch activity analytics:', err);
+      } finally {
+        if (isMounted) setLoadingActivity(false);
+      }
+    };
+    fetchActivity();
+    return () => { isMounted = false; };
+  }, [account?.id]);
+
+  // Dynamic billing and reset dates
+  const now = new Date();
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const daysUntilReset = Math.max(1, Math.ceil((nextMonth.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  const resetDateStr = nextMonth.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const dateRangeLabel = `${startOfMonth} – ${endOfMonth}`;
+
+  // Dynamic token validity text
+  let tokenValidityText = 'Active (60d)';
+  if (account?.token_expires_at) {
+    const msLeft = new Date(account.token_expires_at).getTime() - Date.now();
+    const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+    tokenValidityText = daysLeft > 0 ? `${daysLeft} days left` : 'Expired';
+  }
+
+  // Dynamic last sync text
+  const lastSyncText = (() => {
+    const ts = account?.updated_at || account?.connected_at;
+    if (!ts) return 'Just now';
+    const diffMs = Date.now() - new Date(ts).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    const diffHrs = Math.floor(diffMins / 60);
+    if (diffHrs < 24) return `${diffHrs} hr${diffHrs > 1 ? 's' : ''} ago`;
+    return `${Math.floor(diffHrs / 24)} days ago`;
+  })();
+
+  // Real SVG chart calculations
+  const totalActivityCount = (activity?.totals?.dms_sent || 0) + (activity?.totals?.comments_replied || 0);
+  const chartPoints = useMemo(() => {
+    if (!activity || !activity.timeline || activity.timeline.length === 0 || totalActivityCount === 0) return null;
+    const maxVal = Math.max(...activity.dmsSent, ...activity.commentsReplied, 4);
+    const width = 540;
+    const height = 180;
+    const paddingX = 20;
+    const n = activity.timeline.length;
+    const step = (width - paddingX * 2) / Math.max(n - 1, 1);
+
+    const dmsCoords = activity.dmsSent.map((val, i) => ({
+      x: paddingX + i * step,
+      y: height - (val / maxVal) * (height - 30),
+      val
+    }));
+
+    const repliesCoords = activity.commentsReplied.map((val, i) => ({
+      x: paddingX + i * step,
+      y: height - (val / maxVal) * (height - 30),
+      val
+    }));
+
+    const buildPath = (coords) => coords.reduce((acc, pt, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`, '');
+    const buildAreaPath = (coords) => {
+      if (!coords.length) return '';
+      const line = buildPath(coords);
+      return `${line} L ${coords[coords.length - 1].x.toFixed(1)} ${height} L ${coords[0].x.toFixed(1)} ${height} Z`;
+    };
+
+    return {
+      dmsCoords,
+      repliesCoords,
+      dmsLine: buildPath(dmsCoords),
+      dmsArea: buildAreaPath(dmsCoords),
+      repliesLine: buildPath(repliesCoords),
+      repliesArea: buildAreaPath(repliesCoords),
+      labels: activity.labels,
+    };
+  }, [activity, totalActivityCount]);
 
   // SVG Donut calculation
   const radius = 28;
@@ -88,8 +188,7 @@ export default function DashboardView({
         {/* Action Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* Date Range Button */}
-          <button
-            type="button"
+          <div
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -101,13 +200,11 @@ export default function DashboardView({
               color: 'var(--text-main)',
               fontSize: '13px',
               fontWeight: 500,
-              cursor: 'pointer',
             }}
           >
             <Calendar size={15} color="var(--text-muted)" />
-            <span>Aug 1, 2026 – Aug 31, 2026</span>
-            <ChevronDown size={14} color="var(--text-light)" />
-          </button>
+            <span>{dateRangeLabel}</span>
+          </div>
 
           {/* Period Selector Dropdown */}
           <select
@@ -181,6 +278,11 @@ export default function DashboardView({
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               {isConnected ? accountType : 'Connect your Instagram account'}
             </div>
+            {accounts && accounts.length > 1 && (
+              <div style={{ fontSize: '11.5px', color: 'var(--primary)', marginTop: '4px', fontWeight: 600 }}>
+                {accounts.length} connected accounts
+              </div>
+            )}
           </div>
 
           <div style={{
@@ -274,7 +376,7 @@ export default function DashboardView({
               Monthly quota limit
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '8px' }}>
-              Resets in 12 days
+              Resets in {daysUntilReset} days
             </div>
           </div>
 
@@ -502,92 +604,118 @@ export default function DashboardView({
             </div>
           </div>
 
-          {/* Interactive Dual-line SVG Chart */}
+          {/* Dynamic Real-Data SVG Chart or Empty State */}
           <div style={{ width: '100%', height: '220px', position: 'relative' }}>
-            <svg
-              width="100%"
-              height="100%"
-              viewBox="0 0 540 200"
-              preserveAspectRatio="none"
-              style={{ overflow: 'visible' }}
-            >
-              <defs>
-                {/* Purple gradient */}
-                <linearGradient id="purpleGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
-                </linearGradient>
-                {/* Pink gradient */}
-                <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ec4899" stopOpacity="0.2" />
-                  <stop offset="100%" stopColor="#ec4899" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
+            {loadingActivity ? (
+              <div style={{
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--text-muted)',
+                fontSize: '13px',
+              }}>
+                Loading activity data...
+              </div>
+            ) : chartPoints ? (
+              <>
+                <svg
+                  width="100%"
+                  height="180"
+                  viewBox="0 0 540 180"
+                  preserveAspectRatio="none"
+                  style={{ overflow: 'visible' }}
+                >
+                  <defs>
+                    <linearGradient id="purpleGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
+                    </linearGradient>
+                    <linearGradient id="pinkGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ec4899" stopOpacity="0.2" />
+                      <stop offset="100%" stopColor="#ec4899" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
 
-              {/* Horizontal Gridlines */}
-              <line x1="0" y1="30" x2="540" y2="30" stroke="var(--border-light)" strokeDasharray="3 3" />
-              <line x1="0" y1="80" x2="540" y2="80" stroke="var(--border-light)" strokeDasharray="3 3" />
-              <line x1="0" y1="130" x2="540" y2="130" stroke="var(--border-light)" strokeDasharray="3 3" />
-              <line x1="0" y1="180" x2="540" y2="180" stroke="var(--border-light)" />
+                  {/* Horizontal Gridlines */}
+                  <line x1="0" y1="30" x2="540" y2="30" stroke="var(--border-light)" strokeDasharray="3 3" />
+                  <line x1="0" y1="80" x2="540" y2="80" stroke="var(--border-light)" strokeDasharray="3 3" />
+                  <line x1="0" y1="130" x2="540" y2="130" stroke="var(--border-light)" strokeDasharray="3 3" />
+                  <line x1="0" y1="180" x2="540" y2="180" stroke="var(--border-light)" />
 
-              {/* Area 1: Incoming DMs (Purple) */}
-              <path
-                d="M 10 160 Q 95 120, 180 70 T 360 40 T 530 65 L 530 180 L 10 180 Z"
-                fill="url(#purpleGrad)"
-              />
-              {/* Line 1 */}
-              <path
-                d="M 10 160 Q 95 120, 180 70 T 360 40 T 530 65"
-                fill="none"
-                stroke="#6366f1"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
+                  {/* Area 1: Incoming DMs (Purple) */}
+                  <path d={chartPoints.dmsArea} fill="url(#purpleGrad)" />
+                  <path d={chartPoints.dmsLine} fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" />
 
-              {/* Area 2: Auto Replies (Pink) */}
-              <path
-                d="M 10 170 Q 95 140, 180 110 T 360 85 T 530 95 L 530 180 L 10 180 Z"
-                fill="url(#pinkGrad)"
-              />
-              {/* Line 2 */}
-              <path
-                d="M 10 170 Q 95 140, 180 110 T 360 85 T 530 95"
-                fill="none"
-                stroke="#ec4899"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-              />
+                  {/* Area 2: Auto Replies (Pink) */}
+                  <path d={chartPoints.repliesArea} fill="url(#pinkGrad)" />
+                  <path d={chartPoints.repliesLine} fill="none" stroke="#ec4899" strokeWidth="2.5" strokeLinecap="round" />
 
-              {/* Data points */}
-              <circle cx="10" cy="160" r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="2" />
-              <circle cx="95" cy="120" r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="2" />
-              <circle cx="180" cy="70" r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="2" />
-              <circle cx="270" cy="55" r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="2" />
-              <circle cx="360" cy="40" r="4.5" fill="#6366f1" stroke="#fff" strokeWidth="2" />
-              <circle cx="450" cy="50" r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="2" />
-              <circle cx="530" cy="65" r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="2" />
+                  {/* Data points */}
+                  {chartPoints.dmsCoords.map((pt, i) => (
+                    <circle key={`dm-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="2" />
+                  ))}
+                  {chartPoints.repliesCoords.map((pt, i) => (
+                    <circle key={`rep-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#ec4899" stroke="#fff" strokeWidth="2" />
+                  ))}
+                </svg>
 
-              <circle cx="180" cy="110" r="3.5" fill="#ec4899" stroke="#fff" strokeWidth="2" />
-              <circle cx="360" cy="85" r="3.5" fill="#ec4899" stroke="#fff" strokeWidth="2" />
-              <circle cx="530" cy="95" r="3.5" fill="#ec4899" stroke="#fff" strokeWidth="2" />
-            </svg>
-
-            {/* X-Axis Date Labels */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              marginTop: '8px',
-              fontSize: '11px',
-              color: 'var(--text-light)',
-            }}>
-              <span>Aug 1</span>
-              <span>Aug 5</span>
-              <span>Aug 10</span>
-              <span>Aug 15</span>
-              <span>Aug 20</span>
-              <span>Aug 25</span>
-              <span>Aug 30</span>
-            </div>
+                {/* X-Axis Dynamic Date Labels */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginTop: '10px',
+                  fontSize: '11px',
+                  color: 'var(--text-light)',
+                }}>
+                  {chartPoints.labels.map((lbl, idx) => (
+                    <span key={idx}>{lbl}</span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--bg-subtle)',
+                borderRadius: '12px',
+                border: '1px dashed var(--border-subtle)',
+                padding: '20px',
+                textAlign: 'center',
+                boxSizing: 'border-box',
+              }}>
+                <Activity size={28} color="var(--text-light)" style={{ marginBottom: '8px', opacity: 0.5 }} />
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
+                  No Message Activity Recorded Yet
+                </div>
+                <p style={{ fontSize: '11.5px', color: 'var(--text-muted)', margin: '4px 0 10px 0', maxWidth: '340px' }}>
+                  Live incoming messages and automated replies for {accountHandle} will plot here in real time.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('simulator')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--primary-light)',
+                    color: 'var(--primary)',
+                    border: 'none',
+                    fontSize: '11.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Play size={12} />
+                  Test with Live Simulator
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -820,7 +948,7 @@ export default function DashboardView({
                   <Clock size={15} color="#10b981" />
                   <span style={{ fontSize: '12.5px', color: 'var(--text-main)' }}>Token Validity</span>
                 </div>
-                <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>58 days</span>
+                <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{tokenValidityText}</span>
               </div>
 
               {/* Item 3 */}
@@ -829,7 +957,9 @@ export default function DashboardView({
                   <Activity size={15} color="#10b981" />
                   <span style={{ fontSize: '12.5px', color: 'var(--text-main)' }}>Instagram API</span>
                 </div>
-                <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#059669' }}>Normal</span>
+                <span style={{ fontSize: '11.5px', fontWeight: 600, color: isConnected ? '#059669' : 'var(--text-muted)' }}>
+                  {isConnected ? 'Normal' : 'Disconnected'}
+                </span>
               </div>
 
               {/* Item 4 */}
@@ -846,7 +976,7 @@ export default function DashboardView({
                   padding: '2px 8px',
                   borderRadius: '6px',
                 }}>
-                  18% used
+                  {dmPercent}% used
                 </span>
               </div>
             </div>
@@ -862,8 +992,13 @@ export default function DashboardView({
             alignItems: 'center',
             justifyContent: 'space-between',
           }}>
-            <span>Last sync: 2 mins ago</span>
-            <span style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}>Refresh</span>
+            <span>Last sync: {lastSyncText}</span>
+            <span 
+              style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}
+              onClick={() => onRefresh && onRefresh()}
+            >
+              Refresh
+            </span>
           </div>
         </div>
       </div>
@@ -1110,7 +1245,7 @@ export default function DashboardView({
             </div>
 
             <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '6px' }}>
-              Resets on Sep 1, 2026
+              Resets on {resetDateStr}
             </div>
           </div>
 

@@ -72,14 +72,7 @@ class EventQueueWorker {
 
   findAccount(accountId) {
     if (!accountId) return null;
-    let account = db.prepare('SELECT * FROM instagram_accounts WHERE id = ? OR ig_user_id = ? OR page_id = ? OR fb_user_id = ?').get(accountId, accountId, accountId, accountId);
-    if (!account) {
-      account = db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND page_id != 'mock_page' ORDER BY updated_at DESC LIMIT 1").get();
-      if (!account) {
-        account = db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' LIMIT 1").get();
-      }
-    }
-    return account;
+    return db.prepare('SELECT * FROM instagram_accounts WHERE id = ? OR ig_user_id = ? OR page_id = ? OR fb_user_id = ?').get(accountId, accountId, accountId, accountId);
   }
 
   async processComment(accountId, data) {

@@ -3,14 +3,17 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-function getAccountForUser(userId) {
-  return db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' LIMIT 1").get(userId);
+function getAccountForUser(userId, accountId) {
+  if (accountId) {
+    return db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
+  }
+  return db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
 }
 
 // GET /api/conversations
 router.get('/', (req, res) => {
-  const { limit = 20, offset = 0, status } = req.query;
-  const account = getAccountForUser(req.user.id);
+  const { limit = 20, offset = 0, status, account_id } = req.query;
+  const account = getAccountForUser(req.user.id, account_id);
   if (!account) return res.json({ total: 0, conversations: [] });
 
   let where = 'WHERE c.instagram_account_id = ?';
@@ -84,10 +87,12 @@ router.get('/', (req, res) => {
 
 // GET /api/conversations/:id — verify ownership
 router.get('/:id', (req, res) => {
-  const account = getAccountForUser(req.user.id);
-  if (!account) return res.status(403).json({ error: 'No account' });
-
-  const conversation = db.prepare('SELECT * FROM conversations WHERE id = ? AND instagram_account_id = ?').get(req.params.id, account.id);
+  const conversation = db.prepare(`
+    SELECT c.* 
+    FROM conversations c
+    JOIN instagram_accounts a ON c.instagram_account_id = a.id
+    WHERE c.id = ? AND a.user_id = ?
+  `).get(req.params.id, req.user.id);
   if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
 
   const rawMessages = db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').all(req.params.id);
@@ -108,9 +113,12 @@ router.get('/:id', (req, res) => {
 
 // POST /api/conversations/:id/reply — manual outbound reply
 router.post('/:id/reply', async (req, res) => {
-  const account = getAccountForUser(req.user.id);
-  if (!account) return res.status(403).json({ error: 'No account' });
-  const conversation = db.prepare('SELECT * FROM conversations WHERE id = ? AND instagram_account_id = ?').get(req.params.id, account.id);
+  const conversation = db.prepare(`
+    SELECT c.*, a.id as ig_acc_id, a.page_id, a.access_token_enc
+    FROM conversations c
+    JOIN instagram_accounts a ON c.instagram_account_id = a.id
+    WHERE c.id = ? AND a.user_id = ?
+  `).get(req.params.id, req.user.id);
   if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
 
   const { text } = req.body;
@@ -120,17 +128,16 @@ router.post('/:id/reply', async (req, res) => {
   const metaClient = require('../services/metaClient');
   const { decrypt } = require('../services/crypto');
 
-  const igAccount = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(account.id);
   let status = 'sent';
   let metaMessageId = null;
   let errorMsg = null;
 
   try {
     const resp = await metaClient.sendDirectMessage({
-      pageId: igAccount.page_id,
+      pageId: conversation.page_id,
       igScopedUserId: conversation.ig_scoped_user_id,
       messageText: text,
-      accessToken: decrypt(igAccount.access_token_enc)
+      accessToken: decrypt(conversation.access_token_enc)
     });
     metaMessageId = resp?.message_id || null;
   } catch (err) {
@@ -152,9 +159,12 @@ router.post('/:id/reply', async (req, res) => {
 
 // PATCH /api/conversations/:id
 router.patch('/:id', (req, res) => {
-  const account = getAccountForUser(req.user.id);
-  if (!account) return res.status(403).json({ error: 'No account' });
-  const existing = db.prepare('SELECT id FROM conversations WHERE id = ? AND instagram_account_id = ?').get(req.params.id, account.id);
+  const existing = db.prepare(`
+    SELECT c.id 
+    FROM conversations c
+    JOIN instagram_accounts a ON c.instagram_account_id = a.id
+    WHERE c.id = ? AND a.user_id = ?
+  `).get(req.params.id, req.user.id);
   if (!existing) return res.status(404).json({ error: 'Conversation not found' });
 
   const { status } = req.body;
@@ -164,9 +174,12 @@ router.patch('/:id', (req, res) => {
 
 // GET /api/conversations/:id/messages
 router.get('/:id/messages', (req, res) => {
-  const account = getAccountForUser(req.user.id);
-  if (!account) return res.status(403).json({ error: 'No account' });
-  const conv = db.prepare('SELECT id FROM conversations WHERE id = ? AND instagram_account_id = ?').get(req.params.id, account.id);
+  const conv = db.prepare(`
+    SELECT c.id 
+    FROM conversations c
+    JOIN instagram_accounts a ON c.instagram_account_id = a.id
+    WHERE c.id = ? AND a.user_id = ?
+  `).get(req.params.id, req.user.id);
   if (!conv) return res.status(404).json({ error: 'Not found' });
 
   const messages = db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT 100').all(req.params.id)

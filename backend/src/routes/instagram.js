@@ -8,13 +8,24 @@ const { encrypt, decrypt } = require('../services/crypto');
 
 // GET /api/instagram/account — scoped to logged-in user
 router.get('/account', (req, res) => {
-  const account = db.prepare(`
-    SELECT id, user_id, ig_user_id, username, account_type, page_id, fb_page_name, fb_user_id,
-           token_expires_at, status, disclosure_message, followers_count, created_at, updated_at
-    FROM instagram_accounts
-    WHERE user_id = ?
-    ORDER BY created_at DESC LIMIT 1
-  `).get(req.user.id);
+  const accountId = req.query.account_id;
+  let account;
+  if (accountId) {
+    account = db.prepare(`
+      SELECT id, user_id, ig_user_id, username, account_type, page_id, fb_page_name, fb_user_id,
+             token_expires_at, status, disclosure_message, followers_count, created_at, updated_at
+      FROM instagram_accounts
+      WHERE user_id = ? AND id = ?
+    `).get(req.user.id, accountId);
+  } else {
+    account = db.prepare(`
+      SELECT id, user_id, ig_user_id, username, account_type, page_id, fb_page_name, fb_user_id,
+             token_expires_at, status, disclosure_message, followers_count, created_at, updated_at
+      FROM instagram_accounts
+      WHERE user_id = ? AND status = 'connected'
+      ORDER BY updated_at DESC LIMIT 1
+    `).get(req.user.id);
+  }
 
   if (!account) return res.json({ connected: false, account: null });
   res.json({
@@ -27,6 +38,25 @@ router.get('/account', (req, res) => {
   });
 });
 
+// GET /api/instagram/accounts — list all connected accounts for logged-in user
+router.get('/accounts', (req, res) => {
+  const accounts = db.prepare(`
+    SELECT id, user_id, ig_user_id, username, account_type, page_id, fb_page_name, fb_user_id,
+           token_expires_at, status, disclosure_message, followers_count, created_at, updated_at
+    FROM instagram_accounts
+    WHERE user_id = ?
+    ORDER BY updated_at DESC
+  `).all(req.user.id);
+  res.json({ accounts: accounts || [] });
+});
+
+// DELETE /api/instagram/accounts/:id — disconnect/remove a specific account
+router.delete('/accounts/:id', (req, res) => {
+  const target = db.prepare('SELECT id FROM instagram_accounts WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!target) return res.status(404).json({ error: 'Account not found' });
+  db.prepare('DELETE FROM instagram_accounts WHERE id = ?').run(target.id);
+  res.json({ success: true, deletedId: target.id });
+});
 
 // POST /api/instagram/connect-token — direct real Meta Graph API token resolution
 router.post('/connect-token', async (req, res) => {
@@ -39,7 +69,8 @@ router.post('/connect-token', async (req, res) => {
     const encLongToken = encrypt(tokenInfo.long_lived_token || tokenInfo.access_token);
     const expiresAt = new Date(Date.now() + (tokenInfo.expires_in || 5184000) * 1000).toISOString();
 
-    const existing = db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ? OR ig_user_id = ?').get(req.user.id, tokenInfo.ig_user_id);
+    const existing = db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(tokenInfo.ig_user_id);
+    const accountId = existing ? existing.id : uuidv4();
     if (existing) {
       db.prepare(`
         UPDATE instagram_accounts SET
@@ -60,13 +91,13 @@ router.post('/connect-token', async (req, res) => {
           token_expires_at, status, disclosure_message, followers_count, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'connected', '⚡ [Automated DM] ', ?, datetime('now'), datetime('now'))
       `).run(
-        uuidv4(), req.user.id, tokenInfo.ig_user_id, tokenInfo.username, tokenInfo.page_id, tokenInfo.page_name, tokenInfo.fb_user_id,
+        accountId, req.user.id, tokenInfo.ig_user_id, tokenInfo.username, tokenInfo.page_id, tokenInfo.page_name, tokenInfo.fb_user_id,
         encPageToken, encPageToken, encLongToken,
         expiresAt, tokenInfo.followers_count || 0
       );
     }
 
-    const updated = db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ?').get(req.user.id);
+    const updated = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
     res.json({ success: true, account: updated });
   } catch (err) {
     res.status(400).json({ error: err.message || 'Failed to connect Instagram account' });
@@ -187,7 +218,8 @@ router.get('/oauth/callback', async (req, res) => {
     const encLongToken = encrypt(tokenInfo.long_lived_token || tokenInfo.access_token);
     const expiresAt = new Date(Date.now() + (tokenInfo.expires_in || 5184000) * 1000).toISOString();
 
-    const existing = db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ? OR ig_user_id = ?').get(user.id, tokenInfo.ig_user_id);
+    const existing = db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(tokenInfo.ig_user_id);
+    const accountId = existing ? existing.id : uuidv4();
     if (existing) {
       db.prepare(`
         UPDATE instagram_accounts SET
@@ -208,13 +240,13 @@ router.get('/oauth/callback', async (req, res) => {
           token_expires_at, status, disclosure_message, followers_count, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'connected', '⚡ [Automated DM] ', ?, datetime('now'), datetime('now'))
       `).run(
-        uuidv4(), user.id, tokenInfo.ig_user_id, tokenInfo.username, tokenInfo.page_id, tokenInfo.page_name, tokenInfo.fb_user_id,
+        accountId, user.id, tokenInfo.ig_user_id, tokenInfo.username, tokenInfo.page_id, tokenInfo.page_name, tokenInfo.fb_user_id,
         encPageToken, encPageToken, encLongToken,
         expiresAt, tokenInfo.followers_count || 0
       );
     }
 
-    const savedAcc = db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ?').get(user.id);
+    const savedAcc = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
 
     return res.send(`
       <!DOCTYPE html>

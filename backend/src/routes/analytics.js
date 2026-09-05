@@ -5,9 +5,12 @@ const db = require('../db');
 
 // GET /api/analytics/activity?days=30
 router.get('/activity', (req, res) => {
-  const days = Math.min(90, parseInt(req.query.days || '30', 10));
-  const account = db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' LIMIT 1").get(req.user.id);
-  if (!account) return res.json({ labels: [], dmsSent: [], commentsReplied: [] });
+  const days = Math.min(Math.max(parseInt(req.query.days) || 7, 1), 90);
+  const accountId = req.query.account_id;
+  const account = accountId 
+    ? db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(req.user.id, accountId)
+    : db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(req.user.id);
+  if (!account) return res.json({ days, labels: [], dmsSent: [], commentsReplied: [], timeline: [], totals: { dms_sent: 0, comments_replied: 0 } });
 
   const dates = [];
   for (let i = days - 1; i >= 0; i--) {

@@ -1,9 +1,19 @@
 // frontend/src/components/Topbar.jsx
 import React, { useState } from 'react';
-import { Search, Bell, Crown, ChevronDown, User, LogOut, Settings as SettingsIcon } from 'lucide-react';
+import { Search, Bell, Crown, ChevronDown, User, LogOut, Settings as SettingsIcon, Instagram, Plus } from 'lucide-react';
 
-export default function Topbar({ user, onOpenUpgrade, onLogout, onSearch }) {
+export default function Topbar({
+  user,
+  account,
+  accounts = [],
+  onSelectAccount,
+  onOpenConnect,
+  onOpenUpgrade,
+  onLogout,
+  onSearch,
+}) {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [searchValue, setSearchValue] = useState('');
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
@@ -84,7 +94,117 @@ export default function Topbar({ user, onOpenUpgrade, onLogout, onSearch }) {
       </div>
 
       {/* Right Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        {/* Account Selector / Switcher */}
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => setShowAccountMenu(!showAccountMenu)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '7px 12px',
+              borderRadius: '10px',
+              border: '1px solid var(--border-light)',
+              background: 'var(--bg-subtle)',
+              color: 'var(--text-main)',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <Instagram size={15} color="#e1306c" />
+            <span>{account?.username ? `@${account.username}` : 'Connect Account'}</span>
+            <ChevronDown size={13} color="var(--text-light)" />
+          </button>
+
+          {showAccountMenu && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 6px)',
+              right: 0,
+              width: '230px',
+              background: 'var(--bg-card)',
+              borderRadius: '12px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
+              border: '1px solid var(--border-light)',
+              padding: '6px',
+              zIndex: 100,
+            }}>
+              <div style={{ padding: '6px 10px', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', letterSpacing: '0.05em' }}>
+                INSTAGRAM ACCOUNTS
+              </div>
+              {accounts && accounts.length > 0 ? (
+                accounts.map(acc => {
+                  const isSelected = account?.id === acc.id;
+                  return (
+                    <button
+                      key={acc.id}
+                      type="button"
+                      onClick={() => {
+                        if (onSelectAccount) onSelectAccount(acc.id);
+                        setShowAccountMenu(false);
+                      }}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 10px',
+                        border: 'none',
+                        background: isSelected ? 'var(--bg-subtle)' : 'transparent',
+                        color: 'var(--text-main)',
+                        fontSize: '12.5px',
+                        fontWeight: isSelected ? 700 : 500,
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Instagram size={14} color={isSelected ? '#e1306c' : 'var(--text-muted)'} />
+                        @{acc.username}
+                      </span>
+                      {isSelected && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />}
+                    </button>
+                  );
+                })
+              ) : (
+                <div style={{ padding: '8px 10px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  No connected accounts
+                </div>
+              )}
+
+              <div style={{ height: '1px', background: 'var(--border-light)', margin: '6px 0' }} />
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAccountMenu(false);
+                  if (onOpenConnect) onOpenConnect();
+                }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 10px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--primary)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <Plus size={14} /> Connect Another Account
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Notification Bell */}
         <button
           type="button"
