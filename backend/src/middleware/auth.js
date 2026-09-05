@@ -3,11 +3,13 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'instautodm_jwt_secret_change_in_production_2026';
 
 const PUBLIC_PATHS = [
+  '/instagram/oauth/start',
   '/instagram/oauth/callback',
   '/instagram/deauthorize',
   '/instagram/data-deletion',
   '/instagram/lookup-profile',
-  '/instagram/connect-username'
+  '/instagram/connect-username',
+  '/instagram/connect-mock',
 ];
 
 function requireAuth(req, res, next) {

@@ -62,9 +62,11 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
   // Opens instagram.com login page (Instagram Business Login — native IG experience)
   const handleInstagramOAuth = () => {
     // Route through backend /oauth/start which uses the Instagram App ID & correct scopes
+    // Pass the JWT token as query param so the backend can identify the current user
     const origin = window.location.origin;
+    const token = getToken() || '';
     const BACKEND = 'https://instaautodm-kh61.onrender.com';
-    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}`;
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
     openOAuthPopup(startUrl);
   };
 
