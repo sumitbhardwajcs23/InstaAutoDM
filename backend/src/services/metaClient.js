@@ -195,7 +195,7 @@ class MetaClient {
     const fbUserId = meData?.id || null;
 
     // Step 4: Auto-detect Facebook Pages & connected Instagram Business Accounts
-    const accsRes = await fetch(`${GRAPH_API_BASE}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,followers_count}&access_token=${encodeURIComponent(longLivedUserToken)}`);
+    const accsRes = await fetch(`${GRAPH_API_BASE}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count}&access_token=${encodeURIComponent(longLivedUserToken)}`);
     const accsData = await accsRes.json();
     if (!accsRes.ok) throw new Error(accsData?.error?.message || 'Failed to retrieve Facebook pages');
 
@@ -220,6 +220,9 @@ class MetaClient {
       long_lived_token: longLivedUserToken,
       page_id: page.id,
       page_name: page.name,
+      full_name: page.instagram_business_account.name || page.name,
+      profile_picture_url: page.instagram_business_account.profile_picture_url || null,
+      account_type: 'Business Account',
       fb_user_id: fbUserId,
       ig_user_id: page.instagram_business_account.id,
       username: page.instagram_business_account.username,
@@ -273,7 +276,7 @@ class MetaClient {
     const fbUserId = meData?.id || null;
 
     // Step 3: Query /me/accounts for Pages and linked Instagram Business Account
-    const accsRes = await fetch(`${GRAPH_API_BASE}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,followers_count}&access_token=${encodeURIComponent(longLivedToken)}`);
+    const accsRes = await fetch(`${GRAPH_API_BASE}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count}&access_token=${encodeURIComponent(longLivedToken)}`);
     const accsData = await accsRes.json();
     if (!accsRes.ok) {
       throw new Error(accsData?.error?.message || 'Failed to retrieve Facebook pages from Meta API');
@@ -300,6 +303,9 @@ class MetaClient {
       long_lived_token: longLivedToken,
       page_id: page.id,
       page_name: page.name,
+      full_name: page.instagram_business_account.name || page.name,
+      profile_picture_url: page.instagram_business_account.profile_picture_url || null,
+      account_type: 'Business Account',
       fb_user_id: fbUserId,
       ig_user_id: page.instagram_business_account.id,
       username: page.instagram_business_account.username,
@@ -332,7 +338,7 @@ class MetaClient {
     // Step 2: Get Instagram user profile
     let meData = null;
     try {
-      const meRes = await fetch(`${GRAPH_IG_BASE}/me?fields=id,username,name,followers_count,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}`);
+      const meRes = await fetch(`${GRAPH_IG_BASE}/me?fields=id,username,name,account_type,followers_count,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}`);
       if (meRes.ok) {
         meData = await meRes.json();
       }
@@ -369,6 +375,9 @@ class MetaClient {
       long_lived_token: longLivedToken,
       page_id: meData.id,                 // Instagram Business Account ID used as page_id
       page_name: meData.name || meData.username,
+      full_name: meData.name || meData.username,
+      profile_picture_url: meData.profile_picture_url || null,
+      account_type: meData.account_type || 'Creator Account',
       fb_user_id: null,
       ig_user_id: meData.id,
       username: meData.username,

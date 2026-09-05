@@ -114,7 +114,15 @@ export default function Topbar({
               cursor: 'pointer',
             }}
           >
-            <Instagram size={15} color="#e1306c" />
+            {account?.profile_picture_url ? (
+              <img
+                src={account.profile_picture_url}
+                alt={account.username || 'Account'}
+                style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              <Instagram size={15} color="#e1306c" />
+            )}
             <span>{account?.username ? `@${account.username}` : 'Connect Account'}</span>
             <ChevronDown size={13} color="var(--text-light)" />
           </button>
@@ -163,7 +171,15 @@ export default function Topbar({
                       }}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Instagram size={14} color={isSelected ? '#e1306c' : 'var(--text-muted)'} />
+                        {acc.profile_picture_url ? (
+                          <img
+                            src={acc.profile_picture_url}
+                            alt={acc.username}
+                            style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <Instagram size={14} color={isSelected ? '#e1306c' : 'var(--text-muted)'} />
+                        )}
                         @{acc.username}
                       </span>
                       {isSelected && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />}

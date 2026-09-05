@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS instagram_accounts (
   status TEXT DEFAULT 'connected',
   disclosure_message TEXT DEFAULT '⚡ [Automated Response] ',
   followers_count INTEGER DEFAULT 0,
+  full_name TEXT,
+  profile_picture_url TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

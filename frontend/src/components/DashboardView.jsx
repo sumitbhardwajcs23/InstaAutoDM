@@ -259,24 +259,29 @@ export default function DashboardView({
                 CONNECTED ACCOUNT
               </span>
               <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
                 background: isConnected ? 'linear-gradient(135deg, #f09433, #dc2743)' : 'var(--bg-subtle)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: isConnected ? '#fff' : 'var(--text-muted)',
+                overflow: 'hidden',
               }}>
-                <Instagram size={17} />
+                {account?.profile_picture_url ? (
+                  <img src={account.profile_picture_url} alt={account.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <Instagram size={18} />
+                )}
               </div>
             </div>
 
             <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '2px' }}>
-              {isConnected ? accountHandle : 'No Account'}
+              {isConnected ? (account?.full_name ? account.full_name : accountHandle) : 'No Account'}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              {isConnected ? accountType : 'Connect your Instagram account'}
+              {isConnected ? `${accountHandle} • ${accountType}` : 'Connect your Instagram account'}
             </div>
             {accounts && accounts.length > 1 && (
               <div style={{ fontSize: '11.5px', color: 'var(--primary)', marginTop: '4px', fontWeight: 600 }}>
