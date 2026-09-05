@@ -24,6 +24,7 @@ export default function DashboardView({
   rules = [],
   conversations = [],
   account,
+  user,
   onNavigate,
   onOpenCreateRule,
   onOpenUpgrade,
@@ -32,16 +33,17 @@ export default function DashboardView({
 }) {
   const [selectedPeriod, setSelectedPeriod] = useState('Last 30 days');
 
-  // Stats fallbacks matching the exact reference mockup
-  const accountHandle = account?.username ? `@${account.username}` : '@luna.creates';
-  const accountType = account?.accountType || account?.account_type || 'Business Account';
-  const dmsSent = stats?.dmsSent ?? 620;
+  // Real stats & account binding
+  const isConnected = !!(account && (account.status === 'connected' || stats?.connected));
+  const accountHandle = account?.username ? `@${account.username}` : (isConnected ? '@connected' : 'Not Connected');
+  const accountType = account?.accountType || account?.account_type || (isConnected ? 'Business Account' : 'None');
+  const dmsSent = stats?.dmsSent ?? 0;
   const dmsLimit = stats?.dmsLimit ?? 1000;
-  const dmPercent = stats?.usagePercent ?? Math.min(100, Math.round((dmsSent / dmsLimit) * 100));
-  const commentsReplied = stats?.commentsReplied ?? 48;
+  const dmPercent = dmsLimit > 0 ? Math.min(100, Math.round((dmsSent / dmsLimit) * 100)) : 0;
+  const commentsReplied = stats?.commentsReplied ?? 0;
   const activeRulesCount = stats?.activeRules ?? rules.filter(r => r.is_active).length;
   const totalRulesCount = stats?.totalRules ?? rules.length;
-  const changePercent = stats?.commentsRepliedChange ?? 12;
+  const changePercent = stats?.commentsRepliedChange ?? 0;
   // Use real recent conversations from stats or props
   const recentConvos = stats?.recentConversations?.length > 0 ? stats.recentConversations : conversations.slice(0, 4);
 
@@ -49,6 +51,8 @@ export default function DashboardView({
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (dmPercent / 100) * circumference;
+
+  const userName = user?.name || user?.email?.split('@')[0] || 'there';
 
   return (
     <div className="dashboard-content" style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
@@ -77,7 +81,7 @@ export default function DashboardView({
             marginTop: '4px',
             margin: 0,
           }}>
-            Welcome back, Devid! Here's what's happening with your Instagram automation.
+            Welcome back, {userName}! Here's what's happening with your Instagram automation.
           </p>
         </div>
 
@@ -161,21 +165,21 @@ export default function DashboardView({
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
-                background: 'linear-gradient(135deg, #f09433, #dc2743)',
+                background: isConnected ? 'linear-gradient(135deg, #f09433, #dc2743)' : 'var(--bg-subtle)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
+                color: isConnected ? '#fff' : 'var(--text-muted)',
               }}>
                 <Instagram size={17} />
               </div>
             </div>
 
             <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '2px' }}>
-              {accountHandle}
+              {isConnected ? accountHandle : 'No Account'}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              {accountType}
+              {isConnected ? accountType : 'Connect your Instagram account'}
             </div>
           </div>
 
@@ -187,20 +191,37 @@ export default function DashboardView({
             paddingTop: '12px',
             borderTop: '1px solid var(--border-light)',
           }}>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 10px',
-              borderRadius: '99px',
-              background: '#ecfdf5',
-              color: '#059669',
-              fontSize: '11.5px',
-              fontWeight: 600,
-            }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-              Connected
-            </span>
+            {isConnected ? (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '99px',
+                background: '#ecfdf5',
+                color: '#059669',
+                fontSize: '11.5px',
+                fontWeight: 600,
+              }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
+                Connected
+              </span>
+            ) : (
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '99px',
+                background: '#fef2f2',
+                color: '#ef4444',
+                fontSize: '11.5px',
+                fontWeight: 600,
+              }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
+                Disconnected
+              </span>
+            )}
 
             <button
               type="button"
@@ -217,7 +238,11 @@ export default function DashboardView({
                 gap: '4px',
               }}
             >
-              View Account <ExternalLink size={12} />
+              {isConnected ? (
+                <>View Account <ExternalLink size={12} /></>
+              ) : (
+                <>Connect Account ↗</>
+              )}
             </button>
           </div>
         </div>
@@ -351,7 +376,7 @@ export default function DashboardView({
               fontWeight: 700,
             }}>
               <TrendingUp size={12} />
-              +12%
+              {changePercent >= 0 ? `+${changePercent}%` : `${changePercent}%`}
             </span>
             <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginLeft: '6px' }}>
               from last month
@@ -892,33 +917,44 @@ export default function DashboardView({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {(recentConvos.length > 0 ? recentConvos : [
-              { username: '@sophia.designs', avatarBg: '#a855f7', lastMessage: 'Hey! Can I get the link for the...', time: '2m ago', status: 'Replied' },
-              { username: '@alex_runner', avatarBg: '#3b82f6', lastMessage: 'How much does this cost?', time: '14m ago', status: 'Replied' },
-              { username: '@emma_style', avatarBg: '#ec4899', lastMessage: 'Love this reel so much!', time: '1h ago', status: 'Replied' },
-              { username: '@tech_guru', avatarBg: '#10b981', lastMessage: 'Check your DM bro', time: '3h ago', status: 'Skipped' },
-            ]).slice(0, 4).map((convo, i) => {
-              const name = convo.username || convo.sender || 'Unknown';
-              const initial = name.replace('@', '').charAt(0).toUpperCase();
-              const colors = ['#a855f7', '#3b82f6', '#ec4899', '#10b981'];
-              const bg = convo.avatarBg || colors[i % colors.length];
-              const snippet = convo.lastMessage || convo.last_message || 'New message';
-              const time = convo.time || (convo.updated_at ? new Date(convo.updated_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'Recently');
-              const status = convo.status || 'Open';
-              return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', borderRadius: '10px', background: 'var(--bg-subtle)', cursor: 'pointer' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: bg, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>{initial}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>{name}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>{time}</span>
+            {recentConvos.length === 0 ? (
+              <div style={{
+                padding: '28px 16px',
+                textAlign: 'center',
+                borderRadius: '12px',
+                background: 'var(--bg-subtle)',
+                color: 'var(--text-muted)',
+                fontSize: '13px',
+              }}>
+                <p style={{ margin: 0, fontWeight: 500 }}>No conversations yet</p>
+                <span style={{ fontSize: '11.5px', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>
+                  When followers send a DM, they will appear here live.
+                </span>
+              </div>
+            ) : (
+              recentConvos.slice(0, 4).map((convo, i) => {
+                const name = convo.username || convo.sender || convo.contact_name || 'Lead';
+                const initial = name.replace('@', '').charAt(0).toUpperCase() || 'L';
+                const colors = ['#a855f7', '#3b82f6', '#ec4899', '#10b981'];
+                const bg = convo.avatarBg || colors[i % colors.length];
+                const snippet = convo.lastMessage || convo.last_message || convo.message || 'New message';
+                const time = convo.time || (convo.updated_at ? new Date(convo.updated_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'Recently');
+                const status = convo.status || 'Open';
+                return (
+                  <div key={convo.id || i} onClick={() => onNavigate && onNavigate('conversations')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', borderRadius: '10px', background: 'var(--bg-subtle)', cursor: 'pointer' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: bg, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>{initial}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>{name}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>{time}</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>{snippet}</div>
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>{snippet}</div>
+                    <span style={{ padding: '3px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 600, background: status === 'Replied' || status === 'sent' ? '#ecfdf5' : '#f1f5f9', color: status === 'Replied' || status === 'sent' ? '#059669' : '#64748b' }}>{status === 'sent' ? 'Replied' : status}</span>
                   </div>
-                  <span style={{ padding: '3px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 600, background: status === 'Replied' || status === 'sent' ? '#ecfdf5' : '#f1f5f9', color: status === 'Replied' || status === 'sent' ? '#059669' : '#64748b' }}>{status === 'sent' ? 'Replied' : status}</span>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -965,40 +1001,65 @@ export default function DashboardView({
 
           {/* Rules Table / Cards — real data from backend */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {(rules.length > 0 ? rules : [
-              { id: '1', type: 'dm_keyword_reply', trigger_keyword: 'PRICE', reply_message: 'Thanks! DM us for pricing details.', is_active: true },
-              { id: '2', type: 'comment_to_dm', trigger_keyword: 'LINK', reply_message: 'Check your DM! 🚀', is_active: true },
-              { id: '3', type: 'dm_keyword_reply', trigger_keyword: 'GUIDE', reply_message: 'Here is your free blueprint!', is_active: false },
-            ]).slice(0, 4).map((rule) => {
-              const isDM = rule.type === 'dm_keyword_reply' || rule.action_type === 'dm';
-              const label = isDM ? 'DM' : 'Comment';
-              const trigger = rule.trigger_keyword || rule.trigger || '';
-              const isActive = rule.is_active === true || rule.is_active === 1;
-              return (
-                <div key={rule.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-light)', background: 'var(--bg-card)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: isDM ? '#eff6ff' : '#fdf2f8', color: isDM ? '#3b82f6' : '#ec4899', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {isDM ? <Send size={15} /> : <MessageCircle size={15} />}
+            {rules.length === 0 ? (
+              <div style={{
+                padding: '28px 16px',
+                textAlign: 'center',
+                borderRadius: '12px',
+                border: '1px dashed var(--border-light)',
+                background: 'var(--bg-subtle)',
+                color: 'var(--text-muted)',
+                fontSize: '13px',
+              }}>
+                <p style={{ margin: '0 0 10px 0', fontWeight: 500 }}>No rules configured yet</p>
+                <button
+                  type="button"
+                  onClick={onOpenCreateRule}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    background: 'var(--primary)',
+                    color: '#fff',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  + Add Your First Rule
+                </button>
+              </div>
+            ) : (
+              rules.slice(0, 4).map((rule) => {
+                const isDM = rule.type === 'dm_keyword_reply' || rule.action_type === 'dm';
+                const label = isDM ? 'DM' : 'Comment';
+                const trigger = rule.trigger_keyword || rule.trigger || '';
+                const isActive = rule.is_active === true || rule.is_active === 1;
+                return (
+                  <div key={rule.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-light)', background: 'var(--bg-card)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: isDM ? '#eff6ff' : '#fdf2f8', color: isDM ? '#3b82f6' : '#ec4899', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {isDM ? <Send size={15} /> : <MessageCircle size={15} />}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>{rule.name || `${trigger} Rule`}</div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>Keyword: {trigger}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>{rule.name || `${trigger} Rule`}</div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>Keyword: {trigger}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '6px', background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>{label}</span>
+                      {/* Toggle Switch */}
+                      <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '20px', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={isActive} onChange={() => onToggleRule && onToggleRule(rule.id, !isActive)} style={{ opacity: 0, width: 0, height: 0 }} />
+                        <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isActive ? 'var(--primary)' : '#cbd5e1', borderRadius: '20px', transition: '0.2s' }}>
+                          <span style={{ position: 'absolute', height: '14px', width: '14px', left: isActive ? '20px' : '3px', bottom: '3px', backgroundColor: 'white', borderRadius: '50%', transition: '0.2s' }} />
+                        </span>
+                      </label>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '6px', background: 'var(--bg-subtle)', color: 'var(--text-muted)' }}>{label}</span>
-                    {/* Toggle Switch */}
-                    <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '20px', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={isActive} onChange={() => onToggleRule && onToggleRule(rule.id, !isActive)} style={{ opacity: 0, width: 0, height: 0 }} />
-                      <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: isActive ? 'var(--primary)' : '#cbd5e1', borderRadius: '20px', transition: '0.2s' }}>
-                        <span style={{ position: 'absolute', height: '14px', width: '14px', left: isActive ? '20px' : '3px', bottom: '3px', backgroundColor: 'white', borderRadius: '50%', transition: '0.2s' }} />
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              );
-            })}
-
+                );
+              })
+            )}
           </div>
         </div>
 

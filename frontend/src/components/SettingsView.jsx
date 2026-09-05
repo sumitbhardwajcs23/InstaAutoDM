@@ -4,7 +4,9 @@ import { Instagram, Key, Shield, CheckCircle2, Copy, ExternalLink, RefreshCw } f
 
 export default function SettingsView({ account, onOpenConnect }) {
   const [copied, setCopied] = useState(false);
-  const webhookUrl = `${window.location.origin}/api/webhook`;
+  const webhookUrl = 'https://instaautodm-kh61.onrender.com/webhooks/instagram';
+
+  const isConnected = !!(account && (account.status === 'connected' || account.username));
 
   const handleCopyWebhook = () => {
     navigator.clipboard.writeText(webhookUrl);
@@ -32,11 +34,11 @@ export default function SettingsView({ account, onOpenConnect }) {
                 width: '42px',
                 height: '42px',
                 borderRadius: '10px',
-                background: 'linear-gradient(135deg, #f09433, #dc2743)',
+                background: isConnected ? 'linear-gradient(135deg, #f09433, #dc2743)' : 'var(--bg-subtle)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
+                color: isConnected ? '#fff' : 'var(--text-muted)',
               }}>
                 <Instagram size={22} />
               </div>
@@ -45,7 +47,7 @@ export default function SettingsView({ account, onOpenConnect }) {
                   Connected Instagram Account
                 </h2>
                 <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: 0 }}>
-                  Auto-detected via Meta Graph API OAuth 2.0
+                  {isConnected ? 'Auto-detected via Meta Graph API OAuth 2.0' : 'No Instagram account currently linked'}
                 </p>
               </div>
             </div>
@@ -57,14 +59,14 @@ export default function SettingsView({ account, onOpenConnect }) {
                 padding: '8px 14px',
                 borderRadius: '8px',
                 border: '1px solid var(--border-subtle)',
-                background: 'transparent',
-                color: 'var(--primary)',
+                background: isConnected ? 'transparent' : 'var(--primary)',
+                color: isConnected ? 'var(--primary)' : '#ffffff',
                 fontSize: '13px',
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
             >
-              Reconnect / Switch Account
+              {isConnected ? 'Reconnect / Switch Account' : 'Connect Instagram Account'}
             </button>
           </div>
 
@@ -72,28 +74,28 @@ export default function SettingsView({ account, onOpenConnect }) {
             <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>USERNAME</div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px' }}>
-                @{account?.username || 'luna.creates'}
+                {isConnected ? `@${account.username}` : 'Not Connected'}
               </div>
             </div>
 
             <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>ACCOUNT TYPE</div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px' }}>
-                {account?.account_type || 'Business Account'}
+                {isConnected ? (account?.account_type || account?.accountType || 'Professional Account') : 'Disconnected'}
               </div>
             </div>
 
             <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>INSTAGRAM USER ID</div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px', fontFamily: 'monospace' }}>
-                {account?.ig_user_id || '17841405309211849'}
+                {isConnected ? (account?.ig_user_id || '—') : '—'}
               </div>
             </div>
 
             <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>FACEBOOK PAGE ID</div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px', fontFamily: 'monospace' }}>
-                {account?.fb_page_id || '102938475629102'}
+                {isConnected ? (account?.page_id || account?.fb_page_id || '—') : '—'}
               </div>
             </div>
           </div>

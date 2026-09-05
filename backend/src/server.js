@@ -27,6 +27,7 @@ app.use(express.urlencoded({ extended: true }));
 // ── Public routes (no auth required) ────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));
 app.use('/webhooks', require('./routes/webhooks'));
+app.use('/api/webhooks', require('./routes/webhooks'));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().toISOString(), version: '3.0.0' }));
 

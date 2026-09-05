@@ -27,35 +27,6 @@ router.get('/account', (req, res) => {
   });
 });
 
-// POST /api/instagram/connect-mock — instant connection for testing
-router.post('/connect-mock', (req, res) => {
-  const encToken = encrypt('EAABsbCS1iHgBA...');
-  const expiresAt = new Date(Date.now() + 60 * 86400 * 1000).toISOString();
-  
-  const igUserId = '17841405309211849';
-  let existing = db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ? OR ig_user_id = ?').get(req.user.id, igUserId);
-  if (existing) {
-    db.prepare(`
-      UPDATE instagram_accounts SET
-        user_id=?, username='luna.creates', ig_user_id=?, page_id='102938475629102',
-        fb_page_name='Luna Creates Studio', account_type='Business Account',
-        access_token_enc=?, page_access_token_enc=?, long_lived_token_enc=?,
-        token_expires_at=?, status='connected', updated_at=datetime('now')
-      WHERE id=?
-    `).run(req.user.id, igUserId, encToken, encToken, encToken, expiresAt, existing.id);
-  } else {
-    db.prepare(`
-      INSERT INTO instagram_accounts (
-        id, user_id, ig_user_id, username, page_id, fb_page_name, account_type,
-        access_token_enc, page_access_token_enc, long_lived_token_enc,
-        token_expires_at, status, created_at, updated_at
-      ) VALUES (?, ?, ?, 'luna.creates', '102938475629102', 'Luna Creates Studio', 'Business Account', ?, ?, ?, ?, 'connected', datetime('now'), datetime('now'))
-    `).run(uuidv4(), req.user.id, igUserId, encToken, encToken, encToken, expiresAt);
-  }
-
-  const updated = db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ?').get(req.user.id);
-  res.json({ success: true, account: updated });
-});
 
 // POST /api/instagram/connect-token — direct real Meta Graph API token resolution
 router.post('/connect-token', async (req, res) => {

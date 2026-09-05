@@ -232,6 +232,7 @@ export default function App() {
         <main style={{ flex: 1, overflowY: 'auto' }}>
           {activeTab === 'dashboard' && (
             <DashboardView
+              user={user}
               stats={stats}
               rules={rules}
               conversations={conversations}
@@ -262,7 +263,7 @@ export default function App() {
           )}
 
           {activeTab === 'analytics' && (
-            <AnalyticsView stats={stats} />
+            <AnalyticsView stats={stats} rules={rules} account={account} />
           )}
 
           {activeTab === 'billing' && (

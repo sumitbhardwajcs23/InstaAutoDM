@@ -60,8 +60,8 @@ class MetaClient {
         page_name: 'Creator Studio Official',
         fb_user_id: '102938475619283',
         ig_user_id: '17841405829103942',
-        username: 'luna.creates',
-        followers_count: 24800,
+        username: 'instagram_user',
+        followers_count: 0,
         expires_in: 5184000
       };
     }
@@ -160,8 +160,8 @@ class MetaClient {
         page_name: 'Creator Studio Official',
         fb_user_id: '102938475619283',
         ig_user_id: '17841405829103942',
-        username: 'luna.creates',
-        followers_count: 24800,
+        username: 'instagram_user',
+        followers_count: 0,
         expires_in: 5184000
       };
     }

@@ -6,9 +6,9 @@ export default function Topbar({ user, onOpenUpgrade, onLogout, onSearch }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchValue, setSearchValue] = useState('');
 
-  const displayName = user?.name || 'Devid Sharma';
+  const displayName = user?.name || user?.email?.split('@')[0] || 'User';
   const displayPlan = user?.plan === 'pro' ? 'Pro Plan' : 'Free Plan';
-  const initial = displayName.charAt(0).toUpperCase();
+  const initial = (displayName.charAt(0) || 'U').toUpperCase();
 
   const handleSearchChange = (e) => {
     setSearchValue(e.target.value);
@@ -103,7 +103,7 @@ export default function Topbar({ user, onOpenUpgrade, onLogout, onSearch }) {
             cursor: 'pointer',
             transition: 'background 0.15s',
           }}
-          onClick={() => alert('Notifications:\n• New follower @alex_runner triggered Price rule\n• Monthly limit reset in 12 days\n• Webhook status verified')}
+          onClick={() => alert('Notifications:\n• ReplyOS Engine is online\n• Webhook endpoints active\n• Connected account monitored')}
         >
           <Bell size={18} />
           <span style={{

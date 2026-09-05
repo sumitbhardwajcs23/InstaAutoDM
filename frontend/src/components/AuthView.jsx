@@ -1,6 +1,6 @@
 // frontend/src/components/AuthView.jsx
 import React, { useState } from 'react';
-import { Instagram, Mail, Lock, User, ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { setAuthSession } from '../api/client';
 
 export default function AuthView({ onAuthSuccess }) {
@@ -10,29 +10,6 @@ export default function AuthView({ onAuthSuccess }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  // Instant 1-Click Demo Login for Devid Sharma
-  const handleDemoLogin = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/auth/demo-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await res.json();
-      if (res.ok && data.token) {
-        setAuthSession(data.token, data.user);
-        onAuthSuccess(data.user);
-      } else {
-        throw new Error(data.message || 'Demo login failed');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,7 +31,7 @@ export default function AuthView({ onAuthSuccess }) {
         setAuthSession(data.token, data.user);
         onAuthSuccess(data.user);
       } else {
-        throw new Error(data.message || 'Authentication failed');
+        throw new Error(data.message || data.error || 'Authentication failed');
       }
     } catch (err) {
       setError(err.message);
@@ -114,56 +91,6 @@ export default function AuthView({ onAuthSuccess }) {
           </p>
         </div>
 
-        {/* 1-Click Instant Demo Login Banner */}
-        <div style={{
-          marginBottom: '20px',
-          padding: '14px',
-          borderRadius: '12px',
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1))',
-          border: '1px solid rgba(99, 102, 241, 0.25)',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <Sparkles size={14} /> Instant Access (Pre-seeded Account)
-          </div>
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: '10px',
-              background: 'var(--primary-gradient)',
-              color: '#ffffff',
-              border: 'none',
-              fontSize: '13.5px',
-              fontWeight: 700,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-            }}
-          >
-            <span>⚡ Demo Login as Devid Sharma</span>
-          </button>
-        </div>
-
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          margin: '20px 0',
-          color: 'var(--text-light)',
-          fontSize: '12px',
-        }}>
-          <div style={{ flex: 1, height: '1px', background: 'var(--border-light)' }} />
-          <span>OR SIGN IN WITH EMAIL</span>
-          <div style={{ flex: 1, height: '1px', background: 'var(--border-light)' }} />
-        </div>
-
         {error && (
           <div style={{
             padding: '10px 14px',
@@ -192,7 +119,7 @@ export default function AuthView({ onAuthSuccess }) {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Devid Sharma"
+                  placeholder="Your Full Name"
                   style={{
                     width: '100%',
                     padding: '10px 14px 10px 38px',
@@ -218,7 +145,7 @@ export default function AuthView({ onAuthSuccess }) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="devid@example.com"
+                placeholder="name@example.com"
                 style={{
                   width: '100%',
                   padding: '10px 14px 10px 38px',

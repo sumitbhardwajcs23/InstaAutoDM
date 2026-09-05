@@ -114,25 +114,6 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     }
   };
 
-  const handleSandboxConnect = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await apiFetch('/instagram/connect-mock', { method: 'POST' });
-      const data = await res.json();
-      if (res.ok) {
-        if (onConnected) onConnected(data.account || { username: 'luna.creates', account_type: 'Business Account' });
-        onClose();
-      } else {
-        throw new Error(data.message || data.error || 'Connection failed');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div style={{
       position: 'fixed',
@@ -203,7 +184,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
         {/* Tab Switcher */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr',
+          gridTemplateColumns: '1fr 1fr',
           gap: '6px',
           background: 'var(--bg-subtle)',
           padding: '4px',
@@ -211,9 +192,8 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
           marginBottom: '20px',
         }}>
           {[
-            { id: 'oauth', label: 'Instagram Login' },
+            { id: 'oauth', label: 'Meta / Instagram Login' },
             { id: 'token', label: 'Access Token' },
-            { id: 'sandbox', label: 'Sandbox' },
           ].map((t) => (
             <button
               key={t.id}
@@ -466,38 +446,6 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               <span>{loading ? 'Verifying with Meta API...' : 'Verify & Connect Account'}</span>
             </button>
           </form>
-        )}
-
-        {/* Tab 3: Instant Sandbox */}
-        {tab === 'sandbox' && (
-          <div>
-            <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '16px', textAlign: 'left', lineHeight: 1.45 }}>
-              Use our pre-configured sandbox environment with simulated Instagram webhooks, test followers, and keyword response verification.
-            </p>
-            <button
-              type="button"
-              onClick={handleSandboxConnect}
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '13px',
-                borderRadius: '12px',
-                background: 'var(--bg-subtle)',
-                color: 'var(--text-main)',
-                border: '1px solid var(--border-subtle)',
-                fontSize: '13.5px',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
-            >
-              <Sparkles size={16} color="var(--primary)" />
-              <span>{loading ? 'Connecting Sandbox...' : 'Connect Instant Sandbox (@luna.creates)'}</span>
-            </button>
-          </div>
         )}
 
         <button
