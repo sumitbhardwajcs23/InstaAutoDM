@@ -2,17 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const metaClient = require('../services/metaClient');
 const { decrypt } = require('../services/crypto');
+const profileCache = require('../services/profileCache');
 
-const KNOWN_TESTERS = {
-  '1759458871653007': { name: 'sumit bhardwaj', username: 'join_sumit_', profile_pic_url: 'https://instagram.fdel65-4.fna.fbcdn.net/v/t51.82787-19/671209546_18351709720242986_4694042261133486757_n.jpg?stp=dst-jpg_s206x206_tt6&_nc_cat=104&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=0kznyX7llrUQ7kNvwHSYMHU&_nc_oc=AdplFQw1gO469Ud_pFMYcSf_5rZzMvr4PS6kl7_G_YkQ4f7u-B5s97c3CLFs8Jd8K59Mo6iokWhZSIeZgtg_xMgJ&_nc_zt=24&_nc_ht=instagram.fdel65-4.fna&edm=ALmAK4EEAAAA&_nc_gid=29Tfo3w3z7qQ72CW0TVyBQ&oh=00_AQK6yoIl9tKjgebs3n20Syv3sd-lEutfLMNpl2AVcaQLUw&oe=6AA20743' },
-  '28206324158977642': { name: 'Nitish Rajpoot', username: 'nitishrajpoot27' },
-  '2694306197727421': { name: '𝙲𝚑𝚑𝚊𝚟𝚒✮', username: 'urluv.chhavi' },
-  '2199839837542030': { name: 'Priyanshu Uttam | Boring Traders 📈', username: 'priyanshu__vision' },
-  '2052261912093429': { name: 'Piyush Yadav', username: 'rao_piyushh_yadav' },
-  '1730487928031569': { name: 'Maniesha', username: 'radhika_bhardwaj15' }
-};
+// KNOWN_TESTERS is now part of profileCache — no need to duplicate here
+const KNOWN_TESTERS = profileCache.KNOWN_USERS;
 
 function getAccountForUser(userId, accountId) {
   if (accountId) {
@@ -46,48 +40,16 @@ router.get('/', async (req, res) => {
     LIMIT ? OFFSET ?
   `).all(...params, Number(limit), Number(offset));
 
-
-  // Auto-enrich any conversation missing real profile info from Meta Graph API or known cache
+  // Enrich rows from cache instantly (zero network calls needed for known users)
+  // For unknown users, kick off background Meta fetch so next poll shows real name
   for (const row of rows) {
-    if ((!row.name || row.username === 'user' || !row.username) && row.ig_scoped_user_id) {
-      // 1. Try Meta Graph API
-      let enriched = false;
-      if (account.access_token_enc) {
-        try {
-          const token = decrypt(account.access_token_enc);
-          const profile = await metaClient.getInstagramUserProfile({ igScopedUserId: row.ig_scoped_user_id, accessToken: token });
-          if (profile) {
-            if (profile.username) row.username = profile.username;
-            if (profile.name) row.name = profile.name;
-            if (profile.profile_pic) row.profile_pic_url = profile.profile_pic;
-            enriched = true;
-          }
-        } catch (err) {
-          console.warn(`[Conversations] Failed to auto-enrich profile from Meta for ${row.ig_scoped_user_id}:`, err.message);
-        }
-      }
-
-      // 2. Try known testers lookup
-      if (!enriched && KNOWN_TESTERS[row.ig_scoped_user_id]) {
-        const kt = KNOWN_TESTERS[row.ig_scoped_user_id];
-        row.name = kt.name;
-        row.username = kt.username;
-        if (kt.profile_pic_url) row.profile_pic_url = kt.profile_pic_url;
-        enriched = true;
-      }
-
-      if (enriched) {
-        try {
-          db.prepare(`
-            UPDATE conversations SET 
-              username = COALESCE(?, username), 
-              name = COALESCE(?, name), 
-              profile_pic_url = COALESCE(?, profile_pic_url),
-              updated_at = datetime('now')
-            WHERE id = ?
-          `).run(row.username, row.name, row.profile_pic_url, row.id);
-        } catch (_) {}
-      }
+    const resolved = profileCache.resolve(row.ig_scoped_user_id, row);
+    if (resolved.name) row.name = resolved.name;
+    if (resolved.username && resolved.username !== 'user') row.username = resolved.username;
+    if (resolved.profile_pic) row.profile_pic_url = resolved.profile_pic;
+    // If still no real name, trigger background enrichment (non-blocking)
+    if (!row.name && account.access_token_enc) {
+      profileCache.fetchAndCache(row.ig_scoped_user_id, account.access_token_enc, row.id).catch(() => {});
     }
   }
 

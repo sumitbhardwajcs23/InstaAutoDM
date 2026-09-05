@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const metaClient = require('./metaClient');
 const { decrypt } = require('./crypto');
+const profileCache = require('./profileCache');
 
 const FREE_CAP = parseInt(process.env.FREE_PLAN_DM_LIMIT || '1000', 10);
 const MAX_COMMENT_AGE_MS = 7 * 24 * 3600000;
@@ -146,60 +147,29 @@ class EventQueueWorker {
 
     console.log(`[Worker] Processing message for @${account.username} from ${senderUsername || senderId}: "${text}"`);
 
-    // Fetch real user profile (real name, username, profile pic) from Meta
-    let realUsername = senderUsername && senderUsername.toLowerCase() !== 'user' ? senderUsername : null;
-    let realName = null;
-    let profilePic = null;
-
-    try {
-      const profile = await metaClient.getInstagramUserProfile({
-        igScopedUserId: senderId,
-        accessToken: decrypt(account.access_token_enc)
-      });
-      if (profile) {
-        if (profile.username) realUsername = profile.username;
-        if (profile.name) realName = profile.name;
-        if (profile.profile_pic) profilePic = profile.profile_pic;
-      }
-    } catch (profErr) {
-      console.warn('[Worker] User profile lookup notice:', profErr.message);
-    }
-
-    // Fallback: check existing known profile in database
-    if (!realName || !realUsername) {
-      try {
-        const known = db.prepare('SELECT username, name, profile_pic_url FROM conversations WHERE ig_scoped_user_id = ? AND name IS NOT NULL LIMIT 1').get(senderId);
-        if (known) {
-          if (!realName && known.name) realName = known.name;
-          if (!realUsername && known.username && known.username !== 'user') realUsername = known.username;
-          if (!profilePic && known.profile_pic_url) profilePic = known.profile_pic_url;
-        }
-      } catch (_) {}
-    }
-
-    // Fallback lookup dictionary for known Instagram testers
-    const KNOWN_TESTERS = {
-      '1759458871653007': { name: 'sumit bhardwaj', username: 'join_sumit_' },
-      '28206324158977642': { name: 'Nitish Rajpoot', username: 'nitishrajpoot27' },
-      '2694306197727421': { name: '𝙲𝚑𝚑𝚊𝚟𝚒✮', username: 'urluv.chhavi' },
-      '2199839837542030': { name: 'Priyanshu Uttam | Boring Traders 📈', username: 'priyanshu__vision' },
-      '2052261912093429': { name: 'Piyush Yadav', username: 'rao_piyushh_yadav' },
-      '1730487928031569': { name: 'Maniesha', username: 'radhika_bhardwaj15' }
-    };
-    if (KNOWN_TESTERS[senderId]) {
-      if (!realName) realName = KNOWN_TESTERS[senderId].name;
-      if (!realUsername || realUsername === 'user') realUsername = KNOWN_TESTERS[senderId].username;
-    }
+    // --- STEP 1: Instant cache lookup (zero latency, from memory) ---
+    const cached = profileCache.resolve(senderId);
+    let realName = cached.name || null;
+    let realUsername = (cached.username && cached.username !== 'user') ? cached.username
+      : (senderUsername && senderUsername.toLowerCase() !== 'user' ? senderUsername : null);
+    let profilePic = cached.profile_pic || null;
 
     const finalUsername = realUsername || 'user';
     const nowIso = new Date(eventTime).toISOString();
 
-    // Upsert conversation with real name, real username, and profile pic
+    // Upsert conversation immediately with best available data (cache-first, no blocking wait)
     const convId = this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, text, 'inbound', 'open', nowIso);
 
     // Log inbound message with the event timestamp so ordering is correct
     const inboundCreatedAt = new Date(eventTime).toISOString();
     db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'inbound', text || '', 'received', messageId || null, inboundCreatedAt);
+
+    // --- STEP 2: Background profile enrichment (non-blocking async) ---
+    // For brand new users without a name, kick off a Meta API fetch in the background.
+    // When it completes it will update the in-memory cache AND the DB row.
+    if (!realName || !realUsername) {
+      profileCache.fetchAndCache(senderId, account.access_token_enc, convId).catch(() => {});
+    }
 
     const rules = db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND type = 'dm_keyword_reply' AND is_active = 1").all(account.id);
     const rule = rules.find(r => this.matchKeyword(text, r.trigger_keyword, r.match_mode));
