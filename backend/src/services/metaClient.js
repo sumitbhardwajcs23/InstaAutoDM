@@ -146,6 +146,8 @@ class MetaClient {
 
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
+    const igAppId = process.env.INSTAGRAM_APP_ID || '1788975642442359';
+    const igAppSecret = process.env.INSTAGRAM_APP_SECRET || appSecret;
     const cleanCode = (code || '').replace(/#_$/, '').trim();
 
     // 1. If authType is 'instagram', try direct Instagram token exchange first, then fall back
@@ -153,8 +155,8 @@ class MetaClient {
       try {
         console.log('[MetaClient] Exchanging authorization code via api.instagram.com...');
         const formParams = new URLSearchParams();
-        formParams.append('client_id', appId);
-        formParams.append('client_secret', appSecret);
+        formParams.append('client_id', igAppId);
+        formParams.append('client_secret', igAppSecret);
         formParams.append('grant_type', 'authorization_code');
         formParams.append('redirect_uri', redirectUri);
         formParams.append('code', cleanCode);
@@ -168,7 +170,7 @@ class MetaClient {
 
         if (igTokenRes.ok && igTokenData.access_token) {
           console.log('[MetaClient] ✅ Received Instagram access token for user ID:', igTokenData.user_id);
-          return await this._exchangeInstagramToken(igTokenData.access_token, appId, appSecret);
+          return await this._exchangeInstagramToken(igTokenData.access_token, igAppId, igAppSecret);
         } else {
           console.warn('[MetaClient] Instagram code exchange returned error, attempting Facebook Graph API fallback:', JSON.stringify(igTokenData));
         }

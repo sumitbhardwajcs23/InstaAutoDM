@@ -299,8 +299,9 @@ router.get('/oauth/start', (req, res) => {
   }
 
   // Direct Instagram Business Login (native Instagram authorization with Facebook fallback)
+  const igAppId = process.env.INSTAGRAM_APP_ID || '1788975642442359';
   const scopes = req.query.scopes || 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
-  return res.redirect(`https://www.instagram.com/oauth/authorize?enable_fb_login=1&force_authentication=1&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${state}`);
+  return res.redirect(`https://www.instagram.com/oauth/authorize?enable_fb_login=1&force_authentication=1&client_id=${igAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${state}`);
 });
 
 // GET /api/instagram/oauth/callback — public endpoint (no auth header), state carries userId & origin
