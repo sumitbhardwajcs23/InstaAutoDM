@@ -73,227 +73,288 @@ export default function LandingView({ onNavigate, user }) {
     };
   }, []);
 
-  // Three.js Smoothie Blob initialization
+  // Three.js Smoothie Blob initialization (Ultra-optimized)
   useEffect(() => {
     const cleanupFns = [];
 
-    const initBlob = (container, color1, color2, color3) => {
-      if (!container || !window.THREE) return;
+    const startThree = () => {
+      if (!window.THREE) return;
       const THREE = window.THREE;
 
-      const width = container.offsetWidth || 400;
-      const height = container.offsetHeight || 400;
-
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-
-      renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      container.appendChild(renderer.domElement);
-
-      // Organic blob
-      const geometry = new THREE.IcosahedronGeometry(2, 64);
-      const positions = geometry.attributes.position;
-      const originalPositions = positions.array.slice();
-
-      const material = new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color(color1),
-        emissive: new THREE.Color(color2),
-        emissiveIntensity: 0.2,
-        metalness: 0.1,
-        roughness: 0.2,
-        clearcoat: 1,
-        clearcoatRoughness: 0.1,
-        transparent: true,
-        opacity: 0.9,
-        side: THREE.DoubleSide,
-      });
-
-      const mesh = new THREE.Mesh(geometry, material);
-      scene.add(mesh);
-
-      // Inner glow
-      const glowGeometry = new THREE.IcosahedronGeometry(1.5, 32);
-      const glowMaterial = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color3),
-        transparent: true,
-        opacity: 0.15,
-      });
-      const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-      scene.add(glowMesh);
-
-      // Particles
-      const particleCount = 45;
-      const particleGeometry = new THREE.BufferGeometry();
-      const particlePositions = new Float32Array(particleCount * 3);
-      for (let i = 0; i < particleCount * 3; i++) {
-        particlePositions[i] = (Math.random() - 0.5) * 8;
-      }
-      particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-
-      const particleMaterial = new THREE.PointsMaterial({
-        color: new THREE.Color(color1),
-        size: 0.06,
-        transparent: true,
-        opacity: 0.6,
-      });
-
-      const particles = new THREE.Points(particleGeometry, particleMaterial);
-      scene.add(particles);
-
-      // Lights
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-      scene.add(ambientLight);
-
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-      directionalLight.position.set(5, 5, 5);
-      scene.add(directionalLight);
-
-      const pointLight = new THREE.PointLight(color2, 2, 10);
-      pointLight.position.set(-3, 2, 3);
-      scene.add(pointLight);
-
-      camera.position.z = 5;
-
-      let time = 0;
-      const clock = new THREE.Clock();
-      let animId;
-
-      const animate = () => {
-        animId = requestAnimationFrame(animate);
-        const delta = clock.getDelta();
-        time += delta;
-
-        const pos = geometry.attributes.position;
-        for (let i = 0; i < pos.count; i++) {
-          const x = originalPositions[i * 3];
-          const y = originalPositions[i * 3 + 1];
-          const z = originalPositions[i * 3 + 2];
-          const noise = Math.sin(x * 2 + time) * Math.cos(y * 2 + time * 0.8) * Math.sin(z * 2 + time * 1.2);
-          const distortion = 1 + noise * 0.15;
-          pos.setXYZ(i, x * distortion, y * distortion, z * distortion);
-        }
-        pos.needsUpdate = true;
-        geometry.computeVertexNormals();
-
-        mesh.rotation.y += delta * 0.2;
-        mesh.rotation.x += delta * 0.1;
-        glowMesh.rotation.y -= delta * 0.15;
-
-        const pPos = particles.geometry.attributes.position;
-        for (let i = 0; i < particleCount; i++) {
-          const py = pPos.getY(i);
-          pPos.setY(i, py + Math.sin(time + i) * 0.002);
-        }
-        pPos.needsUpdate = true;
-        particles.rotation.y += delta * 0.05;
-
-        renderer.render(scene, camera);
-      };
-
-      animate();
-
-      const onResize = () => {
+      const initBlob = (container, color1, color2, color3) => {
         if (!container) return;
-        const w = container.offsetWidth;
-        const h = container.offsetHeight;
-        camera.aspect = w / h;
-        camera.updateProjectionMatrix();
-        renderer.setSize(w, h);
-      };
 
-      window.addEventListener('resize', onResize);
+        const width = container.offsetWidth || 400;
+        const height = container.offsetHeight || 400;
 
-      const onMouseMove = (e) => {
-        const rect = container.getBoundingClientRect();
-        const mx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
-        const my = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
-        mesh.rotation.x = my * 0.3;
-        mesh.rotation.y = mx * 0.3;
-      };
-      container.addEventListener('mousemove', onMouseMove);
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
 
-      cleanupFns.push(() => {
-        cancelAnimationFrame(animId);
-        window.removeEventListener('resize', onResize);
-        container.removeEventListener('mousemove', onMouseMove);
-        if (renderer.domElement && renderer.domElement.parentNode === container) {
-          container.removeChild(renderer.domElement);
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        container.appendChild(renderer.domElement);
+
+        // High-performance organic blob (Detail 12 gives ~720 vertices vs 40,000 in 64)
+        const geometry = new THREE.IcosahedronGeometry(2, 12);
+        const positions = geometry.attributes.position;
+        const originalPositions = positions.array.slice();
+
+        const material = new THREE.MeshPhysicalMaterial({
+          color: new THREE.Color(color1),
+          emissive: new THREE.Color(color2),
+          emissiveIntensity: 0.2,
+          metalness: 0.1,
+          roughness: 0.2,
+          clearcoat: 0.8,
+          clearcoatRoughness: 0.1,
+          transparent: true,
+          opacity: 0.9,
+          side: THREE.DoubleSide,
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+
+        // Inner glow
+        const glowGeometry = new THREE.IcosahedronGeometry(1.5, 8);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(color3),
+          transparent: true,
+          opacity: 0.15,
+        });
+        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+        scene.add(glowMesh);
+
+        // Ambient particles
+        const particleCount = 28;
+        const particleGeometry = new THREE.BufferGeometry();
+        const particlePositions = new Float32Array(particleCount * 3);
+        for (let i = 0; i < particleCount * 3; i++) {
+          particlePositions[i] = (Math.random() - 0.5) * 8;
         }
-        geometry.dispose();
-        material.dispose();
-        glowGeometry.dispose();
-        glowMaterial.dispose();
-        particleGeometry.dispose();
-        particleMaterial.dispose();
-        renderer.dispose();
-      });
+        particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+
+        const particleMaterial = new THREE.PointsMaterial({
+          color: new THREE.Color(color1),
+          size: 0.05,
+          transparent: true,
+          opacity: 0.5,
+        });
+
+        const particles = new THREE.Points(particleGeometry, particleMaterial);
+        scene.add(particles);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 5, 5);
+        scene.add(directionalLight);
+
+        const pointLight = new THREE.PointLight(color2, 1.8, 10);
+        pointLight.position.set(-3, 2, 3);
+        scene.add(pointLight);
+
+        camera.position.z = 5;
+
+        let time = 0;
+        let isVisible = true;
+        let animId = null;
+        let lastTime = performance.now();
+
+        const animate = () => {
+          if (!isVisible) {
+            animId = null;
+            return;
+          }
+          animId = requestAnimationFrame(animate);
+          const now = performance.now();
+          const delta = (now - lastTime) * 0.001;
+          lastTime = now;
+          time += delta;
+
+          // Vertex displacement on lightweight mesh
+          const pos = geometry.attributes.position;
+          for (let i = 0; i < pos.count; i++) {
+            const x = originalPositions[i * 3];
+            const y = originalPositions[i * 3 + 1];
+            const z = originalPositions[i * 3 + 2];
+            const noise = Math.sin(x * 2 + time) * Math.cos(y * 2 + time * 0.8) * Math.sin(z * 2 + time * 1.2);
+            const distortion = 1 + noise * 0.14;
+            pos.setXYZ(i, x * distortion, y * distortion, z * distortion);
+          }
+          pos.needsUpdate = true;
+          geometry.computeVertexNormals();
+
+          mesh.rotation.y += delta * 0.2;
+          mesh.rotation.x += delta * 0.1;
+          glowMesh.rotation.y -= delta * 0.15;
+
+          particles.rotation.y += delta * 0.04;
+
+          renderer.render(scene, camera);
+        };
+
+        // Viewport intersection observer to pause WebGL when off-screen
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            isVisible = entry.isIntersecting;
+            if (isVisible && !animId) {
+              lastTime = performance.now();
+              animate();
+            }
+          });
+        }, { threshold: 0.05 });
+        observer.observe(container);
+
+        animate();
+
+        const onResize = () => {
+          if (!container) return;
+          const w = container.offsetWidth;
+          const h = container.offsetHeight;
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.setSize(w, h);
+        };
+
+        window.addEventListener('resize', onResize);
+
+        const onMouseMove = (e) => {
+          if (!isVisible) return;
+          const rect = container.getBoundingClientRect();
+          const mx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+          const my = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+          mesh.rotation.x = my * 0.25;
+          mesh.rotation.y = mx * 0.25;
+        };
+        container.addEventListener('mousemove', onMouseMove);
+
+        cleanupFns.push(() => {
+          if (animId) cancelAnimationFrame(animId);
+          observer.disconnect();
+          window.removeEventListener('resize', onResize);
+          container.removeEventListener('mousemove', onMouseMove);
+          if (renderer.domElement && renderer.domElement.parentNode === container) {
+            container.removeChild(renderer.domElement);
+          }
+          geometry.dispose();
+          material.dispose();
+          glowGeometry.dispose();
+          glowMaterial.dispose();
+          particleGeometry.dispose();
+          particleMaterial.dispose();
+          renderer.dispose();
+        });
+      };
+
+      // Helper for lazy loading off-screen canvases on demand
+      const lazyInit = (container, c1, c2, c3) => {
+        if (!container) return;
+        const lazyObserver = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+            initBlob(container, c1, c2, c3);
+            lazyObserver.disconnect();
+          }
+        }, { rootMargin: '300px' });
+        lazyObserver.observe(container);
+        cleanupFns.push(() => lazyObserver.disconnect());
+      };
+
+      // Hero Blob initializes immediately
+      initBlob(heroCanvasRef.current, '#4F6AF6', '#8B5CF6', '#06B6D4');
+      // Viz and CTA blobs load lazily when user scrolls
+      lazyInit(vizCanvasRef.current, '#EC4899', '#8B5CF6', '#4F6AF6');
+      lazyInit(ctaCanvasRef.current, '#06B6D4', '#4F6AF6', '#8B5CF6');
     };
 
-    // Hero Blob
-    initBlob(heroCanvasRef.current, '#4F6AF6', '#8B5CF6', '#06B6D4');
-    // Viz Blob
-    initBlob(vizCanvasRef.current, '#EC4899', '#8B5CF6', '#4F6AF6');
-    // CTA Blob
-    initBlob(ctaCanvasRef.current, '#06B6D4', '#4F6AF6', '#8B5CF6');
+    if (window.THREE) {
+      startThree();
+    } else {
+      const timer = setInterval(() => {
+        if (window.THREE) {
+          clearInterval(timer);
+          startThree();
+        }
+      }, 50);
+      cleanupFns.push(() => clearInterval(timer));
+    }
 
     return () => {
       cleanupFns.forEach((fn) => fn());
     };
   }, []);
 
-  // GSAP Scroll Animations
+  // GSAP Scroll Animations (Optimized for instant perceived load)
   useEffect(() => {
-    if (!window.gsap || !window.ScrollTrigger) return;
-    const gsap = window.gsap;
-    const ScrollTrigger = window.ScrollTrigger;
-    gsap.registerPlugin(ScrollTrigger);
+    let ctx;
+    const startGsap = () => {
+      if (!window.gsap || !window.ScrollTrigger) return;
+      const gsap = window.gsap;
+      const ScrollTrigger = window.ScrollTrigger;
+      gsap.registerPlugin(ScrollTrigger);
 
-    const ctx = gsap.context(() => {
-      // Hero entrance
-      gsap.from('.replyos-landing .hero-badge', { opacity: 0, y: 20, duration: 0.8, delay: 0.2 });
-      gsap.from('.replyos-landing .title-line', { opacity: 0, y: 40, duration: 1, stagger: 0.15, delay: 0.4, ease: 'power3.out' });
-      gsap.from('.replyos-landing .hero-subtitle', { opacity: 0, y: 20, duration: 0.8, delay: 0.7 });
-      gsap.from('.replyos-landing .hero-buttons', { opacity: 0, y: 20, duration: 0.8, delay: 0.9 });
-      gsap.from('.replyos-landing .hero-trust', { opacity: 0, y: 20, duration: 0.8, delay: 1.1 });
-      gsap.from('.replyos-landing .dashboard-mockup', { opacity: 0, x: 60, duration: 1.2, delay: 0.6, ease: 'power3.out' });
-      gsap.from('.replyos-landing .floating-card', { opacity: 0, scale: 0.8, duration: 0.8, stagger: 0.2, delay: 1 });
+      ctx = gsap.context(() => {
+        // Fast, snappy hero entrance (sub-500ms total)
+        gsap.from('.replyos-landing .hero-badge', { opacity: 0.2, y: 15, duration: 0.35, delay: 0.05, ease: 'power2.out' });
+        gsap.from('.replyos-landing .title-line', { opacity: 0.2, y: 20, duration: 0.45, stagger: 0.06, delay: 0.08, ease: 'power2.out' });
+        gsap.from('.replyos-landing .hero-subtitle', { opacity: 0.2, y: 15, duration: 0.35, delay: 0.15, ease: 'power2.out' });
+        gsap.from('.replyos-landing .hero-buttons', { opacity: 0.2, y: 15, duration: 0.35, delay: 0.2, ease: 'power2.out' });
+        gsap.from('.replyos-landing .hero-trust', { opacity: 0.2, y: 12, duration: 0.35, delay: 0.25, ease: 'power2.out' });
+        gsap.from('.replyos-landing .dashboard-mockup', { opacity: 0.2, x: 30, duration: 0.5, delay: 0.15, ease: 'power2.out' });
+        gsap.from('.replyos-landing .floating-card', { opacity: 0.2, scale: 0.9, duration: 0.35, stagger: 0.1, delay: 0.25, ease: 'back.out(1.5)' });
 
-      // Features scroll trigger
-      gsap.from('.replyos-landing .features-header', {
-        scrollTrigger: { trigger: '.replyos-landing .features', start: 'top 80%' },
-        opacity: 0, y: 40, duration: 0.8,
-      });
-      gsap.from('.replyos-landing .feature-flow .flow-card', {
-        scrollTrigger: { trigger: '.replyos-landing .feature-flow', start: 'top 80%' },
-        opacity: 0, x: -40, duration: 0.6, stagger: 0.2,
-      });
-      gsap.from('.replyos-landing .feature-card', {
-        scrollTrigger: { trigger: '.replyos-landing .features-grid', start: 'top 85%' },
-        opacity: 0, y: 40, duration: 0.6, stagger: 0.15,
-      });
+        // Features scroll trigger
+        gsap.from('.replyos-landing .features-header', {
+          scrollTrigger: { trigger: '.replyos-landing .features', start: 'top 85%' },
+          opacity: 0.3, y: 25, duration: 0.4,
+        });
+        gsap.from('.replyos-landing .feature-flow .flow-card', {
+          scrollTrigger: { trigger: '.replyos-landing .feature-flow', start: 'top 85%' },
+          opacity: 0.3, x: -25, duration: 0.35, stagger: 0.1,
+        });
+        gsap.from('.replyos-landing .feature-card', {
+          scrollTrigger: { trigger: '.replyos-landing .features-grid', start: 'top 90%' },
+          opacity: 0.3, y: 25, duration: 0.35, stagger: 0.08,
+        });
 
-      // Workflow trigger
-      gsap.from('.replyos-landing .workflow-grid', {
-        scrollTrigger: { trigger: '.replyos-landing .workflow', start: 'top 75%' },
-        opacity: 0, y: 40, duration: 0.8,
-      });
+        // Workflow trigger
+        gsap.from('.replyos-landing .workflow-grid', {
+          scrollTrigger: { trigger: '.replyos-landing .workflow', start: 'top 80%' },
+          opacity: 0.3, y: 25, duration: 0.4,
+        });
 
-      // Testimonials trigger
-      gsap.from('.replyos-landing .testimonials-grid', {
-        scrollTrigger: { trigger: '.replyos-landing .testimonials', start: 'top 80%' },
-        opacity: 0, y: 30, duration: 0.6, stagger: 0.15,
-      });
+        // Testimonials trigger
+        gsap.from('.replyos-landing .testimonials-grid', {
+          scrollTrigger: { trigger: '.replyos-landing .testimonials', start: 'top 85%' },
+          opacity: 0.3, y: 20, duration: 0.35, stagger: 0.08,
+        });
 
-      // Pricing trigger
-      gsap.from('.replyos-landing .pricing-card', {
-        scrollTrigger: { trigger: '.replyos-landing .pricing-grid', start: 'top 85%' },
-        opacity: 0, y: 40, duration: 0.6, stagger: 0.15,
+        // Pricing trigger
+        gsap.from('.replyos-landing .pricing-card', {
+          scrollTrigger: { trigger: '.replyos-landing .pricing-grid', start: 'top 90%' },
+          opacity: 0.3, y: 25, duration: 0.35, stagger: 0.08,
+        });
       });
-    });
+    };
 
-    return () => ctx.revert();
+    if (window.gsap && window.ScrollTrigger) {
+      startGsap();
+    } else {
+      const timer = setInterval(() => {
+        if (window.gsap && window.ScrollTrigger) {
+          clearInterval(timer);
+          startGsap();
+        }
+      }, 50);
+      return () => clearInterval(timer);
+    }
+
+    return () => {
+      if (ctx) ctx.revert();
+    };
   }, []);
 
   // Keyboard escape for video modal

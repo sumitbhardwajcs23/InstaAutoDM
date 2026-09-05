@@ -146,8 +146,10 @@ export default function App() {
   }, [user, selectedAccountId]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (currentView === 'app') {
+      loadData();
+    }
+  }, [currentView, loadData]);
 
   const handleSelectAccount = (accId) => {
     setSelectedAccountId(accId);
