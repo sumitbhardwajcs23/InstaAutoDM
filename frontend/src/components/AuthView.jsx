@@ -84,23 +84,32 @@ export default function AuthView({ onAuthSuccess }) {
         {/* Brand Header */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{
-            width: '52px',
-            height: '52px',
-            borderRadius: '14px',
-            background: 'linear-gradient(135deg, #f09433, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+            width: '68px',
+            height: '68px',
+            borderRadius: '18px',
+            background: '#ffffff',
+            border: '1px solid var(--border-light)',
+            boxShadow: '0 10px 25px -5px rgba(0, 102, 255, 0.15)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#fff',
             margin: '0 auto 14px',
-            boxShadow: '0 8px 20px rgba(220, 39, 67, 0.25)',
+            padding: '6px',
           }}>
-            <Instagram size={28} />
+            <img
+              src="/logo-icon.png"
+              alt="ReplyOS Logo"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
           </div>
-          <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
-            InstaReply
+          <h1 style={{ fontSize: '24px', fontWeight: 900, letterSpacing: '-0.5px', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ color: 'var(--text-main)' }}>Reply</span>
+            <span style={{ color: '#0066FF' }}>OS</span>
           </h1>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-light)', marginTop: '3px' }}>
+            Automate Conversations
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
             Automate Instagram DMs & comments to convert followers into customers.
           </p>
         </div>
