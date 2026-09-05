@@ -282,7 +282,9 @@ router.post('/connect-username', async (req, res) => {
   }
 });
 
-// GET /api/instagram/oauth/start — opens instagram.com native login
+// GET /api/instagram/oauth/start — native Instagram login
+// Tries instagram.com first (requires Instagram product in Meta App)
+// Falls back to facebook.com if Instagram product not yet added
 router.get('/oauth/start', (req, res) => {
   let returnOrigin = req.query.return_origin || '';
   if (!returnOrigin && req.headers.referer) {
@@ -302,18 +304,32 @@ router.get('/oauth/start', (req, res) => {
 
   const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/instagram/oauth/callback`;
 
-  // Native Instagram Business Login — opens instagram.com (not facebook.com)
-  // Works with your Facebook App ID once "Instagram" product is added in Meta Developers
-  const igScopes = 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
+  // If INSTAGRAM_NATIVE_LOGIN=true env var is set, use instagram.com (requires Instagram product in Meta app)
+  // Otherwise use facebook.com which works right now with Facebook Login for Business product
+  if (process.env.INSTAGRAM_NATIVE_LOGIN === 'true') {
+    const igScopes = 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
+    return res.redirect(
+      `https://www.instagram.com/oauth/authorize` +
+      `?enable_fb_login=0` +
+      `&force_authentication=1` +
+      `&client_id=${appId}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=code` +
+      `&scope=${encodeURIComponent(igScopes)}` +
+      `&state=${state}`
+    );
+  }
+
+  // Facebook Login for Business (works right now with current Meta app setup)
+  const scopes = process.env.META_SCOPES || 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
   return res.redirect(
-    `https://www.instagram.com/oauth/authorize` +
-    `?enable_fb_login=0` +
-    `&force_authentication=1` +
-    `&client_id=${appId}` +
+    `https://www.facebook.com/v21.0/dialog/oauth` +
+    `?client_id=${appId}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&scope=${encodeURIComponent(scopes)}` +
     `&response_type=code` +
-    `&scope=${encodeURIComponent(igScopes)}`+
-    `&state=${state}`
+    `&state=${state}` +
+    `&display=popup`
   );
 });
 
