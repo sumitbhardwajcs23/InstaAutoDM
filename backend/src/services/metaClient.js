@@ -50,7 +50,7 @@ class MetaClient {
     return { success: true, recipient_id: data.recipient_id, message_id: data.message_id };
   }
 
-  async exchangeOAuthCode(code, redirectUri) {
+  async exchangeOAuthCode(code, redirectUri, authType = 'instagram') {
     if (this.mockMode) {
       return {
         access_token: `mock_page_token_${Date.now()}`,
@@ -68,25 +68,62 @@ class MetaClient {
 
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
+    const cleanCode = (code || '').replace(/#_$/, '').trim();
 
-    // Step 1: Exchange auth code for short-lived user access token
-    const tokenRes = await fetch(`${GRAPH_API_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`);
+    // 1. If authType is 'instagram' (default) or not explicitly 'facebook', try direct Instagram token exchange
+    if (authType !== 'facebook') {
+      try {
+        console.log('[MetaClient] Exchanging authorization code via api.instagram.com...');
+        const formParams = new URLSearchParams();
+        formParams.append('client_id', appId);
+        formParams.append('client_secret', appSecret);
+        formParams.append('grant_type', 'authorization_code');
+        formParams.append('redirect_uri', redirectUri);
+        formParams.append('code', cleanCode);
+
+        const igTokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formParams.toString()
+        });
+        const igTokenData = await igTokenRes.json();
+
+        if (igTokenRes.ok && igTokenData.access_token) {
+          console.log('[MetaClient] ✅ Received Instagram access token for user ID:', igTokenData.user_id);
+          return await this._exchangeInstagramToken(igTokenData.access_token, appId, appSecret);
+        } else {
+          console.warn('[MetaClient] Instagram code exchange response:', JSON.stringify(igTokenData));
+          if (authType === 'instagram') {
+            throw new Error(igTokenData?.error_message || igTokenData?.error?.message || 'Instagram authorization exchange failed');
+          }
+        }
+      } catch (igErr) {
+        if (authType === 'instagram') {
+          throw igErr;
+        }
+        console.warn('[MetaClient] Instagram code exchange failed, attempting Facebook Graph API fallback:', igErr.message);
+      }
+    }
+
+    // 2. Facebook Graph API flow
+    console.log('[MetaClient] Exchanging authorization code via graph.facebook.com...');
+    const tokenRes = await fetch(`${GRAPH_API_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${encodeURIComponent(cleanCode)}`);
     const tokenData = await tokenRes.json();
-    if (!tokenRes.ok) throw new Error(tokenData?.error?.message || 'Short-lived token exchange failed');
+    if (!tokenRes.ok) throw new Error(tokenData?.error?.message || 'Short-lived Facebook token exchange failed');
 
     // Step 2: Exchange short-lived token for 60-day long-lived user token
-    const longRes = await fetch(`${GRAPH_API_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${tokenData.access_token}`);
+    const longRes = await fetch(`${GRAPH_API_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${encodeURIComponent(tokenData.access_token)}`);
     const longData = await longRes.json();
     if (!longRes.ok) throw new Error(longData?.error?.message || 'Long-lived token upgrade failed');
     const longLivedUserToken = longData.access_token;
 
     // Step 3: Get Facebook User ID & basic info
-    const meRes = await fetch(`${GRAPH_API_BASE}/me?fields=id,name,email&access_token=${longLivedUserToken}`);
+    const meRes = await fetch(`${GRAPH_API_BASE}/me?fields=id,name,email&access_token=${encodeURIComponent(longLivedUserToken)}`);
     const meData = await meRes.json();
     const fbUserId = meData?.id || null;
 
     // Step 4: Auto-detect Facebook Pages & connected Instagram Business Accounts
-    const accsRes = await fetch(`${GRAPH_API_BASE}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,followers_count}&access_token=${longLivedUserToken}`);
+    const accsRes = await fetch(`${GRAPH_API_BASE}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,followers_count}&access_token=${encodeURIComponent(longLivedUserToken)}`);
     const accsData = await accsRes.json();
     if (!accsRes.ok) throw new Error(accsData?.error?.message || 'Failed to retrieve Facebook pages');
 
@@ -106,7 +143,7 @@ class MetaClient {
     }
 
     return {
-      access_token: page.access_token, // Permanent page token used for messaging
+      access_token: page.access_token,
       page_access_token: page.access_token,
       long_lived_token: longLivedUserToken,
       page_id: page.id,
@@ -138,8 +175,8 @@ class MetaClient {
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
 
-    // Detect token type: Instagram Business Login (IGAAA...) vs Facebook Login (EAA...)
-    const isInstagramToken = userToken.startsWith('IGAAA') || userToken.startsWith('IGQ') || userToken.startsWith('IGA');
+    // Detect token type: Instagram Business Login (IGAAA..., IGQ..., IG...) vs Facebook Login (EAA...)
+    const isInstagramToken = userToken.startsWith('IG') || userToken.startsWith('IGAAA') || userToken.startsWith('IGQ') || userToken.startsWith('IGA');
 
     if (isInstagramToken) {
       return this._exchangeInstagramToken(userToken, appId, appSecret);
@@ -207,24 +244,35 @@ class MetaClient {
     let longLivedToken = shortToken;
     let expiresIn = 5184000;
     try {
-      const longRes = await fetch(`${GRAPH_IG_BASE}/access_token?grant_type=ig_exchange_token&client_id=${appId}&client_secret=${appSecret}&access_token=${encodeURIComponent(shortToken)}`);
+      const longRes = await fetch(`https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${encodeURIComponent(shortToken)}`);
       const longData = await longRes.json();
       if (longRes.ok && longData.access_token) {
         longLivedToken = longData.access_token;
         expiresIn = longData.expires_in || 5184000;
         console.log('[MetaClient] ✅ Instagram token upgraded to long-lived token');
       } else {
-        console.warn('[MetaClient] Token upgrade note:', longData?.error?.message || 'Could not upgrade, using short-lived token');
+        console.warn('[MetaClient] Instagram token upgrade note:', longData?.error?.message || 'Could not upgrade, using short-lived token');
       }
     } catch (e) {
       console.warn('[MetaClient] Instagram token exchange warning:', e.message);
     }
 
     // Step 2: Get Instagram user profile
-    const meRes = await fetch(`${GRAPH_IG_BASE}/me?fields=id,username,name,followers_count,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}`);
-    const meData = await meRes.json();
-    if (!meRes.ok || !meData.id) {
-      throw new Error(meData?.error?.message || 'Failed to retrieve Instagram user profile');
+    let meData = null;
+    try {
+      const meRes = await fetch(`${GRAPH_IG_BASE}/me?fields=id,username,name,followers_count,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}`);
+      if (meRes.ok) {
+        meData = await meRes.json();
+      }
+    } catch (e) {}
+
+    if (!meData || !meData.id) {
+      const basicRes = await fetch(`${GRAPH_IG_BASE}/me?fields=id,username&access_token=${encodeURIComponent(longLivedToken)}`);
+      const basicData = await basicRes.json();
+      if (!basicRes.ok || !basicData.id) {
+        throw new Error(basicData?.error?.message || 'Failed to retrieve Instagram user profile');
+      }
+      meData = basicData;
     }
 
     console.log(`[MetaClient] ✅ Instagram user: @${meData.username} (ID: ${meData.id})`);
@@ -266,7 +314,15 @@ class MetaClient {
     }
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
-    const res = await fetch(`${GRAPH_API_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${existingToken}`);
+
+    if (existingToken && existingToken.startsWith('IG')) {
+      const res = await fetch(`https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(existingToken)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || 'Failed to refresh Instagram token');
+      return data;
+    }
+
+    const res = await fetch(`${GRAPH_API_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${encodeURIComponent(existingToken)}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error?.message || 'Failed to refresh token');
     return data;

@@ -11,10 +11,16 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
 
   if (!isOpen) return null;
 
-  const handleRealOAuth = () => {
+  const handleInstagramOAuth = () => {
     const token = getToken();
     const origin = window.location.origin;
-    window.location.href = `${API_BASE}/instagram/oauth/start?token=${encodeURIComponent(token || '')}&return_origin=${encodeURIComponent(origin)}`;
+    window.location.href = `${API_BASE}/instagram/oauth/start?type=instagram&token=${encodeURIComponent(token || '')}&return_origin=${encodeURIComponent(origin)}`;
+  };
+
+  const handleFacebookOAuth = () => {
+    const token = getToken();
+    const origin = window.location.origin;
+    window.location.href = `${API_BASE}/instagram/oauth/start?type=facebook&token=${encodeURIComponent(token || '')}&return_origin=${encodeURIComponent(origin)}`;
   };
 
   const handleManualTokenConnect = async (e) => {
@@ -105,7 +111,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
           Connect Instagram Account
         </h2>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 18px 0', lineHeight: 1.45, textAlign: 'center' }}>
-          Choose your connection method. The system auto-detects Facebook Pages, Instagram Business ID, and webhook settings.
+          Connect your Instagram Business or Creator account directly to automate DMs and comments.
         </p>
 
         {/* Tab Switcher */}
@@ -119,7 +125,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
           marginBottom: '20px',
         }}>
           {[
-            { id: 'oauth', label: 'Meta OAuth' },
+            { id: 'oauth', label: 'Instagram Login' },
             { id: 'token', label: 'Access Token' },
             { id: 'sandbox', label: 'Sandbox' },
           ].map((t) => (
@@ -160,7 +166,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
           </div>
         )}
 
-        {/* Tab 1: Meta OAuth */}
+        {/* Tab 1: Instagram Login */}
         {tab === 'oauth' && (
           <div>
             <div style={{
@@ -168,7 +174,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               background: 'var(--bg-subtle)',
               borderRadius: '12px',
               padding: '14px',
-              marginBottom: '20px',
+              marginBottom: '18px',
               display: 'flex',
               flexDirection: 'column',
               gap: '8px',
@@ -177,40 +183,73 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CheckCircle2 size={15} color="#10b981" />
-                <span>Redirects to official Facebook login & permission dialog</span>
+                <span>Log in directly with your Instagram username & password</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CheckCircle2 size={15} color="#10b981" />
-                <span>Auto-exchanges short-lived token to 60-day token</span>
+                <span>Official Meta authorization on instagram.com</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CheckCircle2 size={15} color="#10b981" />
-                <span>Subscribes to Graph API webhooks automatically</span>
+                <span>Auto-connects direct messages, comments & webhooks</span>
               </div>
             </div>
 
+            {/* Direct Instagram Login Button */}
             <button
               type="button"
-              onClick={handleRealOAuth}
+              onClick={handleInstagramOAuth}
               style={{
                 width: '100%',
-                padding: '13px',
+                padding: '14px',
                 borderRadius: '12px',
-                background: 'linear-gradient(135deg, #f09433, #dc2743)',
+                background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
                 color: '#ffffff',
                 border: 'none',
                 fontSize: '14px',
                 fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: '0 6px 18px rgba(220, 39, 67, 0.35)',
+                boxShadow: '0 6px 20px rgba(220, 39, 67, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '9px',
+                marginBottom: '12px',
+                transition: 'transform 0.15s ease',
+              }}
+            >
+              <Instagram size={20} />
+              <span>Log in with Instagram Account</span>
+            </button>
+
+            {/* Facebook Page Login Alternate */}
+            <div style={{ display: 'flex', alignItems: 'center', margin: '14px 0 10px', color: 'var(--text-light)', fontSize: '11px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+              <span style={{ padding: '0 8px' }}>or connect via Facebook Page</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleFacebookOAuth}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                background: 'var(--bg-subtle)',
+                color: 'var(--text-main)',
+                border: '1px solid var(--border-subtle)',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
               }}
             >
-              <Instagram size={18} />
-              <span>Login with Facebook (Meta OAuth)</span>
+              <span style={{ fontWeight: 800, color: '#1877f2', fontSize: '15px', lineHeight: 1 }}>f</span>
+              <span>Log in via Facebook Page</span>
             </button>
           </div>
         )}

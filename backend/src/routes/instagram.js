@@ -108,7 +108,8 @@ router.get('/oauth/start', (req, res) => {
   if (!returnOrigin && req.headers.referer) {
     try { returnOrigin = new URL(req.headers.referer).origin; } catch (e) {}
   }
-  const stateObj = { uid: req.user.id, origin: returnOrigin };
+  const authType = req.query.type || 'instagram';
+  const stateObj = { uid: req.user.id, origin: returnOrigin, type: authType };
   const state = Buffer.from(JSON.stringify(stateObj)).toString('base64url');
 
   if (process.env.META_MOCK_MODE === 'true') {
@@ -117,21 +118,31 @@ router.get('/oauth/start', (req, res) => {
 
   const appId = process.env.META_APP_ID;
   const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/instagram/oauth/callback`;
-  const scopes = req.query.scopes || process.env.META_SCOPES || 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
-  res.redirect(`https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`);
+
+  if (authType === 'facebook') {
+    const scopes = req.query.scopes || process.env.META_SCOPES || 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
+    return res.redirect(`https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`);
+  }
+
+  // Direct Instagram Business Login (native Instagram username & password)
+  const scopes = req.query.scopes || 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
+  return res.redirect(`https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${state}`);
 });
 
 // GET /api/instagram/oauth/callback — public endpoint (no auth header), state carries userId & origin
 router.get('/oauth/callback', async (req, res) => {
-  const { code, error, state } = req.query;
+  const { code, error, error_reason, error_description, state } = req.query;
   let userId = state;
   let returnOrigin = '';
+  let authType = 'instagram';
+
   if (state) {
     try {
       const decoded = JSON.parse(Buffer.from(state, 'base64url').toString('utf-8'));
       if (decoded && decoded.uid) {
         userId = decoded.uid;
         returnOrigin = decoded.origin || '';
+        if (decoded.type) authType = decoded.type;
       }
     } catch (e) {
       userId = state;
@@ -146,7 +157,8 @@ router.get('/oauth/callback', async (req, res) => {
   };
 
   if (error || !code) {
-    return res.redirect(redirectTarget(`/?error=${encodeURIComponent(error || 'OAuth cancelled')}`));
+    const errText = error_description || error_reason || error || 'OAuth cancelled';
+    return res.redirect(redirectTarget(`/?error=${encodeURIComponent(errText)}`));
   }
 
   const user = userId
@@ -157,7 +169,7 @@ router.get('/oauth/callback', async (req, res) => {
 
   try {
     const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/instagram/oauth/callback`;
-    const tokenInfo = await metaClient.exchangeOAuthCode(code, redirectUri);
+    const tokenInfo = await metaClient.exchangeOAuthCode(code, redirectUri, authType);
 
     const encPageToken = encrypt(tokenInfo.page_access_token || tokenInfo.access_token);
     const encLongToken = encrypt(tokenInfo.long_lived_token || tokenInfo.access_token);
