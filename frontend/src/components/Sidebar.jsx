@@ -44,12 +44,34 @@ export default function Sidebar({
     <aside className="sidebar">
       {/* Brand Header */}
       <div className="sidebar-logo">
-        <div className="logo-icon">
-          <Instagram size={20} color="#ffffff" />
+        <div className="logo-icon-wrap" style={{
+          width: '38px',
+          height: '38px',
+          borderRadius: '10px',
+          background: '#ffffff',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          border: '1px solid var(--border-light)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          overflow: 'hidden',
+          padding: '3px'
+        }}>
+          <img
+            src="/logo-icon.png"
+            alt="ReplyOS Icon"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
         </div>
         <div className="logo-text">
-          <div className="name">InstaReply</div>
-          <div className="tagline">Automate. Engage. Grow.</div>
+          <div className="name" style={{ display: 'flex', alignItems: 'center', fontSize: '18px', fontWeight: 900, letterSpacing: '-0.3px', lineHeight: 1.15 }}>
+            <span style={{ color: 'var(--text-main)' }}>Reply</span>
+            <span style={{ color: '#0066FF' }}>OS</span>
+          </div>
+          <div className="tagline" style={{ fontSize: '8.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-light)', marginTop: '2px' }}>
+            Automate Conversations
+          </div>
         </div>
       </div>
 
@@ -183,7 +205,7 @@ export default function Sidebar({
           type="button"
           className="nav-item"
           style={{ width: '100%', border: 'none', background: 'transparent' }}
-          onClick={() => alert('Need help? Contact support@instareply.com')}
+          onClick={() => alert('Need help? Contact support@replyos.com')}
         >
           <HelpCircle size={17} />
           <span className="label">Help & Support</span>

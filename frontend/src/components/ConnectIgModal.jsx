@@ -91,27 +91,49 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
         overflow: 'hidden',
         padding: '28px 26px',
       }}>
-        {/* Instagram Gradient Icon */}
+        {/* Brand & Instagram Connected Header */}
         <div style={{
-          width: '56px',
-          height: '56px',
-          borderRadius: '16px',
-          background: 'linear-gradient(135deg, #f09433, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#fff',
-          margin: '0 auto 14px',
-          boxShadow: '0 8px 18px rgba(220, 39, 67, 0.3)',
+          gap: '12px',
+          margin: '0 auto 16px',
         }}>
-          <Instagram size={30} />
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '14px',
+            background: '#ffffff',
+            border: '1px solid var(--border-light)',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '5px',
+          }}>
+            <img src="/logo-icon.png" alt="ReplyOS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+          <div style={{ color: 'var(--text-light)', fontSize: '18px', fontWeight: 600 }}>+</div>
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, #f09433, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            boxShadow: '0 6px 16px rgba(220, 39, 67, 0.3)',
+          }}>
+            <Instagram size={24} />
+          </div>
         </div>
 
         <h2 style={{ fontSize: '19px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0', textAlign: 'center' }}>
-          Connect Instagram Account
+          Connect Instagram to ReplyOS
         </h2>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 18px 0', lineHeight: 1.45, textAlign: 'center' }}>
-          Connect your Instagram Business or Creator account directly to automate DMs and comments.
+          Link your Instagram Business or Creator account to start automating DMs and comments.
         </p>
 
         {/* Tab Switcher */}

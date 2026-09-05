@@ -94,7 +94,7 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded }) {
           </div>
 
           <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
-            Upgrade to InstaReply Pro
+            Upgrade to ReplyOS Pro
           </h2>
           <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', margin: 0 }}>
             Unlock unlimited volume, AI smart replies, and maximum engagement.

@@ -72,7 +72,7 @@ app.use((_req, res) => {
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
-    console.log(`\n🚀 InstaAutoDM SaaS v3.0`);
+    console.log(`\n🚀 ReplyOS SaaS v3.0`);
     console.log(`   API:     http://localhost:${PORT}`);
     console.log(`   Login:   http://localhost:${PORT}/login`);
     console.log(`   Webhook: http://localhost:${PORT}/webhooks/instagram`);

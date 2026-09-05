@@ -147,7 +147,7 @@ export default function SettingsView({ account, onOpenConnect }) {
           </div>
 
           <div style={{ marginTop: '16px', fontSize: '12px', color: 'var(--text-light)' }}>
-            <strong>Verify Token:</strong> <code style={{ background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px' }}>instareply_verify_token_2026</code>
+            <strong>Verify Token:</strong> <code style={{ background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px' }}>instagram_autoreply_verify_token_2026</code>
           </div>
         </div>
       </div>
