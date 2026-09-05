@@ -128,7 +128,7 @@ class MetaClient {
     return null;
   }
 
-  async exchangeOAuthCode(code, redirectUri, authType = 'facebook') {
+  async exchangeOAuthCode(code, redirectUri, authType = 'instagram') {
     if (this.mockMode) {
       return {
         access_token: `mock_page_token_${Date.now()}`,
@@ -148,42 +148,72 @@ class MetaClient {
     const appSecret = process.env.META_APP_SECRET;
     const cleanCode = (code || '').replace(/#_$/, '').trim();
 
-    // Facebook Graph API token exchange flow
-    // Works for: Instagram Business/Creator accounts connected to a Facebook Page
-    console.log('[MetaClient] Exchanging authorization code via graph.facebook.com...');
-    const tokenRes = await fetch(`${GRAPH_API_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${encodeURIComponent(cleanCode)}`);
-    const tokenData = await tokenRes.json();
-    if (!tokenRes.ok) throw new Error(tokenData?.error?.message || 'Short-lived Facebook token exchange failed');
+    // ─── PATH 1: Instagram Business Login (native instagram.com flow) ────
+    // Tries api.instagram.com first — works when user logged in via instagram.com/oauth/authorize
+    console.log('[MetaClient] Trying Instagram Business Login via api.instagram.com...');
+    try {
+      const formParams = new URLSearchParams({
+        client_id: appId,
+        client_secret: appSecret,
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri,
+        code: cleanCode,
+      });
+      const igTokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formParams.toString(),
+      });
+      const igTokenData = await igTokenRes.json();
 
-    // Exchange short-lived token for 60-day long-lived user token
-    const longRes = await fetch(`${GRAPH_API_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${encodeURIComponent(tokenData.access_token)}`);
+      if (igTokenRes.ok && igTokenData.access_token) {
+        console.log('[MetaClient] ✅ Instagram token received, upgrading to long-lived...');
+        return await this._exchangeInstagramToken(igTokenData.access_token, appId, appSecret);
+      }
+      console.warn('[MetaClient] Instagram exchange note (will try Facebook fallback):', JSON.stringify(igTokenData));
+    } catch (igErr) {
+      console.warn('[MetaClient] Instagram exchange failed (will try Facebook fallback):', igErr.message);
+    }
+
+    // ─── PATH 2: Facebook Login fallback ────────────────────────────────
+    // For accounts connected via Facebook Page (traditional flow)
+    console.log('[MetaClient] Trying Facebook Graph API token exchange...');
+    const tokenRes = await fetch(
+      `${GRAPH_API_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${encodeURIComponent(cleanCode)}`
+    );
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok) throw new Error(tokenData?.error?.message || 'Token exchange failed. Please try again.');
+
+    const longRes = await fetch(
+      `${GRAPH_API_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${encodeURIComponent(tokenData.access_token)}`
+    );
     const longData = await longRes.json();
     if (!longRes.ok) throw new Error(longData?.error?.message || 'Long-lived token upgrade failed');
     const longLivedUserToken = longData.access_token;
 
-    // Get Facebook User ID & basic info
     const meRes = await fetch(`${GRAPH_API_BASE}/me?fields=id,name,email&access_token=${encodeURIComponent(longLivedUserToken)}`);
     const meData = await meRes.json();
     const fbUserId = meData?.id || null;
 
-    // Auto-detect Facebook Pages & connected Instagram Business Accounts
-    const accsRes = await fetch(`${GRAPH_API_BASE}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count}&access_token=${encodeURIComponent(longLivedUserToken)}`);
+    const accsRes = await fetch(
+      `${GRAPH_API_BASE}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count}&access_token=${encodeURIComponent(longLivedUserToken)}`
+    );
     const accsData = await accsRes.json();
     if (!accsRes.ok) throw new Error(accsData?.error?.message || 'Failed to retrieve Facebook pages');
 
     const page = accsData.data?.find(p => p.instagram_business_account?.id);
     if (!page) {
-      throw new Error('No Facebook Page connected to an Instagram Business or Creator Account was found. Please connect your Instagram account to a Facebook Page in Meta Business Suite, then try again.');
+      throw new Error(
+        'No Instagram Business/Creator account found. ' +
+        'Please make sure your Instagram is connected to a Facebook Page in Meta Business Suite.'
+      );
     }
 
-    // Auto-subscribe Facebook Page to Webhooks
     try {
-      await fetch(`${GRAPH_API_BASE}/${page.id}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,feed,mention,comments&access_token=${page.access_token}`, {
-        method: 'POST'
-      });
-      console.log(`[Meta] ✅ Subscribed Page ${page.id} to Meta webhooks`);
+      await fetch(`${GRAPH_API_BASE}/${page.id}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,feed,mention,comments&access_token=${page.access_token}`, { method: 'POST' });
+      console.log(`[Meta] ✅ Subscribed Page ${page.id} to webhooks`);
     } catch (subErr) {
-      console.warn(`[Meta] ⚠️ Webhook subscription warning:`, subErr.message);
+      console.warn('[Meta] Webhook subscription warning:', subErr.message);
     }
 
     return {
@@ -202,6 +232,7 @@ class MetaClient {
       expires_in: longData.expires_in || 5184000
     };
   }
+
 
   async exchangeUserToken(userToken) {
     if (this.mockMode) {
