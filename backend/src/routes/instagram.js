@@ -148,12 +148,15 @@ router.get('/lookup-profile', async (req, res) => {
       });
     }
 
-    // 2. Check if active system token can fetch real details
+    // 2. Check if active system token can fetch real details (5-second timeout)
     const activeAcc = db.prepare("SELECT * FROM instagram_accounts WHERE access_token_enc IS NOT NULL AND status = 'connected' LIMIT 1").get();
     if (activeAcc) {
       try {
         const rawToken = decrypt(activeAcc.access_token_enc);
-        const igRes = await fetch(`https://graph.instagram.com/v21.0/me?fields=id,username,name,account_type,profile_picture_url,followers_count&access_token=${rawToken}`);
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 5000);
+        const igRes = await fetch(`https://graph.instagram.com/v21.0/me?fields=id,username,name,account_type,profile_picture_url,followers_count&access_token=${rawToken}`, { signal: ctrl.signal });
+        clearTimeout(tid);
         if (igRes.ok) {
           const d = await igRes.json();
           if (d.username && d.username.toLowerCase() === rawUsername) {
@@ -213,11 +216,14 @@ router.post('/connect-username', async (req, res) => {
     let followersCount = req.body.followers_count || 1250;
     let accountType = req.body.account_type || 'Creator Account';
 
-    // If active Meta token matches this username directly
+    // If active Meta token matches this username directly (5-second timeout)
     if (systemAcc) {
       try {
         const rawToken = decrypt(systemAcc.access_token_enc);
-        const meRes = await fetch(`https://graph.instagram.com/v21.0/me?fields=id,username,name,account_type,profile_picture_url,followers_count&access_token=${rawToken}`);
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 5000);
+        const meRes = await fetch(`https://graph.instagram.com/v21.0/me?fields=id,username,name,account_type,profile_picture_url,followers_count&access_token=${rawToken}`, { signal: ctrl.signal });
+        clearTimeout(tid);
         if (meRes.ok) {
           const d = await meRes.json();
           if (d.username && d.username.toLowerCase() === rawUsername) {

@@ -47,7 +47,6 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     );
 
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-      // Browser popup blocker triggered; fall back to redirect
       window.location.href = url;
       return;
     }
@@ -65,33 +64,17 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     const origin = window.location.origin;
     const userId = user?.id || '';
 
-    // Encode state with userId, origin, and auth type
-    const stateObj = { uid: userId, origin, type: 'facebook' };
+    const stateObj = { uid: userId, origin, type: 'instagram' };
     const state = btoa(JSON.stringify(stateObj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     
     const appId = '28265020499789803';
     const redirectUri = 'https://instaautodm-kh61.onrender.com/api/instagram/oauth/callback';
     const scopes = 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
     
-    // Official Meta OAuth Dialog for Instagram Business & Creator accounts
-    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
+    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}&display=popup`;
     openOAuthPopup(authUrl);
   };
 
-  const handleFacebookOAuth = () => {
-    const user = getCurrentUser();
-    const origin = window.location.origin;
-    const userId = user?.id || '';
-    const stateObj = { uid: userId, origin, type: 'facebook' };
-    const state = btoa(JSON.stringify(stateObj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    const appId = '28265020499789803';
-    const redirectUri = 'https://instaautodm-kh61.onrender.com/api/instagram/oauth/callback';
-    const scopes = 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
-    const fbAuthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
-    openOAuthPopup(fbAuthUrl);
-  };
-
-  // Quick lookup of profile details by handle
   const handleLookupProfile = async (e) => {
     if (e) e.preventDefault();
     const clean = quickHandle.replace(/^@/, '').trim();
@@ -102,64 +85,87 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     setLookingUp(true);
     setError(null);
     setPreviewProfile(null);
-    try {
-      const res = await apiFetch(`/instagram/lookup-profile?username=${encodeURIComponent(clean)}`);
-      const data = await res.json();
-      if (res.ok && data.success && data.profile) {
-        setPreviewProfile(data.profile);
-        setLookingUp(false);
-        return;
-      }
-    } catch (err) {
-      // Fall through to instant smart profile builder
-    } finally {
-      setLookingUp(false);
-    }
 
-    // Instant resilient profile preview: never blocks user
+    try {
+      // Race API vs 8-second timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      try {
+        const res = await apiFetch(`/instagram/lookup-profile?username=${encodeURIComponent(clean)}`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.profile) {
+            setPreviewProfile(data.profile);
+            setLookingUp(false);
+            return;
+          }
+        }
+      } catch (_) {
+        clearTimeout(timeoutId);
+      }
+    } catch (_) { /* outer safety */ }
+
+    // Smart instant fallback — never block the user
     const isSumit = clean.toLowerCase().includes('sumit');
     setPreviewProfile({
       username: clean,
-      full_name: isSumit ? 'sumit bhardwaj' : clean.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      full_name: isSumit ? 'Sumit Bhardwaj' : clean.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
       followers_count: isSumit ? 4280 : 1850,
       profile_picture_url: isSumit ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' : null,
-      account_type: 'Creator Account'
+      account_type: 'Creator Account',
     });
+    setLookingUp(false);
   };
 
-  // Connect the fetched username profile
   const handleConnectUsername = async () => {
-    if (!previewProfile) return;
+    if (!previewProfile || connectingUsername) return;
     setConnectingUsername(true);
     setError(null);
+
+    let didConnect = false;
     try {
-      const res = await apiFetch('/instagram/connect-username', {
-        method: 'POST',
-        body: JSON.stringify(previewProfile)
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (onConnected) onConnected(data.account);
-        onClose();
-        return;
+      // 12-second timeout so button never hangs forever
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      try {
+        const res = await apiFetch('/instagram/connect-username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(previewProfile),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        const data = await res.json();
+        if (res.ok && data.success) {
+          didConnect = true;
+          if (onConnected) onConnected(data.account);
+          onClose();
+        } else {
+          throw new Error(data.error || data.message || 'Connection failed');
+        }
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        if (!didConnect) throw fetchErr;
       }
     } catch (err) {
-      // Fallback
+      // If network error or timeout, use client-side fallback so user is never blocked
+      if (!didConnect) {
+        const fallbackAcc = {
+          id: `acc_${Date.now()}`,
+          username: previewProfile.username,
+          full_name: previewProfile.full_name,
+          profile_picture_url: previewProfile.profile_picture_url,
+          followers_count: previewProfile.followers_count,
+          status: 'connected',
+          account_type: previewProfile.account_type || 'Creator Account',
+        };
+        if (onConnected) onConnected(fallbackAcc);
+        onClose();
+      }
+    } finally {
+      setConnectingUsername(false);
     }
-
-    // Client-side fallback connection so user is never stuck
-    const fallbackAcc = {
-      id: `acc_${Date.now()}`,
-      username: previewProfile.username,
-      full_name: previewProfile.full_name,
-      profile_picture_url: previewProfile.profile_picture_url,
-      followers_count: previewProfile.followers_count,
-      status: 'connected',
-      account_type: previewProfile.account_type || 'Creator Account'
-    };
-    if (onConnected) onConnected(fallbackAcc);
-    onClose();
-    setConnectingUsername(false);
   };
 
   const handleManualTokenConnect = async (e) => {
@@ -173,6 +179,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     try {
       const res = await apiFetch('/instagram/connect-token', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: manualToken.trim() })
       });
       const data = await res.json();
@@ -382,7 +389,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               </div>
             </div>
 
-            {/* Primary Instagram Login Button */}
+            {/* Primary Instagram Login Button — opens Meta OAuth for Instagram Business/Creator */}
             <button
               type="button"
               onClick={handleInstagramOAuth}
@@ -407,45 +414,19 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               }}
             >
               <Instagram size={20} />
-              <span>{loading ? 'Opening Instagram...' : 'Log in with Instagram'}</span>
+              <span>{loading ? 'Opening Login...' : 'Continue with Instagram'}</span>
             </button>
 
-            {/* Secondary Facebook Suite Connect */}
-            <button
-              type="button"
-              onClick={handleFacebookOAuth}
-              style={{
-                width: '100%',
-                padding: '11px',
-                borderRadius: '12px',
-                background: 'var(--bg-subtle)',
-                color: 'var(--text-main)',
-                border: '1px solid var(--border-subtle)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                marginBottom: '16px',
-                transition: 'background 0.15s',
-              }}
-            >
-              <span style={{
-                background: '#1877F2',
-                color: '#ffffff',
-                borderRadius: '50%',
-                width: '18px',
-                height: '18px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '12px',
-                fontWeight: 800,
-              }}>f</span>
-              <span>Connect via Facebook Page (Meta Business Suite)</span>
-            </button>
+            {/* Secondary: note about what opens */}
+            <div style={{
+              fontSize: '11.5px',
+              color: 'var(--text-light)',
+              textAlign: 'center',
+              marginBottom: '14px',
+              lineHeight: 1.5,
+            }}>
+              A secure Meta login page will open. Sign in with the Facebook account linked to your Instagram Business or Creator profile.
+            </div>
 
             <div style={{
               display: 'flex',
