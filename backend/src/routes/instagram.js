@@ -282,14 +282,14 @@ router.post('/connect-username', async (req, res) => {
   }
 });
 
-// GET /api/instagram/oauth/start — pass user ID and return origin via state param
+// GET /api/instagram/oauth/start — always uses the registered Facebook App (Meta OAuth)
 router.get('/oauth/start', (req, res) => {
   let returnOrigin = req.query.return_origin || '';
   if (!returnOrigin && req.headers.referer) {
     try { returnOrigin = new URL(req.headers.referer).origin; } catch (e) {}
   }
-  const authType = req.query.type || 'instagram';
-  const stateObj = { uid: getUserId(req), origin: returnOrigin, type: authType };
+  const authType = req.query.type || 'facebook';
+  const stateObj = { uid: getUserId(req), origin: returnOrigin, type: 'facebook' };
   const state = Buffer.from(JSON.stringify(stateObj)).toString('base64url');
 
   if (process.env.META_MOCK_MODE === 'true') {
@@ -297,24 +297,14 @@ router.get('/oauth/start', (req, res) => {
   }
 
   const appId = process.env.META_APP_ID;
+  if (!appId) {
+    return res.status(500).send('<h3>META_APP_ID not configured on server</h3>');
+  }
   const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/instagram/oauth/callback`;
+  const scopes = process.env.META_SCOPES || 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
 
-  if (authType === 'facebook') {
-    const scopes = req.query.scopes || process.env.META_SCOPES || 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
-    return res.redirect(`https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}&display=popup`);
-  }
-
-  // Direct Instagram Business Login
-  // If a dedicated Instagram App ID is configured, use instagram.com/oauth/authorize
-  // Otherwise fall back to facebook.com OAuth (which works for Instagram Business/Creator via the same Facebook app)
-  const igAppId = process.env.INSTAGRAM_APP_ID;
-  if (igAppId && igAppId !== appId) {
-    const scopes = req.query.scopes || 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
-    return res.redirect(`https://www.instagram.com/oauth/authorize?enable_fb_login=1&force_authentication=1&client_id=${igAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${state}`);
-  }
-
-  // Standard fallback: Facebook OAuth (works for Instagram Business connected via Facebook Page)
-  const scopes = req.query.scopes || process.env.META_SCOPES || 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
+  // Always use Facebook OAuth — works for Instagram Business/Creator accounts connected via Facebook Page
+  // This is the only flow that works with a standard single Meta App registration
   return res.redirect(`https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}&display=popup`);
 });
 

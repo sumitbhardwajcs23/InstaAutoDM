@@ -59,30 +59,18 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     }, 1000);
   };
 
-  // Opens instagram.com login page (Instagram Business Login — native IG experience)
-  const handleInstagramOAuth = () => {
-    // Route through backend /oauth/start which uses the Instagram App ID & correct scopes
-    // Pass the JWT token as query param so the backend can identify the current user
+  // Both OAuth buttons use the backend /oauth/start which uses the correct registered App ID
+  const openOAuthStart = () => {
     const origin = window.location.origin;
     const token = getToken() || '';
     const BACKEND = 'https://instaautodm-kh61.onrender.com';
-    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=facebook&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
     openOAuthPopup(startUrl);
   };
 
-  // Opens facebook.com login (for Instagram linked via Facebook Business Manager)
-  const handleFacebookOAuth = () => {
-    const user = getCurrentUser();
-    const origin = window.location.origin;
-    const userId = user?.id || '';
-    const stateObj = { uid: userId, origin, type: 'facebook' };
-    const state = btoa(JSON.stringify(stateObj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    const appId = '28265020499789803';
-    const redirectUri = 'https://instaautodm-kh61.onrender.com/api/instagram/oauth/callback';
-    const scopes = 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
-    const fbAuthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}&display=popup`;
-    openOAuthPopup(fbAuthUrl);
-  };
+  const handleInstagramOAuth = openOAuthStart;
+  const handleFacebookOAuth = openOAuthStart;
+
 
   const handleLookupProfile = async (e) => {
     if (e) e.preventDefault();
