@@ -30,7 +30,7 @@ app.use('/webhooks', require('./routes/webhooks'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/instagram', require('./routes/instagram'));
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().toISOString(), version: '3.0.0' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().toISOString(), version: '3.1.0' }));
 
 // ── Protected API routes (JWT required) ─────────────────────────────
 // Apply auth middleware to remaining /api/* routes
