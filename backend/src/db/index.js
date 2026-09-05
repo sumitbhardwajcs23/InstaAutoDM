@@ -19,8 +19,15 @@ try { db.exec('ALTER TABLE conversations ADD COLUMN name TEXT;'); } catch (e) {}
 try { db.exec('ALTER TABLE conversations ADD COLUMN profile_pic_url TEXT;'); } catch (e) {}
 
 // Safe migrations for instagram_accounts profile details
+try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN page_access_token_enc TEXT;'); } catch (e) {}
+try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN long_lived_token_enc TEXT;'); } catch (e) {}
+try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN disclosure_message TEXT DEFAULT \'⚡ [Automated Response] \';'); } catch (e) {}
+try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN fb_page_name TEXT;'); } catch (e) {}
+try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN fb_user_id TEXT;'); } catch (e) {}
+try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN account_type TEXT;'); } catch (e) {}
 try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN full_name TEXT;'); } catch (e) {}
 try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN profile_picture_url TEXT;'); } catch (e) {}
+try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN followers_count INTEGER DEFAULT 0;'); } catch (e) {}
 
 // ── PostgreSQL Replication Layer ───────────────────────────────────────
 const PG_URL = process.env.DATABASE_URL || 'postgresql://instautoreply_user:ngJK4XtKJSEYDlnXZpevibT2TawWEJWH@dpg-dadvcvf40ujc73d522i0-a.oregon-postgres.render.com/instautoreply';
@@ -108,6 +115,15 @@ if (PG_URL) {
         try {
           await pgPool.query('ALTER TABLE conversations ADD COLUMN IF NOT EXISTS name TEXT;');
           await pgPool.query('ALTER TABLE conversations ADD COLUMN IF NOT EXISTS profile_pic_url TEXT;');
+          await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS page_access_token_enc TEXT;');
+          await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS long_lived_token_enc TEXT;');
+          await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS disclosure_message TEXT DEFAULT \'⚡ [Automated Response] \';');
+          await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS fb_page_name TEXT;');
+          await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS fb_user_id TEXT;');
+          await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS account_type TEXT;');
+          await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS full_name TEXT;');
+          await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;');
+          await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;');
         } catch (migErr) {
           console.warn('[PostgreSQL] Column migration notice:', migErr.message);
         }

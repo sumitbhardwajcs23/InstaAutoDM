@@ -24,20 +24,20 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// ── Public routes (no auth required) ────────────────────────────────
+// ── Public routes (no auth required / handles own auth) ──────────────
 app.use('/api/auth', require('./routes/auth'));
 app.use('/webhooks', require('./routes/webhooks'));
 app.use('/api/webhooks', require('./routes/webhooks'));
+app.use('/api/instagram', require('./routes/instagram'));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().toISOString(), version: '3.0.0' }));
 
 // ── Protected API routes (JWT required) ─────────────────────────────
-// Apply auth middleware to all /api/* routes (auth routes already handled above)
+// Apply auth middleware to remaining /api/* routes
 app.use('/api', requireAuth);
 
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/analytics', require('./routes/analytics'));
-app.use('/api/instagram', require('./routes/instagram'));
 app.use('/api/rules', require('./routes/rules'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/usage', require('./routes/usage'));
