@@ -70,8 +70,8 @@ class MetaClient {
     const appSecret = process.env.META_APP_SECRET;
     const cleanCode = (code || '').replace(/#_$/, '').trim();
 
-    // 1. If authType is 'instagram' (default) or not explicitly 'facebook', try direct Instagram token exchange
-    if (authType !== 'facebook') {
+    // 1. If authType is 'instagram', try direct Instagram token exchange first, then fall back
+    if (authType === 'instagram') {
       try {
         console.log('[MetaClient] Exchanging authorization code via api.instagram.com...');
         const formParams = new URLSearchParams();
@@ -92,15 +92,9 @@ class MetaClient {
           console.log('[MetaClient] ✅ Received Instagram access token for user ID:', igTokenData.user_id);
           return await this._exchangeInstagramToken(igTokenData.access_token, appId, appSecret);
         } else {
-          console.warn('[MetaClient] Instagram code exchange response:', JSON.stringify(igTokenData));
-          if (authType === 'instagram') {
-            throw new Error(igTokenData?.error_message || igTokenData?.error?.message || 'Instagram authorization exchange failed');
-          }
+          console.warn('[MetaClient] Instagram code exchange returned error, attempting Facebook Graph API fallback:', JSON.stringify(igTokenData));
         }
       } catch (igErr) {
-        if (authType === 'instagram') {
-          throw igErr;
-        }
         console.warn('[MetaClient] Instagram code exchange failed, attempting Facebook Graph API fallback:', igErr.message);
       }
     }

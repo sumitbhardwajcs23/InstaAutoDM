@@ -206,7 +206,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
           </div>
         )}
 
-        {/* Tab 1: Instagram Login */}
+        {/* Tab 1: Instagram / Meta Login */}
         {tab === 'oauth' && (
           <div>
             <div style={{
@@ -214,7 +214,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               background: 'var(--bg-subtle)',
               borderRadius: '12px',
               padding: '14px',
-              marginBottom: '18px',
+              marginBottom: '16px',
               display: 'flex',
               flexDirection: 'column',
               gap: '8px',
@@ -223,55 +223,108 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CheckCircle2 size={15} color="#10b981" />
-                <span>Log in directly with your Instagram username & password</span>
+                <span>Official Meta Graph API authorization</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CheckCircle2 size={15} color="#10b981" />
-                <span>Official Meta authorization on instagram.com</span>
+                <span>Select your Instagram Business or Creator profile</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CheckCircle2 size={15} color="#10b981" />
-                <span>Auto-connects direct messages, comments & webhooks</span>
+                <span>Auto-activates automated DMs, comments & webhooks</span>
               </div>
             </div>
 
-            {/* Direct Instagram Login Button */}
+            {/* Recommended Meta Login Button */}
             <button
               type="button"
-              onClick={handleInstagramOAuth}
+              onClick={handleFacebookOAuth}
               style={{
                 width: '100%',
                 padding: '14px',
                 borderRadius: '12px',
-                background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+                background: 'linear-gradient(135deg, #1877F2 0%, #0066FF 100%)',
                 color: '#ffffff',
                 border: 'none',
                 fontSize: '14px',
                 fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: '0 6px 20px rgba(220, 39, 67, 0.4)',
+                boxShadow: '0 6px 20px rgba(24, 119, 242, 0.35)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '9px',
-                marginBottom: '12px',
+                gap: '10px',
+                marginBottom: '8px',
                 transition: 'transform 0.15s ease',
               }}
             >
-              <Instagram size={20} />
-              <span>Log in with Instagram Account</span>
+              <span style={{
+                background: '#ffffff',
+                color: '#1877F2',
+                borderRadius: '50%',
+                width: '22px',
+                height: '22px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '15px',
+                fontWeight: 800,
+                lineHeight: 1,
+              }}>f</span>
+              <span>Connect Instagram via Meta Login</span>
+              <span style={{
+                fontSize: '10px',
+                background: 'rgba(255,255,255,0.25)',
+                padding: '2px 7px',
+                borderRadius: '6px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                fontWeight: 700,
+              }}>Recommended</span>
             </button>
 
-            {/* Facebook Page Login Alternate */}
-            <div style={{ display: 'flex', alignItems: 'center', margin: '14px 0 10px', color: 'var(--text-light)', fontSize: '11px' }}>
+            <p style={{
+              fontSize: '11.5px',
+              color: 'var(--text-muted)',
+              margin: '0 0 16px 0',
+              lineHeight: 1.4,
+              textAlign: 'center',
+            }}>
+              💡 Meta manages Instagram Business APIs. When prompted, select your Instagram profile to grant automation access.
+            </p>
+
+            {/* Explanation box for Instagram Direct Login Error */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              textAlign: 'left',
+              fontSize: '11.5px',
+              color: '#475569',
+              lineHeight: 1.45,
+              marginBottom: '14px',
+            }}>
+              <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>ℹ️ Seeing "Sorry, this page isn't available" on Instagram?</span>
+              </div>
+              <p style={{ margin: 0 }}>
+                Meta App <code>28265020499789803</code> is in <strong>Development Mode</strong>. Meta blocks direct <code>instagram.com</code> logins unless your username is added as an <strong>Instagram Tester</strong> in the Meta App Dashboard.
+                <br />
+                👉 Use the blue <strong>"Connect via Meta Login"</strong> button above, or paste a token in the <strong>Access Token</strong> tab.
+              </p>
+            </div>
+
+            {/* Direct Instagram Login Alternate */}
+            <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0', color: 'var(--text-light)', fontSize: '11px' }}>
               <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
-              <span style={{ padding: '0 8px' }}>or connect via Facebook Page</span>
+              <span style={{ padding: '0 8px' }}>or direct login (testers only)</span>
               <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
             </div>
 
             <button
               type="button"
-              onClick={handleFacebookOAuth}
+              onClick={handleInstagramOAuth}
               style={{
                 width: '100%',
                 padding: '10px 14px',
@@ -288,8 +341,8 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
                 gap: '8px',
               }}
             >
-              <span style={{ fontWeight: 800, color: '#1877f2', fontSize: '15px', lineHeight: 1 }}>f</span>
-              <span>Log in via Facebook Page</span>
+              <Instagram size={16} color="#dc2743" />
+              <span>Log in with Instagram Credentials</span>
             </button>
           </div>
         )}
@@ -321,6 +374,26 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               <span style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>
                 The server will query Meta Graph API to auto-discover your Facebook Page ID, Page Access Token, and Instagram Business Account.
               </span>
+              <div style={{
+                marginTop: '10px',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-subtle)',
+                fontSize: '11.5px',
+                color: 'var(--text-muted)',
+                lineHeight: 1.45,
+              }}>
+                <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
+                  ⚡ Quick Token Guide (Instant 0-Redirect Connect):
+                </div>
+                <ol style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <li>Open <a href="https://developers.facebook.com/tools/explorer/?app_id=28265020499789803" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontWeight: 600 }}>Meta Graph API Explorer ↗</a></li>
+                  <li>Ensure Meta App <code>28265020499789803</code> is selected</li>
+                  <li>Click <strong>Generate Access Token</strong> and copy the token</li>
+                  <li>Paste below and click Verify!</li>
+                </ol>
+              </div>
             </div>
 
             <button

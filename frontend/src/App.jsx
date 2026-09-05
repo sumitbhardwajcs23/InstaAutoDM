@@ -30,6 +30,7 @@ export default function App() {
   const [rules, setRules] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [account, setAccount] = useState(null);
+  const [notification, setNotification] = useState(null);
 
   // Sync dark mode class
   useEffect(() => {
@@ -39,6 +40,18 @@ export default function App() {
       document.documentElement.removeAttribute('data-theme');
     }
   }, [darkMode]);
+
+  // Handle OAuth callback URL parameters (?connected=true or ?error=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('connected') === 'true') {
+      setNotification({ type: 'success', message: '🎉 Instagram account successfully connected to ReplyOS!' });
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('error')) {
+      setNotification({ type: 'error', message: `Instagram connection note: ${decodeURIComponent(params.get('error'))}` });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   // Listen for unauthorized 401 events
   useEffect(() => {
@@ -179,6 +192,41 @@ export default function App() {
           onLogout={handleLogout}
           onSearch={(q) => console.log('Searching for:', q)}
         />
+
+        {/* Global OAuth / Alert Toast Banner */}
+        {notification && (
+          <div style={{
+            margin: '16px 24px 0',
+            padding: '12px 18px',
+            borderRadius: '12px',
+            background: notification.type === 'success' ? '#ecfdf5' : '#fef2f2',
+            border: `1px solid ${notification.type === 'success' ? '#a7f3d0' : '#fecaca'}`,
+            color: notification.type === 'success' ? '#065f46' : '#991b1b',
+            fontSize: '13.5px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+            animation: 'fadeIn 0.2s ease',
+          }}>
+            <span>{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'inherit',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '14px',
+                padding: '0 4px',
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* View Router */}
         <main style={{ flex: 1, overflowY: 'auto' }}>
