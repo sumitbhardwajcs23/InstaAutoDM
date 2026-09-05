@@ -46,6 +46,7 @@ function syncWriteToPg(pool, sql, params) {
 }
 
 async function syncFromPg(pool, sqliteDb) {
+  if (isSyncingFromPg || !pool) return;
   isSyncingFromPg = true;
   try {
     const tables = ['users', 'instagram_accounts', 'automation_rules', 'conversations', 'messages', 'comment_replies', 'activity_log'];
@@ -53,6 +54,14 @@ async function syncFromPg(pool, sqliteDb) {
       try {
         const res = await pool.query(`SELECT * FROM ${table}`);
         if (res.rows && res.rows.length > 0) {
+          // If table has primary key id, purge records that no longer exist in PG
+          try {
+            const pgIds = res.rows.map(r => r.id).filter(Boolean);
+            if (pgIds.length > 0) {
+              originalPrepare(`DELETE FROM ${table} WHERE id NOT IN (${pgIds.map(() => '?').join(',')})`).run(...pgIds);
+            }
+          } catch (delErr) {}
+
           for (const row of res.rows) {
             const keys = Object.keys(row);
             const placeholders = keys.map(() => '?').join(', ');
@@ -61,7 +70,9 @@ async function syncFromPg(pool, sqliteDb) {
               if (val instanceof Date) return val.toISOString();
               return val;
             });
-            originalPrepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
+            try {
+              originalPrepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
+            } catch (insErr) {}
           }
         }
       } catch (tableErr) {
@@ -97,6 +108,11 @@ if (PG_URL) {
           console.warn('[PostgreSQL] Column migration notice:', migErr.message);
         }
         await syncFromPg(pgPool, db);
+
+        // Auto-sync every 15 seconds to keep Render runtime fresh
+        setInterval(() => {
+          syncFromPg(pgPool, db).catch(() => {});
+        }, 15000);
       })
       .catch((err) => {
         console.warn('[PostgreSQL] Connection fallback to local store:', err.message);
@@ -121,6 +137,13 @@ db.prepare = function (sql) {
     return res;
   };
   return stmt;
+};
+
+// Provide explicit sync method for routes
+db.syncFromPgNow = async function () {
+  if (pgPool) {
+    await syncFromPg(pgPool, db);
+  }
 };
 
 // Real data only — no dummy or mock accounts seeded

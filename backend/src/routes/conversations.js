@@ -9,11 +9,15 @@ function getAccountForUser(userId, accountId) {
   if (accountId) {
     return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
   }
-  return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
+  return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId)
+      || db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1").get(userId);
 }
 
 // GET /api/conversations
 router.get('/', async (req, res) => {
+  if (db.syncFromPgNow) {
+    try { await db.syncFromPgNow(); } catch (_) {}
+  }
   const { limit = 50, offset = 0, status, account_id } = req.query;
   const account = getAccountForUser(req.user.id, account_id);
   if (!account) return res.json({ total: 0, conversations: [] });
