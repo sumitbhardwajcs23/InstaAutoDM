@@ -16,11 +16,12 @@ services:
         value: "1000"
       - key: META_MOCK_MODE
         value: "false"
+      - key: DATABASE_URL
+        value: "postgresql://instautoreply_user:ngJK4XtKJSEYDlnXZpevibT2TawWEJWH@dpg-dadvcvf40ujc73d522i0-a/instautoreply"
       - key: JWT_SECRET
         generateValue: true
       - key: ENCRYPTION_KEY
         generateValue: true
-      # Provide these via Render Dashboard Environment Variables
       - key: META_APP_ID
         sync: false
       - key: META_APP_SECRET

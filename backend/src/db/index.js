@@ -14,6 +14,90 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.exec(CREATE_TABLES_SQL);
 
+// ── PostgreSQL Replication Layer ───────────────────────────────────────
+const PG_URL = process.env.DATABASE_URL;
+let pgClient = null;
+
+function syncWriteToPg(client, sql, params) {
+  try {
+    let i = 1;
+    let pgSql = sql.replace(/\?/g, () => `$${i++}`);
+    pgSql = pgSql.replace(/datetime\('now'\)/gi, 'NOW()');
+    client.query(pgSql, params).catch((e) => {
+      console.error('[PG Write Sync Error]', e.message);
+    });
+  } catch (err) {
+    console.error('[PG Write Sync Error]', err.message);
+  }
+}
+
+async function syncFromPg(client, sqliteDb) {
+  try {
+    const tables = ['users', 'instagram_accounts', 'automation_rules', 'conversations', 'messages', 'comment_replies', 'activity_log'];
+    for (const table of tables) {
+      try {
+        const res = await client.query(`SELECT * FROM ${table}`);
+        if (res.rows && res.rows.length > 0) {
+          for (const row of res.rows) {
+            const keys = Object.keys(row);
+            const placeholders = keys.map(() => '?').join(', ');
+            const values = keys.map((k) => {
+              const val = row[k];
+              if (val instanceof Date) return val.toISOString();
+              return val;
+            });
+            sqliteDb.prepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
+          }
+        }
+      } catch (tableErr) {
+        // Table might not exist yet in fresh PG
+      }
+    }
+    console.log('[PostgreSQL] ✅ Synchronized latest tables from Render PostgreSQL to runtime engine.');
+  } catch (err) {
+    console.error('[PostgreSQL Sync Warning]', err.message);
+  }
+}
+
+if (PG_URL) {
+  try {
+    const { Client } = require('pg');
+    const isRenderInternal = PG_URL.includes('dpg-') && !PG_URL.includes('.render.com');
+    pgClient = new Client({
+      connectionString: PG_URL,
+      ssl: isRenderInternal ? false : { rejectUnauthorized: false },
+    });
+
+    pgClient.connect()
+      .then(async () => {
+        console.log('[PostgreSQL] ✅ Connected to Render PostgreSQL');
+        await syncFromPg(pgClient, db);
+      })
+      .catch((err) => {
+        console.warn('[PostgreSQL] Could not connect to remote PG, using local SQLite:', err.message);
+        pgClient = null;
+      });
+  } catch (err) {
+    console.warn('[PostgreSQL] pg module initialization failed:', err.message);
+    pgClient = null;
+  }
+}
+
+// Wrap db.prepare to intercept write operations and mirror them to PostgreSQL
+const originalPrepare = db.prepare.bind(db);
+db.prepare = function (sql) {
+  const stmt = originalPrepare(sql);
+  const originalRun = stmt.run.bind(stmt);
+  stmt.run = function (...params) {
+    const res = originalRun(...params);
+    if (pgClient) {
+      syncWriteToPg(pgClient, sql, params);
+    }
+    return res;
+  };
+  return stmt;
+};
+
 function seedInitialData() {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
   if (userCount > 0) return;
