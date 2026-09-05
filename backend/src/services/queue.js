@@ -197,8 +197,9 @@ class EventQueueWorker {
     // Upsert conversation with real name, real username, and profile pic
     const convId = this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, text, 'inbound', 'open', nowIso);
 
-    // Log inbound message
-    db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id) VALUES (?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'inbound', text || '', 'received', messageId || null);
+    // Log inbound message with the event timestamp so ordering is correct
+    const inboundCreatedAt = new Date(eventTime).toISOString();
+    db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'inbound', text || '', 'received', messageId || null, inboundCreatedAt);
 
     const rules = db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND type = 'dm_keyword_reply' AND is_active = 1").all(account.id);
     const rule = rules.find(r => this.matchKeyword(text, r.trigger_keyword, r.match_mode));
@@ -209,12 +210,15 @@ class EventQueueWorker {
 
     // 24h window
     if (now - eventTime > MAX_DM_WINDOW_MS) {
-      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message) VALUES (?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'window_closed', '24-hour window expired');
+      // Outbound entries for closed window — use a timestamp 1s after inbound
+      const closedOutTs = new Date(eventTime + 1000).toISOString();
+      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'window_closed', '24-hour window expired', closedOutTs);
       return;
     }
 
     if (user.dm_usage_this_period >= FREE_CAP) {
-      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message) VALUES (?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped', 'Free cap reached');
+      const cappedOutTs = new Date(eventTime + 1000).toISOString();
+      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped', 'Free cap reached', cappedOutTs);
       return;
     }
 
@@ -227,7 +231,9 @@ class EventQueueWorker {
     const msg = rawMsg.replace(/\{username\}/gi, greetingName);
     try {
       const resp = await metaClient.sendDirectMessage({ pageId: account.page_id, igScopedUserId: senderId, messageText: msg, accessToken: decrypt(account.access_token_enc) });
-      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id) VALUES (?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'sent', resp.message_id);
+      // Outbound auto-reply timestamp: 1 second after the inbound event to ensure correct ordering
+      const outboundCreatedAt = new Date(eventTime + 1000).toISOString();
+      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'sent', resp.message_id, outboundCreatedAt);
       db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
       db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
       this.updateActivityLog(account.id, 'dm');

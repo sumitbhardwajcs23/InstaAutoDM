@@ -104,16 +104,17 @@ router.get('/', async (req, res) => {
     const days = Math.floor(hrs / 24);
     const timeAgo = days > 0 ? `${days}d ago` : hrs > 0 ? `${hrs}h ago` : `${mins}m ago`;
 
-    // Fetch all messages in the thread in chronological order
+    // Fetch all messages in the thread in chronological order (IST time)
     const rawMsgs = db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').all(c.id);
     const messages = rawMsgs.map(m => {
       const msgDate = new Date(m.created_at);
-      const timeStr = isNaN(msgDate.getTime()) ? 'Just now' : msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const timeStr = isNaN(msgDate.getTime()) ? 'Just now' : msgDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
       return {
         id: m.id,
         sender: m.direction === 'inbound' ? 'user' : 'bot',
         text: m.content,
         time: timeStr,
+        created_at: m.created_at,
         rule: m.direction === 'outbound' ? 'Automated DM' : null,
         status: m.status
       };
@@ -172,7 +173,7 @@ router.get('/:id', (req, res) => {
     ...m,
     text: m.content,
     sender: m.direction === 'inbound' ? 'user' : 'bot',
-    time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    time: new Date(m.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }),
     is_automated: m.direction === 'outbound'
   }));
 

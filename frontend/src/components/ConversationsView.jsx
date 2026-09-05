@@ -52,19 +52,31 @@ export default function ConversationsView({ conversations: initialConversations 
     const normalizedMessages = (c.messages || []).map((m, mIdx) => {
       const isInbound = m.direction === 'inbound' || m.sender === 'user';
       const msgDate = m.created_at ? new Date(m.created_at) : null;
-      const timeStr = m.time || (msgDate && !isNaN(msgDate.getTime()) ? msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now');
+      // Use IST (Asia/Kolkata) for all timestamps
+      const timeStr = m.time && !m.time.includes(':') ? m.time : // already formatted non-time string
+        (msgDate && !isNaN(msgDate.getTime())
+          ? msgDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
+          : (m.time || 'Just now'));
       return {
         id: m.id || `m_${mIdx}`,
         sender: isInbound ? 'user' : 'bot',
         text: m.text || m.content || '',
         time: timeStr,
+        created_at: m.created_at || null,
         rule: m.rule || (m.direction === 'outbound' ? 'Automated DM' : null),
         status: m.status || 'sent',
         errorMessage: m.error_message || null,
       };
     });
+    // Sort by created_at ascending so messages display in correct chronological order
+    const sortedMessages = [...normalizedMessages].sort((a, b) => {
+      if (!a.created_at && !b.created_at) return 0;
+      if (!a.created_at) return 1;
+      if (!b.created_at) return -1;
+      return new Date(a.created_at) - new Date(b.created_at);
+    });
 
-    const lastMsg = c.lastMessage || c.last_message || (normalizedMessages[normalizedMessages.length - 1]?.text) || 'No messages yet';
+    const lastMsg = c.lastMessage || c.last_message || (sortedMessages[sortedMessages.length - 1]?.text) || 'No messages yet';
 
     return {
       ...c,
@@ -82,7 +94,7 @@ export default function ConversationsView({ conversations: initialConversations 
       time,
       lastMessage: lastMsg,
       status: isReplied ? 'Replied' : 'Open',
-      messages: normalizedMessages,
+      messages: sortedMessages,
     };
   }, []);
 
@@ -156,11 +168,13 @@ export default function ConversationsView({ conversations: initialConversations 
     setIsSending(true);
 
     const tempId = `temp_${Date.now()}`;
+    const nowTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
     const newMsg = {
       id: tempId,
       sender: 'bot',
       text: textToSend,
-      time: 'Just now',
+      time: nowTime,
+      created_at: new Date().toISOString(),
       rule: 'Manual Reply',
       status: 'sending',
     };
