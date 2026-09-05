@@ -50,40 +50,81 @@ class MetaClient {
     return { success: true, recipient_id: data.recipient_id, message_id: data.message_id };
   }
 
-  async getInstagramUserProfile({ igScopedUserId, accessToken }) {
+  async getInstagramUserProfile({ igScopedUserId, accessToken, pageId }) {
     if (!igScopedUserId || !accessToken) return null;
     if (this.mockMode) {
       return { id: igScopedUserId, name: 'Instagram Lead', username: 'ig_lead', profile_pic: null };
     }
 
-    const isIgToken = accessToken.startsWith('IG');
-    const endpoints = isIgToken ? [
-      `${GRAPH_IG_BASE}/${igScopedUserId}?fields=name,username,profile_pic&access_token=${encodeURIComponent(accessToken)}`,
-      `${GRAPH_API_BASE}/${igScopedUserId}?fields=name,username,profile_pic&access_token=${encodeURIComponent(accessToken)}`
-    ] : [
-      `${GRAPH_API_BASE}/${igScopedUserId}?fields=name,username,profile_pic&access_token=${encodeURIComponent(accessToken)}`,
-      `${GRAPH_IG_BASE}/${igScopedUserId}?fields=name,username,profile_pic&access_token=${encodeURIComponent(accessToken)}`
+    const isIgToken = accessToken.startsWith('IG') || accessToken.startsWith('IGQ');
+
+    // Field variants — different API versions support different fields
+    const fieldSets = [
+      'name,username,profile_picture_url',
+      'name,username,profile_pic',
+      'name,username',
+      'name',
     ];
 
-    for (const url of endpoints) {
-      try {
-        const res = await fetch(url);
-        if (res.ok) {
+    const bases = isIgToken
+      ? [GRAPH_IG_BASE, GRAPH_API_BASE]
+      : [GRAPH_API_BASE, GRAPH_IG_BASE];
+
+    for (const base of bases) {
+      for (const fields of fieldSets) {
+        const url = `${base}/${igScopedUserId}?fields=${fields}&access_token=${encodeURIComponent(accessToken)}`;
+        try {
+          const res = await fetch(url);
           const data = await res.json();
-          if (data && (data.username || data.name || data.id)) {
-            console.log(`[MetaClient] ✅ Retrieved real user profile for ${igScopedUserId}: "${data.name || ''}" (@${data.username || ''})`);
+          if (!res.ok) {
+            console.warn(`[MetaClient] Profile API error for ${igScopedUserId} (${fields}):`, data?.error?.message || JSON.stringify(data));
+            // Don't try more fields if token is invalid/expired
+            if (data?.error?.code === 190 || data?.error?.code === 102) break;
+            continue;
+          }
+          if (data && (data.username || data.name)) {
+            console.log(`[MetaClient] ✅ Profile for ${igScopedUserId}: "${data.name || ''}" (@${data.username || ''})`);
             return {
               id: data.id || igScopedUserId,
               name: data.name || null,
               username: data.username || null,
-              profile_pic: data.profile_pic || data.profile_picture_url || null
+              profile_pic: data.profile_picture_url || data.profile_pic || null
+            };
+          }
+          // Got a valid response but only id — no name/username available via this endpoint
+          if (data?.id) break;
+        } catch (err) {
+          console.warn(`[MetaClient] Network error fetching profile (${fields}):`, err.message);
+        }
+      }
+    }
+
+    // Fallback: try GET /me/conversations?user_id={igsid} to extract profile from conversation participant
+    const igAccountId = pageId;
+    if (igAccountId) {
+      try {
+        const convUrl = `${GRAPH_API_BASE}/${igAccountId}/conversations?user_id=${igScopedUserId}&fields=participants&access_token=${encodeURIComponent(accessToken)}`;
+        const convRes = await fetch(convUrl);
+        if (convRes.ok) {
+          const convData = await convRes.json();
+          const participants = convData?.data?.[0]?.participants?.data || [];
+          const participant = participants.find(p => p.id !== igAccountId);
+          if (participant && (participant.name || participant.email)) {
+            console.log(`[MetaClient] ✅ Profile from conversations for ${igScopedUserId}: "${participant.name || ''}"`);
+            return {
+              id: igScopedUserId,
+              name: participant.name || null,
+              username: participant.username || null,
+              profile_pic: null
             };
           }
         }
-      } catch (err) {
-        console.warn(`[MetaClient] Warning fetching user profile:`, err.message);
+      } catch (convErr) {
+        console.warn(`[MetaClient] Conversations fallback failed:`, convErr.message);
       }
     }
+
+    console.warn(`[MetaClient] ⚠️ Could not get profile for ${igScopedUserId} — all endpoints exhausted`);
     return null;
   }
 

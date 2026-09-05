@@ -36,12 +36,12 @@ export default function ConversationsView({ conversations: initialConversations 
     const resolvedName = realName || (known ? known.name : null);
     const resolvedHandle = hasRealHandle ? cleanUsername : (known ? known.username : null);
 
-    // Primary display name: Real Instagram name if known, else handle, else user ID
-    const displayName = resolvedName || (resolvedHandle ? `@${resolvedHandle}` : (igScopedId ? `User ${igScopedId.slice(-6)}` : 'Instagram Lead'));
-    // Secondary handle: @username if available, else IG ID
+    // Primary display name: Real Instagram name > @handle > 'Instagram User' (never shows raw ID)
+    const displayName = resolvedName || (resolvedHandle ? `@${resolvedHandle}` : 'Instagram User');
+    // Secondary handle: @username if available, else show IG ID in smaller text
     const displayHandle = resolvedHandle ? `@${resolvedHandle}` : (igScopedId ? `ID: ${igScopedId}` : '');
     const sender = resolvedHandle ? `@${resolvedHandle}` : displayName;
-    const initial = (resolvedName || resolvedHandle || 'U').charAt(0).toUpperCase();
+    const initial = (resolvedName || resolvedHandle || 'I').charAt(0).toUpperCase();
 
     const colorIndex = Math.abs((c.id ? String(c.id) : String(idx)).split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0)) % AVATAR_COLORS.length;
     const avatarBg = c.avatarBg || AVATAR_COLORS[colorIndex];

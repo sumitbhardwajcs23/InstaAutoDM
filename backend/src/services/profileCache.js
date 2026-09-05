@@ -66,23 +66,34 @@ function get(igScopedUserId) {
  * @param {string} igScopedUserId
  * @param {string} accessTokenEnc - encrypted or raw access token
  * @param {string} conversationId - to update DB record
+ * @param {string} [pageId] - page/account ID for conversations API fallback
+ * @param {number} [retryCount] - internal retry counter
  */
-async function fetchAndCache(igScopedUserId, accessTokenEnc, conversationId) {
+async function fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pageId, retryCount = 0) {
   if (!igScopedUserId) return;
 
-  // Don't re-fetch if we have a fresh cache entry
+  // Don't re-fetch if we have a fresh cache entry with a real name
   const cached = profileMap.get(igScopedUserId);
-  if (cached && cached.source === 'known') return; // known users never need network
+  if (cached && cached.source === 'known') return;
   if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS && cached.name) return;
 
   try {
-    const token = accessTokenEnc && (accessTokenEnc.startsWith('EAA') || accessTokenEnc.startsWith('IGQ') || accessTokenEnc.startsWith('IG'))
-      ? accessTokenEnc
-      : decrypt(accessTokenEnc);
+    let token;
+    try {
+      token = accessTokenEnc && (
+        accessTokenEnc.startsWith('EAA') ||
+        accessTokenEnc.startsWith('IGQ') ||
+        accessTokenEnc.startsWith('IG')
+      ) ? accessTokenEnc : decrypt(accessTokenEnc);
+    } catch (decErr) {
+      console.warn(`[ProfileCache] Token decrypt failed for ${igScopedUserId}:`, decErr.message);
+      return;
+    }
 
     const profile = await metaClient.getInstagramUserProfile({
       igScopedUserId,
       accessToken: token,
+      pageId: pageId || null,
     });
 
     if (profile && (profile.name || profile.username)) {
@@ -94,24 +105,42 @@ async function fetchAndCache(igScopedUserId, accessTokenEnc, conversationId) {
         source: 'meta',
       };
       profileMap.set(igScopedUserId, entry);
-      console.log(`[ProfileCache] ✅ Fetched & cached: ${igScopedUserId} → "${entry.name}" (@${entry.username})`);
+      console.log(`[ProfileCache] ✅ Cached: ${igScopedUserId} → "${entry.name}" (@${entry.username})`);
 
-      // Persist to DB
-      if (conversationId) {
-        try {
-          db.prepare(`
-            UPDATE conversations SET
-              name = COALESCE(?, name),
-              username = COALESCE(?, username),
-              profile_pic_url = COALESCE(?, profile_pic_url),
-              updated_at = datetime('now')
-            WHERE id = ?
-          `).run(entry.name, entry.username, entry.profile_pic, conversationId);
-        } catch (_) {}
+      // Persist to DB — update ALL conversations for this IGSID, not just this one
+      try {
+        db.prepare(`
+          UPDATE conversations SET
+            name = COALESCE(?, name),
+            username = COALESCE(?, username),
+            profile_pic_url = COALESCE(?, profile_pic_url),
+            updated_at = datetime('now')
+          WHERE ig_scoped_user_id = ?
+        `).run(entry.name, entry.username, entry.profile_pic, igScopedUserId);
+        console.log(`[ProfileCache] 💾 DB updated for all conversations of ${igScopedUserId}`);
+      } catch (dbErr) {
+        console.warn(`[ProfileCache] DB update failed:`, dbErr.message);
+      }
+    } else {
+      // Failed to get profile — schedule a retry in 30 seconds (max 3 retries)
+      if (retryCount < 3) {
+        const delay = (retryCount + 1) * 30000; // 30s, 60s, 90s
+        console.log(`[ProfileCache] ⏱ Scheduling retry ${retryCount + 1}/3 for ${igScopedUserId} in ${delay / 1000}s`);
+        setTimeout(() => {
+          fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pageId, retryCount + 1).catch(() => {});
+        }, delay);
+      } else {
+        console.warn(`[ProfileCache] ❌ Gave up fetching profile for ${igScopedUserId} after 3 retries`);
       }
     }
   } catch (err) {
     console.warn(`[ProfileCache] Meta fetch failed for ${igScopedUserId}:`, err.message);
+    // Retry once on network errors
+    if (retryCount < 2) {
+      setTimeout(() => {
+        fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pageId, retryCount + 1).catch(() => {});
+      }, 30000);
+    }
   }
 }
 

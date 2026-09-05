@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
     if (resolved.profile_pic) row.profile_pic_url = resolved.profile_pic;
     // If still no real name, trigger background enrichment (non-blocking)
     if (!row.name && account.access_token_enc) {
-      profileCache.fetchAndCache(row.ig_scoped_user_id, account.access_token_enc, row.id).catch(() => {});
+      profileCache.fetchAndCache(row.ig_scoped_user_id, account.access_token_enc, row.id, account.page_id).catch(() => {});
     }
   }
 
@@ -87,9 +87,9 @@ router.get('/', async (req, res) => {
     const cleanUsername = (c.username && c.username !== 'user') 
       ? c.username.replace(/^@/, '') 
       : (knownTester?.username || null);
-    const displayName = realName || (cleanUsername ? `@${cleanUsername}` : `User ${c.ig_scoped_user_id.slice(-4)}`);
-    const handle = cleanUsername ? `@${cleanUsername}` : `@user_${c.ig_scoped_user_id.slice(-4)}`;
-    const initial = (realName || cleanUsername || 'U').charAt(0).toUpperCase();
+    const displayName = realName || (cleanUsername ? `@${cleanUsername}` : 'Instagram User');
+    const handle = cleanUsername ? `@${cleanUsername}` : `IG ID: ${c.ig_scoped_user_id}`;
+    const initial = (realName || cleanUsername || 'I').charAt(0).toUpperCase();
     const charCodeSum = (c.id || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
     const avatarBg = avatarColors[charCodeSum % avatarColors.length];
     const profilePic = c.profile_pic_url || (knownTester?.profile_pic_url || null);

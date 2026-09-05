@@ -168,7 +168,7 @@ class EventQueueWorker {
     // For brand new users without a name, kick off a Meta API fetch in the background.
     // When it completes it will update the in-memory cache AND the DB row.
     if (!realName || !realUsername) {
-      profileCache.fetchAndCache(senderId, account.access_token_enc, convId).catch(() => {});
+      profileCache.fetchAndCache(senderId, account.access_token_enc, convId, account.page_id).catch(() => {});
     }
 
     const rules = db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND type = 'dm_keyword_reply' AND is_active = 1").all(account.id);
