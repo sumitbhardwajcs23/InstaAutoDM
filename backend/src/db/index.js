@@ -110,6 +110,7 @@ db.prepare = function (sql) {
 };
 
 function seedInitialData() {
+  if (process.env.DATABASE_URL) return;
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
   if (userCount > 0) return;
 
@@ -195,22 +196,24 @@ function seedInitialData() {
 
 seedInitialData();
 
-// Ensure standard rules exist on existing database
-const account = db.prepare("SELECT id FROM instagram_accounts WHERE status = 'connected' LIMIT 1").get();
-if (account) {
-  const guideRule = db.prepare("SELECT id FROM automation_rules WHERE instagram_account_id = ? AND trigger_keyword = 'GUIDE'").get(account.id);
-  if (!guideRule) {
-    db.prepare(`
-      INSERT INTO automation_rules (id, instagram_account_id, type, trigger_keyword, match_mode, reply_message, is_active, fire_count)
-      VALUES (?, ?, 'comment_to_dm', 'GUIDE', 'contains', 'Here is your free guide: https://example.com/guide', 1, 148)
-    `).run(uuidv4(), account.id);
-  }
-  const pricingRule = db.prepare("SELECT id FROM automation_rules WHERE instagram_account_id = ? AND trigger_keyword = 'PRICING'").get(account.id);
-  if (!pricingRule) {
-    db.prepare(`
-      INSERT INTO automation_rules (id, instagram_account_id, type, trigger_keyword, match_mode, reply_message, is_active, fire_count)
-      VALUES (?, ?, 'dm_keyword_reply', 'PRICING', 'exact', 'Our pricing starts at $29/mo with unlimited auto-replies.', 1, 320)
-    `).run(uuidv4(), account.id);
+// Ensure standard rules exist on local database when not connected to PostgreSQL
+if (!process.env.DATABASE_URL) {
+  const account = db.prepare("SELECT id FROM instagram_accounts WHERE status = 'connected' LIMIT 1").get();
+  if (account) {
+    const guideRule = db.prepare("SELECT id FROM automation_rules WHERE instagram_account_id = ? AND trigger_keyword = 'GUIDE'").get(account.id);
+    if (!guideRule) {
+      db.prepare(`
+        INSERT INTO automation_rules (id, instagram_account_id, type, trigger_keyword, match_mode, reply_message, is_active, fire_count)
+        VALUES (?, ?, 'comment_to_dm', 'GUIDE', 'contains', 'Here is your free guide: https://example.com/guide', 1, 148)
+      `).run(uuidv4(), account.id);
+    }
+    const pricingRule = db.prepare("SELECT id FROM automation_rules WHERE instagram_account_id = ? AND trigger_keyword = 'PRICING'").get(account.id);
+    if (!pricingRule) {
+      db.prepare(`
+        INSERT INTO automation_rules (id, instagram_account_id, type, trigger_keyword, match_mode, reply_message, is_active, fire_count)
+        VALUES (?, ?, 'dm_keyword_reply', 'PRICING', 'exact', 'Our pricing starts at $29/mo with unlimited auto-replies.', 1, 320)
+      `).run(uuidv4(), account.id);
+    }
   }
 }
 
