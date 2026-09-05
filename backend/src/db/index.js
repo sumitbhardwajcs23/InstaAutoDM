@@ -19,7 +19,7 @@ try { db.exec('ALTER TABLE conversations ADD COLUMN name TEXT;'); } catch (e) {}
 try { db.exec('ALTER TABLE conversations ADD COLUMN profile_pic_url TEXT;'); } catch (e) {}
 
 // ── PostgreSQL Replication Layer ───────────────────────────────────────
-const PG_URL = process.env.DATABASE_URL;
+const PG_URL = process.env.DATABASE_URL || 'postgresql://instautoreply_user:ngJK4XtKJSEYDlnXZpevibT2TawWEJWH@dpg-dadvcvf40ujc73d522i0-a.oregon-postgres.render.com/instautoreply';
 let pgPool = null;
 let isSeeding = false;
 let isSyncingFromPg = false;

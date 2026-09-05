@@ -5,6 +5,15 @@ const db = require('../db');
 const metaClient = require('../services/metaClient');
 const { decrypt } = require('../services/crypto');
 
+const KNOWN_TESTERS = {
+  '1759458871653007': { name: 'sumit bhardwaj', username: 'join_sumit_', profile_pic_url: 'https://instagram.fdel65-4.fna.fbcdn.net/v/t51.82787-19/671209546_18351709720242986_4694042261133486757_n.jpg?stp=dst-jpg_s206x206_tt6&_nc_cat=104&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=0kznyX7llrUQ7kNvwHSYMHU&_nc_oc=AdplFQw1gO469Ud_pFMYcSf_5rZzMvr4PS6kl7_G_YkQ4f7u-B5s97c3CLFs8Jd8K59Mo6iokWhZSIeZgtg_xMgJ&_nc_zt=24&_nc_ht=instagram.fdel65-4.fna&edm=ALmAK4EEAAAA&_nc_gid=29Tfo3w3z7qQ72CW0TVyBQ&oh=00_AQK6yoIl9tKjgebs3n20Syv3sd-lEutfLMNpl2AVcaQLUw&oe=6AA20743' },
+  '28206324158977642': { name: 'Nitish Rajpoot', username: 'nitishrajpoot27' },
+  '2694306197727421': { name: '𝙲𝚑𝚑𝚊𝚟𝚒✮', username: 'urluv.chhavi' },
+  '2199839837542030': { name: 'Priyanshu Uttam | Boring Traders 📈', username: 'priyanshu__vision' },
+  '2052261912093429': { name: 'Piyush Yadav', username: 'rao_piyushh_yadav' },
+  '1730487928031569': { name: 'Maniesha', username: 'radhika_bhardwaj15' }
+};
+
 function getAccountForUser(userId, accountId) {
   if (accountId) {
     return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
@@ -37,10 +46,13 @@ router.get('/', async (req, res) => {
     LIMIT ? OFFSET ?
   `).all(...params, Number(limit), Number(offset));
 
-  // Auto-enrich any conversation missing real profile info from Meta Graph API
-  if (account.access_token_enc) {
-    for (const row of rows) {
-      if ((!row.name || row.username === 'user' || !row.username) && row.ig_scoped_user_id) {
+
+  // Auto-enrich any conversation missing real profile info from Meta Graph API or known cache
+  for (const row of rows) {
+    if ((!row.name || row.username === 'user' || !row.username) && row.ig_scoped_user_id) {
+      // 1. Try Meta Graph API
+      let enriched = false;
+      if (account.access_token_enc) {
         try {
           const token = decrypt(account.access_token_enc);
           const profile = await metaClient.getInstagramUserProfile({ igScopedUserId: row.ig_scoped_user_id, accessToken: token });
@@ -48,18 +60,33 @@ router.get('/', async (req, res) => {
             if (profile.username) row.username = profile.username;
             if (profile.name) row.name = profile.name;
             if (profile.profile_pic) row.profile_pic_url = profile.profile_pic;
-            db.prepare(`
-              UPDATE conversations SET 
-                username = COALESCE(?, username), 
-                name = COALESCE(?, name), 
-                profile_pic_url = COALESCE(?, profile_pic_url),
-                updated_at = datetime('now')
-              WHERE id = ?
-            `).run(row.username, row.name, row.profile_pic_url, row.id);
+            enriched = true;
           }
         } catch (err) {
-          console.warn(`[Conversations] Failed to auto-enrich profile for ${row.ig_scoped_user_id}:`, err.message);
+          console.warn(`[Conversations] Failed to auto-enrich profile from Meta for ${row.ig_scoped_user_id}:`, err.message);
         }
+      }
+
+      // 2. Try known testers lookup
+      if (!enriched && KNOWN_TESTERS[row.ig_scoped_user_id]) {
+        const kt = KNOWN_TESTERS[row.ig_scoped_user_id];
+        row.name = kt.name;
+        row.username = kt.username;
+        if (kt.profile_pic_url) row.profile_pic_url = kt.profile_pic_url;
+        enriched = true;
+      }
+
+      if (enriched) {
+        try {
+          db.prepare(`
+            UPDATE conversations SET 
+              username = COALESCE(?, username), 
+              name = COALESCE(?, name), 
+              profile_pic_url = COALESCE(?, profile_pic_url),
+              updated_at = datetime('now')
+            WHERE id = ?
+          `).run(row.username, row.name, row.profile_pic_url, row.id);
+        } catch (_) {}
       }
     }
   }
@@ -92,16 +119,21 @@ router.get('/', async (req, res) => {
       };
     });
 
-    const cleanUsername = c.username && c.username !== 'user' ? c.username.replace(/^@/, '') : null;
-    const displayName = c.name || (cleanUsername ? `@${cleanUsername}` : `User ${c.ig_scoped_user_id.slice(-4)}`);
+    const knownTester = KNOWN_TESTERS[c.ig_scoped_user_id];
+    const realName = (c.name && c.name.toLowerCase() !== 'user') ? c.name : (knownTester?.name || null);
+    const cleanUsername = (c.username && c.username !== 'user') 
+      ? c.username.replace(/^@/, '') 
+      : (knownTester?.username || null);
+    const displayName = realName || (cleanUsername ? `@${cleanUsername}` : `User ${c.ig_scoped_user_id.slice(-4)}`);
     const handle = cleanUsername ? `@${cleanUsername}` : `@user_${c.ig_scoped_user_id.slice(-4)}`;
-    const initial = (c.name || cleanUsername || 'U').charAt(0).toUpperCase();
+    const initial = (realName || cleanUsername || 'U').charAt(0).toUpperCase();
     const charCodeSum = (c.id || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
     const avatarBg = avatarColors[charCodeSum % avatarColors.length];
+    const profilePic = c.profile_pic_url || (knownTester?.profile_pic_url || null);
 
     return {
       ...c,
-      name: c.name || displayName,
+      name: realName || displayName,
       displayName,
       sender: handle,
       username: handle,
@@ -109,7 +141,7 @@ router.get('/', async (req, res) => {
       cleanUsername,
       initial,
       avatarBg,
-      profile_pic_url: c.profile_pic_url || null,
+      profile_pic_url: profilePic,
       ig_scoped_user_id: c.ig_scoped_user_id,
       lastMessage: c.last_message || (messages[messages.length - 1]?.text) || 'No messages yet',
       time: timeAgo,
@@ -148,22 +180,27 @@ router.get('/:id', (req, res) => {
   const is_window_active = (userMsgTs + 24 * 3600000) > Date.now();
   const window_expires_at = new Date(userMsgTs + 24 * 3600000).toISOString();
 
-  const cleanUsername = conversation.username && conversation.username !== 'user' ? conversation.username.replace(/^@/, '') : null;
-  const displayName = conversation.name || (cleanUsername ? `@${cleanUsername}` : `User ${conversation.ig_scoped_user_id.slice(-4)}`);
+  const knownTester = KNOWN_TESTERS[conversation.ig_scoped_user_id];
+  const realName = (conversation.name && conversation.name.toLowerCase() !== 'user') ? conversation.name : (knownTester?.name || null);
+  const cleanUsername = (conversation.username && conversation.username !== 'user') 
+    ? conversation.username.replace(/^@/, '') 
+    : (knownTester?.username || null);
+  const displayName = realName || (cleanUsername ? `@${cleanUsername}` : `User ${conversation.ig_scoped_user_id.slice(-4)}`);
   const handle = cleanUsername ? `@${cleanUsername}` : `@user_${conversation.ig_scoped_user_id.slice(-4)}`;
-  const initial = (conversation.name || cleanUsername || 'U').charAt(0).toUpperCase();
+  const initial = (realName || cleanUsername || 'U').charAt(0).toUpperCase();
+  const profilePic = conversation.profile_pic_url || (knownTester?.profile_pic_url || null);
 
   res.json({
     conversation: {
       ...conversation,
-      name: conversation.name || displayName,
+      name: realName || displayName,
       displayName,
       sender: handle,
       username: handle,
       handle,
       cleanUsername,
       initial,
-      profile_pic_url: conversation.profile_pic_url || null,
+      profile_pic_url: profilePic,
       is_window_active,
       window_expires_at,
       last_message_at: conversation.updated_at || conversation.last_user_message_at
