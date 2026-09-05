@@ -608,8 +608,9 @@ export default function ConversationsView({ conversations: initialConversations 
                     No messages in this conversation yet.
                   </div>
                 ) : (
-                  activeConvo.messages.map((msg, idx) => {
+                    activeConvo.messages.map((msg, idx) => {
                     const isUser = msg.sender === 'user';
+                    const senderLabel = isUser ? (activeConvo.name || activeConvo.displayName) : (msg.rule ? 'ReplyOS Automation ⚡' : 'You (Manual Reply)');
                     return (
                       <div
                         key={msg.id || idx}
@@ -620,6 +621,21 @@ export default function ConversationsView({ conversations: initialConversations 
                           maxWidth: '100%',
                         }}
                       >
+                        {/* Sender Name Label */}
+                        <div style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: isUser ? 'var(--text-muted, #64748b)' : 'var(--primary, #6366f1)',
+                          marginBottom: '4px',
+                          paddingLeft: isUser ? '4px' : '0',
+                          paddingRight: !isUser ? '4px' : '0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}>
+                          {senderLabel}
+                        </div>
+
                         {/* Bubble */}
                         <div style={{
                           maxWidth: '72%',
