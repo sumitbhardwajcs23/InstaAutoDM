@@ -1,5 +1,5 @@
 // frontend/src/components/ConnectIgModal.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Instagram, CheckCircle2, Sparkles, ExternalLink, Shield } from 'lucide-react';
 import { apiFetch, getToken, getCurrentUser, API_BASE } from '../api/client';
 
@@ -9,7 +9,52 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Listen for popup window completion message
+  useEffect(() => {
+    const handleAuthMessage = (event) => {
+      if (event.data?.type === 'INSTAGRAM_CONNECTED') {
+        setLoading(false);
+        if (onConnected) onConnected(event.data.account);
+        onClose();
+      } else if (event.data?.type === 'INSTAGRAM_ERROR') {
+        setLoading(false);
+        setError(event.data.error || 'Connection failed');
+      }
+    };
+    window.addEventListener('message', handleAuthMessage);
+    return () => window.removeEventListener('message', handleAuthMessage);
+  }, [onConnected, onClose]);
+
   if (!isOpen) return null;
+
+  const openOAuthPopup = (url) => {
+    const width = 600;
+    const height = 720;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+
+    setLoading(true);
+    setError(null);
+
+    const popup = window.open(
+      url,
+      'ReplyOS_Meta_Auth',
+      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,status=no,resizable=yes`
+    );
+
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      // Browser popup blocker triggered; fall back to window.location.href
+      window.location.href = url;
+      return;
+    }
+
+    const timer = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(timer);
+        setLoading(false);
+      }
+    }, 1000);
+  };
 
   const handleInstagramOAuth = () => {
     const user = getCurrentUser();
@@ -26,7 +71,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     
     // Direct Instagram Login Dialog on instagram.com
     const igAuthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${state}`;
-    window.location.href = igAuthUrl;
+    openOAuthPopup(igAuthUrl);
   };
 
   const handleFacebookOAuth = () => {
@@ -38,7 +83,8 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     const appId = '28265020499789803';
     const redirectUri = 'https://instaautodm-kh61.onrender.com/api/instagram/oauth/callback';
     const scopes = 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
-    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
+    const fbAuthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
+    openOAuthPopup(fbAuthUrl);
   };
 
   const handleManualTokenConnect = async (e) => {

@@ -158,14 +158,55 @@ router.get('/oauth/callback', async (req, res) => {
 
   if (error || !code) {
     const errText = error_description || error_reason || error || 'OAuth cancelled';
-    return res.redirect(redirectTarget(`/?error=${encodeURIComponent(errText)}`));
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>ReplyOS — Connection Note</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
+          h3 { margin: 0 0 8px 0; font-size: 18px; color: #f87171; }
+          p { color: #94a3b8; font-size: 13px; max-width: 420px; margin: 0; line-height: 1.5; }
+        </style>
+      </head>
+      <body>
+        <h3>Connection Note</h3>
+        <p>${errText.replace(/</g, '&lt;')}</p>
+        <script>
+          try {
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage({ type: 'INSTAGRAM_ERROR', error: ${JSON.stringify(errText)} }, '*');
+              setTimeout(function() { window.close(); }, 1200);
+            } else {
+              window.location.href = ${JSON.stringify(redirectTarget(`/?error=${encodeURIComponent(errText)}`))};
+            }
+          } catch(e) {
+            window.location.href = ${JSON.stringify(redirectTarget(`/?error=${encodeURIComponent(errText)}`))};
+          }
+        </script>
+      </body>
+      </html>
+    `);
   }
 
   const user = userId
     ? db.prepare('SELECT id FROM users WHERE id = ?').get(userId)
     : db.prepare('SELECT id FROM users LIMIT 1').get();
 
-  if (!user) return res.redirect(redirectTarget('/?error=session_expired'));
+  if (!user) {
+    return res.send(`
+      <!DOCTYPE html>
+      <html><head><meta charset="utf-8"><title>ReplyOS</title></head>
+      <body style="background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+        <p>Session expired. Please log in to ReplyOS again.</p>
+        <script>
+          if (window.opener) { window.opener.postMessage({ type: 'INSTAGRAM_ERROR', error: 'session_expired' }, '*'); setTimeout(function(){ window.close(); }, 1000); }
+          else { window.location.href = ${JSON.stringify(redirectTarget('/?error=session_expired'))}; }
+        </script>
+      </body></html>
+    `);
+  }
 
   try {
     const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/instagram/oauth/callback`;
@@ -201,9 +242,97 @@ router.get('/oauth/callback', async (req, res) => {
         expiresAt, tokenInfo.followers_count || 0
       );
     }
-    res.redirect(redirectTarget('/?connected=true'));
+
+    const savedAcc = db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ?').get(user.id);
+
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>ReplyOS — Connected</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+          }
+          .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #0066FF;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 16px;
+          }
+          @keyframes spin { to { transform: rotate(360deg); } }
+          h3 { margin: 0 0 6px 0; font-size: 19px; }
+          p { color: #94a3b8; font-size: 13.5px; margin: 0; }
+        </style>
+      </head>
+      <body>
+        <div class="spinner"></div>
+        <h3>Account Connected!</h3>
+        <p>Connecting @${tokenInfo.username || 'account'} to ReplyOS...</p>
+        <script>
+          try {
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage({
+                type: 'INSTAGRAM_CONNECTED',
+                success: true,
+                account: ${JSON.stringify(savedAcc || { username: tokenInfo.username })}
+              }, '*');
+              setTimeout(function() { window.close(); }, 600);
+            } else {
+              window.location.href = ${JSON.stringify(redirectTarget('/?connected=true'))};
+            }
+          } catch(e) {
+            window.location.href = ${JSON.stringify(redirectTarget('/?connected=true'))};
+          }
+        </script>
+      </body>
+      </html>
+    `);
   } catch (err) {
-    res.redirect(redirectTarget(`/?error=${encodeURIComponent(err.message)}`));
+    const errMsg = err.message || 'OAuth verification failed';
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>ReplyOS — Error</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
+          h3 { margin: 0 0 8px 0; font-size: 18px; color: #ef4444; }
+          p { color: #94a3b8; font-size: 13px; max-width: 420px; margin: 0; line-height: 1.5; }
+        </style>
+      </head>
+      <body>
+        <h3>Connection Failed</h3>
+        <p>${errMsg.replace(/</g, '&lt;')}</p>
+        <script>
+          try {
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage({ type: 'INSTAGRAM_ERROR', error: ${JSON.stringify(errMsg)} }, '*');
+              setTimeout(function() { window.close(); }, 1500);
+            } else {
+              window.location.href = ${JSON.stringify(redirectTarget(`/?error=${encodeURIComponent(errMsg)}`))};
+            }
+          } catch(e) {
+            window.location.href = ${JSON.stringify(redirectTarget(`/?error=${encodeURIComponent(errMsg)}`))};
+          }
+        </script>
+      </body>
+      </html>
+    `);
   }
 });
 
