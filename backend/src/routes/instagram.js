@@ -301,13 +301,21 @@ router.get('/oauth/start', (req, res) => {
 
   if (authType === 'facebook') {
     const scopes = req.query.scopes || process.env.META_SCOPES || 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
-    return res.redirect(`https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`);
+    return res.redirect(`https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}&display=popup`);
   }
 
-  // Direct Instagram Business Login (native Instagram authorization with Facebook fallback)
-  const igAppId = process.env.INSTAGRAM_APP_ID || '1788975642442359';
-  const scopes = req.query.scopes || 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
-  return res.redirect(`https://www.instagram.com/oauth/authorize?enable_fb_login=1&force_authentication=1&client_id=${igAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${state}`);
+  // Direct Instagram Business Login
+  // If a dedicated Instagram App ID is configured, use instagram.com/oauth/authorize
+  // Otherwise fall back to facebook.com OAuth (which works for Instagram Business/Creator via the same Facebook app)
+  const igAppId = process.env.INSTAGRAM_APP_ID;
+  if (igAppId && igAppId !== appId) {
+    const scopes = req.query.scopes || 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
+    return res.redirect(`https://www.instagram.com/oauth/authorize?enable_fb_login=1&force_authentication=1&client_id=${igAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${state}`);
+  }
+
+  // Standard fallback: Facebook OAuth (works for Instagram Business connected via Facebook Page)
+  const scopes = req.query.scopes || process.env.META_SCOPES || 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
+  return res.redirect(`https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}&display=popup`);
 });
 
 // GET /api/instagram/oauth/callback — public endpoint (no auth header), state carries userId & origin

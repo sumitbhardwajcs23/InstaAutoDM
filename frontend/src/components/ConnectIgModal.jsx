@@ -59,20 +59,27 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     }, 1000);
   };
 
+  // Opens instagram.com login page (Instagram Business Login — native IG experience)
   const handleInstagramOAuth = () => {
+    // Route through backend /oauth/start which uses the Instagram App ID & correct scopes
+    const origin = window.location.origin;
+    const BACKEND = 'https://instaautodm-kh61.onrender.com';
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}`;
+    openOAuthPopup(startUrl);
+  };
+
+  // Opens facebook.com login (for Instagram linked via Facebook Business Manager)
+  const handleFacebookOAuth = () => {
     const user = getCurrentUser();
     const origin = window.location.origin;
     const userId = user?.id || '';
-
-    const stateObj = { uid: userId, origin, type: 'instagram' };
+    const stateObj = { uid: userId, origin, type: 'facebook' };
     const state = btoa(JSON.stringify(stateObj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    
     const appId = '28265020499789803';
     const redirectUri = 'https://instaautodm-kh61.onrender.com/api/instagram/oauth/callback';
     const scopes = 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
-    
-    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}&display=popup`;
-    openOAuthPopup(authUrl);
+    const fbAuthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}&display=popup`;
+    openOAuthPopup(fbAuthUrl);
   };
 
   const handleLookupProfile = async (e) => {
@@ -416,17 +423,48 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               <Instagram size={20} />
               <span>{loading ? 'Opening Login...' : 'Continue with Instagram'}</span>
             </button>
-
-            {/* Secondary: note about what opens */}
-            <div style={{
-              fontSize: '11.5px',
-              color: 'var(--text-light)',
-              textAlign: 'center',
-              marginBottom: '14px',
-              lineHeight: 1.5,
-            }}>
-              A secure Meta login page will open. Sign in with the Facebook account linked to your Instagram Business or Creator profile.
+            {/* Secondary: Facebook Business Manager login (for those with IG linked via Business Suite) */}
+            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+              <span style={{ fontSize: '11.5px', color: 'var(--text-light)' }}>
+                Instagram linked via Facebook Business Manager?
+              </span>
             </div>
+            <button
+              type="button"
+              onClick={handleFacebookOAuth}
+              disabled={loading}
+              style={{
+                width: '100%',
+                padding: '11px',
+                borderRadius: '12px',
+                background: 'var(--bg-subtle)',
+                color: 'var(--text-main)',
+                border: '1px solid var(--border-subtle)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                marginBottom: '16px',
+                transition: 'background 0.15s',
+              }}
+            >
+              <span style={{
+                background: '#1877F2',
+                color: '#ffffff',
+                borderRadius: '50%',
+                width: '18px',
+                height: '18px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                fontWeight: 800,
+              }}>f</span>
+              <span>Continue with Facebook Page</span>
+            </button>
 
             <div style={{
               display: 'flex',
@@ -437,7 +475,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               color: 'var(--text-light)',
             }}>
               <Shield size={13} color="#10b981" />
-              <span>Official Meta Verified App Integration • Safe & Compliant</span>
+              <span>Official Meta Verified App Integration • Safe &amp; Compliant</span>
             </div>
           </div>
         )}
