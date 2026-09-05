@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReplyOS - Automate Conversations, Accelerate Growth</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="cursor-dot"></div>
+    <div class="cursor-outline"></div>
+
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                    <rect width="36" height="36" rx="10" fill="#0A0A0A"/>
+                    <path d="M12 24L24 12M24 12H16M24 12V20" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+                <span>Reply<span class="logo-accent">OS</span></span>
+            </a>
+            <div class="nav-links">
+                <a href="#features" class="nav-link">Product</a>
+                <a href="#workflow" class="nav-link">Solutions</a>
+                <a href="#pricing" class="nav-link">Pricing</a>
+                <a href="#testimonials" class="nav-link">Resources</a>
+            </div>
+            <div class="nav-actions">
+                <a href="/" class="nav-link login">Log in</a>
+                <a href="#cta" class="btn btn-primary">Start free →</a>
+            </div>
+            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle Navigation">☰</button>
+        </div>
+    </nav>
+
+    <div class="mobile-menu" id="mobileMenu">
+        <a href="#features" class="mobile-link">Product</a>
+        <a href="#workflow" class="mobile-link">Solutions</a>
+        <a href="#pricing" class="mobile-link">Pricing</a>
+        <a href="#testimonials" class="mobile-link">Resources</a>
+        <a href="/" class="mobile-link">Log in</a>
+        <a href="#cta" class="btn btn-primary mobile-cta">Start free</a>
+    </div>
+
+    <section class="hero" id="hero">
+        <div id="hero-canvas-container"></div>
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span class="badge-dot"></span>
+                #1 Instagram Automation Platform
+            </div>
+            <h1 class="hero-title">
+                <span class="title-line">Conversations</span>
+                <span class="title-line">create <span class="gradient-text">opportunities.</span></span>
+            </h1>
+            <p class="hero-subtitle">
+                ReplyOS helps you automatically reply to Instagram comments and DMs, nurture your audience, and turn engagement into real business growth.
+            </p>
+            <div class="hero-buttons">
+                <a href="#cta" class="btn btn-primary btn-lg">Start for free →</a>
+                <button class="btn btn-video" id="watchVideoBtn">
+                    <span class="play-icon">▶</span> Watch video
+                </button>
+            </div>
+            <div class="hero-trust">
+                <span>✓ No credit card required</span>
+                <span>✓ Setup in 2 minutes</span>
+                <span>✓ Loved by 10K+ creators</span>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="dashboard-mockup">
+                <div class="mockup-header">
+                    <div class="mockup-dots"><span></span><span></span><span></span></div>
+                    <div class="mockup-title">ReplyOS Dashboard</div>
+                </div>
+                <div class="mockup-body">
+                    <div class="mockup-sidebar">
+                        <div class="sidebar-item active">◆</div>
+                        <div class="sidebar-item">✉</div>
+                        <div class="sidebar-item">⚡</div>
+                        <div class="sidebar-item">📊</div>
+                        <div class="sidebar-item">⚙</div>
+                    </div>
+                    <div class="mockup-main">
+                        <div class="mockup-greeting">Good morning, Alex 👋</div>
+                        <div class="mockup-stats">
+                            <div class="stat-card"><div class="stat-label">Total Replies</div><div class="stat-value">1,248</div><div class="stat-change positive">+12%</div></div>
+                            <div class="stat-card"><div class="stat-label">Engagement</div><div class="stat-value">892</div><div class="stat-change positive">+8%</div></div>
+                            <div class="stat-card"><div class="stat-label">New Followers</div><div class="stat-value">520</div><div class="stat-change positive">+24%</div></div>
+                        </div>
+                        <div class="mockup-chart">
+                            <div class="chart-title">Engagement Growth</div>
+                            <div class="chart-bars">
+                                <div class="chart-bar" style="height:40%"></div>
+                                <div class="chart-bar" style="height:55%"></div>
+                                <div class="chart-bar" style="height:45%"></div>
+                                <div class="chart-bar" style="height:70%"></div>
+                                <div class="chart-bar" style="height:60%"></div>
+                                <div class="chart-bar" style="height:85%"></div>
+                                <div class="chart-bar active" style="height:100%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="floating-card card-1">
+                <div class="fc-icon">📈</div>
+                <div class="fc-text"><div class="fc-label">Growth</div><div class="fc-value">+247%</div></div>
+            </div>
+            <div class="floating-card card-2">
+                <div class="fc-avatars"><div class="fc-avatar">A</div><div class="fc-avatar">B</div><div class="fc-avatar">C</div></div>
+                <div class="fc-text"><div class="fc-label">Active Now</div><div class="fc-value">1,234</div></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="trusted-by" id="trustedBy">
+        <div class="container">
+            <p class="trusted-label">Trusted by creators, brands and agencies</p>
+            <div class="logos-track">
+                <div class="logo-item">Zomato</div>
+                <div class="logo-item">Boat</div>
+                <div class="logo-item">Mamaearth</div>
+                <div class="logo-item">Noise</div>
+                <div class="logo-item">The Derma Co</div>
+                <div class="logo-item">Sugar</div>
+                <div class="logo-item">MensXP</div>
+                <div class="logo-item">Zomato</div>
+                <div class="logo-item">Boat</div>
+                <div class="logo-item">Mamaearth</div>
+                <div class="logo-item">Noise</div>
+                <div class="logo-item">The Derma Co</div>
+                <div class="logo-item">Sugar</div>
+                <div class="logo-item">MensXP</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="container">
+            <div class="features-header">
+                <div class="section-badge">✨ Everything you need</div>
+                <h2 class="section-title">More than just<br><span class="gradient-text">auto replies.</span></h2>
+                <p class="section-subtitle">A complete toolkit to turn Instagram engagement into measurable results.</p>
+                <a href="#workflow" class="btn btn-dark">Explore features →</a>
+            </div>
+            <div class="features-showcase">
+                <div class="feature-flow">
+                    <div class="flow-card flow-trigger">
+                        <div class="flow-icon insta">📷</div>
+                        <div class="flow-content"><div class="flow-title">New comment</div><div class="flow-text">"Price?"</div><div class="flow-time">2m ago</div></div>
+                    </div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-card flow-ai">
+                        <div class="flow-icon ai">🧠</div>
+                        <div class="flow-content"><div class="flow-title">AI analyzes intent</div><div class="flow-text">Detects keyword: price</div></div>
+                    </div>
+                    <div class="flow-arrow">↓</div>
+                    <div class="flow-card flow-action">
+                        <div class="flow-icon send">✈</div>
+                        <div class="flow-content"><div class="flow-title">Sends personalized DM</div><div class="flow-text">"Here's the link!"</div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon-wrap">💬</div>
+                    <h3 class="feature-title">Comment to DM</h3>
+                    <p class="feature-desc">Automatically reply to comments with personalized DMs. Turn every comment into a private conversation.</p>
+                    <a href="#workflow" class="feature-link">Learn more →</a>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap">⚡</div>
+                    <h3 class="feature-title">Smart Automations</h3>
+                    <p class="feature-desc">Use keywords, AI and custom rules to trigger the right reply at the right moment.</p>
+                    <a href="#workflow" class="feature-link">Learn more →</a>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap">📥</div>
+                    <h3 class="feature-title">Unified Inbox</h3>
+                    <p class="feature-desc">Manage all your DMs and comments in one place. Never miss a message again.</p>
+                    <a href="#workflow" class="feature-link">Learn more →</a>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-wrap">📊</div>
+                    <h3 class="feature-title">Advanced Analytics</h3>
+                    <p class="feature-desc">Track performance and revenue from your engagement. Data-driven growth decisions.</p>
+                    <a href="#workflow" class="feature-link">Learn more →</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="viz-section" id="vizSection">
+        <div id="viz-canvas-container"></div>
+        <div class="viz-content">
+            <div class="container">
+                <div class="viz-text">
+                    <div class="section-badge dark">🎲 3D Experience</div>
+                    <h2 class="section-title light">See your growth<br>in a new dimension.</h2>
+                    <p class="section-subtitle light">Interactive 3D visualizations that bring your engagement data to life. Smooth, fluid, and beautiful.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="workflow" id="workflow">
+        <div class="container">
+            <div class="workflow-grid">
+                <div class="workflow-text">
+                    <div class="section-badge dark">🌿 Visual Automation Builder</div>
+                    <h2 class="section-title light">Build workflows<br>without limits.</h2>
+                    <p class="section-subtitle light">Create multi-step automations with our drag-and-drop builder. No code. No complexity. Just results.</p>
+                    <ul class="workflow-list">
+                        <li>✓ Keyword-based triggers</li>
+                        <li>✓ AI-powered smart replies</li>
+                        <li>✓ Multi-step automation flows</li>
+                        <li>✓ Easy to set up and modify</li>
+                    </ul>
+                    <a href="#cta" class="btn btn-light">Try the builder →</a>
+                </div>
+                <div class="workflow-visual">
+                    <div class="builder-mockup">
+                        <div class="builder-header">
+                            <div class="builder-title">Product Inquiry Flow</div>
+                            <div class="builder-actions">
+                                <button class="builder-btn">Save</button>
+                                <button class="builder-btn primary">Publish</button>
+                            </div>
+                        </div>
+                        <div class="builder-canvas">
+                            <div class="node node-trigger"><div class="node-icon">📷</div><div class="node-text">Comment contains "price" or "link"</div></div>
+                            <div class="node-connector"></div>
+                            <div class="node node-action"><div class="node-icon">✈</div><div class="node-text">Send DM<br>"Here's the link!"</div></div>
+                            <div class="node-connector"></div>
+                            <div class="node node-delay"><div class="node-icon">🕐</div><div class="node-text">Wait 1 day</div></div>
+                            <div class="node-connector"></div>
+                            <div class="node node-followup"><div class="node-icon">🔄</div><div class="node-text">Follow up<br>"Did you find this helpful?"</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="testimonials" id="testimonials">
+        <div class="container">
+            <div class="testimonials-header">
+                <h2 class="section-title">Real people.<br>Real results.</h2>
+                <p class="section-subtitle">Creators, brands, and agencies use ReplyOS to save time and grow faster.</p>
+                <a href="#cta" class="btn btn-dark">See all stories →</a>
+            </div>
+            <div class="testimonials-grid">
+                <div class="testimonial-card featured">
+                    <div class="testimonial-quote">
+                        <p>"ReplyOS completely changed how we handle Instagram engagement. What used to take hours now happens automatically. Our response time dropped from 4 hours to under 30 seconds."</p>
+                    </div>
+                    <div class="testimonial-author">
+                        <div class="author-avatar">SM</div>
+                        <div class="author-info"><div class="author-name">Sarah Mitchell</div><div class="author-role">Growth Lead, StudioX</div></div>
+                        <div class="author-rating">★★★★★</div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-visual">
+                        <div class="viz-placeholder"><div class="viz-big">3x</div><div class="viz-small">More conversations</div></div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-quote"><p>"We saw a 340% increase in DM conversions within the first month. The AI understands context better than any tool we've tried."</p></div>
+                    <div class="testimonial-author"><div class="author-avatar">JK</div><div class="author-info"><div class="author-name">James Kim</div><div class="author-role">Founder, BrandScale</div></div></div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-quote"><p>"The workflow builder is incredibly intuitive. I built our entire customer journey in under 20 minutes without writing a single line of code."</p></div>
+                    <div class="testimonial-author"><div class="author-avatar">EP</div><div class="author-info"><div class="author-name">Elena Perez</div><div class="author-role">Marketing Director, Luxe Co</div></div></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="pricing" id="pricing">
+        <div class="container">
+            <div class="pricing-header">
+                <h2 class="section-title">Choose the plan<br>that fits your growth.</h2>
+                <p class="section-subtitle">Start free and upgrade as you scale.</p>
+                <div class="pricing-toggle">
+                    <button class="toggle-btn active" data-period="monthly">Monthly</button>
+                    <button class="toggle-btn" data-period="yearly">Yearly <span class="save-badge">Save 20%</span></button>
+                </div>
+            </div>
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <div class="pricing-name">Starter</div>
+                    <div class="pricing-price"><span class="currency">$</span><span class="amount" data-monthly="0" data-yearly="0">0</span><span class="period">/month</span></div>
+                    <ul class="pricing-features">
+                        <li>✓ 1 Instagram account</li>
+                        <li>✓ 500 automated replies</li>
+                        <li>✓ Basic automations</li>
+                        <li>✓ Community support</li>
+                    </ul>
+                    <a href="#cta" class="btn btn-outline btn-full">Get started</a>
+                </div>
+                <div class="pricing-card popular">
+                    <div class="popular-badge">Most popular</div>
+                    <div class="pricing-name">Pro</div>
+                    <div class="pricing-price"><span class="currency">$</span><span class="amount" data-monthly="29" data-yearly="23">29</span><span class="period">/month</span></div>
+                    <ul class="pricing-features">
+                        <li>✓ 3 Instagram accounts</li>
+                        <li>✓ 10,000 automated replies</li>
+                        <li>✓ Advanced workflows</li>
+                        <li>✓ Analytics dashboard</li>
+                        <li>✓ Priority support</li>
+                    </ul>
+                    <a href="#cta" class="btn btn-primary btn-full">Start free</a>
+                </div>
+                <div class="pricing-card">
+                    <div class="pricing-name">Business</div>
+                    <div class="pricing-price"><span class="currency">$</span><span class="amount" data-monthly="99" data-yearly="79">99</span><span class="period">/month</span></div>
+                    <ul class="pricing-features">
+                        <li>✓ Unlimited accounts</li>
+                        <li>✓ Unlimited automations</li>
+                        <li>✓ Team collaboration</li>
+                        <li>✓ Advanced analytics</li>
+                        <li>✓ Dedicated support</li>
+                    </ul>
+                    <a href="#cta" class="btn btn-outline btn-full">Contact sales</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta" id="cta">
+        <div id="cta-canvas-container"></div>
+        <div class="container">
+            <div class="cta-content">
+                <h2 class="cta-title">Ready to turn<br>engagement into growth?</h2>
+                <p class="cta-subtitle">Join 10,000+ creators and businesses using ReplyOS.</p>
+                <a href="/" class="btn btn-primary btn-lg">Start for free →</a>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="#" class="logo">
+                        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                            <rect width="36" height="36" rx="10" fill="#0A0A0A"/>
+                            <path d="M12 24L24 12M24 12H16M24 12V20" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                        </svg>
+                        <span>Reply<span class="logo-accent">OS</span></span>
+                    </a>
+                    <p class="footer-tagline">Automate conversations.<br>Accelerate growth.</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-col">
+                        <h4>Product</h4>
+                        <a href="#features">Features</a>
+                        <a href="#workflow">Automations</a>
+                        <a href="#features">Analytics</a>
+                        <a href="#pricing">Pricing</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Company</h4>
+                        <a href="#features">About</a>
+                        <a href="#features">Blog</a>
+                        <a href="#features">Careers</a>
+                        <a href="#cta">Contact</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Resources</h4>
+                        <a href="#features">Help Center</a>
+                        <a href="#features">Docs</a>
+                        <a href="/privacy">Privacy</a>
+                        <a href="/terms">Terms</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2026 ReplyOS. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Video Modal -->
+    <div class="video-modal" id="videoModal">
+        <div class="video-modal-backdrop" id="videoModalBackdrop"></div>
+        <div class="video-modal-dialog">
+            <button class="video-modal-close" id="videoModalClose" aria-label="Close modal">&times;</button>
+            <div class="video-container">
+                <iframe id="demoVideoIframe" width="100%" height="100%" src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?enablejsapi=1" title="ReplyOS Demo Walkthrough" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/three-scene.js"></script>
+    <script src="js/animations.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
