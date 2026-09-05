@@ -45,9 +45,12 @@ export async function apiFetch(endpoint, options = {}) {
   });
 
   if (response.status === 401) {
-    // Session expired or invalid
-    clearAuthSession();
-    window.dispatchEvent(new Event('auth:unauthorized'));
+    // Only clear session if this was an authenticated user-session route, never on public lookup or connect
+    const isPublicRoute = endpoint.includes('lookup-profile') || endpoint.includes('connect-username') || endpoint.includes('/auth/');
+    if (!isPublicRoute) {
+      clearAuthSession();
+      window.dispatchEvent(new Event('auth:unauthorized'));
+    }
   }
 
   return response;
