@@ -54,10 +54,10 @@ app.use(express.static(staticDir, {
   }
 }));
 
-// Legal & Compliance Pages
-app.get('/privacy', (_req, res) => res.sendFile(path.join(fallbackDir, 'privacy.html')));
-app.get('/terms', (_req, res) => res.sendFile(path.join(fallbackDir, 'terms.html')));
-app.get('/data-deletion', (_req, res) => res.sendFile(path.join(fallbackDir, 'data-deletion.html')));
+// Legal & Compliance Pages (supports both clean URLs and .html for Meta)
+app.get(['/privacy', '/privacy.html'], (_req, res) => res.sendFile(path.join(fallbackDir, 'privacy.html')));
+app.get(['/terms', '/terms.html'], (_req, res) => res.sendFile(path.join(fallbackDir, 'terms.html')));
+app.get(['/data-deletion', '/data-deletion.html'], (_req, res) => res.sendFile(path.join(fallbackDir, 'data-deletion.html')));
 
 // 404 handler for API routes
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
