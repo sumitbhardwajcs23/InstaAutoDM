@@ -10,6 +10,7 @@ import AnalyticsView from './components/AnalyticsView';
 import BillingView from './components/BillingView';
 import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
+import LandingView from './components/LandingView';
 import CreateRuleModal from './components/CreateRuleModal';
 import ConnectIgModal from './components/ConnectIgModal';
 import UpgradeModal from './components/UpgradeModal';
@@ -19,6 +20,19 @@ export default function App() {
   const [user, setUser] = useState(getCurrentUser());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(false);
+
+  // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'app'
+  const [currentView, setCurrentView] = useState(() => {
+    const hash = window.location.hash.toLowerCase();
+    const path = window.location.pathname.toLowerCase();
+    if (path === '/login' || hash === '#login') return 'auth-login';
+    if (path === '/signup' || path === '/register' || hash === '#signup' || hash === '#register') return 'auth-signup';
+    if (path === '/app' || hash === '#app') {
+      return getCurrentUser() ? 'app' : 'auth-login';
+    }
+    // DEFAULT FOR FIRST-TIME VISITORS AND HOME: LANDING PAGE
+    return 'landing';
+  });
 
   // Modals
   const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
@@ -33,6 +47,19 @@ export default function App() {
   const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [notification, setNotification] = useState(null);
+
+  // Sync hash changes with view state
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#login') setCurrentView('auth-login');
+      else if (hash === '#signup' || hash === '#register') setCurrentView('auth-signup');
+      else if (hash === '#app') setCurrentView(user ? 'app' : 'auth-login');
+      else if (hash === '#landing' || hash === '' || hash === '#') setCurrentView('landing');
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [user]);
 
   // Sync dark mode class
   useEffect(() => {
@@ -131,6 +158,30 @@ export default function App() {
   const handleLogout = () => {
     clearAuthSession();
     setUser(null);
+    window.location.hash = '';
+    setCurrentView('landing');
+  };
+
+  const handleNavigate = (view) => {
+    if (view === 'auth-login') {
+      window.location.hash = '#login';
+      setCurrentView('auth-login');
+    } else if (view === 'auth-signup') {
+      window.location.hash = '#signup';
+      setCurrentView('auth-signup');
+    } else if (view === 'app') {
+      window.location.hash = '#app';
+      setCurrentView('app');
+    } else {
+      window.location.hash = '';
+      setCurrentView('landing');
+    }
+  };
+
+  const handleAuthSuccess = (loggedUser) => {
+    setUser(loggedUser);
+    window.location.hash = '#app';
+    setCurrentView('app');
   };
 
   const handleToggleRule = async (ruleId, newActiveState) => {
@@ -169,9 +220,20 @@ export default function App() {
     loadData();
   };
 
-  // If user is not logged in, render AuthView
-  if (!user) {
-    return <AuthView onAuthSuccess={(loggedUser) => setUser(loggedUser)} />;
+  // 1. Landing View (Default for first-time visitors)
+  if (currentView === 'landing') {
+    return <LandingView onNavigate={handleNavigate} user={user} />;
+  }
+
+  // 2. Auth View (Login / Signup)
+  if (currentView === 'auth-login' || currentView === 'auth-signup' || !user) {
+    return (
+      <AuthView
+        initialMode={currentView === 'auth-signup' ? 'signup' : 'login'}
+        onAuthSuccess={handleAuthSuccess}
+        onBackToLanding={() => handleNavigate('landing')}
+      />
+    );
   }
 
   return (

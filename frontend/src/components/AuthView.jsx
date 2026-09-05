@@ -3,13 +3,17 @@ import React, { useState } from 'react';
 import { Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { setAuthSession } from '../api/client';
 
-export default function AuthView({ onAuthSuccess }) {
-  const [mode, setMode] = useState('login'); // 'login' or 'signup'
+export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackToLanding }) {
+  const [mode, setMode] = useState(initialMode); // 'login' or 'signup'
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  React.useEffect(() => {
+    if (initialMode) setMode(initialMode);
+  }, [initialMode]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -57,9 +61,36 @@ export default function AuthView({ onAuthSuccess }) {
         boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.08)',
         border: '1px solid var(--border-light)',
         padding: '36px 32px',
+        position: 'relative',
       }}>
+        {/* Back to Landing navigation */}
+        {onBackToLanding && (
+          <button
+            type="button"
+            onClick={onBackToLanding}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              left: '24px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: '4px 8px',
+              borderRadius: '6px',
+            }}
+          >
+            ← Back to Home
+          </button>
+        )}
+
         {/* Brand Header */}
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '28px', marginTop: onBackToLanding ? '12px' : '0' }}>
           <div style={{
             width: '68px',
             height: '68px',
