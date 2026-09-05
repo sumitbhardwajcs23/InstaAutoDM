@@ -1,7 +1,7 @@
 // frontend/src/components/ConnectIgModal.jsx
 import React, { useState } from 'react';
 import { X, Instagram, CheckCircle2, Sparkles, ExternalLink, Shield } from 'lucide-react';
-import { apiFetch, getToken, API_BASE } from '../api/client';
+import { apiFetch, getToken, getCurrentUser, API_BASE } from '../api/client';
 
 export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
   const [tab, setTab] = useState('oauth'); // 'oauth' | 'token' | 'sandbox'
@@ -12,15 +12,33 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
   if (!isOpen) return null;
 
   const handleInstagramOAuth = () => {
-    const token = getToken();
+    const user = getCurrentUser();
     const origin = window.location.origin;
-    window.location.href = `${API_BASE}/instagram/oauth/start?type=instagram&token=${encodeURIComponent(token || '')}&return_origin=${encodeURIComponent(origin)}`;
+    const userId = user?.id || '';
+
+    // Encode state with userId, origin, and auth type
+    const stateObj = { uid: userId, origin, type: 'instagram' };
+    const state = btoa(JSON.stringify(stateObj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    
+    const appId = '28265020499789803';
+    const redirectUri = 'https://instaautodm-kh61.onrender.com/api/instagram/oauth/callback';
+    const scopes = 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
+    
+    // Direct Instagram Login Dialog on instagram.com
+    const igAuthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${state}`;
+    window.location.href = igAuthUrl;
   };
 
   const handleFacebookOAuth = () => {
-    const token = getToken();
+    const user = getCurrentUser();
     const origin = window.location.origin;
-    window.location.href = `${API_BASE}/instagram/oauth/start?type=facebook&token=${encodeURIComponent(token || '')}&return_origin=${encodeURIComponent(origin)}`;
+    const userId = user?.id || '';
+    const stateObj = { uid: userId, origin, type: 'facebook' };
+    const state = btoa(JSON.stringify(stateObj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const appId = '28265020499789803';
+    const redirectUri = 'https://instaautodm-kh61.onrender.com/api/instagram/oauth/callback';
+    const scopes = 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
+    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
   };
 
   const handleManualTokenConnect = async (e) => {
