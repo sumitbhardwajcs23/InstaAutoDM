@@ -146,9 +146,30 @@ class EventQueueWorker {
 
     console.log(`[Worker] Processing message for @${account.username} from ${senderUsername || senderId}: "${text}"`);
 
+    // Fetch real user profile (real name, username, profile pic) from Meta
+    let realUsername = senderUsername && senderUsername.toLowerCase() !== 'user' ? senderUsername : null;
+    let realName = null;
+    let profilePic = null;
+
+    try {
+      const profile = await metaClient.getInstagramUserProfile({
+        igScopedUserId: senderId,
+        accessToken: decrypt(account.access_token_enc)
+      });
+      if (profile) {
+        if (profile.username) realUsername = profile.username;
+        if (profile.name) realName = profile.name;
+        if (profile.profile_pic) profilePic = profile.profile_pic;
+      }
+    } catch (profErr) {
+      console.warn('[Worker] User profile lookup notice:', profErr.message);
+    }
+
+    const finalUsername = realUsername || 'user';
     const nowIso = new Date(eventTime).toISOString();
-    // Upsert conversation
-    const convId = this.upsertConversation(account.id, senderId, senderUsername || 'User', text, 'inbound', 'open', nowIso);
+
+    // Upsert conversation with real name, real username, and profile pic
+    const convId = this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, text, 'inbound', 'open', nowIso);
 
     // Log inbound message
     db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id) VALUES (?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'inbound', text || '', 'received', messageId || null);
@@ -174,15 +195,18 @@ class EventQueueWorker {
     if (!this.checkRateLimit(account.id, 'dm_keyword_reply')) { const e = new Error('Rate limit'); e.isPermanent = false; throw e; }
 
     const rawMsg = `${account.disclosure_message || ''}${rule.reply_message}`;
-    const msg = rawMsg.replace(/\{username\}/gi, senderUsername || 'there');
+    // Use first name of user if available (e.g. "Priyanshu"), or clean handle, or fallback to 'there'
+    const cleanFirstName = realName ? realName.split(' ')[0].trim() : (realUsername ? realUsername.replace(/^@/, '') : '');
+    const greetingName = cleanFirstName && cleanFirstName.toLowerCase() !== 'user' ? cleanFirstName : 'there';
+    const msg = rawMsg.replace(/\{username\}/gi, greetingName);
     try {
       const resp = await metaClient.sendDirectMessage({ pageId: account.page_id, igScopedUserId: senderId, messageText: msg, accessToken: decrypt(account.access_token_enc) });
       db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id) VALUES (?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'sent', resp.message_id);
       db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
       db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
       this.updateActivityLog(account.id, 'dm');
-      this.upsertConversation(account.id, senderId, senderUsername || 'User', msg, 'outbound', 'replied', new Date().toISOString());
-      console.log(`[Worker] ✅ DM auto-reply sent to ${senderUsername || senderId} (Rule: "${rule.trigger_keyword}")`);
+      this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, msg, 'outbound', 'replied', new Date().toISOString());
+      console.log(`[Worker] ✅ DM auto-reply sent to ${realName || finalUsername} (Rule: "${rule.trigger_keyword}")`);
     } catch (err) {
       db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message) VALUES (?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'failed', err.message);
       if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
@@ -190,15 +214,33 @@ class EventQueueWorker {
     }
   }
 
-  upsertConversation(accountId, igUserId, username, lastMessage, direction, status, lastMsgAt = null) {
+  upsertConversation(accountId, igUserId, username, name = null, profilePic = null, lastMessage = '', direction = 'inbound', status = 'open', lastMsgAt = null) {
     const nowIso = lastMsgAt || new Date().toISOString();
-    const existing = db.prepare('SELECT id FROM conversations WHERE instagram_account_id = ? AND ig_scoped_user_id = ?').get(accountId, igUserId);
+    const existing = db.prepare('SELECT id, username, name, profile_pic_url FROM conversations WHERE instagram_account_id = ? AND ig_scoped_user_id = ?').get(accountId, igUserId);
     if (existing) {
-      db.prepare("UPDATE conversations SET last_message = ?, last_message_direction = ?, status = ?, updated_at = datetime('now') WHERE id = ?").run(lastMessage, direction, status, existing.id);
+      const resolvedUsername = (username && username.toLowerCase() !== 'user') ? username : existing.username;
+      const resolvedName = name || existing.name;
+      const resolvedPic = profilePic || existing.profile_pic_url;
+      db.prepare(`
+        UPDATE conversations SET 
+          username = ?,
+          name = ?,
+          profile_pic_url = ?,
+          last_message = ?, 
+          last_message_direction = ?, 
+          status = ?, 
+          updated_at = datetime('now') 
+        WHERE id = ?
+      `).run(resolvedUsername, resolvedName, resolvedPic, lastMessage, direction, status, existing.id);
       return existing.id;
     } else {
       const id = uuidv4();
-      db.prepare('INSERT INTO conversations (id, instagram_account_id, ig_scoped_user_id, username, avatar_seed, last_message, last_message_direction, status, last_user_message_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, accountId, igUserId, username, username, lastMessage, direction, status, nowIso, nowIso, nowIso);
+      db.prepare(`
+        INSERT INTO conversations (
+          id, instagram_account_id, ig_scoped_user_id, username, name, profile_pic_url, avatar_seed,
+          last_message, last_message_direction, status, last_user_message_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, accountId, igUserId, username, name || username, profilePic || null, username, lastMessage, direction, status, nowIso, nowIso, nowIso);
       return id;
     }
   }

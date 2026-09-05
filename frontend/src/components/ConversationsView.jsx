@@ -1,6 +1,6 @@
 // frontend/src/components/ConversationsView.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Send, Bot, RefreshCw, Sparkles, Check, CheckCheck, Clock, MessageSquare, AlertCircle, X } from 'lucide-react';
+import { Search, Send, Bot, RefreshCw, Sparkles, Check, CheckCheck, Clock, MessageSquare, AlertCircle, X, ExternalLink, Copy } from 'lucide-react';
 import { apiFetch } from '../api/client';
 
 const AVATAR_COLORS = ['#a855f7', '#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#06b6d4', '#6366f1'];
@@ -12,16 +12,27 @@ export default function ConversationsView({ conversations: initialConversations 
   const [isSending, setIsSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Normalize conversation object so it matches both backend and seed data
+  // Normalize conversation object with real Instagram name, handle, ID, and profile pic
   const normalizeConvo = useCallback((c, idx = 0) => {
-    const rawUsername = c.username || c.sender || 'user';
-    const cleanUsername = String(rawUsername).replace(/^@/, '');
-    const sender = `@${cleanUsername}`;
-    const initial = (cleanUsername[0] || 'U').toUpperCase();
+    const rawUsername = c.cleanUsername || c.username || c.sender || '';
+    const cleanUsername = String(rawUsername).replace(/^@/, '').trim();
+    const hasRealHandle = cleanUsername && cleanUsername.toLowerCase() !== 'user' && !cleanUsername.startsWith('user_');
+    const realName = c.name && c.name.toLowerCase() !== 'user' ? c.name : null;
+    const igScopedId = c.ig_scoped_user_id || c.ig_user_id || '';
+
+    // Primary display name: Real Instagram name if known, else handle, else user ID
+    const displayName = realName || (hasRealHandle ? `@${cleanUsername}` : (igScopedId ? `User ${igScopedId.slice(-6)}` : 'Instagram Lead'));
+    // Secondary handle: @username if available, else IG ID
+    const displayHandle = hasRealHandle ? `@${cleanUsername}` : (igScopedId ? `ID: ${igScopedId}` : '');
+    const sender = hasRealHandle ? `@${cleanUsername}` : displayName;
+    const initial = (realName || cleanUsername || 'U').charAt(0).toUpperCase();
+
     const colorIndex = Math.abs((c.id ? String(c.id) : String(idx)).split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0)) % AVATAR_COLORS.length;
     const avatarBg = c.avatarBg || AVATAR_COLORS[colorIndex];
+    const profilePic = c.profile_pic_url || c.profilePic || null;
     const time = c.time || c.timeAgo || 'Just now';
     const isReplied = String(c.status).toLowerCase() === 'replied';
 
@@ -45,8 +56,14 @@ export default function ConversationsView({ conversations: initialConversations 
     return {
       ...c,
       id: c.id,
+      name: realName,
+      displayName,
+      displayHandle,
       sender,
-      username: sender,
+      username: hasRealHandle ? `@${cleanUsername}` : sender,
+      cleanUsername: hasRealHandle ? cleanUsername : null,
+      ig_scoped_user_id: igScopedId,
+      profile_pic_url: profilePic,
       initial,
       avatarBg,
       time,
@@ -109,7 +126,14 @@ export default function ConversationsView({ conversations: initialConversations 
   const filteredList = conversationsList.filter((c) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    return c.sender.toLowerCase().includes(q) || (c.lastMessage && c.lastMessage.toLowerCase().includes(q));
+    return (
+      (c.name && c.name.toLowerCase().includes(q)) ||
+      (c.displayName && c.displayName.toLowerCase().includes(q)) ||
+      (c.sender && c.sender.toLowerCase().includes(q)) ||
+      (c.cleanUsername && c.cleanUsername.toLowerCase().includes(q)) ||
+      (c.ig_scoped_user_id && c.ig_scoped_user_id.toLowerCase().includes(q)) ||
+      (c.lastMessage && c.lastMessage.toLowerCase().includes(q))
+    );
   });
 
   const handleSendReply = async () => {
@@ -330,8 +354,8 @@ export default function ConversationsView({ conversations: initialConversations 
                   >
                     {/* User Avatar */}
                     <div style={{
-                      width: '42px',
-                      height: '42px',
+                      width: '44px',
+                      height: '44px',
                       borderRadius: '50%',
                       background: convo.avatarBg,
                       color: '#ffffff',
@@ -339,34 +363,73 @@ export default function ConversationsView({ conversations: initialConversations 
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontWeight: 700,
-                      fontSize: '14.5px',
+                      fontSize: '15px',
                       flexShrink: 0,
-                      boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
+                      position: 'relative',
+                      overflow: 'hidden',
                     }}>
-                      {convo.initial}
+                      {convo.profile_pic_url ? (
+                        <img
+                          src={convo.profile_pic_url}
+                          alt={convo.name || convo.displayName}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : (
+                        convo.initial
+                      )}
                     </div>
 
                     {/* Convo Details */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
                         <span style={{
                           fontSize: '13.5px',
                           fontWeight: 700,
-                          color: isSelected ? 'var(--primary)' : 'var(--text-main)',
+                          color: isSelected ? 'var(--primary, #6366f1)' : 'var(--text-main, #0f172a)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
                         }}>
-                          {convo.sender}
+                          {convo.name || convo.displayName}
                         </span>
-                        <span style={{ fontSize: '11px', color: 'var(--text-light)', flexShrink: 0, marginLeft: '6px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-light, #94a3b8)', flexShrink: 0, marginLeft: '6px' }}>
                           {convo.time}
                         </span>
                       </div>
 
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px', flexWrap: 'nowrap' }}>
+                        {convo.cleanUsername && (
+                          <span style={{
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            color: 'var(--primary, #6366f1)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            @{convo.cleanUsername}
+                          </span>
+                        )}
+                        {convo.ig_scoped_user_id && (
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            background: 'var(--bg-subtle, rgba(148, 163, 184, 0.14))',
+                            color: 'var(--text-muted, #64748b)',
+                            fontFamily: 'monospace',
+                            flexShrink: 0,
+                          }}>
+                            ID: {convo.ig_scoped_user_id.slice(-6)}
+                          </span>
+                        )}
+                      </div>
+
                       <div style={{
-                        fontSize: '12.5px',
-                        color: 'var(--text-muted)',
+                        fontSize: '12px',
+                        color: 'var(--text-muted, #64748b)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -409,17 +472,19 @@ export default function ConversationsView({ conversations: initialConversations 
             <>
               {/* Thread Header */}
               <div style={{
-                padding: '16px 22px',
-                borderBottom: '1px solid var(--border-light)',
+                padding: '14px 22px',
+                borderBottom: '1px solid var(--border-light, #e2e8f0)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                background: 'var(--bg-card)',
+                background: 'var(--bg-card, #ffffff)',
+                flexWrap: 'wrap',
+                gap: '10px',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                   <div style={{
-                    width: '40px',
-                    height: '40px',
+                    width: '44px',
+                    height: '44px',
                     borderRadius: '50%',
                     background: activeConvo.avatarBg,
                     color: '#ffffff',
@@ -427,18 +492,89 @@ export default function ConversationsView({ conversations: initialConversations 
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 700,
-                    fontSize: '14px',
+                    fontSize: '15px',
                     flexShrink: 0,
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                    position: 'relative',
+                    overflow: 'hidden',
                   }}>
-                    {activeConvo.initial}
+                    {activeConvo.profile_pic_url ? (
+                      <img
+                        src={activeConvo.profile_pic_url}
+                        alt={activeConvo.name || activeConvo.displayName}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      activeConvo.initial
+                    )}
                   </div>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)', lineHeight: 1.2 }}>
-                      {activeConvo.sender}
+
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '15.5px', fontWeight: 700, color: 'var(--text-main, #0f172a)', lineHeight: 1.2 }}>
+                        {activeConvo.name || activeConvo.displayName}
+                      </span>
+                      {activeConvo.cleanUsername && (
+                        <a
+                          href={`https://instagram.com/${activeConvo.cleanUsername}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: 'var(--primary, #6366f1)',
+                            textDecoration: 'none',
+                            padding: '2px 7px',
+                            borderRadius: '6px',
+                            background: 'rgba(99, 102, 241, 0.08)',
+                            border: '1px solid rgba(99, 102, 241, 0.18)',
+                          }}
+                          title={`Open @${activeConvo.cleanUsername} on Instagram`}
+                        >
+                          @{activeConvo.cleanUsername}
+                          <ExternalLink size={11} />
+                        </a>
+                      )}
                     </div>
-                    <div style={{ fontSize: '11.5px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
-                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
-                      Automated reply triggered &amp; active
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+                      {activeConvo.ig_scoped_user_id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeConvo.ig_scoped_user_id);
+                            setCopiedId(true);
+                            setTimeout(() => setCopiedId(false), 2000);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11px',
+                            color: 'var(--text-muted, #64748b)',
+                            background: 'var(--bg-subtle, #f1f5f9)',
+                            border: '1px solid var(--border-subtle, #e2e8f0)',
+                            borderRadius: '6px',
+                            padding: '2px 7px',
+                            cursor: 'pointer',
+                            fontFamily: 'monospace',
+                          }}
+                          title="Click to copy Instagram Scoped User ID"
+                        >
+                          <span>IG ID: {activeConvo.ig_scoped_user_id}</span>
+                          <Copy size={11} />
+                          {copiedId && <span style={{ color: '#10b981', fontWeight: 600, fontSize: '10px' }}>Copied!</span>}
+                        </button>
+                      )}
+
+                      <div style={{ fontSize: '11.5px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                        <span>Direct DM</span>
+                      </div>
                     </div>
                   </div>
                 </div>

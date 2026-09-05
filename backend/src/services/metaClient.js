@@ -50,6 +50,43 @@ class MetaClient {
     return { success: true, recipient_id: data.recipient_id, message_id: data.message_id };
   }
 
+  async getInstagramUserProfile({ igScopedUserId, accessToken }) {
+    if (!igScopedUserId || !accessToken) return null;
+    if (this.mockMode) {
+      return { id: igScopedUserId, name: 'Instagram Lead', username: 'ig_lead', profile_pic: null };
+    }
+
+    const isIgToken = accessToken.startsWith('IG');
+    const endpoints = isIgToken ? [
+      `${GRAPH_IG_BASE}/${igScopedUserId}?fields=name,username,profile_pic&access_token=${encodeURIComponent(accessToken)}`,
+      `${GRAPH_API_BASE}/${igScopedUserId}?fields=name,username,profile_pic&access_token=${encodeURIComponent(accessToken)}`
+    ] : [
+      `${GRAPH_API_BASE}/${igScopedUserId}?fields=name,username,profile_pic&access_token=${encodeURIComponent(accessToken)}`,
+      `${GRAPH_IG_BASE}/${igScopedUserId}?fields=name,username,profile_pic&access_token=${encodeURIComponent(accessToken)}`
+    ];
+
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && (data.username || data.name || data.id)) {
+            console.log(`[MetaClient] ✅ Retrieved real user profile for ${igScopedUserId}: "${data.name || ''}" (@${data.username || ''})`);
+            return {
+              id: data.id || igScopedUserId,
+              name: data.name || null,
+              username: data.username || null,
+              profile_pic: data.profile_pic || data.profile_picture_url || null
+            };
+          }
+        }
+      } catch (err) {
+        console.warn(`[MetaClient] Warning fetching user profile:`, err.message);
+      }
+    }
+    return null;
+  }
+
   async exchangeOAuthCode(code, redirectUri, authType = 'instagram') {
     if (this.mockMode) {
       return {

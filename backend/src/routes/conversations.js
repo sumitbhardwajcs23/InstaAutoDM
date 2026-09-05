@@ -2,17 +2,19 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const metaClient = require('../services/metaClient');
+const { decrypt } = require('../services/crypto');
 
 function getAccountForUser(userId, accountId) {
   if (accountId) {
-    return db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
+    return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
   }
-  return db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
+  return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
 }
 
 // GET /api/conversations
-router.get('/', (req, res) => {
-  const { limit = 20, offset = 0, status, account_id } = req.query;
+router.get('/', async (req, res) => {
+  const { limit = 50, offset = 0, status, account_id } = req.query;
   const account = getAccountForUser(req.user.id, account_id);
   if (!account) return res.json({ total: 0, conversations: [] });
 
@@ -22,7 +24,7 @@ router.get('/', (req, res) => {
 
   const total = db.prepare(`SELECT COUNT(*) as count FROM conversations c ${where}`).get(...params)?.count || 0;
   const rows = db.prepare(`
-    SELECT c.id, c.instagram_account_id, c.ig_scoped_user_id, c.username, c.avatar_seed, c.last_message, c.last_message_direction,
+    SELECT c.id, c.instagram_account_id, c.ig_scoped_user_id, c.username, c.name, c.profile_pic_url, c.avatar_seed, c.last_message, c.last_message_direction,
            c.status, c.last_user_message_at, c.created_at, c.updated_at,
            (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) as message_count
     FROM conversations c
@@ -30,6 +32,33 @@ router.get('/', (req, res) => {
     ORDER BY c.updated_at DESC
     LIMIT ? OFFSET ?
   `).all(...params, Number(limit), Number(offset));
+
+  // Auto-enrich any conversation missing real profile info from Meta Graph API
+  if (account.access_token_enc) {
+    for (const row of rows) {
+      if ((!row.name || row.username === 'user' || !row.username) && row.ig_scoped_user_id) {
+        try {
+          const token = decrypt(account.access_token_enc);
+          const profile = await metaClient.getInstagramUserProfile({ igScopedUserId: row.ig_scoped_user_id, accessToken: token });
+          if (profile) {
+            if (profile.username) row.username = profile.username;
+            if (profile.name) row.name = profile.name;
+            if (profile.profile_pic) row.profile_pic_url = profile.profile_pic;
+            db.prepare(`
+              UPDATE conversations SET 
+                username = COALESCE(?, username), 
+                name = COALESCE(?, name), 
+                profile_pic_url = COALESCE(?, profile_pic_url),
+                updated_at = datetime('now')
+              WHERE id = ?
+            `).run(row.username, row.name, row.profile_pic_url, row.id);
+          }
+        } catch (err) {
+          console.warn(`[Conversations] Failed to auto-enrich profile for ${row.ig_scoped_user_id}:`, err.message);
+        }
+      }
+    }
+  }
 
   const now = Date.now();
   const avatarColors = ['#a855f7', '#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#06b6d4'];
@@ -59,18 +88,25 @@ router.get('/', (req, res) => {
       };
     });
 
-    const cleanUsername = (c.username || 'user').replace(/^@/, '');
-    const sender = `@${cleanUsername}`;
-    const initial = cleanUsername[0]?.toUpperCase() || 'U';
+    const cleanUsername = c.username && c.username !== 'user' ? c.username.replace(/^@/, '') : null;
+    const displayName = c.name || (cleanUsername ? `@${cleanUsername}` : `User ${c.ig_scoped_user_id.slice(-4)}`);
+    const handle = cleanUsername ? `@${cleanUsername}` : `@user_${c.ig_scoped_user_id.slice(-4)}`;
+    const initial = (c.name || cleanUsername || 'U').charAt(0).toUpperCase();
     const charCodeSum = (c.id || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
     const avatarBg = avatarColors[charCodeSum % avatarColors.length];
 
     return {
       ...c,
-      sender,
-      username: sender,
+      name: c.name || displayName,
+      displayName,
+      sender: handle,
+      username: handle,
+      handle,
+      cleanUsername,
       initial,
       avatarBg,
+      profile_pic_url: c.profile_pic_url || null,
+      ig_scoped_user_id: c.ig_scoped_user_id,
       lastMessage: c.last_message || (messages[messages.length - 1]?.text) || 'No messages yet',
       time: timeAgo,
       timeAgo,
@@ -108,7 +144,28 @@ router.get('/:id', (req, res) => {
   const is_window_active = (userMsgTs + 24 * 3600000) > Date.now();
   const window_expires_at = new Date(userMsgTs + 24 * 3600000).toISOString();
 
-  res.json({ conversation: { ...conversation, is_window_active, window_expires_at, last_message_at: conversation.updated_at || conversation.last_user_message_at }, messages });
+  const cleanUsername = conversation.username && conversation.username !== 'user' ? conversation.username.replace(/^@/, '') : null;
+  const displayName = conversation.name || (cleanUsername ? `@${cleanUsername}` : `User ${conversation.ig_scoped_user_id.slice(-4)}`);
+  const handle = cleanUsername ? `@${cleanUsername}` : `@user_${conversation.ig_scoped_user_id.slice(-4)}`;
+  const initial = (conversation.name || cleanUsername || 'U').charAt(0).toUpperCase();
+
+  res.json({
+    conversation: {
+      ...conversation,
+      name: conversation.name || displayName,
+      displayName,
+      sender: handle,
+      username: handle,
+      handle,
+      cleanUsername,
+      initial,
+      profile_pic_url: conversation.profile_pic_url || null,
+      is_window_active,
+      window_expires_at,
+      last_message_at: conversation.updated_at || conversation.last_user_message_at
+    },
+    messages
+  });
 });
 
 // POST /api/conversations/:id/reply — manual outbound reply

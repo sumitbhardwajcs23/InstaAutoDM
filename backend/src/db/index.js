@@ -14,6 +14,10 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.exec(CREATE_TABLES_SQL);
 
+// Safe migrations for conversations enrichment columns
+try { db.exec('ALTER TABLE conversations ADD COLUMN name TEXT;'); } catch (e) {}
+try { db.exec('ALTER TABLE conversations ADD COLUMN profile_pic_url TEXT;'); } catch (e) {}
+
 // ── PostgreSQL Replication Layer ───────────────────────────────────────
 const PG_URL = process.env.DATABASE_URL;
 let pgPool = null;
@@ -86,6 +90,12 @@ if (PG_URL) {
     pgPool.query('SELECT NOW()')
       .then(async () => {
         console.log('[PostgreSQL] ✅ Connected to Render PostgreSQL');
+        try {
+          await pgPool.query('ALTER TABLE conversations ADD COLUMN IF NOT EXISTS name TEXT;');
+          await pgPool.query('ALTER TABLE conversations ADD COLUMN IF NOT EXISTS profile_pic_url TEXT;');
+        } catch (migErr) {
+          console.warn('[PostgreSQL] Column migration notice:', migErr.message);
+        }
         await syncFromPg(pgPool, db);
       })
       .catch((err) => {

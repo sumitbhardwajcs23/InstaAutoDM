@@ -65,6 +65,8 @@ CREATE TABLE IF NOT EXISTS conversations (
   instagram_account_id TEXT NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE,
   ig_scoped_user_id TEXT NOT NULL,
   username TEXT,
+  name TEXT,
+  profile_pic_url TEXT,
   avatar_seed TEXT,
   last_message TEXT,
   last_message_direction TEXT DEFAULT 'inbound',

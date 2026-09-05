@@ -51,7 +51,7 @@ router.post('/instagram', (req, res) => {
                   data: {
                     messageId: v.message.mid,
                     senderId: v.sender?.id,
-                    senderUsername: v.sender?.username || 'user',
+                    senderUsername: v.sender?.username || null,
                     text: v.message.text,
                     timestamp: v.timestamp || Date.now()
                   }
@@ -69,7 +69,7 @@ router.post('/instagram', (req, res) => {
                   commentId: v.id,
                   text: v.text,
                   commenterId: v.from?.id,
-                  commenterUsername: v.from?.username,
+                  commenterUsername: v.from?.username || null,
                   createdTime: v.created_time || Date.now(),
                   mediaId: v.media?.id
                 }
@@ -88,7 +88,7 @@ router.post('/instagram', (req, res) => {
                 data: {
                   messageId: msg.message.mid,
                   senderId: msg.sender?.id,
-                  senderUsername: msg.sender?.username || 'user',
+                  senderUsername: msg.sender?.username || null,
                   text: msg.message.text,
                   timestamp: msg.timestamp || Date.now()
                 }
