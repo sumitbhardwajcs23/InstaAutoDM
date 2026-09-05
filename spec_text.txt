@@ -1,0 +1,810 @@
+
+INSTAGRAM AUTO-REPLY SAAS
+MVP Build Specification
+A complete, build-ready specification for the 4–6 week MVP:
+architecture, database, API contracts, feature logic, sprint plan, QA and launch checklist
+September 2026
+Companion document to the full product & GTM report
+
+Table of Contents
+TOC \h \o "1-2"
+
+
+1. MVP Scope & Goals
+1.1 Objective
+Ship a working, Meta-compliant Instagram automation tool that a single creator or small brand can connect in under five minutes, set up one comment-to-DM automation and one DM keyword auto-reply, and see it working on real traffic — in 4–6 weeks, with a two-person (or solo) team.
+1.2 In-Scope Features
+Account connect: OAuth login for one Instagram Professional (Business/Creator) account per user, linked to a Facebook Page.
+Comment-to-DM automation: single keyword trigger on a post/reel → automatic private reply with a link or message.
+DM keyword auto-reply: exact/contains keyword match on an incoming DM → canned text response.
+Simple dashboard: connection status, automation rule list (create/edit/pause), conversation log, basic usage counter.
+Free plan enforcement: 500–1,000 DMs/month hard cap with graceful stop + upgrade prompt.
+Compliance guardrails: 24-hour window tracking, one private reply per comment, throttled sends.
+1.3 Explicitly Out of Scope for MVP
+Story mention/reply triggers (V1)
+Multi-account support (V1 — MVP is single account per user)
+AI-generated replies / GPT integration (V1)
+Drag-and-drop flow builder, CRM integrations, team inbox, white-label (Pro)
+Paid plans/checkout — MVP ships free-tier only; billing wiring is prepped but not turned on until V1
+1.4 MVP Exit Criteria
+The MVP is “done” when all of the following are true:
+A real Instagram Business account can complete OAuth connect end-to-end without manual intervention.
+A comment containing a trigger keyword reliably receives a private reply within a few seconds, with zero duplicate replies on retries.
+A DM containing a trigger keyword reliably receives an auto-reply within the 24-hour window, and is silently skipped (logged, not sent) outside it.
+The dashboard shows live counts that match what actually happened on Instagram.
+10–20 beta users have run it for at least one week with no account flags or bans.
+
+2. Meta App & Compliance Setup
+2.1 Meta Developer App — Setup Steps
+Create a Meta Developer account and a new app of type “Business” at developers.facebook.com.
+Add the “Instagram” and “Webhooks” products to the app.
+Create/link a Facebook Page, and connect an Instagram Professional (Business or Creator) account to it — personal IG accounts cannot use the Messaging API.
+Configure OAuth redirect URIs for both local dev (e.g. ngrok HTTPS tunnel) and the production dashboard domain.
+Request the permissions below and complete Meta App Review before going live with real (non-tester) accounts — budget 2–4 weeks for review, and start this in Week 1, not Week 11.
+Complete Business Verification for the Meta Business account — required before advanced access to messaging permissions is granted.
+2.2 Required Permissions / Scopes
+
+
+Permission
+
+Used for
+
+instagram_basic
+
+Read basic profile/account info after connect
+
+instagram_manage_messages
+
+Send/receive DMs and private replies via the Send API
+
+instagram_manage_comments
+
+Read comments and post replies/hide comments
+
+pages_show_list
+
+List Facebook Pages the user manages, to find the linked Page
+
+pages_messaging
+
+Send messages via the Page tied to the Instagram account
+
+business_management
+
+Required alongside Business Verification for advanced access
+
+2.3 Webhooks to Subscribe
+messages — incoming DMs to the connected account
+comments — new comments on posts, ad posts and reels
+live_comments — only if Story/Live automation is added later; MVP does not need this
+Each webhook call must be verified using the X-Hub-Signature-256 header (HMAC-SHA256 over the raw request body, keyed with the app secret). Reject and log any request that fails verification — do not process it.
+2.4 Compliance Limits to Build Around (verified, current as of Sept 2026)
+
+
+Rule
+
+Limit
+
+Source of truth
+
+Standard messaging window
+
+24 hours from the user's last message to send freely, incl. promotional content
+
+Meta Messenger Platform policy
+
+Human Agent tag
+
+Extends manual (non-automated) replies to 7 days from the user's last message
+
+Meta Messenger Platform policy
+
+Private reply to a comment
+
+Exactly one message per comment_id, must be sent within 7 days of the comment
+
+Meta Private Replies docs
+
+Private replies (posts/reels)
+
+750 calls/hour per Instagram account
+
+Meta rate-limiting docs
+
+Send API (text/links/reactions)
+
+300 calls/second per Instagram account
+
+Meta rate-limiting docs
+
+Send API (audio/video)
+
+10 calls/second per Instagram account
+
+Meta rate-limiting docs
+
+Private reply to Live comments
+
+100 calls/second per Instagram account (not used in MVP)
+
+Meta rate-limiting docs
+
+General Messenger API budget
+
+200 × number of engaged users, per rolling 24 hours
+
+Meta rate-limiting docs
+
+Note: Treat the table above as the hard ceiling, not the target. Section 6.5 sets the MVP's own internal throttle well below these numbers so a traffic spike never gets an account flagged.
+2.5 Disclosure Requirement
+Where required by applicable law, the automated experience must disclose that the user is talking to an automated system — at the start of the conversation, after a long pause, and at any handoff from bot to human. Bake a one-line disclosure into the default reply templates so users don't have to remember to add it.
+
+3. System Architecture
+The MVP uses the same architecture family as the full product, deliberately kept to the smallest set of moving parts that is still safe under Meta's rate limits: a webhook receiver, a queue, a worker, Postgres, and a thin dashboard.
+
+
+Figure 1 — MVP system architecture
+3.1 MVP Tech Stack
+
+
+Layer
+
+Choice
+
+Why for MVP
+
+Frontend
+
+Next.js + Tailwind CSS, deployed on Vercel
+
+Fast to ship, free tier, good DX for a solo/2-person team
+
+Backend API
+
+Node.js + Express (or Fastify)
+
+Same language as frontend; mature Meta SDK/webhook examples
+
+Worker
+
+Node.js process, BullMQ consumer
+
+Shares code/models with the API; simple to run as a second process
+
+Database
+
+PostgreSQL (Supabase or Neon)
+
+Relational fit for rules/logs; generous free tier
+
+Queue / cache
+
+Redis (Upstash)
+
+Backs BullMQ and the rate-limit counters
+
+Hosting
+
+Render or Railway (API + worker), Vercel (frontend)
+
+Cheap, simple CI/CD, acceptable latency from India
+
+Billing (wired, off by default)
+
+Stripe (global) / Razorpay (India)
+
+Ready for V1 launch without re-architecting
+
+3.2 Why a Queue, Even for MVP
+Webhook delivery must be acknowledged quickly (Meta retries and can disable webhooks that time out or 5xx repeatedly). Separating “receive the event” from “process and send the reply” protects against slow downstream calls, lets you retry failed sends with backoff, and gives a single choke point to enforce the throttle in Section 6.5. This is worth the extra moving part even at MVP scale.
+
+4. Database Schema
+Seven tables cover the full MVP. Types are Postgres-flavoured; add standard created_at / updated_at timestamptz columns to every table (omitted below for brevity).
+4.1 users
+
+
+Column
+
+Type
+
+Notes
+
+id
+
+uuid, PK
+
+Primary key
+
+email
+
+text, unique
+
+Login identity
+
+password_hash
+
+text
+
+Null if OAuth-only login
+
+plan
+
+text
+
+'free' for MVP; enum-ready for 'starter'/'pro'
+
+dm_usage_this_period
+
+int, default 0
+
+Reset monthly by a scheduled job
+
+usage_period_start
+
+date
+
+Anchor for the monthly reset
+
+4.2 instagram_accounts
+
+
+Column
+
+Type
+
+Notes
+
+id
+
+uuid, PK
+
+
+
+user_id
+
+uuid, FK → users.id
+
+Owner
+
+ig_user_id
+
+text, unique
+
+Instagram-scoped account ID from Meta
+
+page_id
+
+text
+
+Linked Facebook Page ID
+
+access_token_enc
+
+text
+
+Encrypted long-lived Page access token
+
+token_expires_at
+
+timestamptz
+
+For proactive refresh
+
+status
+
+text
+
+'connected' → 'error' → 'reauth_required'
+
+4.3 automation_rules
+
+
+Column
+
+Type
+
+Notes
+
+id
+
+uuid, PK
+
+
+
+instagram_account_id
+
+uuid, FK
+
+Owning account
+
+type
+
+text
+
+'comment_to_dm' or 'dm_keyword_reply'
+
+trigger_keyword
+
+text
+
+Case-insensitive match string
+
+match_mode
+
+text
+
+'exact' or 'contains'
+
+reply_message
+
+text
+
+Template text, may include a link
+
+is_active
+
+boolean, default true
+
+Pause without deleting
+
+4.4 comment_replies (idempotency + audit)
+
+
+Column
+
+Type
+
+Notes
+
+id
+
+uuid, PK
+
+
+
+comment_id
+
+text, unique
+
+Instagram comment ID — uniqueness enforces “one reply per comment”
+
+automation_rule_id
+
+uuid, FK
+
+Which rule fired
+
+status
+
+text
+
+'sent' / 'skipped_duplicate' / 'failed'
+
+meta_message_id
+
+text, null
+
+Returned by the Graph API on success
+
+4.5 conversations & messages
+
+
+Column
+
+Type
+
+Notes
+
+conversations.id
+
+uuid, PK
+
+
+
+conversations.instagram_account_id
+
+uuid, FK
+
+
+
+conversations.ig_scoped_user_id
+
+text
+
+The end-user's IG-scoped ID
+
+conversations.last_user_message_at
+
+timestamptz
+
+Anchors the 24-hour window check
+
+messages.id
+
+uuid, PK
+
+
+
+messages.conversation_id
+
+uuid, FK
+
+
+
+messages.direction
+
+text
+
+'inbound' / 'outbound'
+
+messages.status
+
+text
+
+'sent' / 'window_closed' / 'failed'
+
+4.6 webhook_events (raw log)
+
+
+Column
+
+Type
+
+Notes
+
+id
+
+uuid, PK
+
+
+
+event_type
+
+text
+
+'comments' / 'messages'
+
+payload
+
+jsonb
+
+Raw verified payload, for replay/debugging
+
+processed_at
+
+timestamptz, null
+
+Set once the job completes
+
+5. Backend API Endpoints
+A minimal REST surface — enough for the dashboard and for Meta's webhook calls. All non-webhook routes require a session/JWT.
+
+
+Method & Path
+
+Purpose
+
+POST /auth/signup, /auth/login
+
+Email/password (or OAuth) account creation and login
+
+GET /instagram/oauth/start
+
+Redirects to Meta's OAuth consent screen
+
+GET /instagram/oauth/callback
+
+Exchanges code for token, stores the connected account
+
+GET /instagram/account
+
+Current connection status for the dashboard
+
+DELETE /instagram/account
+
+Disconnects the account, revokes stored token
+
+GET /rules
+
+List automation rules for the connected account
+
+POST /rules
+
+Create a rule (comment_to_dm or dm_keyword_reply)
+
+PATCH /rules/:id
+
+Edit or pause/resume a rule
+
+DELETE /rules/:id
+
+Remove a rule
+
+GET /logs
+
+Paginated conversation/reply log for the dashboard
+
+GET /usage
+
+Current-period DM count vs. free-plan cap
+
+POST /webhooks/instagram
+
+Meta calls this — verify signature, enqueue, return 200 fast
+
+GET /webhooks/instagram
+
+Meta's webhook verification handshake (hub.challenge echo)
+Note: The webhook route must respond within a few seconds even under load — it should only verify the signature and enqueue; all matching and sending happens in the worker (Section 6.3).
+
+6. Core Feature Specifications
+6.1 OAuth Connect Flow
+User clicks “Connect Instagram” on the dashboard.
+Backend redirects to Meta's OAuth dialog with the required scopes (Section 2.2).
+User approves; Meta redirects back with an authorization code.
+Backend exchanges the code for a short-lived token, then a long-lived Page access token.
+Backend calls the Graph API to resolve the Instagram-scoped user ID and Page ID, and stores them encrypted in instagram_accounts.
+Backend subscribes the Page to the messages and comments webhook fields.
+Dashboard shows “Connected” and prompts the user to create their first rule.
+6.2 Webhook Receiver & Event Processing
+Single endpoint (POST /webhooks/instagram) handles both event types. Responsibilities, in order:
+Verify X-Hub-Signature-256 against the raw body; return 403 and log on mismatch.
+Persist the raw payload to webhook_events (cheap insurance for debugging and replay).
+Push a job onto the queue with the event type and a stable dedupe key (Meta can send the same event more than once).
+Return HTTP 200 immediately — all real work happens asynchronously in the worker.
+6.3 Comment-to-DM Automation Logic
+
+
+Figure 2 — end-to-end message flow for a single comment-to-DM automation
+Implementation notes for the worker:
+Idempotency first: before anything else, attempt an INSERT into comment_replies keyed on comment_id. If it conflicts, the comment was already handled — stop.
+Case-insensitive matching: normalize both the comment text and the rule's trigger_keyword (lowercase, trim) before comparing.
+7-day window: if the comment's created_time is more than 7 days old (e.g. a backfilled or delayed webhook), skip and log — Meta will reject the private reply anyway.
+Send: POST to /{PAGE_ID}/messages with recipient.comment_id and the rule's reply_message.
+On failure: retry transient errors (5xx, timeouts) with exponential backoff up to 3 attempts; do not retry 4xx errors such as window-closed or invalid comment — log as failed instead.
+6.4 DM Keyword Auto-Reply Logic
+On an inbound messages webhook, upsert the conversation row and set last_user_message_at to now.
+Match the incoming text against active dm_keyword_reply rules for the account (same normalization as 6.3).
+If a rule matches, send the reply via POST /{PAGE_ID}/messages with recipient.id set to the sender's IG-scoped ID.
+If more than 24 hours have passed since the user's last message when a send is attempted (e.g. a delayed job), do not send — log as window_closed rather than error, since this is expected behaviour, not a bug.
+Increment the account owner's dm_usage_this_period counter on every successful send, and check the free-plan cap before sending (Section 7).
+6.5 Rate Limiting & Backoff Strategy
+The worker enforces its own conservative internal ceilings, comfortably under Meta's published limits from Section 2.4, using Redis counters (sliding window, per instagram_account_id):
+
+
+Internal MVP ceiling
+
+Meta's actual limit
+
+Margin
+
+120 private replies / hour / account
+
+750 / hour / account
+
+≈ 6x headroom
+
+30 DM sends / minute / account
+
+300 calls/sec (burst ceiling)
+
+Deliberately far below burst capacity
+
+1 private reply per comment_id, ever
+
+1 per comment_id / 7 days
+
+Matches Meta exactly — no margin needed, it's a hard rule
+
+When a job would exceed the internal ceiling, requeue it with a short delay (e.g. 30–60 seconds) instead of dropping or erroring — comments and DMs still get answered, just slightly slower during a spike. On any 4xx from the Graph API indicating a rate or policy violation, pause that account's automations for a cooldown period and surface a warning in the dashboard rather than continuing to retry blindly.
+6.6 Dashboard — Screens & Contents
+
+
+Screen
+
+Key elements
+
+Connect / Onboarding
+
+“Connect Instagram” button, connection status, post-connect checklist (create first rule)
+
+Automations
+
+List of rules (type, keyword, status), create/edit modal, pause toggle
+
+Conversation Log
+
+Paginated table: timestamp, type, trigger, status (sent/skipped/failed), linked comment or DM
+
+Usage
+
+DM count this period vs. free-plan cap, simple progress bar, upgrade prompt near the limit
+
+Settings
+
+Reconnect/disconnect account, disclosure message text, notification email
+
+7. Free Plan Enforcement & Usage Metering
+MVP ships with a single free tier: 500–1,000 DMs/month (pick 750 as the default; make it a config value, not a hardcoded constant, so it can be tuned or turned into a real paid-tier gate at V1 without a schema change).
+Every successful outbound send (private reply or DM auto-reply) increments users.dm_usage_this_period.
+Before sending, the worker checks the counter against the plan cap; if at or over the cap, the send is skipped and logged as usage_capped, and the dashboard shows an upgrade nudge.
+A daily scheduled job resets dm_usage_this_period to 0 when usage_period_start rolls past one month — keep this job idempotent so a missed run doesn't double-reset.
+Log usage_capped events distinctly from failures — they are a product signal (demand for a paid plan), not a bug.
+
+8. 6-Week Development Plan
+Sized for a solo builder or a two-person team (one full-stack-leaning backend, one frontend-leaning). Each week ends with something demoable.
+
+
+Week
+
+Focus
+
+Deliverable
+
+1
+
+Meta app setup + submit for App Review; project scaffolding (repo, CI, hosting accounts); DB schema migration
+
+App Review submitted; empty API deployed; schema live
+
+2
+
+OAuth connect flow end-to-end; webhook endpoint with signature verification and event logging
+
+Can connect a real IG test account; webhook events land in webhook_events
+
+3
+
+Queue + worker skeleton; comment_to_dm rule CRUD (API + minimal UI); idempotent comment-reply logic
+
+A hardcoded test rule replies to a real comment exactly once
+
+4
+
+dm_keyword_reply logic incl. 24-hour window handling; rate-limit counters and backoff/requeue
+
+Both automation types working against a live test account under simulated load
+
+5
+
+Dashboard: Automations, Conversation Log, Usage screens; free-plan cap enforcement
+
+A non-technical tester can connect, create a rule, and see it work without your help
+
+6
+
+Bug bash against the QA checklist (Section 9); onboard 10–20 beta users; monitoring/alerting on webhook and send failures
+
+Public(ish) beta live; MVP exit criteria from Section 1.4 met
+
+9. Testing & QA Checklist
+9.1 Functional
+OAuth connect succeeds; disconnect fully revokes and cleans up local state
+Comment containing the exact keyword (any case) triggers exactly one private reply
+Same comment re-delivered by Meta (webhook retry) does not trigger a second reply
+Comment older than 7 days is skipped, not sent, and is logged as such
+DM keyword match sends within the 24-hour window; is correctly skipped outside it
+Pausing a rule stops it from firing without deleting its history
+9.2 Compliance
+Webhook requests with an invalid/missing signature are rejected, not processed
+Internal send ceilings (Section 6.5) never allow a burst above Meta's published limits, even under a simulated flood of comments
+Default reply templates include the automated-experience disclosure line
+9.3 Resilience
+Graph API 5xx/timeout triggers retry with backoff, not an immediate failure
+Graph API 4xx (e.g. window closed, invalid recipient) is logged and does not retry
+Worker crash mid-job does not lose the job (queue persistence/ack semantics verified)
+Token expiry is detected and surfaces a “reauth required” state rather than failing silently
+9.4 Load
+Simulate a viral post: a burst of 200+ comments in a few minutes against a test account, confirm the queue absorbs it and sends stay within internal ceilings
+
+10. Deployment & Launch Checklist
+Production environment variables set (DB, Redis, Meta app secret, encryption key for tokens) — nothing defaulted or hardcoded.
+HTTPS confirmed on the public webhook URL; Meta app's webhook URL updated from the ngrok dev URL to production.
+Meta App Review approved and the app switched from Development to Live mode.
+Business Verification complete.
+Error monitoring/alerting wired (even a simple Slack/email alert on repeated webhook failures or send failures).
+Database backups enabled on the managed Postgres instance.
+Privacy policy and terms of service pages published and linked from the OAuth consent flow (Meta requires this).
+Beta user onboarding doc/video ready (Hindi + English) for the first 10–20 users.
+
+11. MVP Infra Cost Estimate
+
+
+Item
+
+Cost (USD/month)
+
+Notes
+
+Hosting — API + worker (Render/Railway)
+
+$10–$25
+
+Free tier during dev; small paid tier once live
+
+Frontend hosting (Vercel)
+
+$0
+
+Free tier sufficient at MVP traffic
+
+Database (Supabase/Neon)
+
+$0–$15
+
+Free tier usually covers MVP + beta
+
+Redis (Upstash)
+
+$0–$10
+
+Free tier covers queue + counters at this scale
+
+Domain + transactional email
+
+$5
+
+Namecheap/Cloudflare + Resend or similar
+
+Total
+
+$15–$50/month
+
+Scales with users; billing (Stripe/Razorpay) is free until revenue flows
+
+12. MVP-Specific Risks & Mitigations
+
+
+Risk
+
+Mitigation
+
+Meta App Review delays the launch date
+
+Submit in Week 1; build and test everything against a Meta test/tester account in the meantime
+
+Duplicate replies from webhook retries
+
+Idempotency key on comment_id enforced at the database level, not just in application logic
+
+Account gets rate-limited or flagged during a viral moment
+
+Internal ceilings well under Meta's limits (Section 6.5); auto-cooldown on policy-violation errors
+
+Token expiry breaks automations silently
+
+Proactive expiry check + “reauth required” dashboard state and email alert
+
+Free-tier abuse (one account, many fake signups)
+
+Not a Week 1–6 problem — flag for V1, note it and move on
+
+Appendix
+A. Sample Verified Webhook Payload (comments)
+
+{  "object": "instagram",  "entry": [{    "id": "17841400000000000",    "time": 1767000000,    "changes": [{      "field": "comments",      "value": {        "id": "18000158536435933",        "text": "GUIDE",        "from": { "id": "1784140000", "username": "example_user" },        "media": { "id": "17900000000000" }      }    }]  }]}
+B. Sample Automation Rule (internal JSON shape)
+
+{  "type": "comment_to_dm",  "trigger_keyword": "guide",  "match_mode": "contains",  "reply_message": "Thanks for asking! Here's the guide: https://example.com/guide",  "is_active": true}
+C. Glossary
+
+
+Term
+
+Meaning
+
+IG-scoped user ID
+
+The identifier Meta gives an Instagram user, unique per app — not the same as their username
+
+Private reply
+
+A DM sent in response to a specific public comment, visible only to the commenter
+
+Human Agent tag
+
+A message tag that lets a manual (non-automated) reply go out up to 7 days after the user's last message
+
+Idempotency key
+
+A unique value (here, comment_id) used to guarantee an action happens at most once even if the trigger fires twice

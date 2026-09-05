@@ -1,0 +1,260 @@
+// frontend/src/App.jsx
+import React, { useState, useEffect, useCallback } from 'react';
+import Sidebar from './components/Sidebar';
+import Topbar from './components/Topbar';
+import DashboardView from './components/DashboardView';
+import RulesView from './components/RulesView';
+import ConversationsView from './components/ConversationsView';
+import SimulatorView from './components/SimulatorView';
+import AnalyticsView from './components/AnalyticsView';
+import BillingView from './components/BillingView';
+import SettingsView from './components/SettingsView';
+import AuthView from './components/AuthView';
+import CreateRuleModal from './components/CreateRuleModal';
+import ConnectIgModal from './components/ConnectIgModal';
+import UpgradeModal from './components/UpgradeModal';
+import { getCurrentUser, clearAuthSession, apiFetch } from './api/client';
+
+export default function App() {
+  const [user, setUser] = useState(getCurrentUser());
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [darkMode, setDarkMode] = useState(false);
+
+  // Modals
+  const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
+  const [isConnectIgOpen, setIsConnectIgOpen] = useState(false);
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+
+  // Data states
+  const [stats, setStats] = useState(null);
+  const [rules, setRules] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [account, setAccount] = useState(null);
+
+  // Sync dark mode class
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  }, [darkMode]);
+
+  // Listen for unauthorized 401 events
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
+
+  // Fetch all user data
+  const loadData = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      // 1. Fetch dashboard stats + account
+      const statsRes = await apiFetch('/dashboard/stats');
+      if (statsRes.ok) {
+        const d = await statsRes.json();
+        // Normalize backend field names → React prop names
+        setStats({
+          dmsSent: d.totalDmsSent ?? 0,
+          dmsLimit: d.dmLimit ?? 1000,
+          dmRemaining: d.dmRemaining ?? 380,
+          commentsReplied: d.commentsReplied ?? 0,
+          commentsRepliedChange: d.commentsRepliedChange ?? 0,
+          activeRules: d.activeRules ?? 0,
+          totalRules: d.totalRules ?? 0,
+          usagePercent: d.usagePercent ?? 0,
+          accountHealthy: d.accountHealthy ?? false,
+          recentConversations: d.recent_conversations || [],
+        });
+        if (d.account) setAccount(d.account);
+        if (d.user) {
+          setUser(prev => ({ ...prev, name: d.user.name, plan: d.user.plan }));
+        }
+      }
+
+      // 2. Fetch rules
+      const rulesRes = await apiFetch('/rules');
+      if (rulesRes.ok) {
+        const rulesData = await rulesRes.json();
+        setRules(rulesData.rules || []);
+      }
+
+      // 3. Fetch conversations
+      const convRes = await apiFetch('/conversations');
+      if (convRes.ok) {
+        const convData = await convRes.json();
+        setConversations(convData.conversations || []);
+      }
+    } catch (e) {
+      console.error('Error fetching dashboard data:', e);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Handlers
+  const handleLogout = () => {
+    clearAuthSession();
+    setUser(null);
+  };
+
+  const handleToggleRule = async (ruleId, newActiveState) => {
+    try {
+      await apiFetch(`/rules/${ruleId}/toggle`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: newActiveState ? 1 : 0 }),
+      });
+      setRules((prev) =>
+        prev.map((r) => (r.id === ruleId ? { ...r, is_active: newActiveState ? 1 : 0 } : r))
+      );
+      loadData();
+    } catch (e) {
+      console.error('Failed to toggle rule:', e);
+    }
+  };
+
+  const handleDeleteRule = async (ruleId) => {
+    if (!window.confirm('Are you sure you want to delete this rule?')) return;
+    try {
+      await apiFetch(`/rules/${ruleId}`, { method: 'DELETE' });
+      setRules((prev) => prev.filter((r) => r.id !== ruleId));
+      loadData();
+    } catch (e) {
+      console.error('Failed to delete rule:', e);
+    }
+  };
+
+  const handleRuleCreated = (newRule) => {
+    setRules((prev) => [newRule, ...prev]);
+    loadData();
+  };
+
+  const handleAccountConnected = (newAcc) => {
+    setAccount(newAcc);
+    loadData();
+  };
+
+  // If user is not logged in, render AuthView
+  if (!user) {
+    return <AuthView onAuthSuccess={(loggedUser) => setUser(loggedUser)} />;
+  }
+
+  return (
+    <div className="app-container" style={{ display: 'flex', minHeight: '100vh' }}>
+      {/* Sidebar */}
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenUpgrade={() => setIsUpgradeOpen(true)}
+        onOpenConnect={() => setIsConnectIgOpen(true)}
+        onLogout={handleLogout}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        unreadCount={conversations.length || 12}
+      />
+
+      {/* Main Content Pane */}
+      <div
+        className="main-viewport"
+        style={{
+          marginLeft: 'var(--sidebar-width)',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: 0,
+          background: 'var(--bg-body)',
+        }}
+      >
+        {/* Topbar */}
+        <Topbar
+          user={user}
+          onOpenUpgrade={() => setIsUpgradeOpen(true)}
+          onLogout={handleLogout}
+          onSearch={(q) => console.log('Searching for:', q)}
+        />
+
+        {/* View Router */}
+        <main style={{ flex: 1, overflowY: 'auto' }}>
+          {activeTab === 'dashboard' && (
+            <DashboardView
+              stats={stats}
+              rules={rules}
+              conversations={conversations}
+              account={account}
+              onNavigate={setActiveTab}
+              onOpenCreateRule={() => setIsCreateRuleOpen(true)}
+              onOpenUpgrade={() => setIsUpgradeOpen(true)}
+              onOpenConnect={() => setIsConnectIgOpen(true)}
+              onToggleRule={handleToggleRule}
+            />
+          )}
+
+          {activeTab === 'rules' && (
+            <RulesView
+              rules={rules}
+              onOpenCreateRule={() => setIsCreateRuleOpen(true)}
+              onToggleRule={handleToggleRule}
+              onDeleteRule={handleDeleteRule}
+            />
+          )}
+
+          {activeTab === 'conversations' && (
+            <ConversationsView conversations={conversations} onRefresh={loadData} />
+          )}
+
+          {activeTab === 'simulator' && (
+            <SimulatorView rules={rules} onRefreshStats={loadData} />
+          )}
+
+          {activeTab === 'analytics' && (
+            <AnalyticsView stats={stats} />
+          )}
+
+          {activeTab === 'billing' && (
+            <BillingView user={user} onUpgrade={() => setIsUpgradeOpen(true)} />
+          )}
+
+          {activeTab === 'settings' && (
+            <SettingsView account={account} onOpenConnect={() => setIsConnectIgOpen(true)} />
+          )}
+
+          {activeTab === 'templates' && (
+            <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <h2>Message & Reply Templates</h2>
+              <p>Pre-made e-commerce and creator response sequences.</p>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Modals */}
+      <CreateRuleModal
+        isOpen={isCreateRuleOpen}
+        onClose={() => setIsCreateRuleOpen(false)}
+        onRuleCreated={handleRuleCreated}
+      />
+
+      <ConnectIgModal
+        isOpen={isConnectIgOpen}
+        onClose={() => setIsConnectIgOpen(false)}
+        onConnected={handleAccountConnected}
+      />
+
+      <UpgradeModal
+        isOpen={isUpgradeOpen}
+        onClose={() => setIsUpgradeOpen(false)}
+        onUpgraded={(plan) => {
+          setUser((prev) => ({ ...prev, plan }));
+          loadData();
+        }}
+      />
+    </div>
+  );
+}

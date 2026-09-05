@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: instautoreply-backend
+    env: node
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node src/server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FREE_PLAN_DM_LIMIT
+        value: "1000"
+      - key: META_MOCK_MODE
+        value: "false"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      # Provide these via Render Dashboard Environment Variables
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_VERIFY_TOKEN
+        sync: false
+      - key: META_REDIRECT_URI
+        sync: false
