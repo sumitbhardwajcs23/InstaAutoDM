@@ -18,9 +18,10 @@ db.exec(CREATE_TABLES_SQL);
 const PG_URL = process.env.DATABASE_URL;
 let pgPool = null;
 let isSeeding = false;
+let isSyncingFromPg = false;
 
 function syncWriteToPg(pool, sql, params) {
-  if (isSeeding || !pool) return;
+  if (isSeeding || isSyncingFromPg || !pool) return;
   try {
     let i = 1;
     let pgSql = sql.replace(/\?/g, () => `$${i++}`);
@@ -41,6 +42,7 @@ function syncWriteToPg(pool, sql, params) {
 }
 
 async function syncFromPg(pool, sqliteDb) {
+  isSyncingFromPg = true;
   try {
     const tables = ['users', 'instagram_accounts', 'automation_rules', 'conversations', 'messages', 'comment_replies', 'activity_log'];
     for (const table of tables) {
@@ -55,7 +57,7 @@ async function syncFromPg(pool, sqliteDb) {
               if (val instanceof Date) return val.toISOString();
               return val;
             });
-            sqliteDb.prepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
+            originalPrepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
           }
         }
       } catch (tableErr) {
@@ -65,6 +67,8 @@ async function syncFromPg(pool, sqliteDb) {
     console.log('[PostgreSQL] ✅ Synchronized latest tables from Render PostgreSQL to runtime engine.');
   } catch (err) {
     console.error('[PostgreSQL Sync Warning]', err.message);
+  } finally {
+    isSyncingFromPg = false;
   }
 }
 
