@@ -66,16 +66,16 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     const userId = user?.id || '';
 
     // Encode state with userId, origin, and auth type
-    const stateObj = { uid: userId, origin, type: 'instagram' };
+    const stateObj = { uid: userId, origin, type: 'facebook' };
     const state = btoa(JSON.stringify(stateObj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     
     const appId = '28265020499789803';
     const redirectUri = 'https://instaautodm-kh61.onrender.com/api/instagram/oauth/callback';
-    const scopes = 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
+    const scopes = 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
     
-    // Direct Instagram Business Login with Facebook account integration
-    const igAuthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=1&force_authentication=1&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${state}`;
-    openOAuthPopup(igAuthUrl);
+    // Official Meta OAuth Dialog for Instagram Business & Creator accounts
+    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&response_type=code&state=${state}`;
+    openOAuthPopup(authUrl);
   };
 
   const handleFacebookOAuth = () => {
