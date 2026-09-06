@@ -143,9 +143,10 @@ async function fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pag
       if (retryCount < 3) {
         const delay = (retryCount + 1) * 30000; // 30s, 60s, 90s
         console.log(`[ProfileCache] ⏱ Scheduling retry ${retryCount + 1}/3 for ${igScopedUserId} in ${delay / 1000}s`);
-        setTimeout(() => {
+        const retryTimer = setTimeout(() => {
           fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pageId, retryCount + 1).catch(() => {});
         }, delay);
+        if (retryTimer.unref) retryTimer.unref();
       } else {
         console.warn(`[ProfileCache] ❌ Gave up fetching profile for ${igScopedUserId} after 3 retries`);
         permanentlyFailed.add(igScopedUserId);
@@ -163,9 +164,10 @@ async function fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pag
     }
     // Retry once on transient network errors
     if (retryCount < 2) {
-      setTimeout(() => {
+      const netRetryTimer = setTimeout(() => {
         fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pageId, retryCount + 1).catch(() => {});
       }, 30000);
+      if (netRetryTimer.unref) netRetryTimer.unref();
     }
   }
 }
@@ -192,6 +194,7 @@ function resolve(igScopedUserId, dbRow = null) {
 }
 
 // Run pre-warm after a short delay to let DB initialize
-setTimeout(prewarm, 500);
+const prewarmTimer = setTimeout(prewarm, 500);
+if (prewarmTimer.unref) prewarmTimer.unref();
 
 module.exports = { get, set, resolve, fetchAndCache, profileMap, KNOWN_USERS };

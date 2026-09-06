@@ -20,7 +20,8 @@ router.post('/instagram', (req, res) => {
   const signature = req.headers['x-hub-signature-256'];
   const rawBody = req.rawBody || JSON.stringify(req.body);
   if (signature) {
-    const isValid = verifyMetaSignature(rawBody, signature, APP_SECRET);
+    const isValid = verifyMetaSignature(rawBody, signature, APP_SECRET) ||
+                    (process.env.META_IG_APP_SECRET && verifyMetaSignature(rawBody, signature, process.env.META_IG_APP_SECRET));
     if (!isValid) {
       console.warn('[Webhook] ⚠️ Signature verification failed (APP_SECRET might differ), but proceeding to process event in development mode.');
     }

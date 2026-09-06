@@ -54,11 +54,12 @@ router.post('/login', async (req, res) => {
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
     if (!user) return res.status(401).json({ error: 'Invalid email or password' });
 
-    // Allow login without password for seed/demo users (no hash set)
-    if (user.password_hash) {
-      const valid = await bcrypt.compare(password, user.password_hash);
-      if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+    if (!user.password_hash) {
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
     const token = makeToken(user);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, plan: user.plan } });

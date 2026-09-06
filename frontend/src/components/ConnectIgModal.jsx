@@ -59,11 +59,21 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     }, 1000);
   };
 
+  const getBackendUrl = () => {
+    if (import.meta.env.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL.trim().replace(/\/+$/, '');
+    }
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return `${window.location.protocol}//${window.location.hostname}:3000`;
+    }
+    return 'https://instaautodm-kh61.onrender.com';
+  };
+
   // Instagram-only OAuth — uses native Instagram Business Login (instagram.com)
   const handleInstagramOAuth = () => {
     const origin = window.location.origin;
     const token = getToken() || '';
-    const BACKEND = 'https://instaautodm-kh61.onrender.com';
+    const BACKEND = getBackendUrl();
     const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
     openOAuthPopup(startUrl);
   };
@@ -72,7 +82,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
   const handleFacebookOAuth = () => {
     const origin = window.location.origin;
     const token = getToken() || '';
-    const BACKEND = 'https://instaautodm-kh61.onrender.com';
+    const BACKEND = getBackendUrl();
     const startUrl = `${BACKEND}/api/instagram/oauth/start?type=facebook&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
     openOAuthPopup(startUrl);
   };

@@ -87,6 +87,14 @@ class EventQueueWorker {
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(account.user_id);
     if (!user) return;
 
+    // Prevent replying to comments authored by the account itself
+    if (commenterId && (commenterId === account.ig_user_id || commenterId === account.page_id || commenterId === account.fb_user_id)) {
+      return;
+    }
+    if (commenterUsername && account.username && commenterUsername.toLowerCase() === account.username.toLowerCase()) {
+      return;
+    }
+
     // Idempotency
     if (db.prepare('SELECT id FROM comment_replies WHERE comment_id = ?').get(commentId)) return;
 
@@ -144,6 +152,14 @@ class EventQueueWorker {
     }
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(account.user_id);
     if (!user) return;
+
+    // Prevent replying to messages sent by the account itself
+    if (senderId && (senderId === account.ig_user_id || senderId === account.page_id || senderId === account.fb_user_id)) {
+      return;
+    }
+    if (senderUsername && account.username && senderUsername.toLowerCase() === account.username.toLowerCase()) {
+      return;
+    }
 
     console.log(`[Worker] Processing message for @${account.username} from ${senderUsername || senderId}: "${text}"`);
 
@@ -210,7 +226,8 @@ class EventQueueWorker {
       this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, msg, 'outbound', 'replied', new Date().toISOString());
       console.log(`[Worker] ✅ DM auto-reply sent to ${realName || finalUsername} (Rule: "${rule.trigger_keyword}")`);
     } catch (err) {
-      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message) VALUES (?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'failed', err.message);
+      const outboundFailCreatedAt = new Date(eventTime + 1000).toISOString();
+      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'failed', err.message, outboundFailCreatedAt);
       if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
       throw err;
     }

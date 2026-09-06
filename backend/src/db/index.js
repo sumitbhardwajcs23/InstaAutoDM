@@ -30,7 +30,8 @@ try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN profile_picture_url TEX
 try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN followers_count INTEGER DEFAULT 0;'); } catch (e) {}
 
 // ── PostgreSQL Replication Layer ───────────────────────────────────────
-const PG_URL = process.env.DATABASE_URL || 'postgresql://instautoreply_user:ngJK4XtKJSEYDlnXZpevibT2TawWEJWH@dpg-dadvcvf40ujc73d522i0-a.oregon-postgres.render.com/instautoreply';
+const isTestEnv = process.env.NODE_ENV === 'test' || process.env.DB_PATH === ':memory:';
+const PG_URL = isTestEnv ? null : (process.env.DATABASE_URL || 'postgresql://instautoreply_user:ngJK4XtKJSEYDlnXZpevibT2TawWEJWH@dpg-dadvcvf40ujc73d522i0-a.oregon-postgres.render.com/instautoreply');
 let pgPool = null;
 let isSeeding = false;
 let isSyncingFromPg = false;
@@ -127,12 +128,14 @@ if (PG_URL) {
         await syncFromPg(pgPool, db);
 
         // Delay first auto-sync by 30s so fresh OAuth writes reach PG before any DELETE sweep
-        setTimeout(() => {
+        const syncTimeout = setTimeout(() => {
           // Auto-sync every 60 seconds to keep Render runtime fresh
-          setInterval(() => {
+          const syncInterval = setInterval(() => {
             syncFromPg(pgPool, db).catch(() => {});
           }, 60000);
+          if (syncInterval.unref) syncInterval.unref();
         }, 30000);
+        if (syncTimeout.unref) syncTimeout.unref();
       })
       .catch((err) => {
         console.warn('[PostgreSQL] Connection fallback to local store:', err.message);
