@@ -93,9 +93,13 @@ export default function SettingsView({ account, onOpenConnect }) {
             </div>
 
             <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>FACEBOOK PAGE ID</div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px', fontFamily: 'monospace' }}>
-                {isConnected ? (account?.page_id || account?.fb_page_id || '—') : '—'}
+              <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>CONNECTED VIA</div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px' }}>
+                {isConnected ? (
+                  account?.page_id && account.page_id !== account.ig_user_id
+                    ? `Facebook Page (${account.fb_page_name || account.page_id})`
+                    : 'Instagram Business Login (Direct)'
+                ) : '—'}
               </div>
             </div>
           </div>

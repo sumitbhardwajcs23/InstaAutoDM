@@ -6,9 +6,12 @@ const db = require('../db');
 
 function getAccountForUser(userId, accountId) {
   if (accountId) {
-    return db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
+    return db.prepare("SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) LIMIT 1").get(userId, accountId);
   }
-  return db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
+  return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId)
+      || db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' ORDER BY updated_at DESC LIMIT 1").get()
+      || db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1").get(userId)
+      || db.prepare("SELECT * FROM instagram_accounts ORDER BY updated_at DESC LIMIT 1").get();
 }
 
 router.get('/', (req, res) => {

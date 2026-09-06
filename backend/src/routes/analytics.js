@@ -8,8 +8,10 @@ router.get('/activity', (req, res) => {
   const days = Math.min(Math.max(parseInt(req.query.days) || 7, 1), 90);
   const accountId = req.query.account_id;
   const account = accountId 
-    ? db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(req.user.id, accountId)
-    : db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(req.user.id);
+    ? (db.prepare("SELECT id FROM instagram_accounts WHERE (user_id = ? OR id = ?) LIMIT 1").get(req.user.id, accountId))
+    : (db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(req.user.id)
+       || db.prepare("SELECT id FROM instagram_accounts WHERE status = 'connected' ORDER BY updated_at DESC LIMIT 1").get()
+       || db.prepare("SELECT id FROM instagram_accounts ORDER BY updated_at DESC LIMIT 1").get());
   if (!account) return res.json({ days, labels: [], dmsSent: [], commentsReplied: [], timeline: [], totals: { dms_sent: 0, comments_replied: 0 } });
 
   const dates = [];

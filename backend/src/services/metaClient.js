@@ -197,7 +197,17 @@ class MetaClient {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: formParams.toString(),
         });
-        const igTokenData = await igTokenRes.json();
+        const rawBodyText = await igTokenRes.text();
+        let parsedUserId = null;
+        const uidMatch = rawBodyText.match(/"user_id"\s*:\s*"?(\d+)"?/);
+        if (uidMatch && uidMatch[1]) {
+          parsedUserId = uidMatch[1];
+        }
+        let igTokenData = {};
+        try { igTokenData = JSON.parse(rawBodyText); } catch (_) {}
+        if (parsedUserId) {
+          igTokenData.user_id = parsedUserId;
+        }
 
         if (igTokenRes.ok && igTokenData.access_token) {
           console.log('[MetaClient] ✅ Instagram token received, upgrading to long-lived...');

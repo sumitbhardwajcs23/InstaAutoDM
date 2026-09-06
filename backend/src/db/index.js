@@ -63,13 +63,6 @@ async function syncFromPg(pool, sqliteDb) {
       try {
         const res = await pool.query(`SELECT * FROM ${table}`);
         if (res.rows && res.rows.length > 0) {
-          // If table has primary key id, purge records that no longer exist in PG
-          try {
-            const pgIds = res.rows.map(r => r.id).filter(Boolean);
-            if (pgIds.length > 0) {
-              originalPrepare(`DELETE FROM ${table} WHERE id NOT IN (${pgIds.map(() => '?').join(',')})`).run(...pgIds);
-            }
-          } catch (delErr) {}
 
           for (const row of res.rows) {
             const keys = Object.keys(row);
@@ -171,6 +164,10 @@ db.syncFromPgNow = async function () {
     lastExplicitSync = now;
     await syncFromPg(pgPool, db);
   }
+};
+
+db.getPgPool = function () {
+  return pgPool;
 };
 
 // Real data only — no dummy or mock accounts seeded
