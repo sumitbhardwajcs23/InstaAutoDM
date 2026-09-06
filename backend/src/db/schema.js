@@ -112,9 +112,11 @@ CREATE TABLE IF NOT EXISTS activity_log (
   UNIQUE(instagram_account_id, event_date)
 );
 
+CREATE INDEX IF NOT EXISTS idx_ig_accounts_user ON instagram_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_comment_replies_comment_id ON comment_replies(comment_id);
 CREATE INDEX IF NOT EXISTS idx_rules_account_active ON automation_rules(instagram_account_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_conversations_account ON conversations(instagram_account_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(instagram_account_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_activity_date ON activity_log(event_date);
 CREATE INDEX IF NOT EXISTS idx_comment_replies_created ON comment_replies(created_at DESC);

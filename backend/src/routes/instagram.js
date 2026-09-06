@@ -11,6 +11,23 @@ const { JWT_SECRET } = require('../middleware/auth');
 // In-memory store for data deletion requests (for compliance endpoint)
 const dataDeletionRequests = new Map();
 
+// Helper to strip sensitive encryption tokens before returning accounts to clients
+function sanitizeAccount(account) {
+  if (!account) return null;
+  const {
+    access_token_enc,
+    page_access_token_enc,
+    long_lived_token_enc,
+    ...safe
+  } = account;
+  return {
+    ...safe,
+    has_access_token: Boolean(access_token_enc),
+    has_page_access_token: Boolean(page_access_token_enc || access_token_enc),
+    has_long_lived_token: Boolean(long_lived_token_enc || access_token_enc),
+  };
+}
+
 async function getUserId(req) {
   if (req.user && req.user.id) return req.user.id;
   return null;
@@ -33,7 +50,7 @@ router.use((req, _res, next) => {
   next();
 });
 
-// GET /api/instagram/account — scoped to logged-in user
+// GET /api/instagram/account — scoped to logged-in user with sanitized token response
 router.get('/account', async (req, res) => {
   const accountId = req.query.account_id;
   const uid = await getUserId(req);
@@ -50,20 +67,16 @@ router.get('/account', async (req, res) => {
 
   res.json({
     connected: account.status === 'connected',
-    account: {
-      ...account,
-      has_long_lived_token: Boolean(account.long_lived_token_enc || account.access_token_enc),
-      has_page_access_token: Boolean(account.page_access_token_enc || account.access_token_enc)
-    }
+    account: sanitizeAccount(account)
   });
 });
 
-// GET /api/instagram/accounts — list all connected accounts for logged-in user
+// GET /api/instagram/accounts — list all connected accounts for logged-in user (sanitized)
 router.get('/accounts', async (req, res) => {
   const uid = await getUserId(req);
   if (!uid) return res.json({ accounts: [] });
   const accounts = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC").all(uid);
-  res.json({ accounts: accounts || [] });
+  res.json({ accounts: (accounts || []).map(sanitizeAccount) });
 });
 
 // DELETE /api/instagram/accounts/:id — disconnect/remove a specific account
@@ -119,7 +132,7 @@ router.post('/connect-token', async (req, res) => {
     }
 
     const updated = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
-    res.json({ success: true, account: updated });
+    res.json({ success: true, account: sanitizeAccount(updated) });
   } catch (err) {
     res.status(400).json({ error: err.message || 'Failed to connect Instagram account' });
   }
@@ -354,7 +367,7 @@ router.post('/connect-username', async (req, res) => {
     }
 
     const updated = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
-    res.json({ success: true, account: updated });
+    res.json({ success: true, account: sanitizeAccount(updated) });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to connect Instagram account' });
   }
@@ -403,7 +416,7 @@ router.post('/account/set-handle', async (req, res) => {
     }
 
     const updated = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(target.id);
-    res.json({ success: true, account: updated });
+    res.json({ success: true, account: sanitizeAccount(updated) });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to update handle' });
   }
@@ -430,6 +443,29 @@ router.get('/oauth/start', async (req, res) => {
       const decoded = require('jsonwebtoken').verify(userToken, JWT_SECRET);
       if (decoded && decoded.id) userId = decoded.id;
     } catch (_) {}
+  }
+
+  if (!userId) {
+    return res.status(401).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>ReplyOS — Authentication Required</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #080B12; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
+          h2 { margin: 0 0 10px 0; font-size: 22px; color: #60A5FA; }
+          p { color: #94A3B8; font-size: 14px; max-width: 440px; margin: 0 0 20px 0; line-height: 1.5; }
+          a { background: #3B82F6; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <h2>Authentication Required</h2>
+        <p>Please log in to your ReplyOS account before connecting an Instagram profile.</p>
+        <a href="/#login">Go to Login &rarr;</a>
+      </body>
+      </html>
+    `);
   }
 
   const intendedHandle = (req.query.username || '').replace(/^@/, '').trim().toLowerCase();
@@ -549,11 +585,12 @@ router.get('/oauth/callback', async (req, res) => {
   let user = userId ? await db.prepare('SELECT * FROM users WHERE id = ?').get(userId) : null;
   if (!user) {
     const newUid = uuidv4();
+    const uniqueEmail = `creator_${newUid.slice(0, 8)}@user.replyos.io`;
     const now = new Date().toISOString();
     await db.prepare(`
       INSERT INTO users (id, email, name, plan, dm_usage_this_period, usage_period_start, created_at, updated_at)
-      VALUES (?, 'creator@replyos.io', 'Creator', 'free', 0, ?, ?, ?)
-    `).run(newUid, now.slice(0, 10), now, now);
+      VALUES (?, ?, 'Creator', 'free', 0, ?, ?, ?)
+    `).run(newUid, uniqueEmail, now.slice(0, 10), now, now);
     user = await db.prepare('SELECT * FROM users WHERE id = ?').get(newUid);
   }
 
@@ -712,7 +749,7 @@ router.get('/oauth/callback', async (req, res) => {
               window.opener.postMessage({
                 type: 'INSTAGRAM_CONNECTED',
                 success: true,
-                account: ${JSON.stringify(savedAcc || { username: tokenInfo.username })}
+                account: ${JSON.stringify(sanitizeAccount(savedAcc) || { username: tokenInfo.username })}
               }, '*');
               setTimeout(function() { window.close(); }, 600);
             } else {
@@ -796,6 +833,7 @@ router.post('/connect-mock', async (req, res) => {
     return res.status(403).json({ error: 'Mock connect is disabled in production.' });
   }
   const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Authentication required' });
   const { username, ig_user_id } = req.body;
   const mockUsername = username || `creator_${uid.slice(0, 6)}`;
   const mockIgId = ig_user_id || `17841405${Date.now().toString().slice(-8)}`;

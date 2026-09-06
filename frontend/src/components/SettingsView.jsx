@@ -1,6 +1,6 @@
 // frontend/src/components/SettingsView.jsx
 import React, { useState } from 'react';
-import { Instagram, Key, Shield, CheckCircle2, Copy, ExternalLink, RefreshCw, Edit3 } from 'lucide-react';
+import { Instagram, Key, Shield, CheckCircle2, Copy, ExternalLink, RefreshCw, Edit3, Download, Trash2, ShieldCheck, Lock, AlertTriangle } from 'lucide-react';
 import { apiFetch } from '../api/client';
 
 export default function SettingsView({ account, onOpenConnect, onDisconnectAccount, onRefresh }) {
@@ -9,9 +9,61 @@ export default function SettingsView({ account, onOpenConnect, onDisconnectAccou
   const [editHandle, setEditHandle] = useState('');
   const [editName, setEditName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
   const webhookUrl = 'https://instaautodm-kh61.onrender.com/webhooks/instagram';
 
   const isConnected = !!(account && (account.status === 'connected' || account.username));
+
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      const res = await apiFetch('/auth/export-data');
+      if (!res.ok) throw new Error('Failed to export data');
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `replyos-user-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Error exporting data: ' + err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.toUpperCase() !== 'DELETE') {
+      setDeleteError('Please type DELETE in capital letters to confirm account deletion.');
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await apiFetch('/auth/me', { method: 'DELETE' });
+      if (res.ok) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/#login';
+        window.location.reload();
+      } else {
+        const d = await res.json();
+        setDeleteError(d.error || 'Failed to delete account');
+      }
+    } catch (err) {
+      setDeleteError('Error deleting account: ' + err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleCopyWebhook = () => {
     navigator.clipboard.writeText(webhookUrl);
@@ -310,7 +362,269 @@ export default function SettingsView({ account, onOpenConnect, onDisconnectAccou
             <strong>Verify Token:</strong> <code style={{ background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px' }}>instagram_autoreply_verify_token_2026</code>
           </div>
         </div>
+
+        {/* Data Privacy & GDPR Controls Card */}
+        <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '10px',
+              background: 'rgba(59, 130, 246, 0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#3B82F6',
+            }}>
+              <ShieldCheck size={22} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                Data Privacy &amp; GDPR Controls
+              </h2>
+              <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: 0 }}>
+                Multi-tenant data isolation, AES-256 token encryption, and personal data subject rights.
+              </p>
+            </div>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '12px',
+            marginBottom: '20px'
+          }}>
+            <div style={{ background: 'var(--bg-subtle)', padding: '14px 16px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', color: '#10B981', fontWeight: 600, fontSize: '13px' }}>
+                <Lock size={15} />
+                <span>AES-256-GCM Token Encryption</span>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
+                Meta access tokens and OAuth credentials are cryptographically encrypted at rest and never exposed in browser API responses.
+              </p>
+            </div>
+
+            <div style={{ background: 'var(--bg-subtle)', padding: '14px 16px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', color: '#3B82F6', fontWeight: 600, fontSize: '13px' }}>
+                <Shield size={15} />
+                <span>Strict Tenant Isolation</span>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
+                Automation rules, direct messages, contacts, and analytics are strictly partitioned to your authenticated account ID.
+              </p>
+            </div>
+          </div>
+
+          {/* Action Row: Export Data */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
+            <div>
+              <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)', margin: '0 0 2px 0' }}>
+                Download Your Data (Article 20 Portability)
+              </h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                Download a complete JSON export of your profile, rules, connected accounts metadata, and message logs.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleExportData}
+              disabled={exporting}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                borderRadius: '9px',
+                background: 'var(--bg-subtle)',
+                color: 'var(--text-main)',
+                border: '1px solid var(--border-subtle)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: exporting ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Download size={16} />
+              <span>{exporting ? 'Generating JSON...' : 'Export My Data (.json)'}</span>
+            </button>
+          </div>
+
+          {/* Danger Zone: Right to Erasure */}
+          <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#EF4444', margin: '0 0 2px 0' }}>
+                  Danger Zone: Right to Erasure (Delete Account)
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                  Permanently delete your account and cascade-wipe all Instagram accounts, automation rules, and DM logs.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmText('');
+                  setDeleteError(null);
+                  setShowDeleteModal(true);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 16px',
+                  borderRadius: '9px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#EF4444',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Trash2 size={16} />
+                <span>Delete Account &amp; All Data</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px',
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            borderRadius: '16px',
+            maxWidth: '480px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#EF4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <AlertTriangle size={22} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#EF4444', margin: 0 }}>
+                  Permanently Delete Account?
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                  GDPR Article 17 Right to Erasure
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '13px', color: 'var(--text-main)', lineHeight: 1.5, margin: '0 0 16px 0' }}>
+              This action is <strong>permanent and irreversible</strong>. It will immediately and completely erase:
+            </p>
+            <ul style={{ fontSize: '12.5px', color: 'var(--text-muted)', paddingLeft: '20px', margin: '0 0 16px 0', lineHeight: 1.6 }}>
+              <li>Your user profile and credentials</li>
+              <li>All connected Instagram accounts and encrypted tokens</li>
+              <li>All keyword automation rules &amp; comment reply templates</li>
+              <li>All direct message threads, conversations, and analytics records</li>
+            </ul>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
+                Type <span style={{ color: '#EF4444', fontFamily: 'monospace' }}>DELETE</span> to confirm:
+              </label>
+              <input
+                type="text"
+                placeholder="DELETE"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--text-main)',
+                  fontSize: '14px',
+                  fontFamily: 'monospace',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            {deleteError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#EF4444',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                marginBottom: '16px'
+              }}>
+                {deleteError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleting || deleteConfirmText.toUpperCase() !== 'DELETE'}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#EF4444',
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: (deleting || deleteConfirmText.toUpperCase() !== 'DELETE') ? 'not-allowed' : 'pointer',
+                  opacity: (deleting || deleteConfirmText.toUpperCase() !== 'DELETE') ? 0.6 : 1,
+                }}
+              >
+                {deleting ? 'Erasing Data...' : 'Permanently Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

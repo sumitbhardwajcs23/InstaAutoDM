@@ -8,8 +8,6 @@ const PUBLIC_PATHS = [
   '/instagram/deauthorize',
   '/instagram/data-deletion',
   '/instagram/lookup-profile',
-  '/instagram/connect-username',
-  '/instagram/connect-mock',
 ];
 
 function requireAuth(req, res, next) {
