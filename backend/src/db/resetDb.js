@@ -9,14 +9,13 @@ try {
 } catch (e) {}
 
 const { Client } = require('pg');
-const Database = require('better-sqlite3');
-const { CREATE_TABLES_PG_SQL, CREATE_TABLES_SQL } = require('./schema');
+const { CREATE_TABLES_PG_SQL } = require('./schema');
 
 const TARGET_URL = process.argv[2] || process.env.DATABASE_URL;
 
 async function resetPostgres(pgUrl) {
   const isNeon = pgUrl.includes('neon.tech');
-  console.log(`[Reset DB] Connecting to PostgreSQL (${isNeon ? 'Neon Serverless' : 'Remote'})...`);
+  console.log(`[Reset DB] Connecting to PostgreSQL (${isNeon ? 'Neon Serverless' : 'PostgreSQL'})...`);
 
   const client = new Client({
     connectionString: pgUrl,
@@ -56,40 +55,19 @@ async function resetPostgres(pgUrl) {
   await client.end();
 }
 
-function resetSqlite() {
-  const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../../data/instautoreply.db');
-  console.log('[Reset DB] Resetting local SQLite database:', DB_PATH);
-  
-  if (fs.existsSync(DB_PATH)) {
-    fs.unlinkSync(DB_PATH);
-    console.log('[Reset DB] 🗑️  Deleted existing sqlite file.');
-  }
-
-  const dataDir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-
-  const db = new Database(DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.exec(CREATE_TABLES_SQL);
-  db.close();
-  console.log('[Reset DB] ✅ Fresh SQLite database initialized.');
-}
-
 async function main() {
   console.log('========================================');
-  console.log('⚡ DATABASE RESET - START FRESH');
+  console.log('⚡ DATABASE RESET - START FRESH (PostgreSQL)');
   console.log('========================================');
 
-  if (TARGET_URL) {
-    await resetPostgres(TARGET_URL);
-  } else {
-    console.log('[Reset DB] No DATABASE_URL specified in environment. Resetting local SQLite...');
-    resetSqlite();
+  if (!TARGET_URL) {
+    throw new Error('DATABASE_URL is not set in environment or arguments. Cannot reset database.');
   }
 
+  await resetPostgres(TARGET_URL);
+
   console.log('========================================');
-  console.log('🎉 Database is completely fresh and clean!');
+  console.log('🎉 PostgreSQL Database is completely fresh and clean!');
   console.log('========================================');
 }
 

@@ -12,7 +12,7 @@ An automated Instagram DM and comment auto-reply SaaS built with Node.js, Expres
 
 ## Architecture
 
-- **Backend**: Node.js, Express, Better-SQLite3, Meta Graph API v21.0
+- **Backend**: Node.js, Express, PostgreSQL (Neon Serverless / pg Pool), Meta Graph API v21.0
 - **Frontend**: React 18, Vite, Lucide Icons, Vanilla CSS design system
 - **Deployment**:
   - Backend: [Render](https://render.com) (configured via `render.yaml`)
