@@ -403,6 +403,35 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               </div>
             </div>
 
+            <div style={{ textAlign: 'left', marginBottom: '14px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '5px' }}>
+                Your Instagram Handle (Optional)
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)', fontWeight: 600, fontSize: '14px' }}>@</span>
+                <input
+                  type="text"
+                  value={quickHandle}
+                  onChange={(e) => setQuickHandle(e.target.value)}
+                  placeholder="join_sumit_"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px 10px 28px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-subtle)',
+                    fontSize: '13px',
+                    color: 'var(--text-main)',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>
+                Provides immediate username binding even if Meta restricts public profile queries.
+              </span>
+            </div>
+
             {/* Instagram Login Button — opens instagram.com OAuth (Instagram Business Login) */}
             <button
               type="button"

@@ -13,7 +13,7 @@ const dataDeletionRequests = new Map();
 async function getUserId(req) {
   if (req.user && req.user.id) return req.user.id;
   try {
-    const user = await db.prepare('SELECT id FROM users ORDER BY created_at ASC LIMIT 1').get();
+    const user = await db.prepare('SELECT id FROM users ORDER BY updated_at DESC, created_at DESC LIMIT 1').get();
     if (user && user.id) return user.id;
   } catch (e) {}
   return 'admin_user';
@@ -44,8 +44,9 @@ router.get('/account', async (req, res) => {
   if (accountId) {
     account = await db.prepare("SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') LIMIT 1").get(uid, accountId);
   } else {
-    account = (await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC LIMIT 1").get(uid))
-           || (await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC LIMIT 1").get());
+    account = (await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') AND username NOT LIKE 'user_%' ORDER BY updated_at DESC LIMIT 1").get(uid))
+           || (await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') AND username NOT LIKE 'user_%' ORDER BY updated_at DESC LIMIT 1").get())
+           || (await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' ORDER BY updated_at DESC LIMIT 1").get());
   }
 
   if (!account) return res.json({ connected: false, account: null });
@@ -73,9 +74,9 @@ router.get('/account', async (req, res) => {
 // GET /api/instagram/accounts — list all connected accounts for logged-in user
 router.get('/accounts', async (req, res) => {
   const uid = await getUserId(req);
-  let accounts = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC").all(uid);
+  let accounts = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') AND username NOT LIKE 'user_%' ORDER BY updated_at DESC").all(uid);
   if (!accounts || accounts.length === 0) {
-    const allAccounts = await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC").all();
+    const allAccounts = await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') AND username NOT LIKE 'user_%' ORDER BY updated_at DESC").all();
     if (allAccounts && allAccounts.length > 0 && uid && uid !== 'admin_user') {
       for (const a of allAccounts) {
         try {
