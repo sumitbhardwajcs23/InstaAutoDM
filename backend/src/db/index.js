@@ -35,7 +35,7 @@ let pgPool = null;
 let isSeeding = false;
 let isSyncingFromPg = false;
 
-function syncWriteToPg(pool, sql, params) {
+async function syncWriteToPg(pool, sql, params) {
   if (isSeeding || isSyncingFromPg || !pool) return;
   try {
     let i = 1;
@@ -44,15 +44,12 @@ function syncWriteToPg(pool, sql, params) {
     if (/INSERT\s+OR\s+IGNORE\s+INTO/i.test(pgSql)) {
       pgSql = pgSql.replace(/INSERT\s+OR\s+IGNORE\s+INTO/gi, 'INSERT INTO') + ' ON CONFLICT DO NOTHING';
     }
-
-    pool.query(pgSql, params).catch((e) => {
-      // Ignore duplicate key conflicts cleanly
-      if (e.code !== '23505') {
-        console.error('[PG Write Sync Error]', e.message);
-      }
-    });
+    await pool.query(pgSql, params);
   } catch (err) {
-    console.error('[PG Write Sync Error]', err.message);
+    // Ignore duplicate key conflicts cleanly
+    if (err.code !== '23505') {
+      console.error('[PG Write Sync Error]', err.message);
+    }
   }
 }
 
@@ -129,10 +126,13 @@ if (PG_URL) {
         }
         await syncFromPg(pgPool, db);
 
-        // Auto-sync every 15 seconds to keep Render runtime fresh
-        setInterval(() => {
-          syncFromPg(pgPool, db).catch(() => {});
-        }, 15000);
+        // Delay first auto-sync by 30s so fresh OAuth writes reach PG before any DELETE sweep
+        setTimeout(() => {
+          // Auto-sync every 60 seconds to keep Render runtime fresh
+          setInterval(() => {
+            syncFromPg(pgPool, db).catch(() => {});
+          }, 60000);
+        }, 30000);
       })
       .catch((err) => {
         console.warn('[PostgreSQL] Connection fallback to local store:', err.message);
@@ -152,7 +152,8 @@ db.prepare = function (sql) {
   stmt.run = function (...params) {
     const res = originalRun(...params);
     if (pgPool) {
-      syncWriteToPg(pgPool, sql, params);
+      // Fire-and-await: ensure write reaches PG before next sync sweep can delete it
+      syncWriteToPg(pgPool, sql, params).catch(() => {});
     }
     return res;
   };
