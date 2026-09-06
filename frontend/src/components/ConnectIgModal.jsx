@@ -314,8 +314,8 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
 
         {error && (
           <div style={{
-            padding: '11px 14px',
-            borderRadius: '10px',
+            padding: '12px 14px',
+            borderRadius: '12px',
             background: '#fef2f2',
             border: '1px solid #fecaca',
             color: '#dc2626',
@@ -325,7 +325,38 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
             textAlign: 'left',
             lineHeight: 1.4,
           }}>
-            {error}
+            <div style={{ marginBottom: quickHandle.trim() ? '8px' : '0' }}>{error}</div>
+            {quickHandle.trim() && (
+              <button
+                type="button"
+                onClick={() => {
+                  const clean = quickHandle.replace(/^@/, '').trim().toLowerCase();
+                  setPreviewProfile({
+                    username: clean,
+                    full_name: clean,
+                    followers_count: 0,
+                    profile_picture_url: null,
+                    account_type: 'Creator Account'
+                  });
+                  setError(null);
+                }}
+                style={{
+                  background: 'var(--primary)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>Connect @{quickHandle.replace(/^@/, '').trim()} Directly Anyway →</span>
+              </button>
+            )}
           </div>
         )}
 

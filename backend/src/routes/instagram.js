@@ -179,20 +179,30 @@ router.post('/connect-username', async (req, res) => {
   const rawUsername = (req.body.username || '').replace(/^@/, '').trim().toLowerCase();
   if (!rawUsername) return res.status(400).json({ error: 'Username is required' });
 
-  try {
-    // 1. Validate that the username actually exists on Instagram
-    const profileResult = await instagramProfileService.fetchProfile(rawUsername);
-    if (!profileResult.valid) {
-      return res.status(400).json({
-        error: profileResult.error || `Cannot connect: Instagram account @${rawUsername} does not exist or is unavailable.`
-      });
-    }
+  if (!/^[a-zA-Z0-9._]{1,30}$/.test(rawUsername)) {
+    return res.status(400).json({
+      error: `"${rawUsername}" is not a valid Instagram handle format. Must be 1-30 characters containing letters, numbers, periods, or underscores.`
+    });
+  }
 
-    const verified = profileResult.profile;
-    const fullName = verified.full_name || rawUsername;
-    const profilePicUrl = verified.profile_picture_url || null;
-    const followersCount = verified.followers_count || 0;
-    const accountType = verified.account_type || 'Creator Account';
+  try {
+    // 1. Attempt to fetch authentic metadata from Instagram
+    let fullName = req.body.full_name || rawUsername;
+    let profilePicUrl = req.body.profile_picture_url || null;
+    let followersCount = req.body.followers_count || 0;
+    let accountType = req.body.account_type || 'Creator Account';
+
+    try {
+      const profileResult = await instagramProfileService.fetchProfile(rawUsername);
+      if (profileResult && profileResult.valid && profileResult.profile) {
+        fullName = profileResult.profile.full_name || fullName;
+        profilePicUrl = profileResult.profile.profile_picture_url || profilePicUrl;
+        followersCount = profileResult.profile.followers_count !== undefined ? profileResult.profile.followers_count : followersCount;
+        accountType = profileResult.profile.account_type || accountType;
+      }
+    } catch (profileErr) {
+      console.warn(`[ConnectUsername] Live scrape notice for @${rawUsername}:`, profileErr.message);
+    }
 
     // Look for existing connected system token so webhooks & DM automations stay live
     const systemAcc = await db.prepare("SELECT * FROM instagram_accounts WHERE access_token_enc IS NOT NULL AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get();
