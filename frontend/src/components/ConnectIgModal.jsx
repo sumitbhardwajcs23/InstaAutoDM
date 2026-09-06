@@ -4,7 +4,7 @@ import { X, Instagram, CheckCircle2, Sparkles, Shield, UserCheck, Search } from 
 import { apiFetch, getToken } from '../api/client';
 
 export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
-  const [tab, setTab] = useState('oauth'); // 'oauth' | 'quick'
+  const [tab, setTab] = useState('quick'); // 'quick' | 'oauth'
   const [manualToken, setManualToken] = useState('');
   const [quickHandle, setQuickHandle] = useState('');
   const [lookingUp, setLookingUp] = useState(false);
@@ -315,8 +315,8 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
           marginBottom: '20px',
         }}>
           {[
-            { id: 'oauth', label: 'Instagram Login', badge: 'Recommended' },
-            { id: 'quick', label: 'By Username', badge: null },
+            { id: 'quick', label: 'Instant Connect (By Username)', badge: 'Recommended' },
+            { id: 'oauth', label: 'Meta OAuth Popup', badge: null },
           ].map((t) => (
             <button
               key={t.id}
