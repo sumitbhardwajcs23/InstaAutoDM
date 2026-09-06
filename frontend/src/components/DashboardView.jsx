@@ -39,13 +39,49 @@ export default function DashboardView({
   const [selectedPeriod, setSelectedPeriod] = useState('Last 30 days');
   const [activity, setActivity] = useState(null);
   const [loadingActivity, setLoadingActivity] = useState(false);
+  const [isEditingHandle, setIsEditingHandle] = useState(false);
+  const [editUsername, setEditUsername] = useState('');
+  const [editFullName, setEditFullName] = useState('');
+  const [savingHandle, setSavingHandle] = useState(false);
+
+  const handleSaveHandle = async (e) => {
+    if (e) e.preventDefault();
+    const clean = editUsername.replace(/^@/, '').trim().toLowerCase();
+    if (!clean) return;
+    setSavingHandle(true);
+    try {
+      const res = await apiFetch('/instagram/account/set-handle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: account?.id,
+          username: clean,
+          full_name: editFullName || clean
+        })
+      });
+      if (res.ok) {
+        setIsEditingHandle(false);
+        if (onRefresh) onRefresh();
+      } else {
+        const d = await res.json();
+        alert('Failed to update: ' + (d.error || 'Server error'));
+      }
+    } catch (err) {
+      alert('Error saving handle: ' + err.message);
+    } finally {
+      setSavingHandle(false);
+    }
+  };
 
   // Real stats & account binding
-  const isDummy = account?.username === 'instagram_creator' || account?.username === 'test_creator_account';
+  const isDummy = !account?.username || account?.username === 'instagram_creator' || account?.username === 'test_creator_account' || account?.username === 'connected' || account?.username === 'instagram_user';
   const isConnected = !!(account && (account.status === 'connected' || stats?.connected));
-  const accountHandle = (account?.username && !isDummy) ? `@${account.username}` : (isConnected ? '@connected' : 'Not Connected');
-  const accountFullName = (account?.full_name && !isDummy && account.full_name !== 'Instagram Account') ? account.full_name : accountHandle;
-  const accountType = account?.accountType || account?.account_type || (isConnected ? 'Business Account' : 'None');
+  const hasRealHandle = account?.username && !isDummy;
+  const accountHandle = hasRealHandle ? `@${account.username}` : (isConnected ? (account?.full_name || 'Account Connected') : 'Not Connected');
+  const accountFullName = (account?.full_name && !isDummy && account.full_name !== 'Instagram Account')
+    ? account.full_name
+    : (hasRealHandle ? `@${account.username}` : (isConnected ? 'Instagram Creator' : 'No Account'));
+  const accountType = account?.accountType || account?.account_type || (isConnected ? 'Creator Account' : 'None');
   const dmsSent = stats?.dmsSent ?? 0;
   const dmsLimit = stats?.dmsLimit ?? 1000;
   const dmPercent = dmsLimit > 0 ? Math.min(100, Math.round((dmsSent / dmsLimit) * 100)) : 0;
@@ -279,8 +315,33 @@ export default function DashboardView({
               </div>
             </div>
 
-            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '2px' }}>
-              {isConnected ? accountFullName : 'No Account'}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)' }}>
+                {isConnected ? accountFullName : 'No Account'}
+              </div>
+              {isConnected && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditUsername(account?.username || '');
+                    setEditFullName(account?.full_name || '');
+                    setIsEditingHandle(true);
+                  }}
+                  title="Edit Handle / Profile"
+                  style={{
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-subtle)',
+                    borderRadius: '6px',
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Edit ✎
+                </button>
+              )}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               {isConnected ? `${accountHandle} • ${accountType}` : 'Connect your Instagram account'}
@@ -1294,6 +1355,87 @@ export default function DashboardView({
           </div>
         </div>
       </div>
+
+      {/* Edit Handle Modal */}
+      {isEditingHandle && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
+            borderRadius: '16px',
+            padding: '24px',
+            maxWidth: '420px',
+            width: '100%',
+            boxShadow: 'var(--shadow-card)'
+          }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 700, color: 'var(--text-main)' }}>
+              Edit Instagram Profile
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted)' }}>
+              Update your Instagram username or display name for this connection.
+            </p>
+            <form onSubmit={handleSaveHandle}>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-light)', marginBottom: '4px' }}>
+                  Instagram Username
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-subtle)' }}>
+                  <span style={{ padding: '8px 12px', color: 'var(--text-muted)', fontWeight: 600 }}>@</span>
+                  <input
+                    type="text"
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    placeholder="e.g. join_sumit_"
+                    required
+                    style={{ flex: 1, padding: '8px 12px', border: 'none', background: 'transparent', color: 'var(--text-main)', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-light)', marginBottom: '4px' }}>
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  placeholder="e.g. Sumit Bhardwaj"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-subtle)', color: 'var(--text-main)', fontSize: '14px', outline: 'none' }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingHandle(false)}
+                  style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-muted)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingHandle}
+                  style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--primary)', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: savingHandle ? 'not-allowed' : 'pointer' }}
+                >
+                  {savingHandle ? 'Saving...' : 'Save Profile'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 5. Footer */}
       <footer style={{
