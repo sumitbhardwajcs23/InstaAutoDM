@@ -28,6 +28,8 @@ try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN account_type TEXT;'); }
 try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN full_name TEXT;'); } catch (e) {}
 try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN profile_picture_url TEXT;'); } catch (e) {}
 try { db.exec('ALTER TABLE instagram_accounts ADD COLUMN followers_count INTEGER DEFAULT 0;'); } catch (e) {}
+// Purge legacy dummy accounts from local SQLite runtime synchronously
+try { db.exec("DELETE FROM instagram_accounts WHERE username IN ('instagram_creator', 'test_creator_account', 'instagram_user');"); } catch (e) {}
 
 // ── PostgreSQL Replication Layer ───────────────────────────────────────
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.DB_PATH === ':memory:';

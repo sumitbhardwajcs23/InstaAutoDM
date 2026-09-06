@@ -238,11 +238,47 @@ router.post('/connect-username', async (req, res) => {
     const encLongToken = systemAcc?.long_lived_token_enc || encToken;
     const pageId = systemAcc?.page_id || `page_${Date.now().toString().slice(-8)}`;
     const fbUserId = systemAcc?.fb_user_id || `fb_${Date.now().toString().slice(-8)}`;
-    let igUserId = systemAcc?.ig_user_id || `1784140${Date.now().toString().slice(-9)}`;
+
     let fullName = req.body.full_name || rawUsername;
     let profilePicUrl = req.body.profile_picture_url || null;
     let followersCount = req.body.followers_count || 1250;
     let accountType = req.body.account_type || 'Creator Account';
+
+    // Determine target user safely
+    let targetUser = req.user?.id ? db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id) : null;
+    if (!targetUser) {
+      targetUser = db.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT 1').get();
+    }
+    if (!targetUser) {
+      const newUid = uuidv4();
+      const now = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO users (id, email, name, plan, dm_usage_this_period, usage_period_start, created_at, updated_at)
+        VALUES (?, 'creator@replyos.io', 'Creator', 'free', 0, ?, ?, ?)
+      `).run(newUid, now.slice(0, 10), now, now);
+      targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(newUid);
+    }
+    const targetUserId = targetUser.id;
+
+    // Determine Instagram User ID without colliding with other accounts
+    let igUserId = req.body.ig_user_id ? String(req.body.ig_user_id).trim() : null;
+    if (!igUserId) {
+      if (systemAcc && systemAcc.username && systemAcc.username.toLowerCase() === rawUsername) {
+        igUserId = systemAcc.ig_user_id;
+      } else {
+        const existingByHandle = db.prepare('SELECT ig_user_id FROM instagram_accounts WHERE lower(username) = ? LIMIT 1').get(rawUsername);
+        if (existingByHandle?.ig_user_id) {
+          igUserId = existingByHandle.ig_user_id;
+        } else {
+          // Generate unique 17-digit numeric string (mimicking real Instagram Business/Creator User IDs)
+          let candidateId;
+          do {
+            candidateId = `1784140${Math.floor(100000000 + Math.random() * 900000000)}`;
+          } while (db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(candidateId));
+          igUserId = candidateId;
+        }
+      }
+    }
 
     // If active Meta token matches this username directly (5-second timeout)
     if (systemAcc) {
@@ -272,8 +308,8 @@ router.post('/connect-username', async (req, res) => {
     }
 
     const expiresAt = new Date(Date.now() + 60 * 24 * 3600000).toISOString();
-    const targetUserId = req.user?.id || db.prepare('SELECT id FROM users LIMIT 1').get()?.id || 'admin_user';
-    const existing = db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ? AND lower(username) = ?').get(targetUserId, rawUsername)
+    const existing = db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(igUserId)
+      || db.prepare('SELECT id FROM instagram_accounts WHERE lower(username) = ?').get(rawUsername)
       || db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND username IN ('instagram_creator', 'test_creator_account', 'instagram_user')").get(targetUserId);
 
     const accountId = existing ? existing.id : uuidv4();
@@ -307,34 +343,84 @@ router.post('/connect-username', async (req, res) => {
     if (db.getPgPool && db.getPgPool()) {
       try {
         const pool = db.getPgPool();
+        // 1. Ensure targetUser is in PostgreSQL to satisfy FK constraint
         await pool.query(`
-          INSERT INTO instagram_accounts (
-            id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
-            access_token_enc, page_access_token_enc, long_lived_token_enc,
-            token_expires_at, status, disclosure_message, followers_count, account_type, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'connected', '⚡ [Automated DM] ', $14, $15, NOW())
-          ON CONFLICT (ig_user_id) DO UPDATE SET
-            user_id = EXCLUDED.user_id,
-            username = EXCLUDED.username,
-            full_name = EXCLUDED.full_name,
-            profile_picture_url = EXCLUDED.profile_picture_url,
-            page_id = EXCLUDED.page_id,
-            fb_page_name = EXCLUDED.fb_page_name,
-            fb_user_id = EXCLUDED.fb_user_id,
-            access_token_enc = EXCLUDED.access_token_enc,
-            page_access_token_enc = EXCLUDED.page_access_token_enc,
-            long_lived_token_enc = EXCLUDED.long_lived_token_enc,
-            token_expires_at = EXCLUDED.token_expires_at,
-            status = 'connected',
-            followers_count = EXCLUDED.followers_count,
-            account_type = EXCLUDED.account_type,
-            updated_at = NOW()
+          INSERT INTO users (id, email, name, plan, password_hash, dm_usage_this_period, usage_period_start)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT (id) DO UPDATE SET email=EXCLUDED.email, name=EXCLUDED.name, plan=EXCLUDED.plan
         `, [
-          accountId, targetUserId, igUserId, rawUsername, fullName, profilePicUrl,
-          pageId, `${rawUsername}'s Page`, fbUserId,
-          encToken, encToken, encLongToken,
-          expiresAt, followersCount, accountType
+          targetUser.id,
+          targetUser.email || 'creator@replyos.io',
+          targetUser.name || 'Creator',
+          targetUser.plan || 'free',
+          targetUser.password_hash || '',
+          targetUser.dm_usage_this_period || 0,
+          targetUser.usage_period_start || new Date().toISOString().slice(0, 10)
         ]);
+
+        // 2. Check if row exists in PostgreSQL
+        const existingPg = await pool.query(
+          'SELECT id FROM instagram_accounts WHERE id = $1 OR ig_user_id = $2 OR lower(username) = $3 LIMIT 1',
+          [accountId, igUserId, rawUsername]
+        );
+
+        if (existingPg.rows.length > 0) {
+          const pgId = existingPg.rows[0].id;
+          await pool.query(`
+            UPDATE instagram_accounts SET
+              user_id = $1,
+              username = $2,
+              full_name = $3,
+              profile_picture_url = $4,
+              ig_user_id = $5,
+              page_id = $6,
+              fb_page_name = $7,
+              fb_user_id = $8,
+              access_token_enc = $9,
+              page_access_token_enc = $10,
+              long_lived_token_enc = $11,
+              token_expires_at = $12,
+              status = 'connected',
+              followers_count = $13,
+              account_type = $14,
+              updated_at = NOW()
+            WHERE id = $15
+          `, [
+            targetUserId, rawUsername, fullName, profilePicUrl, igUserId,
+            pageId, `${rawUsername}'s Page`, fbUserId,
+            encToken, encToken, encLongToken,
+            expiresAt, followersCount, accountType, pgId
+          ]);
+        } else {
+          await pool.query(`
+            INSERT INTO instagram_accounts (
+              id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
+              access_token_enc, page_access_token_enc, long_lived_token_enc,
+              token_expires_at, status, disclosure_message, followers_count, account_type, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'connected', '⚡ [Automated DM] ', $14, $15, NOW())
+            ON CONFLICT (ig_user_id) DO UPDATE SET
+              user_id = EXCLUDED.user_id,
+              username = EXCLUDED.username,
+              full_name = EXCLUDED.full_name,
+              profile_picture_url = EXCLUDED.profile_picture_url,
+              page_id = EXCLUDED.page_id,
+              fb_page_name = EXCLUDED.fb_page_name,
+              fb_user_id = EXCLUDED.fb_user_id,
+              access_token_enc = EXCLUDED.access_token_enc,
+              page_access_token_enc = EXCLUDED.page_access_token_enc,
+              long_lived_token_enc = EXCLUDED.long_lived_token_enc,
+              token_expires_at = EXCLUDED.token_expires_at,
+              status = 'connected',
+              followers_count = EXCLUDED.followers_count,
+              account_type = EXCLUDED.account_type,
+              updated_at = NOW()
+          `, [
+            accountId, targetUserId, igUserId, rawUsername, fullName, profilePicUrl,
+            pageId, `${rawUsername}'s Page`, fbUserId,
+            encToken, encToken, encLongToken,
+            expiresAt, followersCount, accountType
+          ]);
+        }
         console.log(`[ConnectUsername] ✅ Persisted @${rawUsername} directly to Render PostgreSQL`);
       } catch (pgErr) {
         console.warn('[ConnectUsername] PostgreSQL sync notice:', pgErr.message);
@@ -350,7 +436,7 @@ router.post('/connect-username', async (req, res) => {
 
 // POST /api/instagram/account/set-handle — update handle/name for an account
 router.post('/account/set-handle', async (req, res) => {
-  const { account_id, username, full_name } = req.body;
+  const { account_id, username, full_name, profile_picture_url, followers_count, account_type } = req.body;
   const rawUsername = (username || '').replace(/^@/, '').trim().toLowerCase();
   if (!rawUsername) return res.status(400).json({ error: 'Username is required' });
 
@@ -366,20 +452,24 @@ router.post('/account/set-handle', async (req, res) => {
     }
     if (!target) return res.status(404).json({ error: 'No Instagram account found' });
 
-    const newFullName = full_name || rawUsername;
+    const newFullName = full_name !== undefined ? full_name : (target.full_name || rawUsername);
+    const newProfilePic = profile_picture_url !== undefined ? profile_picture_url : target.profile_picture_url;
+    const newFollowers = followers_count !== undefined ? Number(followers_count) : target.followers_count;
+    const newAccountType = account_type || target.account_type || 'Creator Account';
+
     db.prepare(`
       UPDATE instagram_accounts 
-      SET username = ?, full_name = ?, updated_at = datetime('now')
+      SET username = ?, full_name = ?, profile_picture_url = ?, followers_count = ?, account_type = ?, updated_at = datetime('now')
       WHERE id = ?
-    `).run(rawUsername, newFullName, target.id);
+    `).run(rawUsername, newFullName, newProfilePic, newFollowers, newAccountType, target.id);
 
     if (db.getPgPool && db.getPgPool()) {
       try {
         await db.getPgPool().query(`
           UPDATE instagram_accounts 
-          SET username = $1, full_name = $2, updated_at = NOW()
-          WHERE id = $3
-        `, [rawUsername, newFullName, target.id]);
+          SET username = $1, full_name = $2, profile_picture_url = $3, followers_count = $4, account_type = $5, updated_at = NOW()
+          WHERE id = $6
+        `, [rawUsername, newFullName, newProfilePic, newFollowers, newAccountType, target.id]);
       } catch (pgErr) {
         console.warn('[SetHandle] PG sync warning:', pgErr.message);
       }
