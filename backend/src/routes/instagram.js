@@ -175,7 +175,17 @@ router.get('/lookup-profile', async (req, res) => {
 });
 
 // POST /api/instagram/connect-username — Quick Connect Instagram account by handle
+// SECURITY: this path does NOT verify the caller owns the Instagram handle (no OAuth token
+// is exchanged with Meta). It is intended for local development / demos only, so it is disabled
+// in production unless META_MOCK_MODE is explicitly on. Real deployments should only "connect"
+// an account through the real OAuth flow (/oauth/start -> /oauth/callback) or a pasted user
+// token (/connect-token), both of which require proof of ownership from Meta.
 router.post('/connect-username', async (req, res) => {
+  if (process.env.NODE_ENV === 'production' && process.env.META_MOCK_MODE !== 'true') {
+    return res.status(403).json({
+      error: 'Quick Connect by username is disabled in production. Use "Continue with Instagram" (OAuth) instead — it verifies real account ownership with Meta.'
+    });
+  }
   const rawUsername = (req.body.username || '').replace(/^@/, '').trim().toLowerCase();
   if (!rawUsername) return res.status(400).json({ error: 'Username is required' });
 
@@ -817,7 +827,12 @@ router.post('/refresh-token', async (req, res) => {
 });
 
 // POST /api/instagram/connect-mock — auto-detects mock profile & IDs
+// SECURITY: same reasoning as /connect-username above — fabricates a fake connected account
+// with no real Meta token, so it's restricted to non-production / mock mode only.
 router.post('/connect-mock', async (req, res) => {
+  if (process.env.NODE_ENV === 'production' && process.env.META_MOCK_MODE !== 'true') {
+    return res.status(403).json({ error: 'Mock connect is disabled in production.' });
+  }
   const uid = await getUserId(req);
   const { username, ig_user_id } = req.body;
   const mockUsername = username || `creator_${uid.slice(0, 6)}`;
