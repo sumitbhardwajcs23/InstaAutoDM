@@ -170,11 +170,20 @@ class MetaClient {
     const cleanCode = (code || '').replace(/#_$/, '').trim();
 
     // ─── PATH 1: Instagram Business Login (native instagram.com flow) ────
-    // Uses META_IG_APP_ID if set — required when OAuth was initiated via instagram.com/oauth/authorize
-    if (igAppId || authType === 'instagram') {
+    if (authType === 'instagram') {
+      const igAppId = process.env.META_IG_APP_ID;
+      const igAppSecret = process.env.META_IG_APP_SECRET;
+      const appId = process.env.META_APP_ID;
+      const appSecret = process.env.META_APP_SECRET;
+
       const clientId = igAppId || appId;
-      const clientSecret = igAppId ? igAppSecret : appSecret;
-      console.log(`[MetaClient] Trying Instagram Business Login via api.instagram.com (client_id: ${clientId})...`);
+      const clientSecret = igAppSecret || appSecret;
+
+      if (igAppId && !igAppSecret) {
+        console.warn(`[MetaClient] ⚠️ META_IG_APP_ID is set (${igAppId}) but META_IG_APP_SECRET is not set. Using META_APP_SECRET as fallback.`);
+      }
+
+      console.log(`[MetaClient] Exchanging Instagram authorization code via api.instagram.com (client_id: ${clientId})...`);
       try {
         const formParams = new URLSearchParams({
           client_id: clientId,
@@ -194,9 +203,20 @@ class MetaClient {
           console.log('[MetaClient] ✅ Instagram token received, upgrading to long-lived...');
           return await this._exchangeInstagramToken(igTokenData.access_token, clientId, clientSecret);
         }
-        console.warn('[MetaClient] Instagram exchange note (will try Facebook fallback):', JSON.stringify(igTokenData));
+
+        console.warn('[MetaClient] Instagram token exchange error response:', JSON.stringify(igTokenData));
+
+        const errMsg = igTokenData?.error_message || igTokenData?.error?.message || 'Instagram token exchange failed';
+        if (errMsg.toLowerCase().includes('client secret') && !igAppSecret) {
+          throw new Error(
+            'Error validating client secret: Instagram Business Login requires the Instagram App Secret. ' +
+            'Please find the Instagram App Secret in your Meta Developer Portal (under Instagram > API Setup) and add META_IG_APP_SECRET to your Render environment variables.'
+          );
+        }
+        throw new Error(errMsg);
       } catch (igErr) {
-        console.warn('[MetaClient] Instagram exchange failed (will try Facebook fallback):', igErr.message);
+        console.error('[MetaClient] Instagram exchange error:', igErr.message);
+        throw igErr;
       }
     }
 

@@ -68,6 +68,15 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     openOAuthPopup(startUrl);
   };
 
+  // Facebook OAuth — alternative for accounts linked to a Facebook Page
+  const handleFacebookOAuth = () => {
+    const origin = window.location.origin;
+    const token = getToken() || '';
+    const BACKEND = 'https://instaautodm-kh61.onrender.com';
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=facebook&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+    openOAuthPopup(startUrl);
+  };
+
 
   const handleLookupProfile = async (e) => {
     if (e) e.preventDefault();
@@ -409,6 +418,35 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
             >
               <Instagram size={20} />
               <span>{loading ? 'Opening Instagram Login...' : 'Continue with Instagram'}</span>
+            </button>
+
+            {/* Alternative: Connect via Facebook Page */}
+            <button
+              type="button"
+              onClick={handleFacebookOAuth}
+              disabled={loading}
+              style={{
+                width: '100%',
+                padding: '11px',
+                borderRadius: '12px',
+                background: 'rgba(24, 119, 242, 0.08)',
+                color: '#1877f2',
+                border: '1px solid rgba(24, 119, 242, 0.25)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                marginBottom: '16px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#1877f2">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+              <span>Or connect via Facebook Page (Meta Business)</span>
             </button>
 
             <div style={{

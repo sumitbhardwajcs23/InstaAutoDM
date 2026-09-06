@@ -284,7 +284,7 @@ router.post('/connect-username', async (req, res) => {
   }
 });
 
-// GET /api/instagram/oauth/start — Smart dual-mode: Instagram Business Login if IG app is configured, else Facebook OAuth
+// GET /api/instagram/oauth/start — Smart OAuth: Instagram Business Login by default, Facebook OAuth if requested
 router.get('/oauth/start', (req, res) => {
   let returnOrigin = req.query.return_origin || '';
   if (!returnOrigin && req.headers.referer) {
@@ -302,49 +302,51 @@ router.get('/oauth/start', (req, res) => {
   }
 
   const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/instagram/oauth/callback`;
+  const authType = req.query.type || 'instagram';
 
   if (process.env.META_MOCK_MODE === 'true') {
-    const mockState = Buffer.from(JSON.stringify({ uid: userId, origin: returnOrigin, type: 'instagram' })).toString('base64url');
+    const mockState = Buffer.from(JSON.stringify({ uid: userId, origin: returnOrigin, type: authType })).toString('base64url');
     return res.redirect(`/api/instagram/oauth/callback?code=mock_${Date.now()}&state=${mockState}`);
   }
 
-  // Use dedicated Instagram Business Login app if configured (META_IG_APP_ID)
-  const igAppId = process.env.META_IG_APP_ID;
-  const fbAppId = process.env.META_APP_ID;
-
-  if (igAppId) {
-    // ── PATH A: Native Instagram Business Login (instagram.com) ──────────
-    const stateObj = { uid: userId, origin: returnOrigin, type: 'instagram' };
+  // ── PATH A: Facebook OAuth (for Facebook Page linked accounts) ────────────
+  if (authType === 'facebook') {
+    const fbAppId = process.env.META_APP_ID;
+    if (!fbAppId) {
+      return res.status(500).send('<h3 style="font-family:sans-serif;color:red">Server Error: META_APP_ID not configured</h3>');
+    }
+    const stateObj = { uid: userId, origin: returnOrigin, type: 'facebook' };
     const state = Buffer.from(JSON.stringify(stateObj)).toString('base64url');
-    const igScopes = 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
-    console.log(`[OAuth] Using Instagram Business Login app: ${igAppId}`);
+    const fbScopes = 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
+    console.log(`[OAuth] Using Facebook OAuth flow, client_id: ${fbAppId}`);
     return res.redirect(
-      `https://www.instagram.com/oauth/authorize` +
-      `?enable_fb_login=0` +
-      `&force_authentication=1` +
-      `&client_id=${igAppId}` +
+      `https://www.facebook.com/v21.0/dialog/oauth` +
+      `?client_id=${fbAppId}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&scope=${encodeURIComponent(fbScopes)}` +
       `&response_type=code` +
-      `&scope=${encodeURIComponent(igScopes)}` +
       `&state=${state}`
     );
   }
 
-  if (!fbAppId) {
-    return res.status(500).send('<h3 style="font-family:sans-serif;color:red">Server Error: META_APP_ID not configured</h3>');
+  // ── PATH B: Instagram Business Login (native instagram.com login) ─────────
+  const igAppId = process.env.META_IG_APP_ID || process.env.META_APP_ID;
+  if (!igAppId) {
+    return res.status(500).send('<h3 style="font-family:sans-serif;color:red">Server Error: META_IG_APP_ID or META_APP_ID not configured</h3>');
   }
 
-  // ── PATH B: Facebook OAuth (works with live app, extracts linked IG account) ─
-  const stateObj = { uid: userId, origin: returnOrigin, type: 'facebook' };
+  const stateObj = { uid: userId, origin: returnOrigin, type: 'instagram' };
   const state = Buffer.from(JSON.stringify(stateObj)).toString('base64url');
-  const fbScopes = 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
-  console.log(`[OAuth] Using Facebook OAuth app: ${fbAppId} (set META_IG_APP_ID to enable Instagram-native login)`);
+  const igScopes = 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
+  console.log(`[OAuth] Instagram Business Login via instagram.com, client_id: ${igAppId}`);
   return res.redirect(
-    `https://www.facebook.com/v21.0/dialog/oauth` +
-    `?client_id=${fbAppId}` +
+    `https://www.instagram.com/oauth/authorize` +
+    `?enable_fb_login=0` +
+    `&force_authentication=1` +
+    `&client_id=${igAppId}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-    `&scope=${encodeURIComponent(fbScopes)}` +
     `&response_type=code` +
+    `&scope=${encodeURIComponent(igScopes)}` +
     `&state=${state}`
   );
 });
