@@ -158,13 +158,31 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
             />
 
             {/* Live Indicator Badge */}
-            <div className="showcase-demo-badge">
+            <div 
+              className="showcase-demo-badge"
+              style={{ position: 'absolute', top: '14px', left: '14px', right: 'auto', zIndex: 10 }}
+            >
               <span className="pulse-dot" />
               <span>LIVE DEMO • 0:45</span>
             </div>
 
-            {/* Floating Simulated IG DM Interaction Card */}
-            <div className="showcase-floating-card">
+            {/* Floating Simulated IG DM Interaction Card (Positioned bottom-right to conceal Gemini watermark) */}
+            <div 
+              className="showcase-floating-card"
+              style={{
+                position: 'absolute',
+                bottom: '14px',
+                right: '14px',
+                left: 'auto',
+                zIndex: 10,
+                background: 'rgba(10, 14, 22, 0.98)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                maxWidth: '290px',
+                minWidth: '260px',
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.15) inset'
+              }}
+            >
               <div className="floating-comment-item">
                 <div className="floating-avatar">IG</div>
                 <div className="floating-text-wrap">

@@ -225,23 +225,24 @@
   display: block;
 }
 
-/* Floating Interactive IG Comment -> ReplyOS Notification Mockup */
+/* Floating Interactive IG Comment -> ReplyOS Notification Mockup (Placed bottom-right to cover watermark) */
 .showcase-floating-card {
   position: absolute;
-  bottom: 16px;
-  left: 16px;
-  background: rgba(14, 20, 32, 0.88);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  bottom: 14px;
+  right: 14px;
+  left: auto;
+  background: rgba(10, 14, 22, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--auth-radius-md);
   padding: 12px 14px;
-  max-width: 270px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  max-width: 290px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 2;
+  z-index: 3;
   animation: floatSubtle 4s ease-in-out infinite;
 }
 
@@ -304,12 +305,13 @@
   margin-top: 3px;
 }
 
-/* Floating annotation arrow */
+/* Floating live demo badge (Top-Left) */
 .showcase-demo-badge {
   position: absolute;
   top: 14px;
-  right: 14px;
-  background: rgba(8, 11, 18, 0.75);
+  left: 14px;
+  right: auto;
+  background: rgba(8, 11, 18, 0.85);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 100px;
@@ -320,6 +322,7 @@
   font-size: 11px;
   font-weight: 600;
   color: #38BDF8;
+  z-index: 2;
 }
 
 .pulse-dot {
