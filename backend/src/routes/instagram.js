@@ -392,10 +392,32 @@ router.post('/account/set-handle', async (req, res) => {
     }
     if (!target) return res.status(404).json({ error: 'No Instagram account found' });
 
-    const newFullName = full_name !== undefined ? full_name : (target.full_name || rawUsername);
-    const newProfilePic = profile_picture_url !== undefined ? profile_picture_url : target.profile_picture_url;
-    const newFollowers = followers_count !== undefined ? Number(followers_count) : target.followers_count;
-    const newAccountType = account_type || target.account_type || 'Creator Account';
+    let newFullName = full_name !== undefined ? full_name : (target.full_name || rawUsername);
+    let newProfilePic = profile_picture_url !== undefined ? profile_picture_url : target.profile_picture_url;
+    let newFollowers = followers_count !== undefined ? Number(followers_count) : target.followers_count;
+    let newAccountType = account_type || target.account_type || 'Creator Account';
+
+    // Auto-enrich authentic public profile details from Instagram if available
+    try {
+      const enriched = await instagramProfileService.fetchProfile(rawUsername);
+      if (enriched && enriched.valid && enriched.profile) {
+        if (!full_name || full_name === 'Instagram Creator' || full_name === target.full_name) {
+          newFullName = enriched.profile.full_name || newFullName;
+        }
+        if (!profile_picture_url || profile_picture_url === target.profile_picture_url) {
+          newProfilePic = enriched.profile.profile_picture_url || newProfilePic;
+        }
+        if (followers_count === undefined || Number(followers_count) === 0 || Number(followers_count) === target.followers_count) {
+          newFollowers = enriched.profile.followers_count !== undefined ? enriched.profile.followers_count : newFollowers;
+        }
+        if (enriched.profile.account_type) {
+          newAccountType = enriched.profile.account_type;
+        }
+        console.log(`[SetHandle] ✅ Enriched @${rawUsername}: ${newFollowers} followers, name: "${newFullName}"`);
+      }
+    } catch (enrErr) {
+      console.warn('[SetHandle] Profile enrichment note:', enrErr.message);
+    }
 
     await db.prepare(`
       UPDATE instagram_accounts 

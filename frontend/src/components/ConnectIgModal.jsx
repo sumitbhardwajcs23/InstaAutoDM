@@ -74,7 +74,8 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     const origin = window.location.origin;
     const token = getToken() || '';
     const BACKEND = getBackendUrl();
-    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+    const handleToPass = (quickHandle || '').replace(/^@/, '').trim().toLowerCase();
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}${handleToPass ? `&username=${encodeURIComponent(handleToPass)}` : ''}`;
     openOAuthPopup(startUrl);
   };
 
@@ -390,6 +391,40 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
             </div>
 
 
+
+            {/* Optional Handle Input for Guaranteed Profile Sync */}
+            <div style={{ textAlign: 'left', marginBottom: '14px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
+                Your Instagram Handle <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — ensures real username sync)</span>
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-light)',
+                  fontWeight: 600,
+                  fontSize: '13.5px',
+                }}>@</span>
+                <input
+                  type="text"
+                  value={quickHandle}
+                  onChange={(e) => setQuickHandle(e.target.value)}
+                  placeholder="e.g. join_sumit_ (recommended)"
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px 9px 28px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-subtle)',
+                    fontSize: '13px',
+                    outline: 'none',
+                    color: 'var(--text-main)',
+                  }}
+                />
+              </div>
+            </div>
 
             {/* Instagram Login Button — opens instagram.com OAuth (Instagram Business Login) */}
             <button

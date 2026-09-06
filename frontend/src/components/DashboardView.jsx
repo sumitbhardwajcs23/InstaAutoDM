@@ -18,6 +18,7 @@ import {
   Activity,
   Sparkles,
   Users,
+  X,
 } from 'lucide-react';
 import { apiFetch } from '../api/client';
 
@@ -40,6 +41,41 @@ export default function DashboardView({
   const [selectedPeriod, setSelectedPeriod] = useState('Last 30 days');
   const [activity, setActivity] = useState(null);
   const [loadingActivity, setLoadingActivity] = useState(false);
+  const [showHandleModal, setShowHandleModal] = useState(false);
+  const [customHandle, setCustomHandle] = useState('');
+  const [savingHandle, setSavingHandle] = useState(false);
+  const [handleError, setHandleError] = useState(null);
+
+  const isFallbackHandle = !!(account?.username && account.username.startsWith('user_'));
+
+  const handleSaveRealHandle = async (e) => {
+    if (e) e.preventDefault();
+    const clean = customHandle.replace(/^@/, '').trim().toLowerCase();
+    if (!clean) return;
+    setSavingHandle(true);
+    setHandleError(null);
+    try {
+      const res = await apiFetch('/instagram/account/set-handle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: account?.id,
+          username: clean,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setShowHandleModal(false);
+        if (onRefresh) onRefresh();
+      } else {
+        setHandleError(data.error || 'Failed to update handle');
+      }
+    } catch (err) {
+      setHandleError(err.message || 'Error updating handle');
+    } finally {
+      setSavingHandle(false);
+    }
+  };
 
 
   // Real stats & account binding
@@ -292,6 +328,44 @@ export default function DashboardView({
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               {isConnected ? `${accountHandle} • ${accountType}` : 'Connect your Instagram account'}
             </div>
+            {isConnected && isFallbackHandle && (
+              <div style={{
+                marginTop: '10px',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                background: 'rgba(234, 88, 12, 0.08)',
+                border: '1px solid rgba(234, 88, 12, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+              }}>
+                <span style={{ fontSize: '11px', color: '#c2410c', fontWeight: 600 }}>
+                  ⚠️ Meta Dev Mode: Real @handle hidden
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomHandle('');
+                    setHandleError(null);
+                    setShowHandleModal(true);
+                  }}
+                  style={{
+                    background: '#ea580c',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Set Real Handle
+                </button>
+              </div>
+            )}
             {isConnected && account?.followers_count !== undefined && account.followers_count > 0 && (
               <div style={{ fontSize: '11.5px', color: 'var(--text-light)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span>👥</span>
@@ -1364,6 +1438,155 @@ export default function DashboardView({
           <span style={{ cursor: 'pointer' }} onClick={() => alert('Support: support@replyos.com')}>Support</span>
         </div>
       </footer>
+
+      {/* Set Real Handle Modal */}
+      {showHandleModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+          animation: 'fadeIn 0.15s ease-out',
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
+            borderRadius: '18px',
+            padding: '24px',
+            maxWidth: '440px',
+            width: '100%',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+            position: 'relative',
+          }}>
+            <button
+              type="button"
+              onClick={() => setShowHandleModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'var(--bg-subtle)',
+                border: 'none',
+                color: 'var(--text-muted)',
+                width: '30px',
+                height: '30px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <X size={15} />
+            </button>
+
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              marginBottom: '14px',
+            }}>
+              <Instagram size={22} />
+            </div>
+
+            <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: 'var(--text-main)' }}>
+              Set Your Real Instagram Handle
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.45 }}>
+              Because your Meta Developer App is in <strong>Development Mode</strong>, Meta suppressed your username during OAuth login. Enter your real Instagram handle below to automatically sync your authentic username, profile picture, and follower count.
+            </p>
+
+            {handleError && (
+              <div style={{
+                padding: '10px 12px',
+                borderRadius: '8px',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#dc2626',
+                fontSize: '12px',
+                marginBottom: '12px',
+              }}>
+                {handleError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveRealHandle}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
+                  Instagram Username
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '10px', overflow: 'hidden' }}>
+                  <span style={{ padding: '10px 14px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '14px' }}>@</span>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={customHandle}
+                    onChange={(e) => setCustomHandle(e.target.value)}
+                    placeholder="e.g. join_sumit_"
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 0',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--text-main)',
+                      fontSize: '13.5px',
+                      outline: 'none',
+                      fontWeight: 500,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowHandleModal(false)}
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: '9px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-subtle)',
+                    color: 'var(--text-main)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingHandle || !customHandle.trim()}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: '9px',
+                    border: 'none',
+                    background: 'var(--primary)',
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: savingHandle || !customHandle.trim() ? 'not-allowed' : 'pointer',
+                    opacity: savingHandle || !customHandle.trim() ? 0.7 : 1,
+                  }}
+                >
+                  {savingHandle ? 'Syncing...' : 'Save & Sync Profile'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
