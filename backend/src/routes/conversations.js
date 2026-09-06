@@ -9,13 +9,11 @@ const profileCache = require('../services/profileCache');
 const KNOWN_TESTERS = profileCache.KNOWN_USERS;
 
 async function getAccountForUser(userId, accountId) {
+  if (!userId) return null;
   if (accountId) {
-    return await db.prepare("SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) LIMIT 1").get(userId, accountId);
+    return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
   }
-  return (await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId))
-      || (await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' ORDER BY updated_at DESC LIMIT 1").get())
-      || (await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1").get(userId))
-      || (await db.prepare("SELECT * FROM instagram_accounts ORDER BY updated_at DESC LIMIT 1").get());
+  return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
 }
 
 // GET /api/conversations

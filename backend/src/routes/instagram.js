@@ -13,11 +13,7 @@ const dataDeletionRequests = new Map();
 
 async function getUserId(req) {
   if (req.user && req.user.id) return req.user.id;
-  try {
-    const user = await db.prepare('SELECT id FROM users ORDER BY updated_at DESC, created_at DESC LIMIT 1').get();
-    if (user && user.id) return user.id;
-  } catch (e) {}
-  return 'admin_user';
+  return null;
 }
 
 // Safely parse user token if present on any Instagram route
@@ -41,33 +37,23 @@ router.use((req, _res, next) => {
 router.get('/account', async (req, res) => {
   const accountId = req.query.account_id;
   const uid = await getUserId(req);
+  if (!uid) return res.json({ connected: false, account: null });
+
   let account;
   if (accountId) {
-    account = await db.prepare("SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') LIMIT 1").get(uid, accountId);
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(uid, accountId);
   } else {
-    account = (await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') AND username NOT LIKE 'user_%' ORDER BY updated_at DESC LIMIT 1").get(uid))
-           || (await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') AND username NOT LIKE 'user_%' ORDER BY updated_at DESC LIMIT 1").get())
-           || (await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' ORDER BY updated_at DESC LIMIT 1").get());
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(uid);
   }
 
   if (!account) return res.json({ connected: false, account: null });
-
-  // Self-heal: ensure active connected account belongs to current active user
-  if (account.user_id !== uid && uid && uid !== 'admin_user') {
-    try {
-      await db.prepare("UPDATE instagram_accounts SET user_id = ? WHERE id = ?").run(uid, account.id);
-      if (db.getPgPool && db.getPgPool()) {
-        db.getPgPool().query("UPDATE instagram_accounts SET user_id = $1 WHERE id = $2", [uid, account.id]).catch(() => {});
-      }
-    } catch (_) {}
-  }
 
   res.json({
     connected: account.status === 'connected',
     account: {
       ...account,
-      has_long_lived_token: true,
-      has_page_access_token: true
+      has_long_lived_token: Boolean(account.long_lived_token_enc || account.access_token_enc),
+      has_page_access_token: Boolean(account.page_access_token_enc || account.access_token_enc)
     }
   });
 });
@@ -75,21 +61,8 @@ router.get('/account', async (req, res) => {
 // GET /api/instagram/accounts — list all connected accounts for logged-in user
 router.get('/accounts', async (req, res) => {
   const uid = await getUserId(req);
-  let accounts = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') AND username NOT LIKE 'user_%' ORDER BY updated_at DESC").all(uid);
-  if (!accounts || accounts.length === 0) {
-    const allAccounts = await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') AND username NOT LIKE 'user_%' ORDER BY updated_at DESC").all();
-    if (allAccounts && allAccounts.length > 0 && uid && uid !== 'admin_user') {
-      for (const a of allAccounts) {
-        try {
-          await db.prepare("UPDATE instagram_accounts SET user_id = ? WHERE id = ?").run(uid, a.id);
-          if (db.getPgPool && db.getPgPool()) {
-            db.getPgPool().query("UPDATE instagram_accounts SET user_id = $1 WHERE id = $2", [uid, a.id]).catch(() => {});
-          }
-        } catch (_) {}
-      }
-      accounts = allAccounts;
-    }
-  }
+  if (!uid) return res.json({ accounts: [] });
+  const accounts = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC").all(uid);
   res.json({ accounts: accounts || [] });
 });
 
@@ -224,16 +197,7 @@ router.post('/connect-username', async (req, res) => {
     // Determine target user safely
     let targetUser = req.user?.id ? await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id) : null;
     if (!targetUser) {
-      targetUser = await db.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT 1').get();
-    }
-    if (!targetUser) {
-      const newUid = uuidv4();
-      const now = new Date().toISOString();
-      await db.prepare(`
-        INSERT INTO users (id, email, name, plan, dm_usage_this_period, usage_period_start, created_at, updated_at)
-        VALUES (?, 'creator@replyos.io', 'Creator', 'free', 0, ?, ?, ?)
-      `).run(newUid, now.slice(0, 10), now, now);
-      targetUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(newUid);
+      return res.status(401).json({ error: 'Authentication required. Please log in first.' });
     }
     const targetUserId = targetUser.id;
 
@@ -257,9 +221,8 @@ router.post('/connect-username', async (req, res) => {
     }
 
     const expiresAt = new Date(Date.now() + 60 * 24 * 3600000).toISOString();
-    const existing = (await db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(igUserId))
-      || (await db.prepare('SELECT id FROM instagram_accounts WHERE lower(username) = ?').get(rawUsername))
-      || (await db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND username IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected')").get(targetUserId));
+    const existing = (await db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ? AND ig_user_id = ?').get(targetUserId, igUserId))
+      || (await db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ? AND lower(username) = ?').get(targetUserId, rawUsername));
 
     const accountId = existing ? existing.id : uuidv4();
     if (existing) {
@@ -404,13 +367,14 @@ router.post('/account/set-handle', async (req, res) => {
 
   try {
     let target = null;
+    const uid = await getUserId(req);
+    if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
     if (account_id) {
-      target = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(account_id);
+      target = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ? AND user_id = ?').get(account_id, uid);
     }
     if (!target) {
-      const uid = await getUserId(req);
-      target = (await db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1').get(uid))
-            || (await db.prepare('SELECT * FROM instagram_accounts ORDER BY updated_at DESC LIMIT 1').get());
+      target = await db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1').get(uid);
     }
     if (!target) return res.status(404).json({ error: 'No Instagram account found' });
 

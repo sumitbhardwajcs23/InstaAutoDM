@@ -6,21 +6,11 @@ const db = require('../db');
 const FREE_CAP = parseInt(process.env.FREE_PLAN_DM_LIMIT || '1000', 10);
 
 async function getAccountForUser(userId, accountId) {
+  if (!userId) return null;
   if (accountId) {
-    return await db.prepare("SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') LIMIT 1").get(userId, accountId);
+    return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
   }
-  let acc = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC LIMIT 1").get(userId);
-  if (acc) return acc;
-
-  // Self-heal: If an active connected account exists in DB, link it to active user
-  const anyConnected = await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC LIMIT 1").get();
-  if (anyConnected && userId) {
-    try {
-      await db.prepare("UPDATE instagram_accounts SET user_id = ? WHERE id = ?").run(userId, anyConnected.id);
-    } catch (_) {}
-    return anyConnected;
-  }
-  return null;
+  return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
 }
 
 // GET /api/dashboard/stats
