@@ -222,6 +222,25 @@ export default function App() {
     loadData();
   };
 
+  const handleDisconnectAccount = async (accId) => {
+    const targetId = accId || account?.id;
+    if (!targetId) return;
+    if (!window.confirm('Are you sure you want to disconnect this Instagram account?')) return;
+    try {
+      const res = await apiFetch(`/instagram/accounts/${targetId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setNotification({ type: 'success', message: 'Instagram account disconnected successfully.' });
+        setSelectedAccountId(null);
+        setAccount(null);
+        await loadData(null);
+      } else {
+        setNotification({ type: 'error', message: 'Failed to disconnect account.' });
+      }
+    } catch (e) {
+      setNotification({ type: 'error', message: 'Failed to disconnect account.' });
+    }
+  };
+
   // 1. Landing View (Default for first-time visitors)
   if (currentView === 'landing') {
     return <LandingView onNavigate={handleNavigate} user={user} />;
@@ -270,6 +289,7 @@ export default function App() {
           account={account}
           accounts={accounts}
           onSelectAccount={handleSelectAccount}
+          onDisconnectAccount={handleDisconnectAccount}
           onOpenConnect={() => setIsConnectIgOpen(true)}
           onOpenUpgrade={() => setIsUpgradeOpen(true)}
           onLogout={handleLogout}
@@ -322,6 +342,7 @@ export default function App() {
               account={account}
               accounts={accounts}
               onSelectAccount={handleSelectAccount}
+              onDisconnectAccount={handleDisconnectAccount}
               onNavigate={setActiveTab}
               onOpenCreateRule={() => setIsCreateRuleOpen(true)}
               onOpenUpgrade={() => setIsUpgradeOpen(true)}
@@ -361,7 +382,7 @@ export default function App() {
           )}
 
           {activeTab === 'settings' && (
-            <SettingsView account={account} onOpenConnect={() => setIsConnectIgOpen(true)} onRefresh={() => loadData()} />
+            <SettingsView account={account} onOpenConnect={() => setIsConnectIgOpen(true)} onDisconnectAccount={handleDisconnectAccount} onRefresh={() => loadData()} />
           )}
 
           {activeTab === 'templates' && (

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Instagram, Key, Shield, CheckCircle2, Copy, ExternalLink, RefreshCw, Edit3 } from 'lucide-react';
 import { apiFetch } from '../api/client';
 
-export default function SettingsView({ account, onOpenConnect, onRefresh }) {
+export default function SettingsView({ account, onOpenConnect, onDisconnectAccount, onRefresh }) {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editHandle, setEditHandle] = useState('');
@@ -88,26 +88,44 @@ export default function SettingsView({ account, onOpenConnect, onRefresh }) {
 
             <div style={{ display: 'flex', gap: '8px' }}>
               {isConnected && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditHandle(account.username || '');
-                    setEditName(account.full_name || account.username || '');
-                    setIsEditing(true);
-                  }}
-                  style={{
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-subtle)',
-                    color: 'var(--text-main)',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Edit Profile / Handle
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditHandle(account.username || '');
+                      setEditName(account.full_name || account.username || '');
+                      setIsEditing(true);
+                    }}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      background: 'var(--bg-subtle)',
+                      color: 'var(--text-main)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Edit Profile / Handle
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDisconnectAccount && onDisconnectAccount(account?.id)}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #fecaca',
+                      background: '#fef2f2',
+                      color: '#dc2626',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Disconnect
+                  </button>
+                </>
               )}
               <button
                 type="button"

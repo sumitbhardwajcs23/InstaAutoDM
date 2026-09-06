@@ -7,6 +7,7 @@ export default function Topbar({
   account,
   accounts = [],
   onSelectAccount,
+  onDisconnectAccount,
   onOpenConnect,
   onOpenUpgrade,
   onLogout,
@@ -147,43 +148,84 @@ export default function Topbar({
                 accounts.map(acc => {
                   const isSelected = account?.id === acc.id;
                   return (
-                    <button
+                    <div
                       key={acc.id}
-                      type="button"
-                      onClick={() => {
-                        if (onSelectAccount) onSelectAccount(acc.id);
-                        setShowAccountMenu(false);
-                      }}
                       style={{
-                        width: '100%',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        padding: '8px 10px',
-                        border: 'none',
-                        background: isSelected ? 'var(--bg-subtle)' : 'transparent',
-                        color: 'var(--text-main)',
-                        fontSize: '12.5px',
-                        fontWeight: isSelected ? 700 : 500,
+                        padding: '2px 6px',
                         borderRadius: '8px',
-                        cursor: 'pointer',
-                        textAlign: 'left',
+                        background: isSelected ? 'var(--bg-subtle)' : 'transparent',
+                        marginBottom: '2px',
                       }}
                     >
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onSelectAccount) onSelectAccount(acc.id);
+                          setShowAccountMenu(false);
+                        }}
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '6px 4px',
+                          border: 'none',
+                          background: 'transparent',
+                          color: 'var(--text-main)',
+                          fontSize: '12.5px',
+                          fontWeight: isSelected ? 700 : 500,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {acc.profile_picture_url ? (
                           <img
                             src={acc.profile_picture_url}
                             alt={acc.username}
-                            style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }}
+                            style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
                           />
                         ) : (
-                          <Instagram size={14} color={isSelected ? '#e1306c' : 'var(--text-muted)'} />
+                          <Instagram size={14} color={isSelected ? '#e1306c' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
                         )}
-                        @{acc.username}
-                      </span>
-                      {isSelected && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />}
-                    </button>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          @{acc.username}
+                        </span>
+                        {isSelected && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', flexShrink: 0, marginLeft: 'auto', marginRight: '6px' }} />}
+                      </button>
+
+                      {onDisconnectAccount && (
+                        <button
+                          type="button"
+                          title={`Disconnect @${acc.username}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAccountMenu(false);
+                            onDisconnectAccount(acc.id);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-light)',
+                            cursor: 'pointer',
+                            padding: '4px 6px',
+                            fontSize: '13px',
+                            lineHeight: 1,
+                            borderRadius: '4px',
+                            transition: 'color 0.2s',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-light)'; }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   );
                 })
               ) : (

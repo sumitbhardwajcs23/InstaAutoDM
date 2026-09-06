@@ -34,6 +34,7 @@ export default function DashboardView({
   onOpenConnect,
   onToggleRule,
   onSelectAccount,
+  onDisconnectAccount,
   onRefresh,
 }) {
   const [selectedPeriod, setSelectedPeriod] = useState('Last 30 days');
@@ -344,27 +345,60 @@ export default function DashboardView({
               </span>
             )}
 
-            <button
-              type="button"
-              onClick={onOpenConnect}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--primary)',
-                fontSize: '12.5px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-            >
-              {isConnected ? (
-                <>View Account <ExternalLink size={12} /></>
-              ) : (
-                <>Connect Account ↗</>
-              )}
-            </button>
+            {isConnected ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <a
+                  href={`https://instagram.com/${account.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    textDecoration: 'none',
+                    color: 'var(--primary)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  View <ExternalLink size={11} />
+                </a>
+                <span style={{ color: 'var(--border-subtle)', fontSize: '11px' }}>•</span>
+                <button
+                  type="button"
+                  onClick={() => onDisconnectAccount && onDisconnectAccount(account?.id)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#ef4444',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenConnect}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--primary)',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                Connect Account ↗
+              </button>
+            )}
           </div>
         </div>
 

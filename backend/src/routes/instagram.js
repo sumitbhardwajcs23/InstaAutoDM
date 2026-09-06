@@ -80,6 +80,7 @@ router.post('/connect-token', async (req, res) => {
   const userToken = req.body.token || req.body.user_token || req.body.access_token;
   if (!userToken) return res.status(400).json({ error: 'Missing Meta access token' });
   const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Authentication required' });
 
   try {
     const tokenInfo = await metaClient.exchangeUserToken(userToken.trim());
@@ -546,9 +547,6 @@ router.get('/oauth/callback', async (req, res) => {
   }
 
   let user = userId ? await db.prepare('SELECT * FROM users WHERE id = ?').get(userId) : null;
-  if (!user) {
-    user = await db.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT 1').get();
-  }
   if (!user) {
     const newUid = uuidv4();
     const now = new Date().toISOString();
