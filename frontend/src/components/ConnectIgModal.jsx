@@ -74,8 +74,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     const origin = window.location.origin;
     const token = getToken() || '';
     const BACKEND = getBackendUrl();
-    const handleParam = quickHandle ? `&username=${encodeURIComponent(quickHandle.replace(/^@/, '').trim())}` : '';
-    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}${handleParam}`;
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
     openOAuthPopup(startUrl);
   };
 
@@ -84,11 +83,9 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     const origin = window.location.origin;
     const token = getToken() || '';
     const BACKEND = getBackendUrl();
-    const handleParam = quickHandle ? `&username=${encodeURIComponent(quickHandle.replace(/^@/, '').trim())}` : '';
-    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=facebook&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}${handleParam}`;
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=facebook&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
     openOAuthPopup(startUrl);
   };
-
 
   const handleLookupProfile = async (e) => {
     if (e) e.preventDefault();
@@ -102,35 +99,18 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     setPreviewProfile(null);
 
     try {
-      // Race API vs 8-second timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-      try {
-        const res = await apiFetch(`/instagram/lookup-profile?username=${encodeURIComponent(clean)}`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.profile) {
-            setPreviewProfile(data.profile);
-            setLookingUp(false);
-            return;
-          }
-        }
-      } catch (_) {
-        clearTimeout(timeoutId);
+      const res = await apiFetch(`/instagram/lookup-profile?username=${encodeURIComponent(clean)}`);
+      const data = await res.json();
+      if (res.ok && data.success && data.profile) {
+        setPreviewProfile(data.profile);
+      } else {
+        setError(data.error || `Instagram account @${clean} does not exist or is unavailable.`);
       }
-    } catch (_) { /* outer safety */ }
-
-    // Smart instant fallback — never block the user
-    const isSumit = clean.toLowerCase().includes('sumit');
-    setPreviewProfile({
-      username: clean,
-      full_name: isSumit ? 'Sumit Bhardwaj' : clean.replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      followers_count: isSumit ? 4280 : 1850,
-      profile_picture_url: isSumit ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' : null,
-      account_type: 'Creator Account',
-    });
-    setLookingUp(false);
+    } catch (err) {
+      setError(`Could not verify @${clean}: ${err.message || 'Network error'}`);
+    } finally {
+      setLookingUp(false);
+    }
   };
 
   const handleConnectUsername = async () => {
@@ -138,46 +118,21 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     setConnectingUsername(true);
     setError(null);
 
-    let didConnect = false;
     try {
-      // 12-second timeout so button never hangs forever
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
-      try {
-        const res = await apiFetch('/instagram/connect-username', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(previewProfile),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        const data = await res.json();
-        if (res.ok && data.success) {
-          didConnect = true;
-          if (onConnected) onConnected(data.account);
-          onClose();
-        } else {
-          throw new Error(data.error || data.message || 'Connection failed');
-        }
-      } catch (fetchErr) {
-        clearTimeout(timeoutId);
-        if (!didConnect) throw fetchErr;
+      const res = await apiFetch('/instagram/connect-username', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(previewProfile),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (onConnected) onConnected(data.account);
+        onClose();
+      } else {
+        throw new Error(data.error || data.message || 'Connection failed');
       }
     } catch (err) {
-      // If network error or timeout, use client-side fallback so user is never blocked
-      if (!didConnect) {
-        const fallbackAcc = {
-          id: `acc_${Date.now()}`,
-          username: previewProfile.username,
-          full_name: previewProfile.full_name,
-          profile_picture_url: previewProfile.profile_picture_url,
-          followers_count: previewProfile.followers_count,
-          status: 'connected',
-          account_type: previewProfile.account_type || 'Creator Account',
-        };
-        if (onConnected) onConnected(fallbackAcc);
-        onClose();
-      }
+      setError(err.message || 'Failed to connect Instagram account');
     } finally {
       setConnectingUsername(false);
     }
@@ -403,34 +358,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               </div>
             </div>
 
-            <div style={{ textAlign: 'left', marginBottom: '14px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '5px' }}>
-                Your Instagram Handle (Optional)
-              </label>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)', fontWeight: 600, fontSize: '14px' }}>@</span>
-                <input
-                  type="text"
-                  value={quickHandle}
-                  onChange={(e) => setQuickHandle(e.target.value)}
-                  placeholder="join_sumit_"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px 10px 28px',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-subtle)',
-                    fontSize: '13px',
-                    color: 'var(--text-main)',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>
-                Provides immediate username binding even if Meta restricts public profile queries.
-              </span>
-            </div>
+
 
             {/* Instagram Login Button — opens instagram.com OAuth (Instagram Business Login) */}
             <button
@@ -649,7 +577,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
                     <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
                       @{previewProfile.username}
                     </div>
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
                       <span style={{
                         fontSize: '11px',
                         background: '#fff',
@@ -661,6 +589,32 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
                       }}>
                         👥 {previewProfile.followers_count.toLocaleString()} followers
                       </span>
+                      {previewProfile.following_count !== undefined && previewProfile.following_count > 0 && (
+                        <span style={{
+                          fontSize: '11px',
+                          background: '#fff',
+                          border: '1px solid var(--border-light)',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          color: 'var(--text-main)',
+                          fontWeight: 600,
+                        }}>
+                          {previewProfile.following_count.toLocaleString()} following
+                        </span>
+                      )}
+                      {previewProfile.posts_count !== undefined && previewProfile.posts_count > 0 && (
+                        <span style={{
+                          fontSize: '11px',
+                          background: '#fff',
+                          border: '1px solid var(--border-light)',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          color: 'var(--text-main)',
+                          fontWeight: 600,
+                        }}>
+                          {previewProfile.posts_count.toLocaleString()} posts
+                        </span>
+                      )}
                       <span style={{
                         fontSize: '11px',
                         background: '#ecfdf5',

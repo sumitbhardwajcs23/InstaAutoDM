@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const metaClient = require('../services/metaClient');
+const instagramProfileService = require('../services/instagramProfileService');
 const { encrypt, decrypt } = require('../services/crypto');
 const { JWT_SECRET } = require('../middleware/auth');
 // In-memory store for data deletion requests (for compliance endpoint)
@@ -150,80 +151,26 @@ router.post('/connect-token', async (req, res) => {
   }
 });
 
-// GET /api/instagram/lookup-profile — Live profile preview by handle
+// GET /api/instagram/lookup-profile — Live verified profile preview by handle
 router.get('/lookup-profile', async (req, res) => {
   const rawUsername = (req.query.username || '').replace(/^@/, '').trim().toLowerCase();
   if (!rawUsername) return res.status(400).json({ error: 'Username is required' });
 
   try {
-    let fullName = rawUsername;
-    let followersCount = 1250;
-    let profilePicUrl = null;
-    let accountType = 'Creator Account';
-
-    // 1. Check existing connected account in DB
-    const dbMatch = await db.prepare('SELECT * FROM instagram_accounts WHERE lower(username) = ? LIMIT 1').get(rawUsername);
-    if (dbMatch) {
-      return res.json({
-        success: true,
-        profile: {
-          username: dbMatch.username,
-          full_name: dbMatch.full_name || dbMatch.username,
-          followers_count: dbMatch.followers_count || 1250,
-          profile_picture_url: dbMatch.profile_picture_url || null,
-          account_type: dbMatch.account_type || 'Creator Account',
-          ig_user_id: dbMatch.ig_user_id
-        }
+    const result = await instagramProfileService.fetchProfile(rawUsername);
+    if (!result.valid) {
+      return res.status(404).json({
+        success: false,
+        error: result.error || `Instagram account @${rawUsername} does not exist or is unavailable.`
       });
     }
 
-    // 2. Check if active system token can fetch real details (5-second timeout)
-    const activeAcc = await db.prepare("SELECT * FROM instagram_accounts WHERE access_token_enc IS NOT NULL AND status = 'connected' LIMIT 1").get();
-    if (activeAcc) {
-      try {
-        const rawToken = decrypt(activeAcc.access_token_enc);
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 5000);
-        const igRes = await fetch(`https://graph.instagram.com/me?fields=id,username,name,account_type,profile_picture_url,followers_count&access_token=${rawToken}`, { signal: ctrl.signal });
-        clearTimeout(tid);
-        if (igRes.ok) {
-          const d = await igRes.json();
-          if (d.username && d.username.toLowerCase() === rawUsername) {
-            return res.json({
-              success: true,
-              profile: {
-                username: d.username,
-                full_name: d.name || d.username,
-                followers_count: d.followers_count || 1250,
-                profile_picture_url: d.profile_picture_url || null,
-                account_type: d.account_type || 'Creator Account',
-                ig_user_id: d.id
-              }
-            });
-          }
-        }
-      } catch (e) {}
-    }
-
-    // 3. Known profiles / smart defaults
-    if (rawUsername === 'join_sumit_' || rawUsername.includes('sumit')) {
-      fullName = 'sumit bhardwaj';
-      followersCount = 4280;
-      profilePicUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-    }
-
-    res.json({
+    return res.json({
       success: true,
-      profile: {
-        username: rawUsername,
-        full_name: fullName,
-        followers_count: followersCount,
-        profile_picture_url: profilePicUrl,
-        account_type: accountType
-      }
+      profile: result.profile
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to look up profile' });
+    res.status(500).json({ error: `Failed to look up Instagram profile: ${err.message}` });
   }
 });
 
@@ -233,17 +180,26 @@ router.post('/connect-username', async (req, res) => {
   if (!rawUsername) return res.status(400).json({ error: 'Username is required' });
 
   try {
+    // 1. Validate that the username actually exists on Instagram
+    const profileResult = await instagramProfileService.fetchProfile(rawUsername);
+    if (!profileResult.valid) {
+      return res.status(400).json({
+        error: profileResult.error || `Cannot connect: Instagram account @${rawUsername} does not exist or is unavailable.`
+      });
+    }
+
+    const verified = profileResult.profile;
+    const fullName = verified.full_name || rawUsername;
+    const profilePicUrl = verified.profile_picture_url || null;
+    const followersCount = verified.followers_count || 0;
+    const accountType = verified.account_type || 'Creator Account';
+
     // Look for existing connected system token so webhooks & DM automations stay live
     const systemAcc = await db.prepare("SELECT * FROM instagram_accounts WHERE access_token_enc IS NOT NULL AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get();
     const encToken = systemAcc?.access_token_enc || encrypt(`ig_tok_${Date.now()}`);
     const encLongToken = systemAcc?.long_lived_token_enc || encToken;
     const pageId = systemAcc?.page_id || `page_${Date.now().toString().slice(-8)}`;
     const fbUserId = systemAcc?.fb_user_id || `fb_${Date.now().toString().slice(-8)}`;
-
-    let fullName = req.body.full_name || rawUsername;
-    let profilePicUrl = req.body.profile_picture_url || null;
-    let followersCount = req.body.followers_count || 1250;
-    let accountType = req.body.account_type || 'Creator Account';
 
     // Determine target user safely
     let targetUser = req.user?.id ? await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id) : null;
@@ -271,7 +227,6 @@ router.post('/connect-username', async (req, res) => {
         if (existingByHandle?.ig_user_id) {
           igUserId = existingByHandle.ig_user_id;
         } else {
-          // Generate unique 17-digit numeric string (mimicking real Instagram Business/Creator User IDs)
           let candidateId;
           do {
             candidateId = `1784140${Math.floor(100000000 + Math.random() * 900000000)}`;
@@ -279,33 +234,6 @@ router.post('/connect-username', async (req, res) => {
           igUserId = candidateId;
         }
       }
-    }
-
-    // If active Meta token matches this username directly (5-second timeout)
-    if (systemAcc) {
-      try {
-        const rawToken = decrypt(systemAcc.access_token_enc);
-        const ctrl = new AbortController();
-        const tid = setTimeout(() => ctrl.abort(), 5000);
-        const meRes = await fetch(`https://graph.instagram.com/me?fields=id,username,name,account_type,profile_picture_url,followers_count&access_token=${rawToken}`, { signal: ctrl.signal });
-        clearTimeout(tid);
-        if (meRes.ok) {
-          const d = await meRes.json();
-          if (d.username && d.username.toLowerCase() === rawUsername) {
-            igUserId = d.id || igUserId;
-            fullName = d.name || fullName;
-            profilePicUrl = d.profile_picture_url || profilePicUrl;
-            followersCount = d.followers_count || followersCount;
-            accountType = d.account_type || accountType;
-          }
-        }
-      } catch (e) {}
-    }
-
-    if (rawUsername === 'join_sumit_' || rawUsername.includes('sumit')) {
-      fullName = 'sumit bhardwaj';
-      followersCount = 4280;
-      profilePicUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
     }
 
     const expiresAt = new Date(Date.now() + 60 * 24 * 3600000).toISOString();
@@ -651,6 +579,20 @@ router.get('/oauth/callback', async (req, res) => {
     const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/instagram/oauth/callback`;
     const tokenInfo = await metaClient.exchangeOAuthCode(code, redirectUri, authType, intendedUsername);
 
+    // Automatically enrich profile with authentic Instagram follower count, avatar, and full name
+    if (tokenInfo.username && !tokenInfo.username.startsWith('user_')) {
+      try {
+        const enriched = await instagramProfileService.fetchProfile(tokenInfo.username);
+        if (enriched.valid && enriched.profile) {
+          tokenInfo.full_name = enriched.profile.full_name || tokenInfo.full_name;
+          tokenInfo.followers_count = enriched.profile.followers_count || tokenInfo.followers_count;
+          tokenInfo.profile_picture_url = enriched.profile.profile_picture_url || tokenInfo.profile_picture_url;
+        }
+      } catch (enrErr) {
+        console.warn('[OAuth] Automatic profile enrichment note:', enrErr.message);
+      }
+    }
+
     const encPageToken = encrypt(tokenInfo.page_access_token || tokenInfo.access_token);
     const encLongToken = encrypt(tokenInfo.long_lived_token || tokenInfo.access_token);
     const expiresAt = new Date(Date.now() + (tokenInfo.expires_in || 5184000) * 1000).toISOString();
@@ -744,153 +686,6 @@ router.get('/oauth/callback', async (req, res) => {
     }
 
     const savedAcc = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
-
-    // If Meta's Graph API blocked profile retrieval due to Development Mode without tester invite,
-    // present an interactive setup prompt in the popup so the user can enter their real @handle
-    if (tokenInfo.requires_handle) {
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>ReplyOS — Complete Instagram Setup</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-              background: #0f172a;
-              color: #ffffff;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              min-height: 100vh;
-              margin: 0;
-              padding: 24px;
-              box-sizing: border-box;
-            }
-            .card {
-              background: #1e293b;
-              border: 1px solid #334155;
-              border-radius: 16px;
-              padding: 28px;
-              max-width: 420px;
-              width: 100%;
-              text-align: center;
-              box-shadow: 0 12px 32px rgba(0,0,0,0.4);
-            }
-            .icon-badge {
-              width: 52px;
-              height: 52px;
-              border-radius: 50%;
-              background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 24px;
-              margin-bottom: 16px;
-            }
-            h3 { margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: #fff; }
-            p { color: #94a3b8; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0; }
-            .input-wrap {
-              display: flex;
-              align-items: center;
-              background: #0f172a;
-              border: 1.5px solid #3b82f6;
-              border-radius: 10px;
-              overflow: hidden;
-              margin-bottom: 16px;
-            }
-            .prefix {
-              padding: 10px 14px;
-              background: #1e293b;
-              color: #38bdf8;
-              font-weight: 700;
-              font-size: 14px;
-              border-right: 1px solid #334155;
-            }
-            input {
-              flex: 1;
-              padding: 10px 14px;
-              background: transparent;
-              border: none;
-              color: #fff;
-              font-size: 14px;
-              font-weight: 600;
-              outline: none;
-            }
-            button {
-              width: 100%;
-              padding: 12px;
-              background: #2563eb;
-              color: #fff;
-              border: none;
-              border-radius: 10px;
-              font-size: 14px;
-              font-weight: 700;
-              cursor: pointer;
-              transition: opacity 0.2s;
-            }
-            button:hover { opacity: 0.9; }
-            button:disabled { opacity: 0.5; cursor: not-allowed; }
-            .id-badge {
-              display: inline-block;
-              background: rgba(255,255,255,0.06);
-              padding: 3px 8px;
-              border-radius: 6px;
-              font-family: monospace;
-              font-size: 11px;
-              color: #cbd5e1;
-              margin-top: 4px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <div class="icon-badge">✨</div>
-            <h3>Meta Account Authenticated</h3>
-            <p>Meta User ID: <span class="id-badge">${tokenInfo.ig_user_id}</span><br/>Enter your Instagram handle to finish setup:</p>
-            <form id="hForm">
-              <div class="input-wrap">
-                <span class="prefix">@</span>
-                <input id="hInput" type="text" placeholder="your_instagram_handle" required autofocus />
-              </div>
-              <button type="submit" id="btn">Complete Connection</button>
-            </form>
-          </div>
-          <script>
-            const form = document.getElementById('hForm');
-            const input = document.getElementById('hInput');
-            const btn = document.getElementById('btn');
-            form.onsubmit = async (e) => {
-              e.preventDefault();
-              const val = input.value.replace(/^@/, '').trim().toLowerCase();
-              if (!val) return;
-              btn.disabled = true;
-              btn.innerText = 'Connecting...';
-              try {
-                const res = await fetch('/api/instagram/account/set-handle', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ account_id: ${JSON.stringify(accountId)}, username: val })
-                });
-                const data = await res.json();
-                if (window.opener && !window.opener.closed) {
-                  window.opener.postMessage({ type: 'INSTAGRAM_CONNECTED', success: true, account: data.account || ${JSON.stringify(savedAcc)} }, '*');
-                  setTimeout(() => window.close(), 500);
-                } else {
-                  window.location.href = ${JSON.stringify(redirectTarget('/?connected=true'))};
-                }
-              } catch (err) {
-                alert('Error saving handle: ' + err.message);
-                btn.disabled = false;
-                btn.innerText = 'Complete Connection';
-              }
-            };
-          </script>
-        </body>
-        </html>
-      `);
-    }
 
     return res.send(`
       <!DOCTYPE html>

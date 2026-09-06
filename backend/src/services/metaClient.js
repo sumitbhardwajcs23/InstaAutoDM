@@ -156,7 +156,7 @@ class MetaClient {
         fb_user_id: '102938475619283',
         ig_user_id: '17841405829103942',
         username: intendedUsername || 'instagram_user',
-        followers_count: 1250,
+        followers_count: 0,
         expires_in: 5184000
       };
     }
