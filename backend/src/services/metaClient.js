@@ -70,6 +70,15 @@ class MetaClient {
       ? [GRAPH_IG_BASE, GRAPH_API_BASE]
       : [GRAPH_API_BASE, GRAPH_IG_BASE];
 
+    // Permanent error messages — throw so profileCache can blacklist immediately
+    const PERMANENT_ERRORS = [
+      'api access deactivated',
+      'cannot parse access token',
+      'invalid oauth access token',
+      'access token has expired',
+      'token has been invalidated',
+    ];
+
     for (const base of bases) {
       for (const fields of fieldSets) {
         const url = `${base}/${igScopedUserId}?fields=${fields}&access_token=${encodeURIComponent(accessToken)}`;
@@ -77,7 +86,12 @@ class MetaClient {
           const res = await fetch(url);
           const data = await res.json();
           if (!res.ok) {
-            console.warn(`[MetaClient] Profile API error for ${igScopedUserId} (${fields}):`, data?.error?.message || JSON.stringify(data));
+            const errMsg = data?.error?.message || '';
+            const errLower = errMsg.toLowerCase();
+            // Throw on permanent errors so caller can blacklist
+            if (PERMANENT_ERRORS.some(p => errLower.includes(p))) {
+              throw new Error(errMsg || 'Permanent Meta API error');
+            }
             // Don't try more fields if token is invalid/expired
             if (data?.error?.code === 190 || data?.error?.code === 102) break;
             continue;
@@ -94,6 +108,8 @@ class MetaClient {
           // Got a valid response but only id — no name/username available via this endpoint
           if (data?.id) break;
         } catch (err) {
+          // Re-throw permanent errors upward
+          if (PERMANENT_ERRORS.some(p => err.message.toLowerCase().includes(p))) throw err;
           console.warn(`[MetaClient] Network error fetching profile (${fields}):`, err.message);
         }
       }
@@ -127,6 +143,7 @@ class MetaClient {
     console.warn(`[MetaClient] ⚠️ Could not get profile for ${igScopedUserId} — all endpoints exhausted`);
     return null;
   }
+
 
   async exchangeOAuthCode(code, redirectUri, authType = 'instagram') {
     if (this.mockMode) {

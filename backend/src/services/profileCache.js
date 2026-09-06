@@ -12,6 +12,20 @@ const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 // In-memory Map: igScopedUserId -> { name, username, profile_pic, fetchedAt }
 const profileMap = new Map();
 
+// Permanent-failure set: IDs that returned unrecoverable Meta errors — don't retry these
+const permanentlyFailed = new Set();
+
+// Error messages that indicate permanent failures (not worth retrying)
+const PERMANENT_ERROR_PATTERNS = [
+  'api access deactivated',
+  'cannot parse access token',
+  'invalid oauth access token',
+  'access token has expired',
+  'token has been invalidated',
+  'user does not exist',
+  'object does not exist',
+];
+
 // Hardcoded known testers — always available instantly, no network needed
 const KNOWN_USERS = {
   '1759458871653007': { name: 'sumit bhardwaj', username: 'join_sumit_', profile_pic: 'https://instagram.fdel65-4.fna.fbcdn.net/v/t51.82787-19/671209546_18351709720242986_4694042261133486757_n.jpg?stp=dst-jpg_s206x206_tt6&_nc_cat=104&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=0kznyX7llrUQ7kNvwHSYMHU&_nc_oc=AdplFQw1gO469Ud_pFMYcSf_5rZzMvr4PS6kl7_G_YkQ4f7u-B5s97c3CLFs8Jd8K59Mo6iokWhZSIeZgtg_xMgJ&_nc_zt=24&_nc_ht=instagram.fdel65-4.fna&edm=ALmAK4EEAAAA&_nc_gid=29Tfo3w3z7qQ72CW0TVyBQ&oh=00_AQK6yoIl9tKjgebs3n20Syv3sd-lEutfLMNpl2AVcaQLUw&oe=6AA20743' },
@@ -72,6 +86,9 @@ function get(igScopedUserId) {
 async function fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pageId, retryCount = 0) {
   if (!igScopedUserId) return;
 
+  // Skip permanently failed IDs — no point hammering Meta with dead tokens
+  if (permanentlyFailed.has(igScopedUserId)) return;
+
   // Don't re-fetch if we have a fresh cache entry with a real name
   const cached = profileMap.get(igScopedUserId);
   if (cached && cached.source === 'known') return;
@@ -122,7 +139,7 @@ async function fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pag
         console.warn(`[ProfileCache] DB update failed:`, dbErr.message);
       }
     } else {
-      // Failed to get profile — schedule a retry in 30 seconds (max 3 retries)
+      // Failed to get profile — schedule a retry only for transient failures (max 3 retries)
       if (retryCount < 3) {
         const delay = (retryCount + 1) * 30000; // 30s, 60s, 90s
         console.log(`[ProfileCache] ⏱ Scheduling retry ${retryCount + 1}/3 for ${igScopedUserId} in ${delay / 1000}s`);
@@ -131,11 +148,20 @@ async function fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pag
         }, delay);
       } else {
         console.warn(`[ProfileCache] ❌ Gave up fetching profile for ${igScopedUserId} after 3 retries`);
+        permanentlyFailed.add(igScopedUserId);
       }
     }
   } catch (err) {
     console.warn(`[ProfileCache] Meta fetch failed for ${igScopedUserId}:`, err.message);
-    // Retry once on network errors
+    // Check if this is a permanent error — don't retry if so
+    const errLower = (err.message || '').toLowerCase();
+    const isPermanent = PERMANENT_ERROR_PATTERNS.some(p => errLower.includes(p));
+    if (isPermanent) {
+      console.warn(`[ProfileCache] 🚫 Permanent error for ${igScopedUserId} — blacklisting, no retries`);
+      permanentlyFailed.add(igScopedUserId);
+      return;
+    }
+    // Retry once on transient network errors
     if (retryCount < 2) {
       setTimeout(() => {
         fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pageId, retryCount + 1).catch(() => {});
