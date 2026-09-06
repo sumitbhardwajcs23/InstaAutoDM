@@ -4,6 +4,7 @@ import '../styles/landing.css';
 
 export default function LandingView({ onNavigate, user }) {
   const [billingPeriod, setBillingPeriod] = useState('monthly');
+  const [currency, setCurrency] = useState('INR');
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -893,21 +894,40 @@ export default function LandingView({ onNavigate, user }) {
         <div className="container">
           <div className="pricing-header">
             <h2 className="section-title">Choose the plan<br />that fits your growth.</h2>
-            <p className="section-subtitle">Start free and scale as your audience expands.</p>
+            <p className="section-subtitle">Transparent pricing. No hidden fees. Start free and scale as your audience expands.</p>
 
-            <div className="pricing-toggle">
-              <button
-                className={`toggle-btn ${billingPeriod === 'monthly' ? 'active' : ''}`}
-                onClick={() => setBillingPeriod('monthly')}
-              >
-                Monthly
-              </button>
-              <button
-                className={`toggle-btn ${billingPeriod === 'yearly' ? 'active' : ''}`}
-                onClick={() => setBillingPeriod('yearly')}
-              >
-                Yearly <span className="save-badge">Save 20%</span>
-              </button>
+            <div className="pricing-controls">
+              {/* Currency Selector */}
+              <div className="pricing-currency-toggle">
+                <button
+                  className={`currency-btn ${currency === 'INR' ? 'active' : ''}`}
+                  onClick={() => setCurrency('INR')}
+                >
+                  🇮🇳 ₹ INR
+                </button>
+                <button
+                  className={`currency-btn ${currency === 'USD' ? 'active' : ''}`}
+                  onClick={() => setCurrency('USD')}
+                >
+                  🌐 $ USD
+                </button>
+              </div>
+
+              {/* Monthly vs Yearly Billing */}
+              <div className="pricing-toggle">
+                <button
+                  className={`toggle-btn ${billingPeriod === 'monthly' ? 'active' : ''}`}
+                  onClick={() => setBillingPeriod('monthly')}
+                >
+                  Monthly
+                </button>
+                <button
+                  className={`toggle-btn ${billingPeriod === 'yearly' ? 'active' : ''}`}
+                  onClick={() => setBillingPeriod('yearly')}
+                >
+                  Yearly <span className="save-badge">Save 20%</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -916,7 +936,7 @@ export default function LandingView({ onNavigate, user }) {
             <div className="pricing-card">
               <div className="pricing-name">Starter</div>
               <div className="pricing-price">
-                <span className="currency">$</span>
+                <span className="currency">{currency === 'INR' ? '₹' : '$'}</span>
                 <span className="amount">0</span>
                 <span className="period">/month</span>
               </div>
@@ -940,8 +960,12 @@ export default function LandingView({ onNavigate, user }) {
               <div className="popular-badge">Most popular</div>
               <div className="pricing-name">Pro</div>
               <div className="pricing-price">
-                <span className="currency">$</span>
-                <span className="amount">{billingPeriod === 'yearly' ? '23' : '29'}</span>
+                <span className="currency">{currency === 'INR' ? '₹' : '$'}</span>
+                <span className="amount">
+                  {currency === 'INR'
+                    ? (billingPeriod === 'yearly' ? '799' : '999')
+                    : (billingPeriod === 'yearly' ? '23' : '29')}
+                </span>
                 <span className="period">/month</span>
               </div>
               <ul className="pricing-features">
@@ -963,8 +987,12 @@ export default function LandingView({ onNavigate, user }) {
             <div className="pricing-card">
               <div className="pricing-name">Business</div>
               <div className="pricing-price">
-                <span className="currency">$</span>
-                <span className="amount">{billingPeriod === 'yearly' ? '79' : '99'}</span>
+                <span className="currency">{currency === 'INR' ? '₹' : '$'}</span>
+                <span className="amount">
+                  {currency === 'INR'
+                    ? (billingPeriod === 'yearly' ? '2,399' : '2,999')
+                    : (billingPeriod === 'yearly' ? '79' : '99')}
+                </span>
                 <span className="period">/month</span>
               </div>
               <ul className="pricing-features">
@@ -980,6 +1008,23 @@ export default function LandingView({ onNavigate, user }) {
               >
                 Get Business
               </button>
+            </div>
+          </div>
+
+          <div className="pricing-trust-footer">
+            <div className="pricing-trust-item">
+              <span className="trust-icon">⚡</span>
+              <span><strong>Instant Setup:</strong> Connect Instagram in 2 minutes</span>
+            </div>
+            <div className="pricing-trust-divider">•</div>
+            <div className="pricing-trust-item">
+              <span className="trust-icon">💳</span>
+              <span><strong>Indian & Global Payments:</strong> UPI (GPay, PhonePe, Paytm), RuPay, Cards & NetBanking</span>
+            </div>
+            <div className="pricing-trust-divider">•</div>
+            <div className="pricing-trust-item">
+              <span className="trust-icon">🔒</span>
+              <span><strong>Risk Free:</strong> 7-day money-back guarantee • Cancel anytime</span>
             </div>
           </div>
         </div>
