@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node backend/src/server.js",
     "dev": "node backend/src/server.js",
-    "test": "node tests/autoReply.test.js"
+    "test": "node tests/autoReply.test.js",
+    "db:migrate": "node backend/src/db/migrateToPg.js",
+    "db:reset": "node backend/src/db/resetDb.js"
   },
   "keywords": [],
   "author": "",

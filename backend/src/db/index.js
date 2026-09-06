@@ -1,8 +1,16 @@
 // backend/src/db/index.js
-const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
-const { CREATE_TABLES_SQL } = require('./schema');
+
+// Ensure environment variables are loaded regardless of how this file is called
+try {
+  require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
+  require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+  require('dotenv').config();
+} catch (e) {}
+
+const Database = require('better-sqlite3');
+const { CREATE_TABLES_SQL, CREATE_TABLES_PG_SQL } = require('./schema');
 
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.DB_PATH === ':memory:';
 const PG_URL = isTestEnv ? null : (process.env.DATABASE_URL || 'postgresql://instautoreply_user:ngJK4XtKJSEYDlnXZpevibT2TawWEJWH@dpg-dadvcvf40ujc73d522i0-a.oregon-postgres.render.com/instautoreply');
@@ -81,8 +89,14 @@ if (PG_URL) {
 
     pgPool.query('SELECT NOW()')
       .then(async () => {
-        console.log('[PostgreSQL] ✅ Connected to Render PostgreSQL as Primary Database (Pure PG Mode)');
+        const isNeon = PG_URL.includes('neon.tech');
+        const isRender = PG_URL.includes('render.com');
+        const providerName = isNeon ? 'Neon Serverless PostgreSQL' : (isRender ? 'Render PostgreSQL' : 'PostgreSQL');
+        console.log(`[PostgreSQL] ✅ Connected to ${providerName} as Primary Database (Pure PG Mode)`);
         try {
+          if (CREATE_TABLES_PG_SQL) {
+            await pgPool.query(CREATE_TABLES_PG_SQL);
+          }
           await pgPool.query('ALTER TABLE conversations ADD COLUMN IF NOT EXISTS name TEXT;');
           await pgPool.query('ALTER TABLE conversations ADD COLUMN IF NOT EXISTS profile_pic_url TEXT;');
           await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS page_access_token_enc TEXT;');
