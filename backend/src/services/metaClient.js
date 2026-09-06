@@ -144,35 +144,43 @@ class MetaClient {
       };
     }
 
+    // Use Instagram App ID/Secret when META_IG_APP_ID is set (Instagram Business Login)
+    // Use main Meta App ID otherwise (Facebook OAuth flow)
+    const igAppId = process.env.META_IG_APP_ID;
+    const igAppSecret = process.env.META_IG_APP_SECRET || process.env.META_APP_SECRET;
     const appId = process.env.META_APP_ID;
     const appSecret = process.env.META_APP_SECRET;
     const cleanCode = (code || '').replace(/#_$/, '').trim();
 
     // ─── PATH 1: Instagram Business Login (native instagram.com flow) ────
-    // Tries api.instagram.com first — works when user logged in via instagram.com/oauth/authorize
-    console.log('[MetaClient] Trying Instagram Business Login via api.instagram.com...');
-    try {
-      const formParams = new URLSearchParams({
-        client_id: appId,
-        client_secret: appSecret,
-        grant_type: 'authorization_code',
-        redirect_uri: redirectUri,
-        code: cleanCode,
-      });
-      const igTokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formParams.toString(),
-      });
-      const igTokenData = await igTokenRes.json();
+    // Uses META_IG_APP_ID if set — required when OAuth was initiated via instagram.com/oauth/authorize
+    if (igAppId || authType === 'instagram') {
+      const clientId = igAppId || appId;
+      const clientSecret = igAppId ? igAppSecret : appSecret;
+      console.log(`[MetaClient] Trying Instagram Business Login via api.instagram.com (client_id: ${clientId})...`);
+      try {
+        const formParams = new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri,
+          code: cleanCode,
+        });
+        const igTokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formParams.toString(),
+        });
+        const igTokenData = await igTokenRes.json();
 
-      if (igTokenRes.ok && igTokenData.access_token) {
-        console.log('[MetaClient] ✅ Instagram token received, upgrading to long-lived...');
-        return await this._exchangeInstagramToken(igTokenData.access_token, appId, appSecret);
+        if (igTokenRes.ok && igTokenData.access_token) {
+          console.log('[MetaClient] ✅ Instagram token received, upgrading to long-lived...');
+          return await this._exchangeInstagramToken(igTokenData.access_token, clientId, clientSecret);
+        }
+        console.warn('[MetaClient] Instagram exchange note (will try Facebook fallback):', JSON.stringify(igTokenData));
+      } catch (igErr) {
+        console.warn('[MetaClient] Instagram exchange failed (will try Facebook fallback):', igErr.message);
       }
-      console.warn('[MetaClient] Instagram exchange note (will try Facebook fallback):', JSON.stringify(igTokenData));
-    } catch (igErr) {
-      console.warn('[MetaClient] Instagram exchange failed (will try Facebook fallback):', igErr.message);
     }
 
     // ─── PATH 2: Facebook Login fallback ────────────────────────────────
