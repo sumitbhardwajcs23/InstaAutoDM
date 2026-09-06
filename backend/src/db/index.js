@@ -163,9 +163,12 @@ db.prepare = function (sql) {
   return stmt;
 };
 
-// Provide explicit sync method for routes
+let lastExplicitSync = 0;
+// Provide explicit sync method for routes (throttled to at most once every 30s)
 db.syncFromPgNow = async function () {
-  if (pgPool) {
+  const now = Date.now();
+  if (pgPool && (now - lastExplicitSync > 30000)) {
+    lastExplicitSync = now;
     await syncFromPg(pgPool, db);
   }
 };
