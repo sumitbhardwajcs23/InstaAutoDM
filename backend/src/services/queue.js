@@ -73,7 +73,34 @@ class EventQueueWorker {
 
   async findAccount(accountId) {
     if (!accountId) return null;
-    return await db.prepare('SELECT * FROM instagram_accounts WHERE id = ? OR ig_user_id = ? OR page_id = ? OR fb_user_id = ?').get(accountId, accountId, accountId, accountId);
+    let account = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ? OR ig_user_id = ? OR page_id = ? OR fb_user_id = ?').get(accountId, accountId, accountId, accountId);
+    if (account) return account;
+
+    // Resilient auto-healing: if an account connected before its Instagram Scoped ID was saved,
+    // match candidate accounts via token verification or single active account
+    try {
+      const connected = await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected'").all();
+      for (const candidate of connected) {
+        try {
+          const tok = decrypt(candidate.long_lived_token_enc || candidate.access_token_enc);
+          if (!tok) continue;
+          const res = await fetch(`https://graph.instagram.com/me?fields=id,user_id,username&access_token=${encodeURIComponent(tok)}`);
+          const data = await res.json();
+          if (data && (String(data.user_id) === String(accountId) || String(data.id) === String(accountId))) {
+            await db.prepare("UPDATE instagram_accounts SET ig_user_id = ?, page_id = ?, updated_at = datetime('now') WHERE id = ?").run(accountId, accountId, candidate.id);
+            if (db.getPgPool && db.getPgPool()) {
+              await db.getPgPool().query("UPDATE instagram_accounts SET ig_user_id = $1, page_id = $1, updated_at = NOW() WHERE id = $2", [accountId, candidate.id]);
+            }
+            console.log(`[Queue] 🔗 Dynamically matched and bound webhook accountId ${accountId} to @${candidate.username}`);
+            return await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(candidate.id);
+          }
+        } catch (_) {}
+      }
+    } catch (lookupErr) {
+      console.warn('[Queue] Dynamic account lookup notice:', lookupErr.message);
+    }
+
+    return null;
   }
 
   async processComment(accountId, data) {

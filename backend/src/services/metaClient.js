@@ -402,12 +402,12 @@ class MetaClient {
       if (meData && meData.username) break;
 
       const profileEndpoints = [
-        `https://graph.instagram.com/v22.0/me?fields=id,username,name,account_type,profile_picture_url&access_token=${encodeURIComponent(tok)}`,
-        `https://graph.instagram.com/v21.0/me?fields=id,username,name,account_type,profile_picture_url&access_token=${encodeURIComponent(tok)}`,
-        `https://graph.instagram.com/me?fields=id,username,name,account_type,profile_picture_url&access_token=${encodeURIComponent(tok)}`,
-        `https://graph.instagram.com/me?fields=id,username,name&access_token=${encodeURIComponent(tok)}`,
-        `https://graph.instagram.com/me?fields=id,username,account_type&access_token=${encodeURIComponent(tok)}`,
-        `https://graph.instagram.com/me?fields=id,username&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/v22.0/me?fields=id,user_id,username,name,account_type,profile_picture_url&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/v21.0/me?fields=id,user_id,username,name,account_type,profile_picture_url&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/me?fields=id,user_id,username,name,account_type,profile_picture_url&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/me?fields=id,user_id,username,name&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/me?fields=id,user_id,username,account_type&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/me?fields=id,user_id,username&access_token=${encodeURIComponent(tok)}`,
         detectedId ? `https://graph.instagram.com/v22.0/${detectedId}?fields=id,username,name,account_type&access_token=${encodeURIComponent(tok)}` : null,
         detectedId ? `https://graph.instagram.com/${detectedId}?fields=id,username,name&access_token=${encodeURIComponent(tok)}` : null,
         detectedId ? `https://graph.facebook.com/v21.0/${detectedId}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(tok)}` : null,
@@ -432,7 +432,9 @@ class MetaClient {
           }
 
           if (res.ok && data) {
-            if (data.id && !detectedId) detectedId = String(data.id);
+            if (data.user_id) detectedId = String(data.user_id);
+            else if (data.id && !detectedId) detectedId = String(data.id);
+
             if (data.username) {
               meData = data;
               console.log(`[MetaClient] ✅ Profile fetched from ${ep.split('?')[0]}: @${meData.username}`);
@@ -450,7 +452,9 @@ class MetaClient {
     }
 
     // Step 3: Handle restricted profile (e.g. Meta app in Dev Mode without tester role)
-    const fallbackId = detectedId || igUserId ? String(detectedId || igUserId) : (meData?.id || `ig_${Date.now()}`);
+    const appScopedId = meData?.id ? String(meData.id) : (igUserId ? String(igUserId) : null);
+    const instagramScopedId = meData?.user_id ? String(meData.user_id) : (detectedId || (igUserId ? String(igUserId) : (meData?.id || `ig_${Date.now()}`)));
+    const fallbackId = instagramScopedId;
     let realUsername = meData?.username || null;
     let realName = meData?.name || realUsername || null;
     let accountType = meData?.account_type || 'Creator Account';
@@ -501,7 +505,7 @@ class MetaClient {
       }
     }
 
-    console.log(`[MetaClient] ✅ Instagram account: @${realUsername} (ID: ${fallbackId}, requires_handle: ${requiresHandle})`);
+    console.log(`[MetaClient] ✅ Instagram account: @${realUsername} (IG ID: ${fallbackId}, ASUID: ${appScopedId}, requires_handle: ${requiresHandle})`);
 
     // Step 4: Auto-subscribe Instagram account to webhooks
     try {
@@ -526,7 +530,7 @@ class MetaClient {
       full_name: realName || realUsername,
       profile_picture_url: profilePicUrl,
       account_type: accountType,
-      fb_user_id: null,
+      fb_user_id: appScopedId,
       ig_user_id: fallbackId,
       username: realUsername,
       followers_count: followersCount,
