@@ -332,6 +332,19 @@ router.post('/connect-username', async (req, res) => {
           access_token_enc, page_access_token_enc, long_lived_token_enc,
           token_expires_at, status, disclosure_message, followers_count, account_type, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'connected', '⚡ [Automated DM] ', ?, ?, datetime('now'), datetime('now'))
+        ON CONFLICT (ig_user_id) DO UPDATE SET
+          user_id = EXCLUDED.user_id,
+          username = EXCLUDED.username,
+          full_name = EXCLUDED.full_name,
+          profile_picture_url = EXCLUDED.profile_picture_url,
+          access_token_enc = EXCLUDED.access_token_enc,
+          page_access_token_enc = EXCLUDED.page_access_token_enc,
+          long_lived_token_enc = EXCLUDED.long_lived_token_enc,
+          token_expires_at = EXCLUDED.token_expires_at,
+          status = 'connected',
+          followers_count = EXCLUDED.followers_count,
+          account_type = EXCLUDED.account_type,
+          updated_at = datetime('now')
       `).run(
         accountId, targetUserId, igUserId, rawUsername, fullName, profilePicUrl, pageId, `${rawUsername}'s Page`, fbUserId,
         encToken, encToken, encLongToken,
@@ -665,6 +678,19 @@ router.get('/oauth/callback', async (req, res) => {
           access_token_enc, page_access_token_enc, long_lived_token_enc,
           token_expires_at, status, disclosure_message, followers_count, account_type, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'connected', '⚡ [Automated DM] ', ?, ?, datetime('now'), datetime('now'))
+        ON CONFLICT (ig_user_id) DO UPDATE SET
+          user_id = EXCLUDED.user_id,
+          username = EXCLUDED.username,
+          full_name = EXCLUDED.full_name,
+          profile_picture_url = EXCLUDED.profile_picture_url,
+          access_token_enc = EXCLUDED.access_token_enc,
+          page_access_token_enc = EXCLUDED.page_access_token_enc,
+          long_lived_token_enc = EXCLUDED.long_lived_token_enc,
+          token_expires_at = EXCLUDED.token_expires_at,
+          status = 'connected',
+          followers_count = EXCLUDED.followers_count,
+          account_type = EXCLUDED.account_type,
+          updated_at = datetime('now')
       `).run(
         accountId, user.id, tokenInfo.ig_user_id, tokenInfo.username, fullName, profilePicUrl, tokenInfo.page_id, tokenInfo.page_name, tokenInfo.fb_user_id,
         encPageToken, encPageToken, encLongToken,
