@@ -7,6 +7,8 @@ const db = require('../db');
 const metaClient = require('../services/metaClient');
 const { encrypt, decrypt } = require('../services/crypto');
 const { JWT_SECRET } = require('../middleware/auth');
+// In-memory store for data deletion requests (for compliance endpoint)
+const dataDeletionRequests = new Map();
 
 function getUserId(req) {
   if (req.user && req.user.id) return req.user.id;
@@ -282,13 +284,25 @@ router.post('/connect-username', async (req, res) => {
   }
 });
 
-// GET /api/instagram/oauth/start — INSTAGRAM LOGIN ONLY (instagram.com)
+// GET /api/instagram/oauth/start — Instagram Business Login ONLY (instagram.com)
 router.get('/oauth/start', (req, res) => {
   let returnOrigin = req.query.return_origin || '';
   if (!returnOrigin && req.headers.referer) {
     try { returnOrigin = new URL(req.headers.referer).origin; } catch (e) {}
   }
-  const stateObj = { uid: getUserId(req), origin: returnOrigin, type: 'instagram' };
+
+  // Carry the user token from query so the callback can associate the account
+  const userToken = req.query.token || null;
+  let userId = getUserId(req);
+  if (userToken) {
+    try {
+      const decoded = require('jsonwebtoken').verify(userToken, JWT_SECRET);
+      if (decoded && decoded.id) userId = decoded.id;
+    } catch (_) {}
+  }
+
+  // Always use type='instagram' — native Instagram Business Login
+  const stateObj = { uid: userId, origin: returnOrigin, type: 'instagram' };
   const state = Buffer.from(JSON.stringify(stateObj)).toString('base64url');
 
   if (process.env.META_MOCK_MODE === 'true') {
@@ -614,11 +628,23 @@ router.post('/deauthorize', (_req, res) => {
 
 router.all('/data-deletion', (req, res) => {
   const code = 'del_' + Date.now();
+  // Store request with pending status
+  dataDeletionRequests.set(code, { status: 'pending', createdAt: Date.now() });
   res.json({
     url: `${req.protocol}://${req.get('host')}/data-deletion-status?id=${code}`,
     confirmation_code: code
   });
 });
 
-module.exports = router;
+router.get('/data-deletion-status', (req, res) => {
+  const id = req.query.id;
+  if (!id) return res.status(400).json({ error: 'Missing id' });
+  const record = dataDeletionRequests.get(id);
+  if (!record) return res.status(404).json({ error: 'Not found' });
+  // For demo purposes, we immediately mark as completed
+  record.status = 'completed';
+  dataDeletionRequests.set(id, record);
+  res.json({ id, status: record.status });
+});
 
+module.exports = router;

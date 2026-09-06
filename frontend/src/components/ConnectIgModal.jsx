@@ -1,10 +1,10 @@
 // frontend/src/components/ConnectIgModal.jsx
 import React, { useState, useEffect } from 'react';
-import { X, Instagram, CheckCircle2, Sparkles, ExternalLink, Shield, ArrowRight, UserCheck, Search, Users, Zap } from 'lucide-react';
-import { apiFetch, getToken, getCurrentUser, API_BASE } from '../api/client';
+import { X, Instagram, CheckCircle2, Sparkles, Shield, UserCheck, Search } from 'lucide-react';
+import { apiFetch, getToken } from '../api/client';
 
 export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
-  const [tab, setTab] = useState('oauth'); // 'oauth' | 'quick' | 'token'
+  const [tab, setTab] = useState('oauth'); // 'oauth' | 'quick'
   const [manualToken, setManualToken] = useState('');
   const [quickHandle, setQuickHandle] = useState('');
   const [lookingUp, setLookingUp] = useState(false);
@@ -59,17 +59,14 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     }, 1000);
   };
 
-  // Both OAuth buttons use the backend /oauth/start which uses the correct registered App ID
-  const openOAuthStart = () => {
+  // Instagram-only OAuth — uses native Instagram Business Login (instagram.com)
+  const handleInstagramOAuth = () => {
     const origin = window.location.origin;
     const token = getToken() || '';
     const BACKEND = 'https://instaautodm-kh61.onrender.com';
-    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=facebook&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
     openOAuthPopup(startUrl);
   };
-
-  const handleInstagramOAuth = openOAuthStart;
-  const handleFacebookOAuth = openOAuthStart;
 
 
   const handleLookupProfile = async (e) => {
@@ -286,10 +283,10 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
           Log in with your Instagram account to auto-reply to DMs, comments, and story mentions in real time.
         </p>
 
-        {/* 3-Tab Switcher */}
+        {/* 2-Tab Switcher: Instagram Login | By Username */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '1.2fr 1.2fr 1fr',
+          gridTemplateColumns: '1fr 1fr',
           gap: '6px',
           background: 'var(--bg-subtle)',
           padding: '4px',
@@ -297,22 +294,21 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
           marginBottom: '20px',
         }}>
           {[
-            { id: 'oauth', label: 'Instagram Login', badge: 'Fast' },
-            { id: 'quick', label: 'Quick Handle', badge: 'Instant' },
-            { id: 'token', label: 'Access Token' },
+            { id: 'oauth', label: 'Instagram Login', badge: 'Recommended' },
+            { id: 'quick', label: 'By Username', badge: null },
           ].map((t) => (
             <button
               key={t.id}
               type="button"
               onClick={() => { setTab(t.id); setError(null); }}
               style={{
-                padding: '9px 6px',
+                padding: '10px 8px',
                 borderRadius: '9px',
                 border: 'none',
                 background: tab === t.id ? 'var(--bg-card)' : 'transparent',
                 color: tab === t.id ? 'var(--primary)' : 'var(--text-muted)',
                 fontWeight: tab === t.id ? 700 : 500,
-                fontSize: '12px',
+                fontSize: '12.5px',
                 cursor: 'pointer',
                 boxShadow: tab === t.id ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
                 transition: 'all 0.15s',
@@ -386,74 +382,33 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
               </div>
             </div>
 
-            {/* Primary Instagram Login Button — opens Meta OAuth for Instagram Business/Creator */}
+            {/* Instagram Login Button — opens instagram.com OAuth (Instagram Business Login) */}
             <button
               type="button"
               onClick={handleInstagramOAuth}
               disabled={loading}
               style={{
                 width: '100%',
-                padding: '14px',
+                padding: '15px',
                 borderRadius: '14px',
                 background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
                 color: '#ffffff',
                 border: 'none',
-                fontSize: '14.5px',
+                fontSize: '15px',
                 fontWeight: 700,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                boxShadow: '0 8px 24px rgba(220, 39, 67, 0.35)',
+                boxShadow: '0 8px 28px rgba(220, 39, 67, 0.38)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '10px',
-                marginBottom: '10px',
-                transition: 'transform 0.15s ease',
+                marginBottom: '16px',
+                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                opacity: loading ? 0.75 : 1,
               }}
             >
               <Instagram size={20} />
-              <span>{loading ? 'Opening Login...' : 'Continue with Instagram'}</span>
-            </button>
-            {/* Secondary: Facebook Business Manager login (for those with IG linked via Business Suite) */}
-            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-              <span style={{ fontSize: '11.5px', color: 'var(--text-light)' }}>
-                Instagram linked via Facebook Business Manager?
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleFacebookOAuth}
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '11px',
-                borderRadius: '12px',
-                background: 'var(--bg-subtle)',
-                color: 'var(--text-main)',
-                border: '1px solid var(--border-subtle)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                marginBottom: '16px',
-                transition: 'background 0.15s',
-              }}
-            >
-              <span style={{
-                background: '#1877F2',
-                color: '#ffffff',
-                borderRadius: '50%',
-                width: '18px',
-                height: '18px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '12px',
-                fontWeight: 800,
-              }}>f</span>
-              <span>Continue with Facebook Page</span>
+              <span>{loading ? 'Opening Instagram Login...' : 'Continue with Instagram'}</span>
             </button>
 
             <div style={{
@@ -671,60 +626,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
           </div>
         )}
 
-        {/* TAB 3: ACCESS TOKEN */}
-        {tab === 'token' && (
-          <form onSubmit={handleManualTokenConnect} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ textAlign: 'left' }}>
-              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                Meta Access Token
-              </label>
-              <textarea
-                rows={3}
-                required
-                value={manualToken}
-                onChange={(e) => setManualToken(e.target.value)}
-                placeholder="Paste token starting with EAABsb... or IGAA..."
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-subtle)',
-                  fontSize: '12.5px',
-                  outline: 'none',
-                  fontFamily: 'monospace',
-                }}
-              />
-              <span style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '4px', display: 'block' }}>
-                Auto-discovers your linked Instagram Business or Creator account and subscribes to webhooks.
-              </span>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '13px',
-                borderRadius: '12px',
-                background: 'var(--primary-gradient)',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '14px',
-                fontWeight: 700,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                boxShadow: '0 6px 18px rgba(99, 102, 241, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
-            >
-              <Sparkles size={16} />
-              <span>{loading ? 'Verifying with Meta API...' : 'Verify & Connect Account'}</span>
-            </button>
-          </form>
-        )}
 
         <button
           type="button"
