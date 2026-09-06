@@ -15,7 +15,7 @@ router.get('/instagram', (req, res) => {
   res.sendStatus(403);
 });
 
-router.post('/instagram', (req, res) => {
+router.post('/instagram', async (req, res) => {
   console.log('[Webhook] 🔔 Incoming webhook request received from Meta!');
   const signature = req.headers['x-hub-signature-256'];
   const rawBody = req.rawBody || JSON.stringify(req.body);
@@ -30,7 +30,7 @@ router.post('/instagram', (req, res) => {
   console.log('[Webhook] Payload received:', JSON.stringify(payload));
   const eventId = uuidv4();
   try {
-    db.prepare("INSERT INTO webhook_events (id, event_type, payload, status, created_at) VALUES (?, ?, ?, 'pending', datetime('now'))").run(eventId, payload.entry?.[0]?.changes?.[0]?.field || 'webhook', JSON.stringify(payload));
+    await db.prepare("INSERT INTO webhook_events (id, event_type, payload, status, created_at) VALUES (?, ?, ?, 'pending', datetime('now'))").run(eventId, payload.entry?.[0]?.changes?.[0]?.field || 'webhook', JSON.stringify(payload));
   } catch (e) { console.error('[Webhook] Save error:', e.message); }
 
   try {
@@ -100,9 +100,9 @@ router.post('/instagram', (req, res) => {
 
       }
     }
-    db.prepare("UPDATE webhook_events SET status='processed', processed_at=datetime('now') WHERE id=?").run(eventId);
+    await db.prepare("UPDATE webhook_events SET status='processed', processed_at=datetime('now') WHERE id=?").run(eventId);
   } catch (e) {
-    db.prepare("UPDATE webhook_events SET status='failed', error=? WHERE id=?").run(e.message, eventId);
+    await db.prepare("UPDATE webhook_events SET status='failed', error=? WHERE id=?").run(e.message, eventId);
   }
   res.status(200).json({ received: true });
 });

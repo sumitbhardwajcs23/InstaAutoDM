@@ -6,15 +6,28 @@ const queue = require('../services/queue');
 
 const FREE_CAP = parseInt(process.env.FREE_PLAN_DM_LIMIT || '1000', 10);
 
-router.get('/', (req, res) => {
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+router.get('/', async (req, res) => {
+  let user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (!user && req.user.id) {
+    const email = req.user.email || `${req.user.id}@user.local`;
+    const name = req.user.name || 'Creator';
+    const now = new Date().toISOString();
+    try {
+      await db.prepare(`
+        INSERT INTO users (id, email, name, plan, dm_usage_this_period, usage_period_start, created_at, updated_at)
+        VALUES (?, ?, ?, 'free', 0, ?, ?, ?)
+      `).run(req.user.id, email, name, now.slice(0, 10), now, now);
+      user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    } catch (_) {
+      user = { id: req.user.id, dm_usage_this_period: 0, plan: 'free' };
+    }
+  }
 
-  const account = db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' LIMIT 1").get(req.user.id)
-               || db.prepare("SELECT id FROM instagram_accounts WHERE status = 'connected' LIMIT 1").get();
+  const account = (await db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' LIMIT 1").get(req.user.id))
+               || (await db.prepare("SELECT id FROM instagram_accounts WHERE status = 'connected' LIMIT 1").get());
   
-  const totalSentReplies = account ? db.prepare("SELECT COUNT(*) as c FROM comment_replies WHERE status='sent' AND instagram_account_id=?").get(account.id)?.c || 0 : 0;
-  const totalSentDMs = account ? db.prepare("SELECT COUNT(*) as c FROM messages WHERE direction='outbound' AND status='sent' AND conversation_id IN (SELECT id FROM conversations WHERE instagram_account_id=?)").get(account.id)?.c || 0 : 0;
+  const totalSentReplies = account ? (await db.prepare("SELECT COUNT(*) as c FROM comment_replies WHERE status='sent' AND instagram_account_id=?").get(account.id))?.c || 0 : 0;
+  const totalSentDMs = account ? (await db.prepare("SELECT COUNT(*) as c FROM messages WHERE direction='outbound' AND status='sent' AND conversation_id IN (SELECT id FROM conversations WHERE instagram_account_id=?)").get(account.id))?.c || 0 : 0;
   const usagePercent = Math.min(100, Math.round((user.dm_usage_this_period / FREE_CAP) * 100));
 
   const slidingWindows = account ? queue.getRateLimitStatus(account.id) : {
@@ -40,8 +53,8 @@ router.get('/', (req, res) => {
   });
 });
 
-router.post('/reset', (req, res) => {
-  db.prepare("UPDATE users SET dm_usage_this_period=0, usage_period_start=date('now') WHERE id=?").run(req.user.id);
+router.post('/reset', async (req, res) => {
+  await db.prepare("UPDATE users SET dm_usage_this_period=0, usage_period_start=date('now') WHERE id=?").run(req.user.id);
   res.json({ success: true, dms_sent_period: 0 });
 });
 

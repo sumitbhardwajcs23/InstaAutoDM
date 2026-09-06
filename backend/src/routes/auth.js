@@ -22,7 +22,7 @@ router.post('/register', async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase().trim());
     if (existing) return res.status(409).json({ error: 'An account with this email already exists' });
 
     const password_hash = await bcrypt.hash(password, 12);
@@ -30,12 +30,12 @@ router.post('/register', async (req, res) => {
     const now = new Date().toISOString();
     const displayName = name || email.split('@')[0];
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO users (id, email, name, plan, password_hash, dm_usage_this_period, usage_period_start, created_at, updated_at)
       VALUES (?, ?, ?, 'free', ?, 0, ?, ?, ?)
     `).run(userId, email.toLowerCase().trim(), displayName, password_hash, now.slice(0, 10), now, now);
 
-    const user = db.prepare('SELECT id, email, name, plan FROM users WHERE id = ?').get(userId);
+    const user = await db.prepare('SELECT id, email, name, plan FROM users WHERE id = ?').get(userId);
     const token = makeToken(user);
 
     res.status(201).json({ token, user });
@@ -51,7 +51,7 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
     if (!user) return res.status(401).json({ error: 'Invalid email or password' });
 
     if (!user.password_hash) {
@@ -70,8 +70,8 @@ router.post('/login', async (req, res) => {
 });
 
 // GET /api/auth/me  (requires auth)
-router.get('/me', requireAuth, (req, res) => {
-  const user = db.prepare('SELECT id, email, name, plan, dm_usage_this_period, usage_period_start, created_at FROM users WHERE id = ?').get(req.user.id);
+router.get('/me', requireAuth, async (req, res) => {
+  const user = await db.prepare('SELECT id, email, name, plan, dm_usage_this_period, usage_period_start, created_at FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ user });
 });

@@ -5,8 +5,8 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const queue = require('../services/queue');
 
-function getAccount(userId) {
-  return db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' LIMIT 1").get(userId);
+async function getAccount(userId) {
+  return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' LIMIT 1").get(userId);
 }
 
 router.post('/comment', async (req, res) => {
@@ -16,7 +16,7 @@ router.post('/comment', async (req, res) => {
   const days_ago = req.body.days_ago !== undefined ? req.body.days_ago : (req.body.days_old !== undefined ? req.body.days_old : 0);
   const duplicate = req.body.duplicate || false;
 
-  const account = getAccount(req.user.id);
+  const account = await getAccount(req.user.id);
   if (!account) return res.status(400).json({ error: 'No connected Instagram account' });
 
   const ts = Date.now() - (days_ago * 86400000);
@@ -36,8 +36,8 @@ router.post('/comment', async (req, res) => {
   // Wait for worker processing
   await new Promise(r => setTimeout(r, 300));
 
-  const reply = db.prepare('SELECT * FROM comment_replies WHERE comment_id = ?').get(comment_id);
-  const matchedRule = db.prepare('SELECT * FROM automation_rules WHERE instagram_account_id = ? AND is_active = 1').all(account.id).find(r => {
+  const reply = await db.prepare('SELECT * FROM comment_replies WHERE comment_id = ?').get(comment_id);
+  const matchedRule = (await db.prepare('SELECT * FROM automation_rules WHERE instagram_account_id = ? AND is_active = 1').all(account.id)).find(r => {
     return queue.matchKeyword(comment_text, r.trigger_keyword, r.match_mode);
   });
 
@@ -89,7 +89,7 @@ router.post('/dm', async (req, res) => {
   const sender_id = req.body.sender_id || `uid_${uuidv4().slice(0, 8)}`;
   const hours_ago = req.body.hours_ago !== undefined ? req.body.hours_ago : 0;
 
-  const account = getAccount(req.user.id);
+  const account = await getAccount(req.user.id);
   if (!account) return res.status(400).json({ error: 'No connected Instagram account' });
 
   const ts = Date.now() - (hours_ago * 3600000);
@@ -105,9 +105,9 @@ router.post('/dm', async (req, res) => {
   const jobId = queue.enqueue({ type: 'messages', accountId: account.ig_user_id, data });
   await new Promise(r => setTimeout(r, 500));
 
-  const conv = db.prepare('SELECT * FROM conversations WHERE instagram_account_id = ? AND ig_scoped_user_id = ?').get(account.id, sender_id);
-  const sentMsg = conv ? db.prepare("SELECT * FROM messages WHERE conversation_id = ? AND direction = 'outbound' ORDER BY created_at DESC LIMIT 1").get(conv.id) : null;
-  const matchedRule = db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND type = 'dm_keyword_reply' AND is_active = 1").all(account.id).find(r => {
+  const conv = await db.prepare('SELECT * FROM conversations WHERE instagram_account_id = ? AND ig_scoped_user_id = ?').get(account.id, sender_id);
+  const sentMsg = conv ? await db.prepare("SELECT * FROM messages WHERE conversation_id = ? AND direction = 'outbound' ORDER BY created_at DESC LIMIT 1").get(conv.id) : null;
+  const matchedRule = (await db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND type = 'dm_keyword_reply' AND is_active = 1").all(account.id)).find(r => {
     return queue.matchKeyword(text, r.trigger_keyword, r.match_mode);
   });
 
@@ -149,7 +149,7 @@ router.post('/burst', async (req, res) => {
   const type = req.body.type || 'comment';
   const keyword = req.body.keyword || (type === 'dm' ? 'PRICING' : 'GUIDE');
 
-  const account = getAccount(req.user.id);
+  const account = await getAccount(req.user.id);
   if (!account) return res.status(400).json({ error: 'No connected Instagram account' });
 
   let sent = 0;

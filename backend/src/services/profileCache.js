@@ -42,9 +42,9 @@ for (const [id, info] of Object.entries(KNOWN_USERS)) {
 }
 
 // Pre-warm from DB on startup — loads all existing profiles so no DB call needed on next message
-function prewarm() {
+async function prewarm() {
   try {
-    const rows = db.prepare(
+    const rows = await db.prepare(
       "SELECT ig_scoped_user_id, name, username, profile_pic_url FROM conversations WHERE name IS NOT NULL AND name != 'user' AND name != ''"
     ).all();
     for (const row of rows) {
@@ -126,7 +126,7 @@ async function fetchAndCache(igScopedUserId, accessTokenEnc, conversationId, pag
 
       // Persist to DB — update ALL conversations for this IGSID, not just this one
       try {
-        db.prepare(`
+        await db.prepare(`
           UPDATE conversations SET
             name = COALESCE(?, name),
             username = COALESCE(?, username),

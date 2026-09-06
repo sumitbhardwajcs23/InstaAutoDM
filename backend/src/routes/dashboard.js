@@ -5,21 +5,18 @@ const db = require('../db');
 
 const FREE_CAP = parseInt(process.env.FREE_PLAN_DM_LIMIT || '1000', 10);
 
-function getAccountForUser(userId, accountId) {
+async function getAccountForUser(userId, accountId) {
   if (accountId) {
-    return db.prepare("SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') LIMIT 1").get(userId, accountId);
+    return await db.prepare("SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') LIMIT 1").get(userId, accountId);
   }
-  let acc = db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') ORDER BY updated_at DESC LIMIT 1").get(userId);
+  let acc = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC LIMIT 1").get(userId);
   if (acc) return acc;
 
   // Self-heal: If an active connected account exists in DB, link it to active user
-  const anyConnected = db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') ORDER BY updated_at DESC LIMIT 1").get();
+  const anyConnected = await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC LIMIT 1").get();
   if (anyConnected && userId) {
     try {
-      db.prepare("UPDATE instagram_accounts SET user_id = ? WHERE id = ?").run(userId, anyConnected.id);
-      if (db.getPgPool && db.getPgPool()) {
-        db.getPgPool().query("UPDATE instagram_accounts SET user_id = $1 WHERE id = $2", [userId, anyConnected.id]).catch(() => {});
-      }
+      await db.prepare("UPDATE instagram_accounts SET user_id = ? WHERE id = ?").run(userId, anyConnected.id);
     } catch (_) {}
     return anyConnected;
   }
@@ -27,10 +24,24 @@ function getAccountForUser(userId, accountId) {
 }
 
 // GET /api/dashboard/stats
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
   const userId = req.user.id;
-  const account = getAccountForUser(userId, req.query.account_id);
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  const account = await getAccountForUser(userId, req.query.account_id);
+  let user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  if (!user && userId) {
+    const email = req.user.email || `${userId}@user.local`;
+    const name = req.user.name || 'Creator';
+    const now = new Date().toISOString();
+    try {
+      await db.prepare(`
+        INSERT INTO users (id, email, name, plan, dm_usage_this_period, usage_period_start, created_at, updated_at)
+        VALUES (?, ?, ?, 'free', 0, ?, ?, ?)
+      `).run(userId, email, name, now.slice(0, 10), now, now);
+      user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    } catch (_) {
+      user = { id: userId, dm_usage_this_period: 0, plan: 'free' };
+    }
+  }
 
   if (!account || !user) {
     return res.json({
@@ -50,26 +61,40 @@ router.get('/stats', (req, res) => {
 
   const totalDmsSent = user.dm_usage_this_period || 0;
 
-  const commentsThisMonth = db.prepare(`
+  const commentsThisMonth = (await db.prepare(`
     SELECT COUNT(*) as count FROM comment_replies 
     WHERE instagram_account_id = ? AND status = 'sent'
     AND created_at >= date('now','start of month')
-  `).get(account.id)?.count || 0;
+  `).get(account.id))?.count || 0;
 
-  const commentsLastMonth = db.prepare(`
+  const commentsLastMonth = (await db.prepare(`
     SELECT COUNT(*) as count FROM comment_replies 
     WHERE instagram_account_id = ? AND status = 'sent'
     AND created_at >= date('now','start of month','-1 month')
     AND created_at < date('now','start of month')
-  `).get(account.id)?.count || 0;
+  `).get(account.id))?.count || 0;
 
   const changePercent = commentsLastMonth > 0
     ? Math.round(((commentsThisMonth - commentsLastMonth) / commentsLastMonth) * 100)
     : 0;
 
-  const activeRules = db.prepare('SELECT COUNT(*) as count FROM automation_rules WHERE instagram_account_id = ? AND is_active = 1').get(account.id)?.count || 0;
-  const totalRules = db.prepare('SELECT COUNT(*) as count FROM automation_rules WHERE instagram_account_id = ?').get(account.id)?.count || 0;
+  const activeRules = (await db.prepare('SELECT COUNT(*) as count FROM automation_rules WHERE instagram_account_id = ? AND is_active = 1').get(account.id))?.count || 0;
+  const totalRules = (await db.prepare('SELECT COUNT(*) as count FROM automation_rules WHERE instagram_account_id = ?').get(account.id))?.count || 0;
   const usagePercent = Math.min(100, Math.round((totalDmsSent / FREE_CAP) * 100));
+
+  const recent_conversations = (await db.prepare(`
+    SELECT * FROM conversations
+    WHERE instagram_account_id = ?
+    ORDER BY updated_at DESC
+    LIMIT 5
+  `).all(account.id)).map(c => {
+    const lastUserTime = new Date(c.last_user_message_at || c.updated_at).getTime();
+    return {
+      ...c,
+      last_message_at: c.updated_at || c.last_user_message_at,
+      is_window_active: (lastUserTime + 24 * 3600000) > Date.now()
+    };
+  });
 
   res.json({
     connected: true,
@@ -108,19 +133,7 @@ router.get('/stats', (req, res) => {
       active_rules: activeRules,
       total_rules: totalRules
     },
-    recent_conversations: db.prepare(`
-      SELECT * FROM conversations
-      WHERE instagram_account_id = ?
-      ORDER BY updated_at DESC
-      LIMIT 5
-    `).all(account.id).map(c => {
-      const lastUserTime = new Date(c.last_user_message_at || c.updated_at).getTime();
-      return {
-        ...c,
-        last_message_at: c.updated_at || c.last_user_message_at,
-        is_window_active: (lastUserTime + 24 * 3600000) > Date.now()
-      };
-    })
+    recent_conversations
   });
 });
 

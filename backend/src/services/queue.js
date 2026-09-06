@@ -60,31 +60,31 @@ class EventQueueWorker {
     return mode === 'exact' ? t === k : t.includes(k);
   }
 
-  updateActivityLog(accountId, type) {
+  async updateActivityLog(accountId, type) {
     const today = new Date().toISOString().slice(0, 10);
-    const existing = db.prepare('SELECT id FROM activity_log WHERE instagram_account_id = ? AND event_date = ?').get(accountId, today);
+    const existing = await db.prepare('SELECT id FROM activity_log WHERE instagram_account_id = ? AND event_date = ?').get(accountId, today);
     if (existing) {
-      if (type === 'comment') db.prepare('UPDATE activity_log SET comments_replied = comments_replied + 1 WHERE instagram_account_id = ? AND event_date = ?').run(accountId, today);
-      else db.prepare('UPDATE activity_log SET dms_sent = dms_sent + 1 WHERE instagram_account_id = ? AND event_date = ?').run(accountId, today);
+      if (type === 'comment') await db.prepare('UPDATE activity_log SET comments_replied = comments_replied + 1 WHERE instagram_account_id = ? AND event_date = ?').run(accountId, today);
+      else await db.prepare('UPDATE activity_log SET dms_sent = dms_sent + 1 WHERE instagram_account_id = ? AND event_date = ?').run(accountId, today);
     } else {
-      db.prepare('INSERT INTO activity_log (id, instagram_account_id, event_date, dms_sent, comments_replied) VALUES (?, ?, ?, ?, ?)').run(uuidv4(), accountId, today, type === 'dm' ? 1 : 0, type === 'comment' ? 1 : 0);
+      await db.prepare('INSERT INTO activity_log (id, instagram_account_id, event_date, dms_sent, comments_replied) VALUES (?, ?, ?, ?, ?)').run(uuidv4(), accountId, today, type === 'dm' ? 1 : 0, type === 'comment' ? 1 : 0);
     }
   }
 
-  findAccount(accountId) {
+  async findAccount(accountId) {
     if (!accountId) return null;
-    return db.prepare('SELECT * FROM instagram_accounts WHERE id = ? OR ig_user_id = ? OR page_id = ? OR fb_user_id = ?').get(accountId, accountId, accountId, accountId);
+    return await db.prepare('SELECT * FROM instagram_accounts WHERE id = ? OR ig_user_id = ? OR page_id = ? OR fb_user_id = ?').get(accountId, accountId, accountId, accountId);
   }
 
   async processComment(accountId, data) {
     const { commentId, text, commenterId, commenterUsername, createdTime } = data;
     const now = Date.now();
-    const account = this.findAccount(accountId);
+    const account = await this.findAccount(accountId);
     if (!account) {
       console.warn(`[Worker] ⚠️ No Instagram account found for comment accountId: ${accountId}`);
       return;
     }
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(account.user_id);
+    const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(account.user_id);
     if (!user) return;
 
     // Prevent replying to comments authored by the account itself
@@ -96,18 +96,18 @@ class EventQueueWorker {
     }
 
     // Idempotency
-    if (db.prepare('SELECT id FROM comment_replies WHERE comment_id = ?').get(commentId)) return;
+    if (await db.prepare('SELECT id FROM comment_replies WHERE comment_id = ?').get(commentId)) return;
 
     // 7-day window
     const tsNum = Number(createdTime);
     let rawCommentTime = (!isNaN(tsNum) && tsNum > 0) ? (tsNum < 1e11 ? tsNum * 1000 : tsNum) : (Date.parse(createdTime) || now);
     const commentTs = (isNaN(rawCommentTime) || rawCommentTime < 1650000000000) ? now : rawCommentTime;
     if (now - commentTs > MAX_COMMENT_AGE_MS) {
-      db.prepare('INSERT INTO comment_replies (id, comment_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, account.id, commenterUsername || 'user', text || '', 'window_closed', 'Comment older than 7 days');
+      await db.prepare('INSERT INTO comment_replies (id, comment_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, account.id, commenterUsername || 'user', text || '', 'window_closed', 'Comment older than 7 days');
       return;
     }
 
-    const rules = db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND type = 'comment_to_dm' AND is_active = 1").all(account.id);
+    const rules = await db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND type = 'comment_to_dm' AND is_active = 1").all(account.id);
     const rule = rules.find(r => this.matchKeyword(text, r.trigger_keyword, r.match_mode));
     if (!rule) {
       console.log(`[Worker] No comment_to_dm rule matched for: "${text}" on @${account.username}`);
@@ -115,7 +115,7 @@ class EventQueueWorker {
     }
 
     if (user.dm_usage_this_period >= FREE_CAP) {
-      db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', 'usage_capped', 'Free plan monthly cap reached');
+      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', 'usage_capped', 'Free plan monthly cap reached');
       return;
     }
 
@@ -125,15 +125,15 @@ class EventQueueWorker {
     const msg = rawMsg.replace(/\{username\}/gi, commenterUsername || 'there');
     try {
       const resp = await metaClient.sendPrivateCommentReply({ pageId: account.page_id, commentId, messageText: msg, accessToken: decrypt(account.access_token_enc) });
-      db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, reply_sent, status, meta_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', msg, 'sent', resp.message_id);
-      db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
-      db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
-      this.updateActivityLog(account.id, 'comment');
+      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, reply_sent, status, meta_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', msg, 'sent', resp.message_id);
+      await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
+      await db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
+      await this.updateActivityLog(account.id, 'comment');
       // Upsert conversation for log
-      this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
+      await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
       console.log(`[Worker] ✅ Private reply to comment ${commentId} (Rule: "${rule.trigger_keyword}")`);
     } catch (err) {
-      db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, reply_sent, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', msg, 'failed', err.message);
+      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, reply_sent, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', msg, 'failed', err.message);
       if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
       throw err;
     }
@@ -145,12 +145,12 @@ class EventQueueWorker {
     const tsNum = Number(timestamp);
     let rawEventTime = (!isNaN(tsNum) && tsNum > 0) ? (tsNum < 1e11 ? tsNum * 1000 : tsNum) : (Date.parse(timestamp) || now);
     const eventTime = (isNaN(rawEventTime) || rawEventTime < 1650000000000) ? now : rawEventTime;
-    const account = this.findAccount(accountId);
+    const account = await this.findAccount(accountId);
     if (!account) {
       console.warn(`[Worker] ⚠️ No Instagram account found for message accountId: ${accountId}`);
       return;
     }
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(account.user_id);
+    const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(account.user_id);
     if (!user) return;
 
     // Prevent replying to messages sent by the account itself
@@ -174,11 +174,11 @@ class EventQueueWorker {
     const nowIso = new Date(eventTime).toISOString();
 
     // Upsert conversation immediately with best available data (cache-first, no blocking wait)
-    const convId = this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, text, 'inbound', 'open', nowIso);
+    const convId = await this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, text, 'inbound', 'open', nowIso);
 
     // Log inbound message with the event timestamp so ordering is correct
     const inboundCreatedAt = new Date(eventTime).toISOString();
-    db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'inbound', text || '', 'received', messageId || null, inboundCreatedAt);
+    await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'inbound', text || '', 'received', messageId || null, inboundCreatedAt);
 
     // --- STEP 2: Background profile enrichment (non-blocking async) ---
     // For brand new users without a name, kick off a Meta API fetch in the background.
@@ -187,7 +187,7 @@ class EventQueueWorker {
       profileCache.fetchAndCache(senderId, account.access_token_enc, convId, account.page_id).catch(() => {});
     }
 
-    const rules = db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND type = 'dm_keyword_reply' AND is_active = 1").all(account.id);
+    const rules = await db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND type = 'dm_keyword_reply' AND is_active = 1").all(account.id);
     const rule = rules.find(r => this.matchKeyword(text, r.trigger_keyword, r.match_mode));
     if (!rule) {
       console.log(`[Worker] No dm_keyword_reply rule matched for "${text}" on @${account.username}`);
@@ -198,13 +198,13 @@ class EventQueueWorker {
     if (now - eventTime > MAX_DM_WINDOW_MS) {
       // Outbound entries for closed window — use a timestamp 1s after inbound
       const closedOutTs = new Date(eventTime + 1000).toISOString();
-      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'window_closed', '24-hour window expired', closedOutTs);
+      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'window_closed', '24-hour window expired', closedOutTs);
       return;
     }
 
     if (user.dm_usage_this_period >= FREE_CAP) {
       const cappedOutTs = new Date(eventTime + 1000).toISOString();
-      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped', 'Free cap reached', cappedOutTs);
+      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped', 'Free cap reached', cappedOutTs);
       return;
     }
 
@@ -219,28 +219,28 @@ class EventQueueWorker {
       const resp = await metaClient.sendDirectMessage({ pageId: account.page_id, igScopedUserId: senderId, messageText: msg, accessToken: decrypt(account.access_token_enc) });
       // Outbound auto-reply timestamp: 1 second after the inbound event to ensure correct ordering
       const outboundCreatedAt = new Date(eventTime + 1000).toISOString();
-      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'sent', resp.message_id, outboundCreatedAt);
-      db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
-      db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
-      this.updateActivityLog(account.id, 'dm');
-      this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, msg, 'outbound', 'replied', new Date().toISOString());
+      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'sent', resp.message_id, outboundCreatedAt);
+      await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
+      await db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
+      await this.updateActivityLog(account.id, 'dm');
+      await this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, msg, 'outbound', 'replied', new Date().toISOString());
       console.log(`[Worker] ✅ DM auto-reply sent to ${realName || finalUsername} (Rule: "${rule.trigger_keyword}")`);
     } catch (err) {
       const outboundFailCreatedAt = new Date(eventTime + 1000).toISOString();
-      db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'failed', err.message, outboundFailCreatedAt);
+      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'failed', err.message, outboundFailCreatedAt);
       if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
       throw err;
     }
   }
 
-  upsertConversation(accountId, igUserId, username, name = null, profilePic = null, lastMessage = '', direction = 'inbound', status = 'open', lastMsgAt = null) {
+  async upsertConversation(accountId, igUserId, username, name = null, profilePic = null, lastMessage = '', direction = 'inbound', status = 'open', lastMsgAt = null) {
     const nowIso = lastMsgAt || new Date().toISOString();
-    const existing = db.prepare('SELECT id, username, name, profile_pic_url FROM conversations WHERE instagram_account_id = ? AND ig_scoped_user_id = ?').get(accountId, igUserId);
+    const existing = await db.prepare('SELECT id, username, name, profile_pic_url FROM conversations WHERE instagram_account_id = ? AND ig_scoped_user_id = ?').get(accountId, igUserId);
     if (existing) {
       const resolvedUsername = (username && username.toLowerCase() !== 'user') ? username : existing.username;
       const resolvedName = name || existing.name;
       const resolvedPic = profilePic || existing.profile_pic_url;
-      db.prepare(`
+      await db.prepare(`
         UPDATE conversations SET 
           username = ?,
           name = ?,
@@ -254,7 +254,7 @@ class EventQueueWorker {
       return existing.id;
     } else {
       const id = uuidv4();
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO conversations (
           id, instagram_account_id, ig_scoped_user_id, username, name, profile_pic_url, avatar_seed,
           last_message, last_message_direction, status, last_user_message_at, created_at, updated_at

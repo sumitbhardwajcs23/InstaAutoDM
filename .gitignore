@@ -15,8 +15,8 @@ data/*.db-shm
 *.db
 
 # Build outputs
-frontend/dist/
-dist/
+# frontend/dist/ is intentionally committed for instant zero-config Render deploys
+/dist/
 
 # Logs & temp
 *.log

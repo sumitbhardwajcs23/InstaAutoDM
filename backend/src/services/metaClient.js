@@ -446,7 +446,7 @@ class MetaClient {
         // Look in DB to see if this exact igUserId was previously connected with a valid handle
         try {
           const db = require('../db');
-          const existing = db.prepare("SELECT username, full_name, account_type FROM instagram_accounts WHERE ig_user_id = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') LIMIT 1").get(fallbackId);
+          const existing = await db.prepare("SELECT username, full_name, account_type FROM instagram_accounts WHERE ig_user_id = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') LIMIT 1").get(fallbackId);
           if (existing && existing.username) {
             realUsername = existing.username;
             realName = existing.full_name || existing.username;

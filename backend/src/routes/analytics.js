@@ -4,14 +4,14 @@ const router = express.Router();
 const db = require('../db');
 
 // GET /api/analytics/activity?days=30
-router.get('/activity', (req, res) => {
+router.get('/activity', async (req, res) => {
   const days = Math.min(Math.max(parseInt(req.query.days) || 7, 1), 90);
   const accountId = req.query.account_id;
   const account = accountId 
-    ? (db.prepare("SELECT id FROM instagram_accounts WHERE (user_id = ? OR id = ?) LIMIT 1").get(req.user.id, accountId))
-    : (db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(req.user.id)
-       || db.prepare("SELECT id FROM instagram_accounts WHERE status = 'connected' ORDER BY updated_at DESC LIMIT 1").get()
-       || db.prepare("SELECT id FROM instagram_accounts ORDER BY updated_at DESC LIMIT 1").get());
+    ? (await db.prepare("SELECT id FROM instagram_accounts WHERE (user_id = ? OR id = ?) LIMIT 1").get(req.user.id, accountId))
+    : ((await db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(req.user.id))
+       || (await db.prepare("SELECT id FROM instagram_accounts WHERE status = 'connected' ORDER BY updated_at DESC LIMIT 1").get())
+       || (await db.prepare("SELECT id FROM instagram_accounts ORDER BY updated_at DESC LIMIT 1").get()));
   if (!account) return res.json({ days, labels: [], dmsSent: [], commentsReplied: [], timeline: [], totals: { dms_sent: 0, comments_replied: 0 } });
 
   const dates = [];
@@ -21,7 +21,7 @@ router.get('/activity', (req, res) => {
   }
 
   const activityMap = {};
-  const rows = db.prepare(`
+  const rows = await db.prepare(`
     SELECT event_date, dms_sent, comments_replied 
     FROM activity_log 
     WHERE instagram_account_id = ? AND event_date >= ?

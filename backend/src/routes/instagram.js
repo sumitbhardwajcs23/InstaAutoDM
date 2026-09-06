@@ -10,10 +10,10 @@ const { JWT_SECRET } = require('../middleware/auth');
 // In-memory store for data deletion requests (for compliance endpoint)
 const dataDeletionRequests = new Map();
 
-function getUserId(req) {
+async function getUserId(req) {
   if (req.user && req.user.id) return req.user.id;
   try {
-    const user = db.prepare('SELECT id FROM users ORDER BY created_at ASC LIMIT 1').get();
+    const user = await db.prepare('SELECT id FROM users ORDER BY created_at ASC LIMIT 1').get();
     if (user && user.id) return user.id;
   } catch (e) {}
   return 'admin_user';
@@ -37,15 +37,15 @@ router.use((req, _res, next) => {
 });
 
 // GET /api/instagram/account — scoped to logged-in user
-router.get('/account', (req, res) => {
+router.get('/account', async (req, res) => {
   const accountId = req.query.account_id;
-  const uid = getUserId(req);
+  const uid = await getUserId(req);
   let account;
   if (accountId) {
-    account = db.prepare("SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') LIMIT 1").get(uid, accountId);
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') LIMIT 1").get(uid, accountId);
   } else {
-    account = db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') ORDER BY updated_at DESC LIMIT 1").get(uid)
-           || db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') ORDER BY updated_at DESC LIMIT 1").get();
+    account = (await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC LIMIT 1").get(uid))
+           || (await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC LIMIT 1").get());
   }
 
   if (!account) return res.json({ connected: false, account: null });
@@ -53,7 +53,7 @@ router.get('/account', (req, res) => {
   // Self-heal: ensure active connected account belongs to current active user
   if (account.user_id !== uid && uid && uid !== 'admin_user') {
     try {
-      db.prepare("UPDATE instagram_accounts SET user_id = ? WHERE id = ?").run(uid, account.id);
+      await db.prepare("UPDATE instagram_accounts SET user_id = ? WHERE id = ?").run(uid, account.id);
       if (db.getPgPool && db.getPgPool()) {
         db.getPgPool().query("UPDATE instagram_accounts SET user_id = $1 WHERE id = $2", [uid, account.id]).catch(() => {});
       }
@@ -71,15 +71,15 @@ router.get('/account', (req, res) => {
 });
 
 // GET /api/instagram/accounts — list all connected accounts for logged-in user
-router.get('/accounts', (req, res) => {
-  const uid = getUserId(req);
-  let accounts = db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') ORDER BY updated_at DESC").all(uid);
+router.get('/accounts', async (req, res) => {
+  const uid = await getUserId(req);
+  let accounts = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC").all(uid);
   if (!accounts || accounts.length === 0) {
-    const allAccounts = db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') ORDER BY updated_at DESC").all();
+    const allAccounts = await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected') ORDER BY updated_at DESC").all();
     if (allAccounts && allAccounts.length > 0 && uid && uid !== 'admin_user') {
       for (const a of allAccounts) {
         try {
-          db.prepare("UPDATE instagram_accounts SET user_id = ? WHERE id = ?").run(uid, a.id);
+          await db.prepare("UPDATE instagram_accounts SET user_id = ? WHERE id = ?").run(uid, a.id);
           if (db.getPgPool && db.getPgPool()) {
             db.getPgPool().query("UPDATE instagram_accounts SET user_id = $1 WHERE id = $2", [uid, a.id]).catch(() => {});
           }
@@ -92,11 +92,11 @@ router.get('/accounts', (req, res) => {
 });
 
 // DELETE /api/instagram/accounts/:id — disconnect/remove a specific account
-router.delete('/accounts/:id', (req, res) => {
-  const uid = getUserId(req);
-  const target = db.prepare('SELECT id FROM instagram_accounts WHERE id = ? AND user_id = ?').get(req.params.id, uid);
+router.delete('/accounts/:id', async (req, res) => {
+  const uid = await getUserId(req);
+  const target = await db.prepare('SELECT id FROM instagram_accounts WHERE id = ? AND user_id = ?').get(req.params.id, uid);
   if (!target) return res.status(404).json({ error: 'Account not found' });
-  db.prepare('DELETE FROM instagram_accounts WHERE id = ?').run(target.id);
+  await db.prepare('DELETE FROM instagram_accounts WHERE id = ?').run(target.id);
   res.json({ success: true, deletedId: target.id });
 });
 
@@ -104,7 +104,7 @@ router.delete('/accounts/:id', (req, res) => {
 router.post('/connect-token', async (req, res) => {
   const userToken = req.body.token || req.body.user_token || req.body.access_token;
   if (!userToken) return res.status(400).json({ error: 'Missing Meta access token' });
-  const uid = getUserId(req);
+  const uid = await getUserId(req);
 
   try {
     const tokenInfo = await metaClient.exchangeUserToken(userToken.trim());
@@ -114,10 +114,10 @@ router.post('/connect-token', async (req, res) => {
     const fullName = tokenInfo.full_name || tokenInfo.name || tokenInfo.username;
     const profilePicUrl = tokenInfo.profile_picture_url || null;
 
-    const existing = db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(tokenInfo.ig_user_id);
+    const existing = await db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(tokenInfo.ig_user_id);
     const accountId = existing ? existing.id : uuidv4();
     if (existing) {
-      db.prepare(`
+      await db.prepare(`
         UPDATE instagram_accounts SET
           user_id=?, username=?, full_name=?, profile_picture_url=?, ig_user_id=?, page_id=?, fb_page_name=?, fb_user_id=?,
           access_token_enc=?, page_access_token_enc=?, long_lived_token_enc=?,
@@ -129,7 +129,7 @@ router.post('/connect-token', async (req, res) => {
         expiresAt, tokenInfo.followers_count || 0, existing.id
       );
     } else {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO instagram_accounts (
           id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
           access_token_enc, page_access_token_enc, long_lived_token_enc,
@@ -142,7 +142,7 @@ router.post('/connect-token', async (req, res) => {
       );
     }
 
-    const updated = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
+    const updated = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
     res.json({ success: true, account: updated });
   } catch (err) {
     res.status(400).json({ error: err.message || 'Failed to connect Instagram account' });
@@ -161,7 +161,7 @@ router.get('/lookup-profile', async (req, res) => {
     let accountType = 'Creator Account';
 
     // 1. Check existing connected account in DB
-    const dbMatch = db.prepare('SELECT * FROM instagram_accounts WHERE lower(username) = ? LIMIT 1').get(rawUsername);
+    const dbMatch = await db.prepare('SELECT * FROM instagram_accounts WHERE lower(username) = ? LIMIT 1').get(rawUsername);
     if (dbMatch) {
       return res.json({
         success: true,
@@ -177,7 +177,7 @@ router.get('/lookup-profile', async (req, res) => {
     }
 
     // 2. Check if active system token can fetch real details (5-second timeout)
-    const activeAcc = db.prepare("SELECT * FROM instagram_accounts WHERE access_token_enc IS NOT NULL AND status = 'connected' LIMIT 1").get();
+    const activeAcc = await db.prepare("SELECT * FROM instagram_accounts WHERE access_token_enc IS NOT NULL AND status = 'connected' LIMIT 1").get();
     if (activeAcc) {
       try {
         const rawToken = decrypt(activeAcc.access_token_enc);
@@ -233,7 +233,7 @@ router.post('/connect-username', async (req, res) => {
 
   try {
     // Look for existing connected system token so webhooks & DM automations stay live
-    const systemAcc = db.prepare("SELECT * FROM instagram_accounts WHERE access_token_enc IS NOT NULL AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get();
+    const systemAcc = await db.prepare("SELECT * FROM instagram_accounts WHERE access_token_enc IS NOT NULL AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get();
     const encToken = systemAcc?.access_token_enc || encrypt(`ig_tok_${Date.now()}`);
     const encLongToken = systemAcc?.long_lived_token_enc || encToken;
     const pageId = systemAcc?.page_id || `page_${Date.now().toString().slice(-8)}`;
@@ -245,18 +245,18 @@ router.post('/connect-username', async (req, res) => {
     let accountType = req.body.account_type || 'Creator Account';
 
     // Determine target user safely
-    let targetUser = req.user?.id ? db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id) : null;
+    let targetUser = req.user?.id ? await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id) : null;
     if (!targetUser) {
-      targetUser = db.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT 1').get();
+      targetUser = await db.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT 1').get();
     }
     if (!targetUser) {
       const newUid = uuidv4();
       const now = new Date().toISOString();
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO users (id, email, name, plan, dm_usage_this_period, usage_period_start, created_at, updated_at)
         VALUES (?, 'creator@replyos.io', 'Creator', 'free', 0, ?, ?, ?)
       `).run(newUid, now.slice(0, 10), now, now);
-      targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(newUid);
+      targetUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(newUid);
     }
     const targetUserId = targetUser.id;
 
@@ -266,7 +266,7 @@ router.post('/connect-username', async (req, res) => {
       if (systemAcc && systemAcc.username && systemAcc.username.toLowerCase() === rawUsername) {
         igUserId = systemAcc.ig_user_id;
       } else {
-        const existingByHandle = db.prepare('SELECT ig_user_id FROM instagram_accounts WHERE lower(username) = ? LIMIT 1').get(rawUsername);
+        const existingByHandle = await db.prepare('SELECT ig_user_id FROM instagram_accounts WHERE lower(username) = ? LIMIT 1').get(rawUsername);
         if (existingByHandle?.ig_user_id) {
           igUserId = existingByHandle.ig_user_id;
         } else {
@@ -274,7 +274,7 @@ router.post('/connect-username', async (req, res) => {
           let candidateId;
           do {
             candidateId = `1784140${Math.floor(100000000 + Math.random() * 900000000)}`;
-          } while (db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(candidateId));
+          } while (await db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(candidateId));
           igUserId = candidateId;
         }
       }
@@ -308,13 +308,13 @@ router.post('/connect-username', async (req, res) => {
     }
 
     const expiresAt = new Date(Date.now() + 60 * 24 * 3600000).toISOString();
-    const existing = db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(igUserId)
-      || db.prepare('SELECT id FROM instagram_accounts WHERE lower(username) = ?').get(rawUsername)
-      || db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND username IN ('instagram_creator', 'test_creator_account', 'instagram_user')").get(targetUserId);
+    const existing = (await db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(igUserId))
+      || (await db.prepare('SELECT id FROM instagram_accounts WHERE lower(username) = ?').get(rawUsername))
+      || (await db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND username IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected')").get(targetUserId));
 
     const accountId = existing ? existing.id : uuidv4();
     if (existing) {
-      db.prepare(`
+      await db.prepare(`
         UPDATE instagram_accounts SET
           user_id=?, username=?, full_name=?, profile_picture_url=?, ig_user_id=?, page_id=?, fb_page_name=?, fb_user_id=?,
           access_token_enc=?, page_access_token_enc=?, long_lived_token_enc=?,
@@ -326,7 +326,7 @@ router.post('/connect-username', async (req, res) => {
         expiresAt, followersCount, accountType, existing.id
       );
     } else {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO instagram_accounts (
           id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
           access_token_enc, page_access_token_enc, long_lived_token_enc,
@@ -427,7 +427,7 @@ router.post('/connect-username', async (req, res) => {
       }
     }
 
-    const updated = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
+    const updated = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
     res.json({ success: true, account: updated });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to connect Instagram account' });
@@ -443,12 +443,12 @@ router.post('/account/set-handle', async (req, res) => {
   try {
     let target = null;
     if (account_id) {
-      target = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(account_id);
+      target = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(account_id);
     }
     if (!target) {
-      const uid = getUserId(req);
-      target = db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1').get(uid)
-            || db.prepare('SELECT * FROM instagram_accounts ORDER BY updated_at DESC LIMIT 1').get();
+      const uid = await getUserId(req);
+      target = (await db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1').get(uid))
+            || (await db.prepare('SELECT * FROM instagram_accounts ORDER BY updated_at DESC LIMIT 1').get());
     }
     if (!target) return res.status(404).json({ error: 'No Instagram account found' });
 
@@ -457,7 +457,7 @@ router.post('/account/set-handle', async (req, res) => {
     const newFollowers = followers_count !== undefined ? Number(followers_count) : target.followers_count;
     const newAccountType = account_type || target.account_type || 'Creator Account';
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE instagram_accounts 
       SET username = ?, full_name = ?, profile_picture_url = ?, followers_count = ?, account_type = ?, updated_at = datetime('now')
       WHERE id = ?
@@ -475,7 +475,7 @@ router.post('/account/set-handle', async (req, res) => {
       }
     }
 
-    const updated = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(target.id);
+    const updated = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(target.id);
     res.json({ success: true, account: updated });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to update handle' });
@@ -489,7 +489,7 @@ router.patch('/account', async (req, res) => {
 });
 
 // GET /api/instagram/oauth/start — Smart OAuth: Instagram Business Login by default, Facebook OAuth if requested
-router.get('/oauth/start', (req, res) => {
+router.get('/oauth/start', async (req, res) => {
   let returnOrigin = req.query.return_origin || '';
   if (!returnOrigin && req.headers.referer) {
     try { returnOrigin = new URL(req.headers.referer).origin; } catch (e) {}
@@ -497,7 +497,7 @@ router.get('/oauth/start', (req, res) => {
 
   // Carry the user token from query so the callback can associate the account
   const userToken = req.query.token || null;
-  let userId = getUserId(req);
+  let userId = await getUserId(req);
   if (userToken) {
     try {
       const decoded = require('jsonwebtoken').verify(userToken, JWT_SECRET);
@@ -619,18 +619,18 @@ router.get('/oauth/callback', async (req, res) => {
     `);
   }
 
-  let user = userId ? db.prepare('SELECT * FROM users WHERE id = ?').get(userId) : null;
+  let user = userId ? await db.prepare('SELECT * FROM users WHERE id = ?').get(userId) : null;
   if (!user) {
-    user = db.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT 1').get();
+    user = await db.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT 1').get();
   }
   if (!user) {
     const newUid = uuidv4();
     const now = new Date().toISOString();
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO users (id, email, name, plan, dm_usage_this_period, usage_period_start, created_at, updated_at)
       VALUES (?, 'creator@replyos.io', 'Creator', 'free', 0, ?, ?, ?)
     `).run(newUid, now.slice(0, 10), now, now);
-    user = db.prepare('SELECT * FROM users WHERE id = ?').get(newUid);
+    user = await db.prepare('SELECT * FROM users WHERE id = ?').get(newUid);
   }
 
   try {
@@ -644,10 +644,10 @@ router.get('/oauth/callback', async (req, res) => {
     const profilePicUrl = tokenInfo.profile_picture_url || null;
     const accountType = tokenInfo.account_type || 'Creator Account';
 
-    const existing = db.prepare("SELECT id FROM instagram_accounts WHERE ig_user_id = ? OR (lower(username) = ? AND username NOT IN ('instagram_creator', 'test_creator_account'))").get(tokenInfo.ig_user_id, tokenInfo.username.toLowerCase());
+    const existing = await db.prepare("SELECT id FROM instagram_accounts WHERE ig_user_id = ? OR (lower(username) = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected'))").get(tokenInfo.ig_user_id, tokenInfo.username.toLowerCase());
     const accountId = existing ? existing.id : uuidv4();
     if (existing) {
-      db.prepare(`
+      await db.prepare(`
         UPDATE instagram_accounts SET
           user_id=?, username=?, full_name=?, profile_picture_url=?, ig_user_id=?, page_id=?, fb_page_name=?, fb_user_id=?,
           access_token_enc=?, page_access_token_enc=?, long_lived_token_enc=?,
@@ -659,7 +659,7 @@ router.get('/oauth/callback', async (req, res) => {
         expiresAt, tokenInfo.followers_count || 0, accountType, existing.id
       );
     } else {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO instagram_accounts (
           id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
           access_token_enc, page_access_token_enc, long_lived_token_enc,
@@ -716,7 +716,7 @@ router.get('/oauth/callback', async (req, res) => {
       }
     }
 
-    const savedAcc = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
+    const savedAcc = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
 
     // If Meta's Graph API blocked profile retrieval due to Development Mode without tester invite,
     // present an interactive setup prompt in the popup so the user can enter their real @handle
@@ -958,8 +958,8 @@ router.get('/oauth/callback', async (req, res) => {
 
 // POST /api/instagram/refresh-token — refresh token when needed
 router.post('/refresh-token', async (req, res) => {
-  const uid = getUserId(req);
-  const account = db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected'").get(uid);
+  const uid = await getUserId(req);
+  const account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected'").get(uid);
   if (!account) return res.status(404).json({ error: 'No connected Instagram account' });
 
   try {
@@ -968,7 +968,7 @@ router.post('/refresh-token', async (req, res) => {
     const newEncToken = encrypt(refreshed.access_token);
     const newExpiresAt = new Date(Date.now() + (refreshed.expires_in || 5184000) * 1000).toISOString();
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE instagram_accounts 
       SET long_lived_token_enc = ?, token_expires_at = ?, updated_at = datetime('now')
       WHERE id = ?
@@ -985,8 +985,8 @@ router.post('/refresh-token', async (req, res) => {
 });
 
 // POST /api/instagram/connect-mock — auto-detects mock profile & IDs
-router.post('/connect-mock', (req, res) => {
-  const uid = getUserId(req);
+router.post('/connect-mock', async (req, res) => {
+  const uid = await getUserId(req);
   const { username, ig_user_id } = req.body;
   const mockUsername = username || `creator_${uid.slice(0, 6)}`;
   const mockIgId = ig_user_id || `17841405${Date.now().toString().slice(-8)}`;
@@ -996,9 +996,9 @@ router.post('/connect-mock', (req, res) => {
   const encLongToken = encrypt(`mock_long_token_${Date.now()}`);
   const expiresAt = new Date(Date.now() + 60 * 24 * 3600000).toISOString();
 
-  const existing = db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ?').get(uid);
+  const existing = await db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ?').get(uid);
   if (existing) {
-    db.prepare(`
+    await db.prepare(`
       UPDATE instagram_accounts SET
         ig_user_id=?, username=?, page_id=?, fb_page_name='Official Page', fb_user_id=?,
         access_token_enc=?, page_access_token_enc=?, long_lived_token_enc=?,
@@ -1006,7 +1006,7 @@ router.post('/connect-mock', (req, res) => {
       WHERE id=?
     `).run(mockIgId, mockUsername, mockPageId, mockFbUserId, encToken, encToken, encLongToken, expiresAt, existing.id);
   } else {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO instagram_accounts (
         id, user_id, ig_user_id, username, page_id, fb_page_name, fb_user_id,
         access_token_enc, page_access_token_enc, long_lived_token_enc,
@@ -1028,11 +1028,11 @@ router.post('/connect-mock', (req, res) => {
 });
 
 // DELETE /api/instagram/account — disconnect current user's account
-router.delete('/account', (req, res) => {
-  const uid = getUserId(req);
-  const account = db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ?').get(uid);
+router.delete('/account', async (req, res) => {
+  const uid = await getUserId(req);
+  const account = await db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ?').get(uid);
   if (!account) return res.status(404).json({ error: 'No account' });
-  db.prepare("UPDATE instagram_accounts SET status='disconnected', access_token_enc='', page_access_token_enc='', long_lived_token_enc='' WHERE id=?").run(account.id);
+  await db.prepare("UPDATE instagram_accounts SET status='disconnected', access_token_enc='', page_access_token_enc='', long_lived_token_enc='' WHERE id=?").run(account.id);
   res.json({ success: true, message: 'Instagram account disconnected.' });
 });
 
