@@ -41,8 +41,10 @@ export default function DashboardView({
   const [loadingActivity, setLoadingActivity] = useState(false);
 
   // Real stats & account binding
+  const isDummy = account?.username === 'instagram_creator' || account?.username === 'test_creator_account';
   const isConnected = !!(account && (account.status === 'connected' || stats?.connected));
-  const accountHandle = account?.username ? `@${account.username}` : (isConnected ? '@connected' : 'Not Connected');
+  const accountHandle = (account?.username && !isDummy) ? `@${account.username}` : (isConnected ? '@connected' : 'Not Connected');
+  const accountFullName = (account?.full_name && !isDummy && account.full_name !== 'Instagram Account') ? account.full_name : accountHandle;
   const accountType = account?.accountType || account?.account_type || (isConnected ? 'Business Account' : 'None');
   const dmsSent = stats?.dmsSent ?? 0;
   const dmsLimit = stats?.dmsLimit ?? 1000;
@@ -278,7 +280,7 @@ export default function DashboardView({
             </div>
 
             <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', marginBottom: '2px' }}>
-              {isConnected ? (account?.full_name ? account.full_name : accountHandle) : 'No Account'}
+              {isConnected ? accountFullName : 'No Account'}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               {isConnected ? `${accountHandle} • ${accountType}` : 'Connect your Instagram account'}

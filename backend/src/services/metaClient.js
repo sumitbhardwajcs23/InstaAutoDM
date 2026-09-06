@@ -145,18 +145,18 @@ class MetaClient {
   }
 
 
-  async exchangeOAuthCode(code, redirectUri, authType = 'instagram') {
+  async exchangeOAuthCode(code, redirectUri, authType = 'instagram', intendedUsername = null) {
     if (this.mockMode) {
       return {
         access_token: `mock_page_token_${Date.now()}`,
         page_access_token: `mock_page_token_${Date.now()}`,
-        long_lived_token: `mock_long_token_${Date.now()}`,
+        long_lived_token: `mock_user_token_${Date.now()}`,
         page_id: '109283746501928',
         page_name: 'Creator Studio Official',
         fb_user_id: '102938475619283',
         ig_user_id: '17841405829103942',
-        username: 'instagram_user',
-        followers_count: 0,
+        username: intendedUsername || 'instagram_user',
+        followers_count: 1250,
         expires_in: 5184000
       };
     }
@@ -211,7 +211,7 @@ class MetaClient {
 
         if (igTokenRes.ok && igTokenData.access_token) {
           console.log('[MetaClient] ✅ Instagram token received, upgrading to long-lived...');
-          return await this._exchangeInstagramToken(igTokenData.access_token, clientId, clientSecret, igTokenData.user_id);
+          return await this._exchangeInstagramToken(igTokenData.access_token, clientId, clientSecret, igTokenData.user_id, intendedUsername);
         }
 
         console.warn('[MetaClient] Instagram token exchange error response:', JSON.stringify(igTokenData));
@@ -373,7 +373,7 @@ class MetaClient {
   }
 
   // --- Instagram Business Login token flow (new Instagram API) ---
-  async _exchangeInstagramToken(shortToken, appId, appSecret, igUserId = null) {
+  async _exchangeInstagramToken(shortToken, appId, appSecret, igUserId = null, intendedUsername = null) {
     console.log(`[MetaClient] Detected Instagram Business Login token — using Instagram Graph API (user_id: ${igUserId})`);
 
     // Step 1: Exchange short-lived Instagram token for long-lived token (60 days)
@@ -393,47 +393,79 @@ class MetaClient {
       console.warn('[MetaClient] Instagram token exchange warning:', e.message);
     }
 
-    // Step 2: Get Instagram user profile with multiple fallback endpoints
+    // Step 2: Get Instagram user profile with multi-token, multi-version fallback endpoints
     let meData = null;
-    const profileEndpoints = [
-      `https://graph.instagram.com/me?fields=id,username,name,account_type,followers_count,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}`,
-      `https://graph.instagram.com/me?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}`,
-      `https://graph.instagram.com/me?fields=id,username&access_token=${encodeURIComponent(longLivedToken)}`,
-      igUserId ? `https://graph.instagram.com/${igUserId}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}` : null,
-      igUserId ? `https://graph.facebook.com/v21.0/${igUserId}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(longLivedToken)}` : null,
-    ].filter(Boolean);
+    const tokensToTry = [longLivedToken, shortToken].filter((t, i, arr) => t && arr.indexOf(t) === i);
 
-    for (const ep of profileEndpoints) {
-      try {
-        const res = await fetch(ep);
-        const data = await res.json();
-        if (res.ok && data && (data.id || data.username)) {
-          meData = data;
-          console.log(`[MetaClient] ✅ Profile fetched from ${ep.split('?')[0]}: @${meData.username || meData.id}`);
-          break;
-        } else {
-          console.warn(`[MetaClient] Profile endpoint note (${ep.split('?')[0]}):`, data?.error?.message || res.statusText);
+    for (const tok of tokensToTry) {
+      if (meData && (meData.username || meData.id)) break;
+
+      const profileEndpoints = [
+        `https://graph.instagram.com/v22.0/me?fields=id,username,name,account_type,followers_count,profile_picture_url&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/v21.0/me?fields=id,username,name,account_type,followers_count,profile_picture_url&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/me?fields=id,username,name,account_type,followers_count,profile_picture_url&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/me?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/me?fields=id,username,account_type&access_token=${encodeURIComponent(tok)}`,
+        `https://graph.instagram.com/me?fields=id,username&access_token=${encodeURIComponent(tok)}`,
+        igUserId ? `https://graph.instagram.com/v21.0/${igUserId}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(tok)}` : null,
+        igUserId ? `https://graph.instagram.com/${igUserId}?fields=id,username,name&access_token=${encodeURIComponent(tok)}` : null,
+        igUserId ? `https://graph.facebook.com/v21.0/${igUserId}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(tok)}` : null,
+      ].filter(Boolean);
+
+      for (const ep of profileEndpoints) {
+        try {
+          const res = await fetch(ep);
+          const data = await res.json();
+          if (res.ok && data && (data.username || data.id)) {
+            meData = data;
+            console.log(`[MetaClient] ✅ Profile fetched from ${ep.split('?')[0]}: @${meData.username || meData.id}`);
+            break;
+          } else {
+            console.warn(`[MetaClient] Profile endpoint note (${ep.split('?')[0]}):`, data?.error?.message || res.statusText);
+          }
+        } catch (err) {
+          console.warn(`[MetaClient] Profile endpoint error (${ep.split('?')[0]}):`, err.message);
         }
-      } catch (err) {
-        console.warn(`[MetaClient] Profile endpoint error (${ep.split('?')[0]}):`, err.message);
       }
     }
 
-    // Fallback: If Meta profile endpoints were restricted, use the authenticated igUserId from token exchange
-    if (!meData || !meData.id) {
-      const fallbackId = igUserId ? String(igUserId) : `ig_${Date.now()}`;
-      meData = {
-        id: fallbackId,
-        username: meData?.username || `instagram_creator`,
-        name: meData?.name || `Instagram Account`,
-        account_type: 'Creator Account',
-      };
-      console.log(`[MetaClient] Using token user ID fallback: ID ${meData.id}`);
+    // Step 3: Handle restricted profile (e.g. Meta app in Dev Mode without tester role)
+    const fallbackId = igUserId ? String(igUserId) : (meData?.id || `ig_${Date.now()}`);
+    let realUsername = meData?.username || null;
+    let realName = meData?.name || realUsername || null;
+    let accountType = meData?.account_type || 'Creator Account';
+    let requiresHandle = false;
+
+    // If Meta's profile endpoints were restricted, recover real handle from intendedUsername or DB
+    if (!realUsername) {
+      if (intendedUsername && typeof intendedUsername === 'string' && intendedUsername.trim()) {
+        realUsername = intendedUsername.replace(/^@/, '').trim().toLowerCase();
+        realName = realUsername;
+        console.log(`[MetaClient] Recovered real username from user intent: @${realUsername}`);
+      } else {
+        // Look in DB to see if this exact igUserId was previously connected with a valid handle
+        try {
+          const db = require('../db');
+          const existing = db.prepare("SELECT username, full_name, account_type FROM instagram_accounts WHERE ig_user_id = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') LIMIT 1").get(fallbackId);
+          if (existing && existing.username) {
+            realUsername = existing.username;
+            realName = existing.full_name || existing.username;
+            accountType = existing.account_type || accountType;
+            console.log(`[MetaClient] Recovered known username from DB: @${realUsername}`);
+          }
+        } catch (_) {}
+      }
     }
 
-    console.log(`[MetaClient] ✅ Instagram user: @${meData.username} (ID: ${meData.id})`);
+    if (!realUsername) {
+      requiresHandle = true;
+      realUsername = `user_${fallbackId.slice(-6)}`;
+      realName = `Instagram Creator`;
+    }
 
-    // Step 3: Auto-subscribe Instagram account to webhooks
+    console.log(`[MetaClient] ✅ Instagram account: @${realUsername} (ID: ${fallbackId}, requires_handle: ${requiresHandle})`);
+
+    // Step 4: Auto-subscribe Instagram account to webhooks
     try {
       const subRes = await fetch(`https://graph.instagram.com/me/subscribed_apps?subscribed_fields=messages,comments,messaging_postbacks,message_reactions`, {
         method: 'POST',
@@ -441,7 +473,7 @@ class MetaClient {
       });
       const subData = await subRes.json();
       if (subData && subData.success) {
-        console.log(`[MetaClient] ✅ Subscribed @${meData.username} to Instagram webhooks`);
+        console.log(`[MetaClient] ✅ Subscribed @${realUsername} to Instagram webhooks`);
       }
     } catch (subErr) {
       console.warn('[MetaClient] Webhook auto-subscribe warning:', subErr.message);
@@ -451,16 +483,17 @@ class MetaClient {
       access_token: longLivedToken,
       page_access_token: longLivedToken,  // Instagram token used directly for messaging
       long_lived_token: longLivedToken,
-      page_id: meData.id,                 // Instagram Business Account ID used as page_id
-      page_name: meData.name || meData.username,
-      full_name: meData.name || meData.username,
-      profile_picture_url: meData.profile_picture_url || null,
-      account_type: meData.account_type || 'Creator Account',
+      page_id: fallbackId,                 // Instagram Business Account ID used as page_id
+      page_name: realName || realUsername,
+      full_name: realName || realUsername,
+      profile_picture_url: meData?.profile_picture_url || null,
+      account_type: accountType,
       fb_user_id: null,
-      ig_user_id: meData.id,
-      username: meData.username,
-      followers_count: meData.followers_count || 0,
-      expires_in: expiresIn
+      ig_user_id: fallbackId,
+      username: realUsername,
+      followers_count: meData?.followers_count || 0,
+      expires_in: expiresIn,
+      requires_handle: requiresHandle,
     };
   }
 

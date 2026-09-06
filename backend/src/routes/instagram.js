@@ -42,10 +42,10 @@ router.get('/account', (req, res) => {
   const uid = getUserId(req);
   let account;
   if (accountId) {
-    account = db.prepare('SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) LIMIT 1').get(uid, accountId);
+    account = db.prepare("SELECT * FROM instagram_accounts WHERE (user_id = ? OR id = ?) AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') LIMIT 1").get(uid, accountId);
   } else {
-    account = db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(uid)
-           || db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' ORDER BY updated_at DESC LIMIT 1").get();
+    account = db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') ORDER BY updated_at DESC LIMIT 1").get(uid)
+           || db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') ORDER BY updated_at DESC LIMIT 1").get();
   }
 
   if (!account) return res.json({ connected: false, account: null });
@@ -73,9 +73,9 @@ router.get('/account', (req, res) => {
 // GET /api/instagram/accounts — list all connected accounts for logged-in user
 router.get('/accounts', (req, res) => {
   const uid = getUserId(req);
-  let accounts = db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC').all(uid);
+  let accounts = db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') ORDER BY updated_at DESC").all(uid);
   if (!accounts || accounts.length === 0) {
-    const allAccounts = db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' ORDER BY updated_at DESC").all();
+    const allAccounts = db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected' AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user') ORDER BY updated_at DESC").all();
     if (allAccounts && allAccounts.length > 0 && uid && uid !== 'admin_user') {
       for (const a of allAccounts) {
         try {
@@ -274,7 +274,7 @@ router.post('/connect-username', async (req, res) => {
     const expiresAt = new Date(Date.now() + 60 * 24 * 3600000).toISOString();
     const targetUserId = req.user?.id || db.prepare('SELECT id FROM users LIMIT 1').get()?.id || 'admin_user';
     const existing = db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ? AND lower(username) = ?').get(targetUserId, rawUsername)
-      || db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ?').get(targetUserId);
+      || db.prepare("SELECT id FROM instagram_accounts WHERE user_id = ? AND username IN ('instagram_creator', 'test_creator_account', 'instagram_user')").get(targetUserId);
 
     const accountId = existing ? existing.id : uuidv4();
     if (existing) {
@@ -303,11 +303,99 @@ router.post('/connect-username', async (req, res) => {
       );
     }
 
+    // Direct atomic PostgreSQL write so account NEVER disappears on sync
+    if (db.getPgPool && db.getPgPool()) {
+      try {
+        const pool = db.getPgPool();
+        await pool.query(`
+          INSERT INTO instagram_accounts (
+            id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
+            access_token_enc, page_access_token_enc, long_lived_token_enc,
+            token_expires_at, status, disclosure_message, followers_count, account_type, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'connected', '⚡ [Automated DM] ', $14, $15, NOW())
+          ON CONFLICT (ig_user_id) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            username = EXCLUDED.username,
+            full_name = EXCLUDED.full_name,
+            profile_picture_url = EXCLUDED.profile_picture_url,
+            page_id = EXCLUDED.page_id,
+            fb_page_name = EXCLUDED.fb_page_name,
+            fb_user_id = EXCLUDED.fb_user_id,
+            access_token_enc = EXCLUDED.access_token_enc,
+            page_access_token_enc = EXCLUDED.page_access_token_enc,
+            long_lived_token_enc = EXCLUDED.long_lived_token_enc,
+            token_expires_at = EXCLUDED.token_expires_at,
+            status = 'connected',
+            followers_count = EXCLUDED.followers_count,
+            account_type = EXCLUDED.account_type,
+            updated_at = NOW()
+        `, [
+          accountId, targetUserId, igUserId, rawUsername, fullName, profilePicUrl,
+          pageId, `${rawUsername}'s Page`, fbUserId,
+          encToken, encToken, encLongToken,
+          expiresAt, followersCount, accountType
+        ]);
+        console.log(`[ConnectUsername] ✅ Persisted @${rawUsername} directly to Render PostgreSQL`);
+      } catch (pgErr) {
+        console.warn('[ConnectUsername] PostgreSQL sync notice:', pgErr.message);
+      }
+    }
+
     const updated = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
     res.json({ success: true, account: updated });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to connect Instagram account' });
   }
+});
+
+// POST /api/instagram/account/set-handle — update handle/name for an account
+router.post('/account/set-handle', async (req, res) => {
+  const { account_id, username, full_name } = req.body;
+  const rawUsername = (username || '').replace(/^@/, '').trim().toLowerCase();
+  if (!rawUsername) return res.status(400).json({ error: 'Username is required' });
+
+  try {
+    let target = null;
+    if (account_id) {
+      target = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(account_id);
+    }
+    if (!target) {
+      const uid = getUserId(req);
+      target = db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1').get(uid)
+            || db.prepare('SELECT * FROM instagram_accounts ORDER BY updated_at DESC LIMIT 1').get();
+    }
+    if (!target) return res.status(404).json({ error: 'No Instagram account found' });
+
+    const newFullName = full_name || rawUsername;
+    db.prepare(`
+      UPDATE instagram_accounts 
+      SET username = ?, full_name = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(rawUsername, newFullName, target.id);
+
+    if (db.getPgPool && db.getPgPool()) {
+      try {
+        await db.getPgPool().query(`
+          UPDATE instagram_accounts 
+          SET username = $1, full_name = $2, updated_at = NOW()
+          WHERE id = $3
+        `, [rawUsername, newFullName, target.id]);
+      } catch (pgErr) {
+        console.warn('[SetHandle] PG sync warning:', pgErr.message);
+      }
+    }
+
+    const updated = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(target.id);
+    res.json({ success: true, account: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to update handle' });
+  }
+});
+
+// PATCH /api/instagram/account — alias for set-handle
+router.patch('/account', async (req, res) => {
+  req.url = '/account/set-handle';
+  return router.handle(req, res);
 });
 
 // GET /api/instagram/oauth/start — Smart OAuth: Instagram Business Login by default, Facebook OAuth if requested
@@ -327,11 +415,12 @@ router.get('/oauth/start', (req, res) => {
     } catch (_) {}
   }
 
+  const intendedHandle = (req.query.username || '').replace(/^@/, '').trim().toLowerCase();
   const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/instagram/oauth/callback`;
   const authType = req.query.type || 'instagram';
 
   if (process.env.META_MOCK_MODE === 'true') {
-    const mockState = Buffer.from(JSON.stringify({ uid: userId, origin: returnOrigin, type: authType })).toString('base64url');
+    const mockState = Buffer.from(JSON.stringify({ uid: userId, origin: returnOrigin, type: authType, handle: intendedHandle })).toString('base64url');
     return res.redirect(`/api/instagram/oauth/callback?code=mock_${Date.now()}&state=${mockState}`);
   }
 
@@ -341,7 +430,7 @@ router.get('/oauth/start', (req, res) => {
     if (!fbAppId) {
       return res.status(500).send('<h3 style="font-family:sans-serif;color:red">Server Error: META_APP_ID not configured</h3>');
     }
-    const stateObj = { uid: userId, origin: returnOrigin, type: 'facebook' };
+    const stateObj = { uid: userId, origin: returnOrigin, type: 'facebook', handle: intendedHandle };
     const state = Buffer.from(JSON.stringify(stateObj)).toString('base64url');
     const fbScopes = 'instagram_basic,instagram_manage_comments,instagram_manage_messages,pages_show_list,pages_read_engagement';
     console.log(`[OAuth] Using Facebook OAuth flow, client_id: ${fbAppId}`);
@@ -361,10 +450,10 @@ router.get('/oauth/start', (req, res) => {
     return res.status(500).send('<h3 style="font-family:sans-serif;color:red">Server Error: META_IG_APP_ID or META_APP_ID not configured</h3>');
   }
 
-  const stateObj = { uid: userId, origin: returnOrigin, type: 'instagram' };
+  const stateObj = { uid: userId, origin: returnOrigin, type: 'instagram', handle: intendedHandle };
   const state = Buffer.from(JSON.stringify(stateObj)).toString('base64url');
   const igScopes = 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
-  console.log(`[OAuth] Instagram Business Login via instagram.com, client_id: ${igAppId}`);
+  console.log(`[OAuth] Instagram Business Login via instagram.com, client_id: ${igAppId} (intended handle: ${intendedHandle || 'none'})`);
   return res.redirect(
     `https://www.instagram.com/oauth/authorize` +
     `?enable_fb_login=0` +
@@ -383,6 +472,7 @@ router.get('/oauth/callback', async (req, res) => {
   let userId = state;
   let returnOrigin = '';
   let authType = 'instagram';
+  let intendedUsername = null;
 
   if (state) {
     try {
@@ -391,6 +481,7 @@ router.get('/oauth/callback', async (req, res) => {
         userId = decoded.uid;
         returnOrigin = decoded.origin || '';
         if (decoded.type) authType = decoded.type;
+        if (decoded.handle) intendedUsername = decoded.handle;
       }
     } catch (e) {
       userId = state;
@@ -454,7 +545,7 @@ router.get('/oauth/callback', async (req, res) => {
 
   try {
     const redirectUri = process.env.META_REDIRECT_URI || `${req.protocol}://${req.get('host')}/api/instagram/oauth/callback`;
-    const tokenInfo = await metaClient.exchangeOAuthCode(code, redirectUri, authType);
+    const tokenInfo = await metaClient.exchangeOAuthCode(code, redirectUri, authType, intendedUsername);
 
     const encPageToken = encrypt(tokenInfo.page_access_token || tokenInfo.access_token);
     const encLongToken = encrypt(tokenInfo.long_lived_token || tokenInfo.access_token);
@@ -463,7 +554,7 @@ router.get('/oauth/callback', async (req, res) => {
     const profilePicUrl = tokenInfo.profile_picture_url || null;
     const accountType = tokenInfo.account_type || 'Creator Account';
 
-    const existing = db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ? OR lower(username) = ?').get(tokenInfo.ig_user_id, tokenInfo.username.toLowerCase());
+    const existing = db.prepare("SELECT id FROM instagram_accounts WHERE ig_user_id = ? OR (lower(username) = ? AND username NOT IN ('instagram_creator', 'test_creator_account'))").get(tokenInfo.ig_user_id, tokenInfo.username.toLowerCase());
     const accountId = existing ? existing.id : uuidv4();
     if (existing) {
       db.prepare(`
@@ -536,6 +627,153 @@ router.get('/oauth/callback', async (req, res) => {
     }
 
     const savedAcc = db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
+
+    // If Meta's Graph API blocked profile retrieval due to Development Mode without tester invite,
+    // present an interactive setup prompt in the popup so the user can enter their real @handle
+    if (tokenInfo.requires_handle) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>ReplyOS — Complete Instagram Setup</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              background: #0f172a;
+              color: #ffffff;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              padding: 24px;
+              box-sizing: border-box;
+            }
+            .card {
+              background: #1e293b;
+              border: 1px solid #334155;
+              border-radius: 16px;
+              padding: 28px;
+              max-width: 420px;
+              width: 100%;
+              text-align: center;
+              box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+            }
+            .icon-badge {
+              width: 52px;
+              height: 52px;
+              border-radius: 50%;
+              background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 24px;
+              margin-bottom: 16px;
+            }
+            h3 { margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: #fff; }
+            p { color: #94a3b8; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0; }
+            .input-wrap {
+              display: flex;
+              align-items: center;
+              background: #0f172a;
+              border: 1.5px solid #3b82f6;
+              border-radius: 10px;
+              overflow: hidden;
+              margin-bottom: 16px;
+            }
+            .prefix {
+              padding: 10px 14px;
+              background: #1e293b;
+              color: #38bdf8;
+              font-weight: 700;
+              font-size: 14px;
+              border-right: 1px solid #334155;
+            }
+            input {
+              flex: 1;
+              padding: 10px 14px;
+              background: transparent;
+              border: none;
+              color: #fff;
+              font-size: 14px;
+              font-weight: 600;
+              outline: none;
+            }
+            button {
+              width: 100%;
+              padding: 12px;
+              background: #2563eb;
+              color: #fff;
+              border: none;
+              border-radius: 10px;
+              font-size: 14px;
+              font-weight: 700;
+              cursor: pointer;
+              transition: opacity 0.2s;
+            }
+            button:hover { opacity: 0.9; }
+            button:disabled { opacity: 0.5; cursor: not-allowed; }
+            .id-badge {
+              display: inline-block;
+              background: rgba(255,255,255,0.06);
+              padding: 3px 8px;
+              border-radius: 6px;
+              font-family: monospace;
+              font-size: 11px;
+              color: #cbd5e1;
+              margin-top: 4px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="icon-badge">✨</div>
+            <h3>Meta Account Authenticated</h3>
+            <p>Meta User ID: <span class="id-badge">${tokenInfo.ig_user_id}</span><br/>Enter your Instagram handle to finish setup:</p>
+            <form id="hForm">
+              <div class="input-wrap">
+                <span class="prefix">@</span>
+                <input id="hInput" type="text" placeholder="your_instagram_handle" required autofocus />
+              </div>
+              <button type="submit" id="btn">Complete Connection</button>
+            </form>
+          </div>
+          <script>
+            const form = document.getElementById('hForm');
+            const input = document.getElementById('hInput');
+            const btn = document.getElementById('btn');
+            form.onsubmit = async (e) => {
+              e.preventDefault();
+              const val = input.value.replace(/^@/, '').trim().toLowerCase();
+              if (!val) return;
+              btn.disabled = true;
+              btn.innerText = 'Connecting...';
+              try {
+                const res = await fetch('/api/instagram/account/set-handle', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ account_id: ${JSON.stringify(accountId)}, username: val })
+                });
+                const data = await res.json();
+                if (window.opener && !window.opener.closed) {
+                  window.opener.postMessage({ type: 'INSTAGRAM_CONNECTED', success: true, account: data.account || ${JSON.stringify(savedAcc)} }, '*');
+                  setTimeout(() => window.close(), 500);
+                } else {
+                  window.location.href = ${JSON.stringify(redirectTarget('/?connected=true'))};
+                }
+              } catch (err) {
+                alert('Error saving handle: ' + err.message);
+                btn.disabled = false;
+                btn.innerText = 'Complete Connection';
+              }
+            };
+          </script>
+        </body>
+        </html>
+      `);
+    }
 
     return res.send(`
       <!DOCTYPE html>

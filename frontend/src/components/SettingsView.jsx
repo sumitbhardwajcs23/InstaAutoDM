@@ -1,9 +1,14 @@
 // frontend/src/components/SettingsView.jsx
 import React, { useState } from 'react';
-import { Instagram, Key, Shield, CheckCircle2, Copy, ExternalLink, RefreshCw } from 'lucide-react';
+import { Instagram, Key, Shield, CheckCircle2, Copy, ExternalLink, RefreshCw, Edit3 } from 'lucide-react';
+import { apiFetch } from '../api/client';
 
-export default function SettingsView({ account, onOpenConnect }) {
+export default function SettingsView({ account, onOpenConnect, onRefresh }) {
   const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editHandle, setEditHandle] = useState('');
+  const [editName, setEditName] = useState('');
+  const [saving, setSaving] = useState(false);
   const webhookUrl = 'https://instaautodm-kh61.onrender.com/webhooks/instagram';
 
   const isConnected = !!(account && (account.status === 'connected' || account.username));
@@ -12,6 +17,35 @@ export default function SettingsView({ account, onOpenConnect }) {
     navigator.clipboard.writeText(webhookUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveHandle = async (e) => {
+    e.preventDefault();
+    const clean = editHandle.replace(/^@/, '').trim().toLowerCase();
+    if (!clean) return;
+    setSaving(true);
+    try {
+      const res = await apiFetch('/instagram/account/set-handle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: account?.id,
+          username: clean,
+          full_name: editName.trim() || clean,
+        }),
+      });
+      if (res.ok) {
+        setIsEditing(false);
+        if (onRefresh) onRefresh();
+      } else {
+        const d = await res.json();
+        alert(d.error || 'Failed to update handle');
+      }
+    } catch (err) {
+      alert('Error updating handle: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -52,29 +86,53 @@ export default function SettingsView({ account, onOpenConnect }) {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onOpenConnect}
-              style={{
-                padding: '8px 14px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-subtle)',
-                background: isConnected ? 'transparent' : 'var(--primary)',
-                color: isConnected ? 'var(--primary)' : '#ffffff',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              {isConnected ? 'Reconnect / Switch Account' : 'Connect Instagram Account'}
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {isConnected && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditHandle(account.username || '');
+                    setEditName(account.full_name || account.username || '');
+                    setIsEditing(true);
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-subtle)',
+                    color: 'var(--text-main)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Edit Profile / Handle
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onOpenConnect}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-subtle)',
+                  background: isConnected ? 'transparent' : 'var(--primary)',
+                  color: isConnected ? 'var(--primary)' : '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {isConnected ? 'Reconnect / Switch' : 'Connect Instagram Account'}
+              </button>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginTop: '16px' }}>
             <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>USERNAME</div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px' }}>
-                {isConnected ? `@${account.username}` : 'Not Connected'}
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>{isConnected ? `@${account.username}` : 'Not Connected'}</span>
               </div>
             </div>
 
@@ -104,6 +162,84 @@ export default function SettingsView({ account, onOpenConnect }) {
             </div>
           </div>
         </div>
+
+        {/* Edit Handle Modal */}
+        {isEditing && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}>
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              borderRadius: '16px',
+              padding: '24px',
+              maxWidth: '440px',
+              width: '100%',
+              boxShadow: '0 16px 36px rgba(0,0,0,0.3)'
+            }}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 800, color: 'var(--text-main)' }}>
+                Edit Instagram Profile Handle
+              </h3>
+              <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted)' }}>
+                Set your verified Instagram handle and display name for this connection.
+              </p>
+              <form onSubmit={handleSaveHandle}>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-light)', marginBottom: '4px' }}>
+                    Instagram Username
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <span style={{ padding: '8px 12px', color: 'var(--text-muted)', fontWeight: 600 }}>@</span>
+                    <input
+                      type="text"
+                      value={editHandle}
+                      onChange={(e) => setEditHandle(e.target.value)}
+                      placeholder="e.g. join_sumit_"
+                      required
+                      style={{ flex: 1, padding: '8px 12px', border: 'none', background: 'transparent', color: 'var(--text-main)', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+                <div style={{ marginBottom: '18px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-light)', marginBottom: '4px' }}>
+                    Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="e.g. Sumit Bhardwaj"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-subtle)', color: 'var(--text-main)', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-muted)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--primary)', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
+                  >
+                    {saving ? 'Saving...' : 'Save Profile'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Webhook Configuration Card */}
         <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>

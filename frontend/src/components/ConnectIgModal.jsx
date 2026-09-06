@@ -74,7 +74,8 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     const origin = window.location.origin;
     const token = getToken() || '';
     const BACKEND = getBackendUrl();
-    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+    const handleParam = quickHandle ? `&username=${encodeURIComponent(quickHandle.replace(/^@/, '').trim())}` : '';
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}${handleParam}`;
     openOAuthPopup(startUrl);
   };
 
@@ -83,7 +84,8 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     const origin = window.location.origin;
     const token = getToken() || '';
     const BACKEND = getBackendUrl();
-    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=facebook&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+    const handleParam = quickHandle ? `&username=${encodeURIComponent(quickHandle.replace(/^@/, '').trim())}` : '';
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=facebook&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}${handleParam}`;
     openOAuthPopup(startUrl);
   };
 

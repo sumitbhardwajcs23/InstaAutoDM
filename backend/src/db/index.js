@@ -65,6 +65,9 @@ async function syncFromPg(pool, sqliteDb) {
         if (res.rows && res.rows.length > 0) {
 
           for (const row of res.rows) {
+            if (table === 'instagram_accounts' && ['instagram_creator', 'test_creator_account', 'instagram_user'].includes(row.username)) {
+              continue;
+            }
             const keys = Object.keys(row);
             const placeholders = keys.map(() => '?').join(', ');
             const values = keys.map((k) => {
@@ -115,9 +118,13 @@ if (PG_URL) {
           await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS full_name TEXT;');
           await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;');
           await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;');
+          // Purge legacy dummy accounts from PostgreSQL
+          await pgPool.query("DELETE FROM instagram_accounts WHERE username IN ('instagram_creator', 'test_creator_account', 'instagram_user');");
         } catch (migErr) {
           console.warn('[PostgreSQL] Column migration notice:', migErr.message);
         }
+        // Purge dummy accounts from SQLite runtime
+        try { originalPrepare("DELETE FROM instagram_accounts WHERE username IN ('instagram_creator', 'test_creator_account', 'instagram_user')").run(); } catch (_) {}
         await syncFromPg(pgPool, db);
 
         // Delay first auto-sync by 30s so fresh OAuth writes reach PG before any DELETE sweep
