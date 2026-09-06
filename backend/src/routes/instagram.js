@@ -157,7 +157,7 @@ router.get('/lookup-profile', async (req, res) => {
         const rawToken = decrypt(activeAcc.access_token_enc);
         const ctrl = new AbortController();
         const tid = setTimeout(() => ctrl.abort(), 5000);
-        const igRes = await fetch(`https://graph.instagram.com/v21.0/me?fields=id,username,name,account_type,profile_picture_url,followers_count&access_token=${rawToken}`, { signal: ctrl.signal });
+        const igRes = await fetch(`https://graph.instagram.com/me?fields=id,username,name,account_type,profile_picture_url,followers_count&access_token=${rawToken}`, { signal: ctrl.signal });
         clearTimeout(tid);
         if (igRes.ok) {
           const d = await igRes.json();
@@ -224,7 +224,7 @@ router.post('/connect-username', async (req, res) => {
         const rawToken = decrypt(systemAcc.access_token_enc);
         const ctrl = new AbortController();
         const tid = setTimeout(() => ctrl.abort(), 5000);
-        const meRes = await fetch(`https://graph.instagram.com/v21.0/me?fields=id,username,name,account_type,profile_picture_url,followers_count&access_token=${rawToken}`, { signal: ctrl.signal });
+        const meRes = await fetch(`https://graph.instagram.com/me?fields=id,username,name,account_type,profile_picture_url,followers_count&access_token=${rawToken}`, { signal: ctrl.signal });
         clearTimeout(tid);
         if (meRes.ok) {
           const d = await meRes.json();
