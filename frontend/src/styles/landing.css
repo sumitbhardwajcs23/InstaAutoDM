@@ -1016,6 +1016,281 @@
     opacity: 0.8;
 }
 
+/* Founder & Developer Note */
+.replyos-landing .founder-section {
+    padding: 120px 0;
+    position: relative;
+    background: linear-gradient(180deg, var(--lp-bg-primary) 0%, rgba(240, 242, 255, 0.7) 100%);
+    overflow: hidden;
+}
+
+.replyos-landing .founder-glow-bg {
+    position: absolute;
+    top: 20%;
+    left: 10%;
+    width: 520px;
+    height: 520px;
+    background: radial-gradient(circle, rgba(79, 106, 246, 0.12) 0%, rgba(139, 92, 246, 0.06) 50%, transparent 70%);
+    border-radius: 50%;
+    filter: blur(60px);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.replyos-landing .founder-card {
+    position: relative;
+    z-index: 1;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(79, 106, 246, 0.2);
+    border-radius: var(--lp-radius-xl);
+    box-shadow: 0 24px 64px -16px rgba(79, 106, 246, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+    padding: 56px 64px;
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 60px;
+    align-items: center;
+}
+
+.replyos-landing .founder-visual {
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+
+.replyos-landing .founder-img-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 360px;
+    aspect-ratio: 4 / 5;
+    border-radius: var(--lp-radius-lg);
+    overflow: hidden;
+    box-shadow: 0 20px 48px rgba(10, 10, 15, 0.18);
+    border: 4px solid rgba(255, 255, 255, 0.9);
+    background: #0A0A0F;
+}
+
+.replyos-landing .founder-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 25%;
+    display: block;
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.replyos-landing .founder-card:hover .founder-img {
+    transform: scale(1.03);
+}
+
+.replyos-landing .founder-img-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 55%, rgba(10, 10, 15, 0.85) 100%);
+    pointer-events: none;
+}
+
+.replyos-landing .founder-img-caption {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    color: white;
+    z-index: 2;
+}
+
+.replyos-landing .founder-img-name {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.replyos-landing .founder-verified-badge {
+    background: #4F6AF6;
+    color: white;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 100px;
+    font-weight: 600;
+}
+
+.replyos-landing .founder-img-role {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.82);
+    margin-top: 2px;
+}
+
+.replyos-landing .founder-badge-floating {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(79, 106, 246, 0.2);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+    border-radius: 100px;
+    padding: 8px 16px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--lp-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 3;
+    white-space: nowrap;
+    animation: founderFloat 4s ease-in-out infinite;
+}
+
+.replyos-landing .founder-badge-floating.top-right {
+    top: 24px;
+    right: -24px;
+    animation-delay: 0s;
+}
+
+.replyos-landing .founder-badge-floating.bottom-left {
+    bottom: -16px;
+    left: -20px;
+    animation-delay: 2s;
+}
+
+@keyframes founderFloat {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-7px); }
+}
+
+.replyos-landing .founder-note-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.replyos-landing .founder-quote-mark {
+    font-size: 64px;
+    line-height: 0.8;
+    font-family: Georgia, serif;
+    color: var(--lp-accent-blue);
+    opacity: 0.4;
+    margin-bottom: 8px;
+}
+
+.replyos-landing .founder-heading {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--lp-text-primary);
+    line-height: 1.25;
+    margin-bottom: 20px;
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.02em;
+}
+
+.replyos-landing .founder-letter {
+    color: #4B5563;
+    font-size: 15.5px;
+    line-height: 1.75;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.replyos-landing .founder-letter p {
+    margin: 0;
+}
+
+.replyos-landing .founder-letter strong {
+    color: var(--lp-text-primary);
+    font-weight: 600;
+}
+
+.replyos-landing .founder-pillars {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 28px 0 32px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.replyos-landing .pillar-item {
+    background: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(79, 106, 246, 0.14);
+    border-radius: var(--lp-radius-md);
+    padding: 14px 16px;
+}
+
+.replyos-landing .pillar-icon {
+    font-size: 20px;
+    margin-bottom: 6px;
+}
+
+.replyos-landing .pillar-title {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--lp-text-primary);
+    margin-bottom: 4px;
+}
+
+.replyos-landing .pillar-desc {
+    font-size: 12px;
+    color: var(--lp-text-secondary);
+    line-height: 1.45;
+}
+
+.replyos-landing .founder-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.replyos-landing .founder-signoff {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.replyos-landing .founder-sign-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--lp-text-primary);
+}
+
+.replyos-landing .founder-sign-title {
+    font-size: 13px;
+    color: var(--lp-text-secondary);
+}
+
+.replyos-landing .founder-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.replyos-landing .btn-founder-contact {
+    background: rgba(79, 106, 246, 0.08);
+    color: var(--lp-accent-blue);
+    border: 1px solid rgba(79, 106, 246, 0.2);
+    padding: 11px 20px;
+    border-radius: var(--lp-radius-md);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.25s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.replyos-landing .btn-founder-contact:hover {
+    background: rgba(79, 106, 246, 0.16);
+    border-color: var(--lp-accent-blue);
+    transform: translateY(-1px);
+}
+
 /* Pricing */
 .replyos-landing .pricing {
     padding: 120px 0;
@@ -1336,6 +1611,23 @@
     .replyos-landing .testimonial-card.featured { grid-row: auto; }
     .replyos-landing .pricing-grid { grid-template-columns: 1fr; max-width: 400px; }
     .replyos-landing .pricing-card.popular { transform: none; }
+    .replyos-landing .founder-card {
+        grid-template-columns: 1fr;
+        padding: 44px 32px;
+        gap: 36px;
+    }
+    .replyos-landing .founder-img-wrapper {
+        max-width: 320px;
+    }
+    .replyos-landing .founder-badge-floating.top-right {
+        right: 0px;
+    }
+    .replyos-landing .founder-badge-floating.bottom-left {
+        left: 0px;
+    }
+    .replyos-landing .founder-pillars {
+        grid-template-columns: 1fr;
+    }
     .replyos-landing .footer-grid { grid-template-columns: 1fr; }
 }
 
@@ -1345,6 +1637,26 @@
     .replyos-landing .mobile-menu-btn { display: block; }
     .replyos-landing .hero-title { font-size: 36px; }
     .replyos-landing .features-grid { grid-template-columns: 1fr; }
+    .replyos-landing .founder-card {
+        padding: 32px 20px;
+        border-radius: var(--lp-radius-lg);
+    }
+    .replyos-landing .founder-heading {
+        font-size: 24px;
+    }
+    .replyos-landing .founder-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .replyos-landing .founder-actions {
+        width: 100%;
+        flex-direction: column;
+    }
+    .replyos-landing .founder-actions .btn-founder-contact,
+    .replyos-landing .founder-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
     .replyos-landing .footer-links { grid-template-columns: 1fr; }
     .landing-cursor-dot, .landing-cursor-outline { display: none !important; }
 }

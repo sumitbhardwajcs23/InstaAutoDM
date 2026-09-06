@@ -332,6 +332,12 @@ export default function LandingView({ onNavigate, user }) {
           opacity: 0.3, y: 20, duration: 0.35, stagger: 0.08,
         });
 
+        // Founder Note trigger
+        gsap.from('.replyos-landing .founder-card', {
+          scrollTrigger: { trigger: '.replyos-landing .founder-section', start: 'top 85%' },
+          opacity: 0.3, y: 25, duration: 0.45, ease: 'power2.out',
+        });
+
         // Pricing trigger
         gsap.from('.replyos-landing .pricing-card', {
           scrollTrigger: { trigger: '.replyos-landing .pricing-grid', start: 'top 90%' },
@@ -398,6 +404,7 @@ export default function LandingView({ onNavigate, user }) {
             <button className="nav-link" onClick={() => scrollToSection('workflow')}>Solutions</button>
             <button className="nav-link" onClick={() => scrollToSection('pricing')}>Pricing</button>
             <button className="nav-link" onClick={() => scrollToSection('testimonials')}>Stories</button>
+            <button className="nav-link" onClick={() => scrollToSection('founder')}>Founder's Note</button>
           </div>
 
           <div className="nav-actions">
@@ -442,6 +449,7 @@ export default function LandingView({ onNavigate, user }) {
         <button className="mobile-link" onClick={() => scrollToSection('workflow')}>Solutions</button>
         <button className="mobile-link" onClick={() => scrollToSection('pricing')}>Pricing</button>
         <button className="mobile-link" onClick={() => scrollToSection('testimonials')}>Stories</button>
+        <button className="mobile-link" onClick={() => scrollToSection('founder')}>Founder's Note</button>
         {user ? (
           <button className="btn btn-primary btn-full" onClick={() => onNavigate('app')}>
             Go to Dashboard →
@@ -781,6 +789,105 @@ export default function LandingView({ onNavigate, user }) {
         </div>
       </section>
 
+      {/* Founder & Developer Note */}
+      <section className="founder-section" id="founder">
+        <div className="founder-glow-bg" />
+        <div className="container">
+          <div className="founder-card">
+            <div className="founder-visual">
+              <div className="founder-img-wrapper">
+                <img
+                  src="/founder.jpg"
+                  alt="Sumit Bhardwaj - Founder & Lead Architect"
+                  className="founder-img"
+                  loading="lazy"
+                />
+                <div className="founder-img-overlay" />
+                <div className="founder-img-caption">
+                  <div className="founder-img-name">
+                    Sumit Bhardwaj
+                    <span className="founder-verified-badge">✓ Founder</span>
+                  </div>
+                  <div className="founder-img-role">Creator & Lead Architect, ReplyOS</div>
+                </div>
+              </div>
+
+              {/* Floating feature pills */}
+              <div className="founder-badge-floating top-right">
+                <span>🛡️</span>
+                <span>100% Meta Official API</span>
+              </div>
+              <div className="founder-badge-floating bottom-left">
+                <span>⚡</span>
+                <span>Sub-Second Response Engine</span>
+              </div>
+            </div>
+
+            <div className="founder-note-content">
+              <div className="section-badge" style={{ alignSelf: 'flex-start', marginBottom: '16px' }}>
+                👋 Founder & Developer's Note
+              </div>
+              <div className="founder-quote-mark">“</div>
+              <h2 className="founder-heading">
+                We built ReplyOS because slow DMs kill high-intent leads.
+              </h2>
+
+              <div className="founder-letter">
+                <p>
+                  Every creator and brand owner knows the feeling: you post a high-effort Reel or run an ad, and comments flood in with <em>"Link please!"</em> or <em>"How much?"</em>. If you don't reply within 90 seconds, that buyer has already closed Instagram and moved on.
+                </p>
+                <p>
+                  Doing this manually means gluing yourself to your screen 18 hours a day. And the third-party tools out there? Clunky, unreliable, or worse — using unofficial web-scraping hacks that put your Instagram account at risk of shadowbans and suspensions.
+                </p>
+                <p>
+                  I engineered <strong>ReplyOS</strong> to solve this with zero compromises: <strong>100% compliant with Meta's official Graph API</strong>, armed with bulletproof AES-256 token encryption, and an ultra-fast event queue that delivers your message before the user even exits your post.
+                </p>
+              </div>
+
+              <div className="founder-pillars">
+                <div className="pillar-item">
+                  <div className="pillar-icon">🔒</div>
+                  <div className="pillar-title">100% Safe & Compliant</div>
+                  <div className="pillar-desc">Only official Meta webhooks. Zero scraping, zero password sharing, zero shadowban risk.</div>
+                </div>
+                <div className="pillar-item">
+                  <div className="pillar-icon">⚡</div>
+                  <div className="pillar-title">Instant Sub-Second DMs</div>
+                  <div className="pillar-desc">Delivers links, discounts, and personalized replies in under 2 seconds while intent is peak.</div>
+                </div>
+                <div className="pillar-item">
+                  <div className="pillar-icon">🤝</div>
+                  <div className="pillar-title">Direct Founder Access</div>
+                  <div className="pillar-desc">Built for creators by an engineer. Have an idea or need custom help? You talk to me directly.</div>
+                </div>
+              </div>
+
+              <div className="founder-footer">
+                <div className="founder-signoff">
+                  <div className="founder-sign-name">Sumit Bhardwaj</div>
+                  <div className="founder-sign-title">Founder & Lead Engineer, ReplyOS</div>
+                </div>
+
+                <div className="founder-actions">
+                  <a
+                    href="mailto:sumitbhardwaj2227@gmail.com?subject=ReplyOS%20Founder%20Inquiry"
+                    className="btn-founder-contact"
+                  >
+                    ✉️ Email Founder
+                  </a>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => onNavigate(user ? 'app' : 'auth-signup')}
+                  >
+                    {user ? 'Open Dashboard →' : 'Start Free Today →'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing */}
       <section className="pricing" id="pricing">
         <div className="container">
@@ -920,6 +1027,7 @@ export default function LandingView({ onNavigate, user }) {
               <div className="footer-col">
                 <h4>Company</h4>
                 <a href="#about" onClick={(e) => { e.preventDefault(); scrollToSection('hero'); }}>About</a>
+                <button onClick={() => scrollToSection('founder')}>Founder's Note</button>
                 <a href="mailto:support@replyos.io">Contact</a>
                 <a href="/terms" target="_blank" rel="noreferrer">Terms</a>
               </div>
