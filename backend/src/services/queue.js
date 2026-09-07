@@ -56,8 +56,10 @@ class EventQueueWorker {
 
   matchKeyword(text, keyword, mode) {
     if (!text || !keyword) return false;
-    const t = text.trim().toLowerCase(), k = keyword.trim().toLowerCase();
-    return mode === 'exact' ? t === k : t.includes(k);
+    const t = text.trim().toLowerCase();
+    const keywords = keyword.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+    if (keywords.length === 0) return false;
+    return keywords.some(k => mode === 'exact' ? t === k : t.includes(k));
   }
 
   async updateActivityLog(accountId, type) {
@@ -80,17 +82,26 @@ class EventQueueWorker {
     // match candidate accounts via token verification or single active account
     try {
       const connected = await db.prepare("SELECT * FROM instagram_accounts WHERE status = 'connected'").all();
+      if (!connected || connected.length === 0) return null;
+
+      // If only one connected account exists in database, use it directly
+      if (connected.length === 1) {
+        console.log(`[Queue] 🔗 Only one connected account (@${connected[0].username}), matching for accountId ${accountId}`);
+        return connected[0];
+      }
+
       for (const candidate of connected) {
         try {
-          const tok = decrypt(candidate.long_lived_token_enc || candidate.access_token_enc);
+          const tok = decrypt(candidate.page_access_token_enc || candidate.long_lived_token_enc || candidate.access_token_enc);
           if (!tok) continue;
           const res = await fetch(`https://graph.instagram.com/me?fields=id,user_id,username&access_token=${encodeURIComponent(tok)}`);
           const data = await res.json();
-          if (data && (String(data.user_id) === String(accountId) || String(data.id) === String(accountId))) {
-            const asuid = (data.id && String(data.id) !== String(accountId)) ? String(data.id) : (candidate.fb_user_id || null);
-            await db.prepare("UPDATE instagram_accounts SET ig_user_id = ?, page_id = ?, fb_user_id = COALESCE(fb_user_id, ?), updated_at = datetime('now') WHERE id = ?").run(accountId, accountId, asuid, candidate.id);
+          if (data && !data.error && (String(data.user_id) === String(accountId) || String(data.id) === String(accountId))) {
+            const realIgId = data.user_id ? String(data.user_id) : accountId;
+            const asuid = data.id ? String(data.id) : (candidate.fb_user_id || null);
+            await db.prepare("UPDATE instagram_accounts SET ig_user_id = ?, page_id = ?, fb_user_id = COALESCE(fb_user_id, ?), updated_at = datetime('now') WHERE id = ?").run(realIgId, realIgId, asuid, candidate.id);
             if (db.getPgPool && db.getPgPool()) {
-              await db.getPgPool().query("UPDATE instagram_accounts SET ig_user_id = $1, page_id = $1, fb_user_id = COALESCE(fb_user_id, $2), updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = $3", [accountId, asuid, candidate.id]);
+              await db.getPgPool().query("UPDATE instagram_accounts SET ig_user_id = $1, page_id = $1, fb_user_id = COALESCE(fb_user_id, $2), updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = $3", [realIgId, asuid, candidate.id]);
             }
             console.log(`[Queue] 🔗 Dynamically matched and bound webhook accountId ${accountId} to @${candidate.username}`);
             return await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(candidate.id);
@@ -145,11 +156,11 @@ class EventQueueWorker {
     }
 
     const mode = rule.comment_reply_mode || 'both';
-    const hasDmText = Boolean((rule.dm_reply_message && rule.dm_reply_message.trim()) || (rule.reply_message && rule.reply_message.trim()));
-    const hasCommentText = Boolean(rule.comment_reply_message && rule.comment_reply_message.trim());
+    const dmTextTemplate = (rule.dm_reply_message && rule.dm_reply_message.trim()) || (rule.reply_message && rule.reply_message.trim()) || '';
+    const commentTextTemplate = (rule.comment_reply_message && rule.comment_reply_message.trim()) || (mode === 'both' ? 'Check your DM! 🚀' : (mode === 'comment_only' ? (rule.reply_message || 'Check your DM! 🚀') : ''));
 
-    const shouldSendDm = (mode === 'both' || mode === 'dm_only') && hasDmText;
-    const shouldReplyComment = (mode === 'both' || mode === 'comment_only') && hasCommentText;
+    const shouldSendDm = (mode === 'both' || mode === 'dm_only') && Boolean(dmTextTemplate);
+    const shouldReplyComment = (mode === 'both' || mode === 'comment_only') && Boolean(commentTextTemplate);
 
     if (!shouldSendDm && !shouldReplyComment) {
       console.warn(`[Worker] Rule "${rule.trigger_keyword}" matched but neither comment reply nor DM is configured for mode: ${mode}`);
@@ -167,7 +178,7 @@ class EventQueueWorker {
       throw e;
     }
 
-    const token = decrypt(account.access_token_enc);
+    const token = decrypt(account.page_access_token_enc || account.long_lived_token_enc || account.access_token_enc);
     let dmMsg = null;
     let commentReplyMsg = null;
     let metaMessageId = null;
@@ -177,7 +188,7 @@ class EventQueueWorker {
 
     // 1. Post Public Comment Reply (if selected)
     if (shouldReplyComment) {
-      const rawComm = rule.comment_reply_message.trim();
+      const rawComm = commentTextTemplate;
       commentReplyMsg = rawComm.replace(/\{username\}/gi, commenterUsername ? `@${commenterUsername}` : 'there');
       try {
         const commResp = await metaClient.sendPublicCommentReply({
@@ -195,7 +206,7 @@ class EventQueueWorker {
 
     // 2. Send Private DM to commenter (if selected)
     if (shouldSendDm) {
-      const rawDm = `${account.disclosure_message || ''}${(rule.dm_reply_message || rule.reply_message).trim()}`;
+      const rawDm = `${account.disclosure_message || ''}${dmTextTemplate}`;
       dmMsg = rawDm.replace(/\{username\}/gi, commenterUsername || 'there');
       try {
         const dmResp = await metaClient.sendPrivateCommentReply({
