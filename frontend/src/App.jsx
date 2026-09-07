@@ -36,6 +36,7 @@ export default function App() {
 
   // Modals
   const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
+  const [ruleToEdit, setRuleToEdit] = useState(null);
   const [isConnectIgOpen, setIsConnectIgOpen] = useState(false);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
 
@@ -212,8 +213,23 @@ export default function App() {
     }
   };
 
+  const handleOpenCreateRule = () => {
+    setRuleToEdit(null);
+    setIsCreateRuleOpen(true);
+  };
+
+  const handleEditRule = (rule) => {
+    setRuleToEdit(rule);
+    setIsCreateRuleOpen(true);
+  };
+
   const handleRuleCreated = (newRule) => {
     setRules((prev) => [newRule, ...prev]);
+    loadData();
+  };
+
+  const handleRuleUpdated = (updated) => {
+    setRules((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     loadData();
   };
 
@@ -344,7 +360,7 @@ export default function App() {
               onSelectAccount={handleSelectAccount}
               onDisconnectAccount={handleDisconnectAccount}
               onNavigate={setActiveTab}
-              onOpenCreateRule={() => setIsCreateRuleOpen(true)}
+              onOpenCreateRule={handleOpenCreateRule}
               onOpenUpgrade={() => setIsUpgradeOpen(true)}
               onOpenConnect={() => setIsConnectIgOpen(true)}
               onToggleRule={handleToggleRule}
@@ -355,7 +371,8 @@ export default function App() {
           {activeTab === 'rules' && (
             <RulesView
               rules={rules}
-              onOpenCreateRule={() => setIsCreateRuleOpen(true)}
+              onOpenCreateRule={handleOpenCreateRule}
+              onEditRule={handleEditRule}
               onToggleRule={handleToggleRule}
               onDeleteRule={handleDeleteRule}
             />
@@ -397,8 +414,13 @@ export default function App() {
       {/* Modals */}
       <CreateRuleModal
         isOpen={isCreateRuleOpen}
-        onClose={() => setIsCreateRuleOpen(false)}
+        onClose={() => {
+          setIsCreateRuleOpen(false);
+          setRuleToEdit(null);
+        }}
         onRuleCreated={handleRuleCreated}
+        onRuleUpdated={handleRuleUpdated}
+        ruleToEdit={ruleToEdit}
         accountId={selectedAccountId || account?.id}
       />
 

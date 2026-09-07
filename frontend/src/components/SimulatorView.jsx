@@ -273,27 +273,91 @@ export default function SimulatorView({ rules = [], onRefreshStats }) {
                         Match Found & Reply Sent!
                       </div>
                       <div style={{ fontSize: '12px', color: '#047857' }}>
-                        Rule: <strong>{result.data.matched_rule || 'Price Inquiry Auto DM'}</strong>
+                        Rule: <strong>{result.data.rule_matched || result.data.matched_rule || 'Auto Reply'}</strong>
                       </div>
                     </div>
                   </div>
 
-                  {/* Reply preview */}
-                  <div>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-light)', display: 'block', marginBottom: '6px' }}>
-                      SENT AUTOMATED REPLY:
-                    </span>
-                    <div style={{
-                      padding: '14px 16px',
-                      borderRadius: '12px',
-                      background: 'var(--primary-gradient)',
-                      color: '#ffffff',
-                      fontSize: '13.5px',
-                      lineHeight: 1.45,
-                    }}>
-                      {result.data.reply_sent || result.data.message || 'Auto-reply dispatched!'}
+                  {/* Public Comment Reply (if sent) */}
+                  {result.data.public_reply_sent && (
+                    <div>
+                      <span style={{ 
+                        fontSize: '12px', 
+                        fontWeight: 700, 
+                        color: '#db2777', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '6px', 
+                        marginBottom: '6px' 
+                      }}>
+                        <MessageCircle size={14} /> PUBLIC COMMENT REPLY (POSTED ON INSTAGRAM):
+                      </span>
+                      <div style={{
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        background: '#fdf2f8',
+                        border: '1px solid #fbcfe8',
+                        color: '#9d174d',
+                        fontSize: '13.5px',
+                        fontWeight: 500,
+                        lineHeight: 1.45,
+                      }}>
+                        {result.data.public_reply_sent}
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Private DM Reply (if sent) */}
+                  {result.data.reply_sent && (
+                    <div>
+                      <span style={{ 
+                        fontSize: '12px', 
+                        fontWeight: 700, 
+                        color: '#2563eb', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '6px', 
+                        marginBottom: '6px' 
+                      }}>
+                        <Send size={14} /> PRIVATE DIRECT MESSAGE (SENT TO INBOX):
+                      </span>
+                      <div style={{
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        background: 'var(--primary-gradient)',
+                        color: '#ffffff',
+                        fontSize: '13.5px',
+                        lineHeight: 1.45,
+                      }}>
+                        {result.data.reply_sent}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Execution Logs */}
+                  {result.data.logs && result.data.logs.length > 0 && (
+                    <div>
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-light)', display: 'block', marginBottom: '6px' }}>
+                        EXECUTION PIPELINE LOGS:
+                      </span>
+                      <div style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        background: 'var(--bg-subtle)',
+                        border: '1px solid var(--border-subtle)',
+                        fontSize: '11.5px',
+                        color: 'var(--text-muted)',
+                        fontFamily: 'monospace',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                      }}>
+                        {result.data.logs.map((log, idx) => (
+                          <div key={idx}>{log}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Raw JSON details */}
                   <div>

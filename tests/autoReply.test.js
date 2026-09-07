@@ -239,6 +239,109 @@ async function runTests() {
     assert.strictEqual(reply.status, 'usage_capped');
   });
 
+  // 8. Test Comment Rule with comment_reply_mode = 'both'
+  await test('Comment Rule with mode=both posts public comment reply AND sends private DM', async () => {
+    // Reset usage for test
+    await db.prepare('UPDATE users SET dm_usage_this_period = 0 WHERE id = ?').run(userId);
+
+    const bothRuleId = uuidv4();
+    await db.prepare(`
+      INSERT INTO automation_rules (
+        id, instagram_account_id, type, trigger_keyword, match_mode, 
+        reply_message, comment_reply_mode, comment_reply_message, dm_reply_message, is_active
+      ) VALUES (?, ?, 'comment_to_dm', 'PROMO', 'exact', 'Here is the promo: PROMO20', 'both', 'Check your DM! 🚀', 'Hey {username}! Here is your promo code: PROMO20', 1)
+    `).run(bothRuleId, accountId);
+
+    const commentId = `comm_both_${Date.now()}`;
+    queue.enqueue({
+      type: 'comments',
+      accountId: igUserId,
+      data: {
+        commentId,
+        text: 'PROMO',
+        commenterId: 'user_both_' + Date.now(),
+        commenterUsername: 'promo_fan',
+        createdTime: Date.now()
+      }
+    });
+
+    const reply = await waitFor(async () => {
+      return await db.prepare('SELECT * FROM comment_replies WHERE comment_id = ?').get(commentId);
+    });
+
+    assert(reply, 'Reply record must exist');
+    assert.strictEqual(reply.status, 'sent', 'Status should be sent');
+    assert(reply.public_reply_sent && reply.public_reply_sent.includes('Check your DM!'), 'Public reply should be sent');
+    assert(reply.reply_sent && reply.reply_sent.includes('promo code: PROMO20'), 'DM reply should be sent');
+    assert(reply.reply_sent && reply.reply_sent.includes('promo_fan'), 'DM reply should substitute {username}');
+  });
+
+  // 9. Test Comment Rule with comment_reply_mode = 'comment_only'
+  await test('Comment Rule with mode=comment_only posts public comment reply but sends NO DM', async () => {
+    const commentOnlyRuleId = uuidv4();
+    await db.prepare(`
+      INSERT INTO automation_rules (
+        id, instagram_account_id, type, trigger_keyword, match_mode, 
+        reply_message, comment_reply_mode, comment_reply_message, dm_reply_message, is_active
+      ) VALUES (?, ?, 'comment_to_dm', 'THANKS', 'exact', 'Thank you so much!', 'comment_only', 'Thank you @{username}! ❤️', NULL, 1)
+    `).run(commentOnlyRuleId, accountId);
+
+    const commentId = `comm_comment_only_${Date.now()}`;
+    queue.enqueue({
+      type: 'comments',
+      accountId: igUserId,
+      data: {
+        commentId,
+        text: 'THANKS',
+        commenterId: 'user_comment_only_' + Date.now(),
+        commenterUsername: 'grateful_user',
+        createdTime: Date.now()
+      }
+    });
+
+    const reply = await waitFor(async () => {
+      return await db.prepare('SELECT * FROM comment_replies WHERE comment_id = ?').get(commentId);
+    });
+
+    assert(reply, 'Reply record must exist');
+    assert.strictEqual(reply.status, 'sent');
+    assert(reply.public_reply_sent && reply.public_reply_sent.includes('Thank you @grateful_user! ❤️'), 'Public reply should be sent and substitute @username');
+    assert.strictEqual(reply.reply_sent, null, 'Private DM must NOT be sent for comment_only mode');
+  });
+
+  // 10. Test Comment Rule with comment_reply_mode = 'dm_only'
+  await test('Comment Rule with mode=dm_only sends private DM but posts NO public comment reply', async () => {
+    const dmOnlyRuleId = uuidv4();
+    await db.prepare(`
+      INSERT INTO automation_rules (
+        id, instagram_account_id, type, trigger_keyword, match_mode, 
+        reply_message, comment_reply_mode, comment_reply_message, dm_reply_message, is_active
+      ) VALUES (?, ?, 'comment_to_dm', 'SECRET', 'exact', 'Secret link: https://secret.com', 'dm_only', NULL, 'Shh {username}, here is the secret link!', 1)
+    `).run(dmOnlyRuleId, accountId);
+
+    const commentId = `comm_dm_only_${Date.now()}`;
+    queue.enqueue({
+      type: 'comments',
+      accountId: igUserId,
+      data: {
+        commentId,
+        text: 'SECRET',
+        commenterId: 'user_dm_only_' + Date.now(),
+        commenterUsername: 'secret_agent',
+        createdTime: Date.now()
+      }
+    });
+
+    const reply = await waitFor(async () => {
+      return await db.prepare('SELECT * FROM comment_replies WHERE comment_id = ?').get(commentId);
+    });
+
+    assert(reply, 'Reply record must exist');
+    assert.strictEqual(reply.status, 'sent');
+    assert.strictEqual(reply.public_reply_sent, null, 'Public reply must NOT be posted for dm_only mode');
+    assert(reply.reply_sent && reply.reply_sent.includes('Shh secret_agent'), 'Private DM must be sent with username');
+  });
+
   // Cleanup test artifacts from database
   try {
     await db.prepare('DELETE FROM users WHERE id = ?').run(userId);

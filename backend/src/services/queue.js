@@ -144,27 +144,105 @@ class EventQueueWorker {
       return;
     }
 
-    if (user.dm_usage_this_period >= FREE_CAP) {
+    const mode = rule.comment_reply_mode || 'both';
+    const hasDmText = Boolean((rule.dm_reply_message && rule.dm_reply_message.trim()) || (rule.reply_message && rule.reply_message.trim()));
+    const hasCommentText = Boolean(rule.comment_reply_message && rule.comment_reply_message.trim());
+
+    const shouldSendDm = (mode === 'both' || mode === 'dm_only') && hasDmText;
+    const shouldReplyComment = (mode === 'both' || mode === 'comment_only') && hasCommentText;
+
+    if (!shouldSendDm && !shouldReplyComment) {
+      console.warn(`[Worker] Rule "${rule.trigger_keyword}" matched but neither comment reply nor DM is configured for mode: ${mode}`);
+      return;
+    }
+
+    if (shouldSendDm && user.dm_usage_this_period >= FREE_CAP) {
       await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', 'usage_capped', 'Free plan monthly cap reached');
       return;
     }
 
-    if (!this.checkRateLimit(account.id, 'comment_to_dm')) { const e = new Error('Rate limit'); e.isPermanent = false; throw e; }
+    if (!this.checkRateLimit(account.id, 'comment_to_dm')) {
+      const e = new Error('Rate limit');
+      e.isPermanent = false;
+      throw e;
+    }
 
-    const rawMsg = `${account.disclosure_message || ''}${rule.reply_message}`;
-    const msg = rawMsg.replace(/\{username\}/gi, commenterUsername || 'there');
+    const token = decrypt(account.access_token_enc);
+    let dmMsg = null;
+    let commentReplyMsg = null;
+    let metaMessageId = null;
+    let metaCommentReplyId = null;
+    let dmError = null;
+    let commentError = null;
+
+    // 1. Post Public Comment Reply (if selected)
+    if (shouldReplyComment) {
+      const rawComm = rule.comment_reply_message.trim();
+      commentReplyMsg = rawComm.replace(/\{username\}/gi, commenterUsername ? `@${commenterUsername}` : 'there');
+      try {
+        const commResp = await metaClient.sendPublicCommentReply({
+          commentId,
+          messageText: commentReplyMsg,
+          accessToken: token
+        });
+        metaCommentReplyId = commResp?.id || null;
+        console.log(`[Worker] ✅ Public reply posted to comment ${commentId} by @${commenterUsername || 'user'}`);
+      } catch (err) {
+        commentError = err.message;
+        console.warn(`[Worker] ⚠️ Public comment reply error for ${commentId}:`, err.message);
+      }
+    }
+
+    // 2. Send Private DM to commenter (if selected)
+    if (shouldSendDm) {
+      const rawDm = `${account.disclosure_message || ''}${(rule.dm_reply_message || rule.reply_message).trim()}`;
+      dmMsg = rawDm.replace(/\{username\}/gi, commenterUsername || 'there');
+      try {
+        const dmResp = await metaClient.sendPrivateCommentReply({
+          pageId: account.page_id,
+          commentId,
+          messageText: dmMsg,
+          accessToken: token
+        });
+        metaMessageId = dmResp?.message_id || null;
+        await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
+        await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
+        console.log(`[Worker] ✅ Private DM sent for comment ${commentId} to @${commenterUsername || 'user'}`);
+      } catch (err) {
+        dmError = err.message;
+        console.warn(`[Worker] ⚠️ Private DM reply error for comment ${commentId}:`, err.message);
+        if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
+      }
+    }
+
+    // Determine final status
+    const anySucceeded = Boolean(metaCommentReplyId || metaMessageId || (!shouldSendDm && !commentError) || (!shouldReplyComment && !dmError));
+    const allFailed = (shouldSendDm && dmError && !metaMessageId) && (shouldReplyComment && commentError && !metaCommentReplyId);
+    const finalStatus = allFailed ? 'failed' : (dmError || commentError ? 'partial_sent' : 'sent');
+    const combinedError = [commentError ? `Comment: ${commentError}` : null, dmError ? `DM: ${dmError}` : null].filter(Boolean).join('; ') || null;
+
     try {
-      const resp = await metaClient.sendPrivateCommentReply({ pageId: account.page_id, commentId, messageText: msg, accessToken: decrypt(account.access_token_enc) });
-      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, reply_sent, status, meta_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', msg, 'sent', resp.message_id);
-      await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
-      await db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
-      await this.updateActivityLog(account.id, 'comment');
-      // Upsert conversation for log
-      await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
-      console.log(`[Worker] ✅ Private reply to comment ${commentId} (Rule: "${rule.trigger_keyword}")`);
-    } catch (err) {
-      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, reply_sent, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', msg, 'failed', err.message);
-      if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
+      await db.prepare(`
+        INSERT INTO comment_replies (
+          id, comment_id, automation_rule_id, instagram_account_id, commenter_username,
+          comment_text, reply_sent, public_reply_sent, status, meta_message_id, meta_comment_reply_id, error_message
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user',
+        text || '', dmMsg, commentReplyMsg, finalStatus, metaMessageId, metaCommentReplyId, combinedError
+      );
+
+      if (anySucceeded) {
+        await db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
+        await this.updateActivityLog(account.id, 'comment');
+      }
+    } catch (saveErr) {
+      console.error('[Worker] Comment reply save error:', saveErr.message);
+    }
+
+    if (allFailed) {
+      const err = new Error(combinedError || 'Failed to process comment reply');
+      err.isPermanent = true;
       throw err;
     }
   }

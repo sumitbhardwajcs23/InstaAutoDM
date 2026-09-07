@@ -25,6 +25,45 @@ class MetaClient {
     return { success: true, recipient_id: data.recipient_id, message_id: data.message_id };
   }
 
+  async sendPublicCommentReply({ commentId, messageText, accessToken }) {
+    if (this.mockMode) {
+      await new Promise(r => setTimeout(r, 50 + Math.random() * 50));
+      return { success: true, id: `m_mock_pub_comment_${uuidv4().slice(0, 12)}` };
+    }
+    const isIgToken = accessToken && (accessToken.startsWith('IG') || accessToken.startsWith('IGQ') || accessToken.startsWith('IGA'));
+    const bases = isIgToken
+      ? [GRAPH_IG_BASE, `${GRAPH_IG_BASE}/v22.0`, GRAPH_API_BASE]
+      : [GRAPH_API_BASE, GRAPH_IG_BASE];
+
+    let lastError = null;
+    for (const base of bases) {
+      try {
+        const endpoint = `${base}/${commentId}/replies`;
+        console.log(`[MetaClient] Posting public comment reply via ${endpoint}`);
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({ message: messageText })
+        });
+        const data = await res.json();
+        if (res.ok && data && (data.id || data.success)) {
+          console.log(`[MetaClient] ✅ Public comment reply posted successfully, id:`, data.id);
+          return { success: true, id: data.id };
+        }
+        lastError = new Error(data?.error?.message || 'Failed to post public comment reply');
+        lastError.statusCode = res.status;
+        lastError.metaError = data?.error;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    console.error('[MetaClient] ❌ Public comment reply failed on all endpoints:', lastError?.message);
+    throw lastError || new Error('Failed to post public comment reply');
+  }
+
   async sendDirectMessage({ pageId, igScopedUserId, messageText, accessToken }) {
     if (this.mockMode) {
       await new Promise(r => setTimeout(r, 60 + Math.random() * 80));

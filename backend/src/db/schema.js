@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS automation_rules (
   trigger_keyword TEXT NOT NULL,
   match_mode TEXT DEFAULT 'exact',
   reply_message TEXT NOT NULL,
+  comment_reply_mode TEXT DEFAULT 'both',
+  comment_reply_message TEXT,
+  dm_reply_message TEXT,
   is_active INTEGER DEFAULT 1,
   fire_count INTEGER DEFAULT 0,
   created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
@@ -58,8 +61,10 @@ CREATE TABLE IF NOT EXISTS comment_replies (
   commenter_username TEXT,
   comment_text TEXT,
   reply_sent TEXT,
+  public_reply_sent TEXT,
   status TEXT NOT NULL,
   meta_message_id TEXT,
+  meta_comment_reply_id TEXT,
   error_message TEXT,
   created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );

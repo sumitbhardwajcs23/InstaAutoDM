@@ -43,13 +43,17 @@ router.post('/comment', async (req, res) => {
 
   let action = 'no_match';
   let reply_sent = null;
+  let public_reply_sent = null;
   let reason = 'No active automation rule matched comment text.';
 
   if (reply) {
-    if (reply.status === 'sent') {
-      action = 'private_reply_sent';
-      reply_sent = reply.reply_sent;
-      reason = 'Matched keyword rule and private reply dispatched successfully.';
+    public_reply_sent = reply.public_reply_sent || null;
+    reply_sent = reply.reply_sent || null;
+    if (reply.status === 'sent' || reply.status === 'partial_sent') {
+      action = reply.status === 'partial_sent' ? 'partial_reply_sent' : 'reply_dispatched';
+      reason = reply.status === 'partial_sent' 
+        ? 'Processed rule with partial success.' 
+        : 'Rule executed successfully (Public comment and/or DM dispatched).';
     } else if (reply.status === 'window_closed') {
       action = 'window_closed';
       reason = 'Rejected: Comment is older than Meta 7-day cutoff limit.';
@@ -61,7 +65,7 @@ router.post('/comment', async (req, res) => {
       reason = 'Throttled: 120/hr sliding window limit exceeded.';
     } else {
       action = reply.status;
-      reason = `Status: ${reply.status}`;
+      reason = `Status: ${reply.status}${reply.error_message ? ` - ${reply.error_message}` : ''}`;
     }
   }
 
@@ -72,14 +76,17 @@ router.post('/comment', async (req, res) => {
     action,
     rule_matched: matchedRule ? matchedRule.trigger_keyword : null,
     reply_sent,
+    public_reply_sent,
     reason,
     result: reply || { status: action },
     logs: [
       `[Webhook Ingest] Received comment "${comment_text}" from @${commenter_username}`,
       `[Age Check] Comment timestamp: ${new Date(ts).toISOString()} (${days_ago} days ago)`,
-      `[Rule Match] ${matchedRule ? `Matched "${matchedRule.trigger_keyword}"` : 'No rule match'}`,
+      `[Rule Match] ${matchedRule ? `Matched "${matchedRule.trigger_keyword}" (Mode: ${matchedRule.comment_reply_mode || 'both'})` : 'No rule match'}`,
+      public_reply_sent ? `[Public Reply] Posted: "${public_reply_sent}"` : null,
+      reply_sent ? `[Private DM] Sent: "${reply_sent}"` : null,
       `[Pipeline Result] Action: ${action} - ${reason}`
-    ]
+    ].filter(Boolean)
   });
 });
 

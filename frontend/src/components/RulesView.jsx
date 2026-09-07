@@ -1,20 +1,23 @@
 // frontend/src/components/RulesView.jsx
 import React, { useState } from 'react';
-import { Zap, Plus, Search, Filter, Trash2, Edit3, Send, MessageCircle, Check } from 'lucide-react';
+import { Zap, Plus, Search, Trash2, Edit3, Send, MessageCircle, Layers, Check } from 'lucide-react';
 
-export default function RulesView({ rules = [], onOpenCreateRule, onToggleRule, onDeleteRule }) {
+export default function RulesView({ 
+  rules = [], 
+  onOpenCreateRule, 
+  onEditRule, 
+  onToggleRule, 
+  onDeleteRule 
+}) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
 
   const filteredRules = rules.filter((r) => {
-    const reply = r.reply_text || r.reply_message || '';
     const isDm = r.action_type === 'dm' || r.type === 'dm_keyword_reply';
     const isComment = r.action_type === 'comment' || r.type === 'comment_to_dm';
+    const allText = `${r.name || ''} ${r.trigger_keyword || ''} ${r.reply_message || ''} ${r.reply_text || ''} ${r.comment_reply_message || ''} ${r.dm_reply_message || ''}`.toLowerCase();
 
-    const matchesSearch =
-      r.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.trigger_keyword?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reply.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = allText.includes(searchTerm.toLowerCase());
 
     const matchesFilter =
       filterType === 'all' ||
@@ -40,7 +43,7 @@ export default function RulesView({ rules = [], onOpenCreateRule, onToggleRule, 
             Automation Rules
           </h1>
           <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginTop: '4px', margin: 0 }}>
-            Configure automatic replies triggered by Instagram comments and direct messages.
+            Configure automatic public replies on Instagram comments and private direct messages.
           </p>
         </div>
 
@@ -114,8 +117,8 @@ export default function RulesView({ rules = [], onOpenCreateRule, onToggleRule, 
         <div style={{ display: 'flex', gap: '8px' }}>
           {[
             { id: 'all', label: 'All Rules' },
+            { id: 'comment', label: 'Comment Triggers' },
             { id: 'dm', label: 'Direct Messages' },
-            { id: 'comment', label: 'Comments' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -140,7 +143,7 @@ export default function RulesView({ rules = [], onOpenCreateRule, onToggleRule, 
       </div>
 
       {/* Rules List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {filteredRules.length === 0 ? (
           <div style={{
             padding: '48px',
@@ -174,8 +177,7 @@ export default function RulesView({ rules = [], onOpenCreateRule, onToggleRule, 
         ) : (
           filteredRules.map((rule) => {
             const isDm = rule.action_type === 'dm' || rule.type === 'dm_keyword_reply';
-            const reply = rule.reply_text || rule.reply_message || '';
-            const actionLabel = isDm ? 'DM' : 'Comment';
+            const mode = rule.comment_reply_mode || 'both';
 
             return (
               <div
@@ -187,16 +189,16 @@ export default function RulesView({ rules = [], onOpenCreateRule, onToggleRule, 
                   border: '1px solid var(--border-light)',
                   boxShadow: 'var(--shadow-card)',
                   display: 'flex',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   justifyContent: 'space-between',
                   gap: '16px',
                   flexWrap: 'wrap',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '280px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: 1, minWidth: '280px' }}>
                   <div style={{
-                    width: '38px',
-                    height: '38px',
+                    width: '40px',
+                    height: '40px',
                     borderRadius: '10px',
                     background: isDm ? '#eff6ff' : '#fdf2f8',
                     color: isDm ? '#3b82f6' : '#ec4899',
@@ -204,115 +206,239 @@ export default function RulesView({ rules = [], onOpenCreateRule, onToggleRule, 
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
+                    marginTop: '2px',
                   }}>
-                    {isDm ? <Send size={18} /> : <MessageCircle size={18} />}
+                    {isDm ? <Send size={19} /> : <MessageCircle size={19} />}
                   </div>
 
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-main)' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                      <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)' }}>
                         {rule.name || `${rule.trigger_keyword} Auto Reply`}
                       </span>
-                      <span style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        background: 'var(--bg-subtle)',
-                        color: 'var(--text-muted)',
-                        textTransform: 'uppercase',
-                      }}>
-                        {actionLabel}
-                      </span>
+
+                      {/* Mode Badge */}
+                      {!isDm ? (
+                        mode === 'both' ? (
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: '#f5f3ff',
+                            color: '#7c3aed',
+                            border: '1px solid #ddd6fe',
+                          }}>
+                            🚀 Both (Comment + DM)
+                          </span>
+                        ) : mode === 'comment_only' ? (
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: '#fdf2f8',
+                            color: '#db2777',
+                            border: '1px solid #fbcfe8',
+                          }}>
+                            💬 Public Comment Only
+                          </span>
+                        ) : (
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: '#eff6ff',
+                            color: '#2563eb',
+                            border: '1px solid #bfdbfe',
+                          }}>
+                            ✉️ DM Only
+                          </span>
+                        )
+                      ) : (
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: '#eff6ff',
+                          color: '#2563eb',
+                          border: '1px solid #bfdbfe',
+                        }}>
+                          ✉️ Inbound DM Reply
+                        </span>
+                      )}
+
+                      {rule.fire_count !== undefined && rule.fire_count > 0 && (
+                        <span style={{
+                          fontSize: '11px',
+                          color: 'var(--text-muted)',
+                          background: 'var(--bg-subtle)',
+                          padding: '2px 7px',
+                          borderRadius: '5px',
+                        }}>
+                          Fired {rule.fire_count}x
+                        </span>
+                      )}
                     </div>
 
-                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      <strong>Keywords:</strong>{' '}
+                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                      <strong>Keyword:</strong>{' '}
                       <span style={{
                         background: 'var(--bg-subtle)',
-                        padding: '2px 6px',
+                        padding: '2px 7px',
                         borderRadius: '4px',
                         fontFamily: 'monospace',
+                        fontWeight: 700,
+                        color: 'var(--text-main)',
+                        border: '1px solid var(--border-subtle)',
                       }}>
                         {rule.trigger_keyword || '(Any message)'}
                       </span>
+                      <span style={{ marginLeft: '8px', fontSize: '11.5px', color: 'var(--text-light)' }}>
+                        ({rule.match_mode || 'contains'})
+                      </span>
                     </div>
 
-                    <div style={{
-                      fontSize: '12px',
-                      color: 'var(--text-light)',
-                      marginTop: '4px',
-                      fontStyle: 'italic',
-                      maxWidth: '540px',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}>
-                      "{reply}"
+                    {/* Messages Details */}
+                    <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {/* Comment Reply Preview */}
+                      {!isDm && (mode === 'both' || mode === 'comment_only') && rule.comment_reply_message && (
+                        <div style={{
+                          fontSize: '12px',
+                          color: 'var(--text-main)',
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          gap: '6px',
+                        }}>
+                          <span style={{ 
+                            fontSize: '10.5px', 
+                            fontWeight: 700, 
+                            color: '#db2777', 
+                            background: '#fdf2f8', 
+                            padding: '1px 5px', 
+                            borderRadius: '4px' 
+                          }}>
+                            💬 Public:
+                          </span>
+                          <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                            "{rule.comment_reply_message}"
+                          </span>
+                        </div>
+                      )}
+
+                      {/* DM Preview */}
+                      {((!isDm && (mode === 'both' || mode === 'dm_only')) || isDm) && (rule.dm_reply_message || rule.reply_text || rule.reply_message) && (
+                        <div style={{
+                          fontSize: '12px',
+                          color: 'var(--text-main)',
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          gap: '6px',
+                        }}>
+                          <span style={{ 
+                            fontSize: '10.5px', 
+                            fontWeight: 700, 
+                            color: '#2563eb', 
+                            background: '#eff6ff', 
+                            padding: '1px 5px', 
+                            borderRadius: '4px' 
+                          }}>
+                            ✉️ DM:
+                          </span>
+                          <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                            "{rule.dm_reply_message || rule.reply_text || rule.reply_message}"
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
 
-              {/* Controls */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                {/* Active Toggle */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '12px', color: rule.is_active ? '#059669' : 'var(--text-light)', fontWeight: 600 }}>
-                    {rule.is_active ? 'Active' : 'Paused'}
-                  </span>
-                  <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '20px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!rule.is_active}
-                      onChange={() => onToggleRule(rule.id, !rule.is_active)}
-                      style={{ opacity: 0, width: 0, height: 0 }}
-                    />
-                    <span style={{
-                      position: 'absolute',
-                      top: 0, left: 0, right: 0, bottom: 0,
-                      backgroundColor: rule.is_active ? 'var(--primary)' : '#cbd5e1',
-                      borderRadius: '20px',
-                      transition: '0.2s',
-                    }}>
+                {/* Controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', alignSelf: 'center' }}>
+                  {/* Active Toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: rule.is_active ? '#059669' : 'var(--text-light)', fontWeight: 600 }}>
+                      {rule.is_active ? 'Active' : 'Paused'}
+                    </span>
+                    <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '20px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!rule.is_active}
+                        onChange={() => onToggleRule(rule.id, !rule.is_active)}
+                        style={{ opacity: 0, width: 0, height: 0 }}
+                      />
                       <span style={{
                         position: 'absolute',
-                        content: '""',
-                        height: '14px',
-                        width: '14px',
-                        left: rule.is_active ? '20px' : '3px',
-                        bottom: '3px',
-                        backgroundColor: 'white',
-                        borderRadius: '50%',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: rule.is_active ? 'var(--primary)' : '#cbd5e1',
+                        borderRadius: '20px',
                         transition: '0.2s',
-                      }} />
-                    </span>
-                  </label>
-                </div>
+                      }}>
+                        <span style={{
+                          position: 'absolute',
+                          content: '""',
+                          height: '14px',
+                          width: '14px',
+                          left: rule.is_active ? '20px' : '3px',
+                          bottom: '3px',
+                          backgroundColor: 'white',
+                          borderRadius: '50%',
+                          transition: '0.2s',
+                        }} />
+                      </span>
+                    </label>
+                  </div>
 
-                {/* Delete Button */}
-                <button
-                  type="button"
-                  onClick={() => onDeleteRule(rule.id)}
-                  style={{
-                    border: 'none',
-                    background: 'var(--bg-subtle)',
-                    color: '#ef4444',
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                  }}
-                  title="Delete Rule"
-                >
-                  <Trash2 size={15} />
-                </button>
+                  {/* Edit Button */}
+                  <button
+                    type="button"
+                    onClick={() => onEditRule && onEditRule(rule)}
+                    style={{
+                      border: '1px solid var(--border-subtle)',
+                      background: 'var(--bg-subtle)',
+                      color: 'var(--text-main)',
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Edit Rule"
+                  >
+                    <Edit3 size={15} />
+                  </button>
+
+                  {/* Delete Button */}
+                  <button
+                    type="button"
+                    onClick={() => onDeleteRule(rule.id)}
+                    style={{
+                      border: '1px solid var(--border-subtle)',
+                      background: 'var(--bg-subtle)',
+                      color: '#ef4444',
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Delete Rule"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        })
+            );
+          })
         )}
       </div>
     </div>
