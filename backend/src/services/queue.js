@@ -87,14 +87,17 @@ class EventQueueWorker {
           const res = await fetch(`https://graph.instagram.com/me?fields=id,user_id,username&access_token=${encodeURIComponent(tok)}`);
           const data = await res.json();
           if (data && (String(data.user_id) === String(accountId) || String(data.id) === String(accountId))) {
-            await db.prepare("UPDATE instagram_accounts SET ig_user_id = ?, page_id = ?, updated_at = datetime('now') WHERE id = ?").run(accountId, accountId, candidate.id);
+            const asuid = (data.id && String(data.id) !== String(accountId)) ? String(data.id) : (candidate.fb_user_id || null);
+            await db.prepare("UPDATE instagram_accounts SET ig_user_id = ?, page_id = ?, fb_user_id = COALESCE(fb_user_id, ?), updated_at = datetime('now') WHERE id = ?").run(accountId, accountId, asuid, candidate.id);
             if (db.getPgPool && db.getPgPool()) {
-              await db.getPgPool().query("UPDATE instagram_accounts SET ig_user_id = $1, page_id = $1, updated_at = NOW() WHERE id = $2", [accountId, candidate.id]);
+              await db.getPgPool().query("UPDATE instagram_accounts SET ig_user_id = $1, page_id = $1, fb_user_id = COALESCE(fb_user_id, $2), updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = $3", [accountId, asuid, candidate.id]);
             }
             console.log(`[Queue] 🔗 Dynamically matched and bound webhook accountId ${accountId} to @${candidate.username}`);
             return await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(candidate.id);
           }
-        } catch (_) {}
+        } catch (candErr) {
+          console.warn(`[Queue] Auto-heal candidate check failed for @${candidate.username}:`, candErr.message);
+        }
       }
     } catch (lookupErr) {
       console.warn('[Queue] Dynamic account lookup notice:', lookupErr.message);

@@ -103,7 +103,7 @@ router.post('/connect-token', async (req, res) => {
     const fullName = tokenInfo.full_name || tokenInfo.name || tokenInfo.username;
     const profilePicUrl = tokenInfo.profile_picture_url || null;
 
-    const existing = await db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(tokenInfo.ig_user_id);
+    const existing = await db.prepare("SELECT id FROM instagram_accounts WHERE ig_user_id = ? OR fb_user_id = ? OR (lower(username) = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected'))").get(tokenInfo.ig_user_id, tokenInfo.fb_user_id || tokenInfo.ig_user_id, (tokenInfo.username || '').toLowerCase());
     const accountId = existing ? existing.id : uuidv4();
     if (existing) {
       await db.prepare(`
@@ -129,6 +129,40 @@ router.post('/connect-token', async (req, res) => {
         encPageToken, encPageToken, encLongToken,
         expiresAt, tokenInfo.followers_count || 0
       );
+    }
+
+    if (db.getPgPool && db.getPgPool()) {
+      try {
+        await db.getPgPool().query(`
+          INSERT INTO instagram_accounts (
+            id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
+            access_token_enc, page_access_token_enc, long_lived_token_enc,
+            token_expires_at, status, disclosure_message, followers_count, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'connected', '⚡ [Automated DM] ', $14, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+          ON CONFLICT (ig_user_id) DO UPDATE SET
+            user_id = EXCLUDED.user_id,
+            username = EXCLUDED.username,
+            full_name = EXCLUDED.full_name,
+            profile_picture_url = EXCLUDED.profile_picture_url,
+            page_id = EXCLUDED.page_id,
+            fb_page_name = EXCLUDED.fb_page_name,
+            fb_user_id = EXCLUDED.fb_user_id,
+            access_token_enc = EXCLUDED.access_token_enc,
+            page_access_token_enc = EXCLUDED.page_access_token_enc,
+            long_lived_token_enc = EXCLUDED.long_lived_token_enc,
+            token_expires_at = EXCLUDED.token_expires_at,
+            status = 'connected',
+            followers_count = EXCLUDED.followers_count,
+            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        `, [
+          accountId, uid, tokenInfo.ig_user_id, tokenInfo.username, fullName, profilePicUrl,
+          tokenInfo.page_id, tokenInfo.page_name, tokenInfo.fb_user_id,
+          encPageToken, encPageToken, encLongToken,
+          expiresAt, tokenInfo.followers_count || 0
+        ]);
+      } catch (pgErr) {
+        console.warn('[ConnectToken] PostgreSQL sync notice:', pgErr.message);
+      }
     }
 
     const updated = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ?').get(accountId);
@@ -322,7 +356,7 @@ router.post('/connect-username', async (req, res) => {
               status = 'connected',
               followers_count = $13,
               account_type = $14,
-              updated_at = NOW()
+              updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
             WHERE id = $15
           `, [
             targetUserId, rawUsername, fullName, profilePicUrl, igUserId,
@@ -336,7 +370,7 @@ router.post('/connect-username', async (req, res) => {
               id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
               access_token_enc, page_access_token_enc, long_lived_token_enc,
               token_expires_at, status, disclosure_message, followers_count, account_type, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'connected', '⚡ [Automated DM] ', $14, $15, NOW())
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'connected', '⚡ [Automated DM] ', $14, $15, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
             ON CONFLICT (ig_user_id) DO UPDATE SET
               user_id = EXCLUDED.user_id,
               username = EXCLUDED.username,
@@ -352,7 +386,7 @@ router.post('/connect-username', async (req, res) => {
               status = 'connected',
               followers_count = EXCLUDED.followers_count,
               account_type = EXCLUDED.account_type,
-              updated_at = NOW()
+              updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
           `, [
             accountId, targetUserId, igUserId, rawUsername, fullName, profilePicUrl,
             pageId, `${rawUsername}'s Page`, fbUserId,
@@ -429,7 +463,7 @@ router.post('/account/set-handle', async (req, res) => {
       try {
         await db.getPgPool().query(`
           UPDATE instagram_accounts 
-          SET username = $1, full_name = $2, profile_picture_url = $3, followers_count = $4, account_type = $5, updated_at = NOW()
+          SET username = $1, full_name = $2, profile_picture_url = $3, followers_count = $4, account_type = $5, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
           WHERE id = $6
         `, [rawUsername, newFullName, newProfilePic, newFollowers, newAccountType, target.id]);
       } catch (pgErr) {
@@ -697,7 +731,7 @@ router.get('/oauth/callback', async (req, res) => {
             id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
             access_token_enc, page_access_token_enc, long_lived_token_enc,
             token_expires_at, status, disclosure_message, followers_count, account_type, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'connected', '⚡ [Automated DM] ', $14, $15, NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'connected', '⚡ [Automated DM] ', $14, $15, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
           ON CONFLICT (ig_user_id) DO UPDATE SET
             user_id = EXCLUDED.user_id,
             username = EXCLUDED.username,
@@ -713,7 +747,7 @@ router.get('/oauth/callback', async (req, res) => {
             status = 'connected',
             followers_count = EXCLUDED.followers_count,
             account_type = EXCLUDED.account_type,
-            updated_at = NOW()
+            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
         `, [
           accountId, user.id, tokenInfo.ig_user_id, tokenInfo.username, fullName, profilePicUrl,
           tokenInfo.page_id, tokenInfo.page_name, tokenInfo.fb_user_id,
