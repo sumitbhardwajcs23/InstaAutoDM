@@ -46,35 +46,40 @@ router.post('/instagram', async (req, res) => {
             if (change.field === 'messages' && change.value) {
               const v = change.value;
               if (v.message?.text && !v.message?.is_echo) {
-                queue.enqueue({
-                  type: 'messages',
-                  accountId: v.recipient?.id || accountId,
-                  data: {
+                const targetAccountId = v.recipient?.id || accountId;
+                console.log(`[Webhook] ✉️ Direct DM event for accountId ${targetAccountId} from @${v.sender?.username || v.sender?.id}: "${v.message.text}"`);
+                try {
+                  await queue.processMessage(targetAccountId, {
                     messageId: v.message.mid,
                     senderId: v.sender?.id,
                     senderUsername: v.sender?.username || null,
                     text: v.message.text,
-                    timestamp: v.timestamp || Date.now()
-                  }
-                });
+                    timestamp: v.timestamp || entry.time || Date.now()
+                  });
+                  console.log(`[Webhook] ✅ Successfully processed DM ${v.message.mid}`);
+                } catch (msgErr) {
+                  console.error(`[Webhook] ❌ Failed to process DM ${v.message.mid}:`, msgErr.message);
+                }
               }
             }
 
             // New format: comments under changes with field="comments"
             if (change.field === 'comments' && change.value) {
               const v = change.value;
-              queue.enqueue({
-                type: 'comments',
-                accountId,
-                data: {
+              console.log(`[Webhook] 💬 Direct Comment event for accountId ${accountId} from @${v.from?.username || v.from?.id}: "${v.text}" (commentId: ${v.id})`);
+              try {
+                await queue.processComment(accountId, {
                   commentId: v.id,
                   text: v.text,
                   commenterId: v.from?.id,
                   commenterUsername: v.from?.username || null,
-                  createdTime: v.created_time || Date.now(),
+                  createdTime: v.created_time || entry.time || Date.now(),
                   mediaId: v.media?.id
-                }
-              });
+                });
+                console.log(`[Webhook] ✅ Successfully processed comment ${v.id}`);
+              } catch (commErr) {
+                console.error(`[Webhook] ❌ Failed to process comment ${v.id}:`, commErr.message);
+              }
             }
           }
         }
@@ -83,17 +88,19 @@ router.post('/instagram', async (req, res) => {
         if (entry.messaging?.length) {
           for (const msg of entry.messaging) {
             if (msg.message?.text && !msg.message.is_echo) {
-              queue.enqueue({
-                type: 'messages',
-                accountId,
-                data: {
+              console.log(`[Webhook] ✉️ Messaging DM event for accountId ${accountId} from @${msg.sender?.username || msg.sender?.id}: "${msg.message.text}"`);
+              try {
+                await queue.processMessage(accountId, {
                   messageId: msg.message.mid,
                   senderId: msg.sender?.id,
                   senderUsername: msg.sender?.username || null,
                   text: msg.message.text,
-                  timestamp: msg.timestamp || Date.now()
-                }
-              });
+                  timestamp: msg.timestamp || entry.time || Date.now()
+                });
+                console.log(`[Webhook] ✅ Successfully processed messaging DM ${msg.message.mid}`);
+              } catch (msgErr) {
+                console.error(`[Webhook] ❌ Failed to process messaging DM ${msg.message.mid}:`, msgErr.message);
+              }
             }
           }
         }
@@ -102,6 +109,7 @@ router.post('/instagram', async (req, res) => {
     }
     await db.prepare("UPDATE webhook_events SET status='processed', processed_at=datetime('now') WHERE id=?").run(eventId);
   } catch (e) {
+    console.error('[Webhook] Fatal processing error:', e.message);
     await db.prepare("UPDATE webhook_events SET status='failed', error=? WHERE id=?").run(e.message, eventId);
   }
   res.status(200).json({ received: true });

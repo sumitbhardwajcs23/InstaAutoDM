@@ -39,13 +39,18 @@ class EventQueueWorker {
     if (!this.queue.length || this.activeWorkers >= this.concurrency) return;
     const job = this.queue.shift();
     this.activeWorkers++;
-    try { await this.handleJob(job); }
-    catch (err) {
+    try {
+      await this.handleJob(job);
+    } catch (err) {
+      console.error(`[Worker] ❌ Error processing job ${job.id} (${job.event?.type}):`, err.message);
       if (job.attempts < job.maxAttempts && !err.isPermanent) {
         job.attempts++;
         setTimeout(() => { this.queue.push(job); this.processNext(); }, Math.pow(2, job.attempts) * 500);
       }
-    } finally { this.activeWorkers--; this.processNext(); }
+    } finally {
+      this.activeWorkers--;
+      this.processNext();
+    }
   }
 
   async handleJob(job) {
@@ -69,13 +74,17 @@ class EventQueueWorker {
   }
 
   async updateActivityLog(accountId, type) {
-    const today = new Date().toISOString().slice(0, 10);
-    const existing = await db.prepare('SELECT id FROM activity_log WHERE instagram_account_id = ? AND event_date = ?').get(accountId, today);
-    if (existing) {
-      if (type === 'comment') await db.prepare('UPDATE activity_log SET comments_replied = comments_replied + 1 WHERE instagram_account_id = ? AND event_date = ?').run(accountId, today);
-      else await db.prepare('UPDATE activity_log SET dms_sent = dms_sent + 1 WHERE instagram_account_id = ? AND event_date = ?').run(accountId, today);
-    } else {
-      await db.prepare('INSERT INTO activity_log (id, instagram_account_id, event_date, dms_sent, comments_replied) VALUES (?, ?, ?, ?, ?)').run(uuidv4(), accountId, today, type === 'dm' ? 1 : 0, type === 'comment' ? 1 : 0);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const existing = await db.prepare('SELECT id FROM activity_log WHERE instagram_account_id = ? AND event_date = ?').get(accountId, today);
+      if (existing) {
+        if (type === 'comment') await db.prepare('UPDATE activity_log SET comments_replied = comments_replied + 1 WHERE instagram_account_id = ? AND event_date = ?').run(accountId, today);
+        else await db.prepare('UPDATE activity_log SET dms_sent = dms_sent + 1 WHERE instagram_account_id = ? AND event_date = ?').run(accountId, today);
+      } else {
+        await db.prepare('INSERT INTO activity_log (id, instagram_account_id, event_date, dms_sent, comments_replied) VALUES (?, ?, ?, ?, ?)').run(uuidv4(), accountId, today, type === 'dm' ? 1 : 0, type === 'comment' ? 1 : 0);
+      }
+    } catch (logErr) {
+      console.warn('[Worker] Activity log notice:', logErr.message);
     }
   }
 
@@ -134,22 +143,30 @@ class EventQueueWorker {
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(account.user_id);
     if (!user) return;
 
+    console.log(`[Worker] 💬 Processing comment ${commentId} on @${account.username} from @${commenterUsername || commenterId}: "${text}"`);
+
     // Prevent replying to comments authored by the account itself
     if (commenterId && (commenterId === account.ig_user_id || commenterId === account.page_id || commenterId === account.fb_user_id)) {
+      console.log(`[Worker] Skipping self-comment by account ID: ${commenterId}`);
       return;
     }
     if (commenterUsername && account.username && commenterUsername.toLowerCase() === account.username.toLowerCase()) {
+      console.log(`[Worker] Skipping self-comment by account username: @${commenterUsername}`);
       return;
     }
 
     // Idempotency
-    if (await db.prepare('SELECT id FROM comment_replies WHERE comment_id = ?').get(commentId)) return;
+    if (await db.prepare('SELECT id FROM comment_replies WHERE comment_id = ?').get(commentId)) {
+      console.log(`[Worker] Comment ${commentId} has already been replied to, skipping.`);
+      return;
+    }
 
     // 7-day window
     const tsNum = Number(createdTime);
     let rawCommentTime = (!isNaN(tsNum) && tsNum > 0) ? (tsNum < 1e11 ? tsNum * 1000 : tsNum) : (Date.parse(createdTime) || now);
     const commentTs = (isNaN(rawCommentTime) || rawCommentTime < 1650000000000) ? now : rawCommentTime;
     if (now - commentTs > MAX_COMMENT_AGE_MS) {
+      console.warn(`[Worker] Comment ${commentId} is older than 7 days, skipping.`);
       await db.prepare('INSERT INTO comment_replies (id, comment_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, account.id, commenterUsername || 'user', text || '', 'window_closed', 'Comment older than 7 days');
       return;
     }

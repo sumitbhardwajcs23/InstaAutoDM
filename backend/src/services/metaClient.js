@@ -13,16 +13,34 @@ class MetaClient {
       await new Promise(r => setTimeout(r, 60 + Math.random() * 80));
       return { success: true, recipient_id: `ig_${uuidv4().slice(0,8)}`, message_id: `m_mock_pr_${uuidv4().slice(0,12)}` };
     }
-    const isIgToken = accessToken.startsWith('IG');
-    const endpoint = isIgToken ? `${GRAPH_IG_BASE}/me/messages` : `${GRAPH_API_BASE}/${pageId}/messages`;
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-      body: JSON.stringify({ recipient: { comment_id: commentId }, message: { text: messageText } })
-    });
-    const data = await res.json();
-    if (!res.ok) { const e = new Error(data?.error?.message || 'Meta API error'); e.statusCode = res.status; e.metaError = data?.error; throw e; }
-    return { success: true, recipient_id: data.recipient_id, message_id: data.message_id };
+    const isIgToken = accessToken && (accessToken.startsWith('IG') || accessToken.startsWith('IGQ') || accessToken.startsWith('IGA'));
+    const endpoints = isIgToken
+      ? [`${GRAPH_IG_BASE}/me/messages`, `${GRAPH_API_BASE}/${pageId}/messages`]
+      : [`${GRAPH_API_BASE}/${pageId}/messages`, `${GRAPH_IG_BASE}/me/messages`];
+
+    let lastError = null;
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`[MetaClient] Sending private comment reply via ${endpoint}`);
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+          body: JSON.stringify({ recipient: { comment_id: commentId }, message: { text: messageText } })
+        });
+        const data = await res.json();
+        if (res.ok && data && (data.recipient_id || data.message_id || data.id)) {
+          console.log(`[MetaClient] ✅ Private reply sent via ${endpoint}, message_id:`, data.message_id || data.id);
+          return { success: true, recipient_id: data.recipient_id, message_id: data.message_id || data.id };
+        }
+        lastError = new Error(data?.error?.message || 'Meta API error');
+        lastError.statusCode = res.status;
+        lastError.metaError = data?.error;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    console.error('[MetaClient] ❌ Private comment reply failed on all endpoints:', lastError?.message);
+    throw lastError || new Error('Meta API error');
   }
 
   async sendPublicCommentReply({ commentId, messageText, accessToken }) {
