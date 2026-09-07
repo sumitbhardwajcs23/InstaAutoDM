@@ -57,9 +57,15 @@ class EventQueueWorker {
   matchKeyword(text, keyword, mode) {
     if (!text || !keyword) return false;
     const t = text.trim().toLowerCase();
+    if (keyword === '*' || keyword.trim().toLowerCase() === 'any') return true;
     const keywords = keyword.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
     if (keywords.length === 0) return false;
-    return keywords.some(k => mode === 'exact' ? t === k : t.includes(k));
+    return keywords.some(k => {
+      if (k === '*' || k === 'any') return true;
+      if (mode === 'exact') return t === k;
+      if (mode === 'starts_with') return t.startsWith(k);
+      return t.includes(k);
+    });
   }
 
   async updateActivityLog(accountId, type) {
@@ -186,21 +192,28 @@ class EventQueueWorker {
     let dmError = null;
     let commentError = null;
 
+    const isSimulated = commentId && (String(commentId).startsWith('c_') || String(commentId).startsWith('sim_') || String(commentId).startsWith('test_'));
+
     // 1. Post Public Comment Reply (if selected)
     if (shouldReplyComment) {
       const rawComm = commentTextTemplate;
       commentReplyMsg = rawComm.replace(/\{username\}/gi, commenterUsername ? `@${commenterUsername}` : 'there');
-      try {
-        const commResp = await metaClient.sendPublicCommentReply({
-          commentId,
-          messageText: commentReplyMsg,
-          accessToken: token
-        });
-        metaCommentReplyId = commResp?.id || null;
-        console.log(`[Worker] ✅ Public reply posted to comment ${commentId} by @${commenterUsername || 'user'}`);
-      } catch (err) {
-        commentError = err.message;
-        console.warn(`[Worker] ⚠️ Public comment reply error for ${commentId}:`, err.message);
+      if (isSimulated) {
+        metaCommentReplyId = `sim_comm_${uuidv4().slice(0, 8)}`;
+        console.log(`[Worker] 🧪 [Simulation] Public reply generated for comment ${commentId}: "${commentReplyMsg}"`);
+      } else {
+        try {
+          const commResp = await metaClient.sendPublicCommentReply({
+            commentId,
+            messageText: commentReplyMsg,
+            accessToken: token
+          });
+          metaCommentReplyId = commResp?.id || null;
+          console.log(`[Worker] ✅ Public reply posted to comment ${commentId} by @${commenterUsername || 'user'}`);
+        } catch (err) {
+          commentError = err.message;
+          console.warn(`[Worker] ⚠️ Public comment reply error for ${commentId}:`, err.message);
+        }
       }
     }
 
@@ -208,21 +221,28 @@ class EventQueueWorker {
     if (shouldSendDm) {
       const rawDm = `${account.disclosure_message || ''}${dmTextTemplate}`;
       dmMsg = rawDm.replace(/\{username\}/gi, commenterUsername || 'there');
-      try {
-        const dmResp = await metaClient.sendPrivateCommentReply({
-          pageId: account.page_id,
-          commentId,
-          messageText: dmMsg,
-          accessToken: token
-        });
-        metaMessageId = dmResp?.message_id || null;
+      if (isSimulated) {
+        metaMessageId = `sim_dm_${uuidv4().slice(0, 8)}`;
         await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
         await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
-        console.log(`[Worker] ✅ Private DM sent for comment ${commentId} to @${commenterUsername || 'user'}`);
-      } catch (err) {
-        dmError = err.message;
-        console.warn(`[Worker] ⚠️ Private DM reply error for comment ${commentId}:`, err.message);
-        if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
+        console.log(`[Worker] 🧪 [Simulation] Private DM generated for comment ${commentId}: "${dmMsg}"`);
+      } else {
+        try {
+          const dmResp = await metaClient.sendPrivateCommentReply({
+            pageId: account.page_id,
+            commentId,
+            messageText: dmMsg,
+            accessToken: token
+          });
+          metaMessageId = dmResp?.message_id || null;
+          await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
+          await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
+          console.log(`[Worker] ✅ Private DM sent for comment ${commentId} to @${commenterUsername || 'user'}`);
+        } catch (err) {
+          dmError = err.message;
+          console.warn(`[Worker] ⚠️ Private DM reply error for comment ${commentId}:`, err.message);
+          if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
+        }
       }
     }
 
@@ -334,8 +354,15 @@ class EventQueueWorker {
     const cleanFirstName = realName ? realName.split(' ')[0].trim() : (realUsername ? realUsername.replace(/^@/, '') : '');
     const greetingName = cleanFirstName && cleanFirstName.toLowerCase() !== 'user' ? cleanFirstName : 'there';
     const msg = rawMsg.replace(/\{username\}/gi, greetingName);
+    const isSimulated = (senderId && String(senderId).startsWith('uid_')) || (messageId && String(messageId).startsWith('mid_'));
     try {
-      const resp = await metaClient.sendDirectMessage({ pageId: account.page_id, igScopedUserId: senderId, messageText: msg, accessToken: decrypt(account.access_token_enc) });
+      let resp;
+      if (isSimulated) {
+        resp = { message_id: `sim_dm_${uuidv4().slice(0, 8)}` };
+        console.log(`[Worker] 🧪 [Simulation] DM auto-reply generated: "${msg}"`);
+      } else {
+        resp = await metaClient.sendDirectMessage({ pageId: account.page_id, igScopedUserId: senderId, messageText: msg, accessToken: decrypt(account.access_token_enc) });
+      }
       // Outbound auto-reply timestamp: 1 second after the inbound event to ensure correct ordering
       const outboundCreatedAt = new Date(eventTime + 1000).toISOString();
       await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'sent', resp.message_id, outboundCreatedAt);
