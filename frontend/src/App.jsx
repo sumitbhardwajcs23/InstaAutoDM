@@ -11,9 +11,11 @@ import BillingView from './components/BillingView';
 import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
 import LandingView from './components/LandingView';
+import MediaView from './components/MediaView';
 import CreateRuleModal from './components/CreateRuleModal';
 import ConnectIgModal from './components/ConnectIgModal';
 import UpgradeModal from './components/UpgradeModal';
+import TemplatesView from './components/TemplatesView';
 import { getCurrentUser, clearAuthSession, apiFetch } from './api/client';
 
 export default function App() {
@@ -37,6 +39,7 @@ export default function App() {
   // Modals
   const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
   const [ruleToEdit, setRuleToEdit] = useState(null);
+  const [preselectedMedia, setPreselectedMedia] = useState(null);
   const [isConnectIgOpen, setIsConnectIgOpen] = useState(false);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
 
@@ -75,7 +78,7 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('connected') === 'true') {
-      setNotification({ type: 'success', message: '🎉 Instagram account successfully connected to ReplyOS!' });
+      setNotification({ type: 'success', message: '🎉 Instagram account successfully connected to Airvix!' });
       window.history.replaceState({}, '', window.location.pathname);
     } else if (params.get('error')) {
       setNotification({ type: 'error', message: `Instagram connection note: ${decodeURIComponent(params.get('error'))}` });
@@ -213,13 +216,28 @@ export default function App() {
     }
   };
 
-  const handleOpenCreateRule = () => {
+  const handleOpenCreateRule = (initialData = null) => {
+    if (initialData && !initialData.id) {
+      setRuleToEdit({
+        ...initialData,
+        isTemplate: true,
+      });
+    } else {
+      setRuleToEdit(initialData);
+    }
+    setPreselectedMedia(null);
+    setIsCreateRuleOpen(true);
+  };
+
+  const handleAutomateMedia = (mediaItem) => {
     setRuleToEdit(null);
+    setPreselectedMedia(mediaItem);
     setIsCreateRuleOpen(true);
   };
 
   const handleEditRule = (rule) => {
     setRuleToEdit(rule);
+    setPreselectedMedia(null);
     setIsCreateRuleOpen(true);
   };
 
@@ -368,6 +386,16 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'media' && (
+            <MediaView
+              account={account}
+              accounts={accounts}
+              onSelectAccount={handleSelectAccount}
+              onAutomateMedia={handleAutomateMedia}
+              onOpenConnect={() => setIsConnectIgOpen(true)}
+            />
+          )}
+
           {activeTab === 'rules' && (
             <RulesView
               rules={rules}
@@ -403,10 +431,10 @@ export default function App() {
           )}
 
           {activeTab === 'templates' && (
-            <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              <h2>Message & Reply Templates</h2>
-              <p>Pre-made e-commerce and creator response sequences.</p>
-            </div>
+            <TemplatesView
+              onOpenCreateRule={handleOpenCreateRule}
+              account={account}
+            />
           )}
         </main>
       </div>
@@ -417,10 +445,12 @@ export default function App() {
         onClose={() => {
           setIsCreateRuleOpen(false);
           setRuleToEdit(null);
+          setPreselectedMedia(null);
         }}
         onRuleCreated={handleRuleCreated}
         onRuleUpdated={handleRuleUpdated}
         ruleToEdit={ruleToEdit}
+        preselectedMedia={preselectedMedia}
         accountId={selectedAccountId || account?.id}
       />
 

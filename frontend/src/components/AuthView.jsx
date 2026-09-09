@@ -108,12 +108,12 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
       <section className="auth-showcase-side">
         {/* Showcase Topbar */}
         <div className="showcase-topbar">
-          <div className="showcase-brand" onClick={onBackToLanding} title="ReplyOS Home">
+          <div className="showcase-brand" onClick={onBackToLanding} title="Airvix Home">
             <div className="showcase-brand-icon">
-              <img src="/logo-icon.png" alt="ReplyOS" />
+              <img src="/logo-icon.png" alt="Airvix" />
             </div>
             <span className="showcase-brand-name">
-              Reply<span className="accent">OS</span>
+              Air<span className="accent">vix</span>
             </span>
           </div>
 
@@ -192,9 +192,9 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
               </div>
 
               <div className="floating-comment-item" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '6px' }}>
-                <div className="floating-avatar floating-reply-avatar">RO</div>
+                <div className="floating-avatar floating-reply-avatar">AX</div>
                 <div className="floating-text-wrap">
-                  <div className="floating-user" style={{ color: '#60A5FA' }}>Replied by ReplyOS</div>
+                  <div className="floating-user" style={{ color: '#60A5FA' }}>Replied by Airvix</div>
                   <div className="floating-comment">"Hey! Yes, it's available. Here's your link 🔗"</div>
                   <span className="floating-tag">⚡ Auto-replied in 1.2s</span>
                 </div>
@@ -289,10 +289,10 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
           <div className="auth-card-header">
             <div className="auth-card-brand">
               <div className="auth-card-logo-icon">
-                <img src="/logo-icon.png" alt="ReplyOS Logo" />
+                <img src="/logo-icon.png" alt="Airvix Logo" />
               </div>
               <span className="auth-card-logo-text">
-                Reply<span className="accent">OS</span>
+                Air<span className="accent">vix</span>
               </span>
             </div>
 
@@ -425,11 +425,11 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
 
         {/* Subtle Right Side Footer */}
         <div className="auth-form-footer">
-          <span>© {new Date().getFullYear()} ReplyOS Inc.</span>
+          <span>© {new Date().getFullYear()} Airvix Inc.</span>
           <div style={{ display: 'flex', gap: '14px' }}>
             <a href="/privacy" target="_blank" rel="noreferrer">Privacy</a>
             <a href="/terms" target="_blank" rel="noreferrer">Terms</a>
-            <a href="mailto:support@replyos.io">Support</a>
+            <a href="mailto:support@airvix.com">Support</a>
           </div>
         </div>
       </section>

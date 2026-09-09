@@ -79,6 +79,119 @@ router.get('/accounts', async (req, res) => {
   res.json({ accounts: (accounts || []).map(sanitizeAccount) });
 });
 
+// GET /api/instagram/media — list top media items (Reels, Posts) with pagination and rule associations
+router.get('/media', async (req, res) => {
+  const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Authentication required' });
+
+  const accountId = req.query.account_id;
+  let account;
+  if (accountId) {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(uid, accountId);
+  } else {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(uid);
+  }
+
+  if (!account) {
+    return res.status(404).json({ error: 'No connected Instagram account found', media: [], paging: {} });
+  }
+
+  const limit = Math.min(parseInt(req.query.limit, 10) || 30, 50);
+  const after = req.query.after || null;
+  const filterType = (req.query.type || 'all').toLowerCase();
+
+  try {
+    const rawToken = account.page_access_token_enc || account.long_lived_token_enc || account.access_token_enc;
+    const token = rawToken ? decrypt(rawToken) : null;
+    const igUserId = account.ig_user_id || account.page_id;
+
+    const result = await metaClient.getAccountMedia({
+      igUserId,
+      accessToken: token,
+      limit,
+      after,
+    });
+
+    // Fetch active rules to map against media items
+    const rules = await db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND is_active = 1").all(account.id);
+
+    let items = result.data || [];
+    if (filterType === 'reels' || filterType === 'reel') {
+      items = items.filter(m => m.media_product_type === 'REELS' || m.media_type === 'VIDEO');
+    } else if (filterType === 'feed' || filterType === 'posts' || filterType === 'post') {
+      items = items.filter(m => m.media_product_type === 'FEED' || m.media_type === 'IMAGE' || m.media_type === 'CAROUSEL_ALBUM');
+    }
+
+    const enriched = items.map(m => {
+      const matched = (rules || []).filter(r => r.target_media_id === m.id);
+      return {
+        ...m,
+        active_rules_count: matched.length,
+        active_rules: matched.map(r => ({
+          id: r.id,
+          trigger_keyword: r.trigger_keyword,
+          comment_reply_mode: r.comment_reply_mode,
+          type: r.type,
+          reply_message: r.reply_message,
+        }))
+      };
+    });
+
+    res.json({
+      success: true,
+      media: enriched,
+      paging: result.paging || {},
+      account: sanitizeAccount(account)
+    });
+  } catch (err) {
+    console.error('[Instagram Media] Error fetching media:', err.message);
+    res.status(500).json({ error: 'Failed to fetch Instagram media', details: err.message, media: [] });
+  }
+});
+
+// GET /api/instagram/stories — list active 24h stories
+router.get('/stories', async (req, res) => {
+  const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Authentication required' });
+
+  const accountId = req.query.account_id;
+  let account;
+  if (accountId) {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(uid, accountId);
+  } else {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(uid);
+  }
+
+  if (!account) return res.status(404).json({ error: 'No Instagram account found', stories: [] });
+
+  try {
+    const rawToken = account.page_access_token_enc || account.long_lived_token_enc || account.access_token_enc;
+    const token = rawToken ? decrypt(rawToken) : null;
+    const igUserId = account.ig_user_id || account.page_id;
+
+    const stories = await metaClient.getAccountStories({ igUserId, accessToken: token });
+    const rules = await db.prepare("SELECT * FROM automation_rules WHERE instagram_account_id = ? AND is_active = 1 AND (type = 'story_reply' OR target_media_type = 'story')").all(account.id);
+
+    const enriched = (stories || []).map(s => {
+      const matched = (rules || []).filter(r => !r.target_media_id || r.target_media_id === s.id);
+      return {
+        ...s,
+        active_rules_count: matched.length,
+        active_rules: matched.map(r => ({
+          id: r.id,
+          trigger_keyword: r.trigger_keyword,
+          type: r.type
+        }))
+      };
+    });
+
+    res.json({ success: true, stories: enriched, account: sanitizeAccount(account) });
+  } catch (err) {
+    console.error('[Instagram Stories] Error fetching stories:', err.message);
+    res.status(500).json({ error: 'Failed to fetch Instagram stories', details: err.message, stories: [] });
+  }
+});
+
 // DELETE /api/instagram/accounts/:id — disconnect/remove a specific account
 router.delete('/accounts/:id', async (req, res) => {
   const uid = await getUserId(req);

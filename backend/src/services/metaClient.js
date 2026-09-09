@@ -8,7 +8,40 @@ class MetaClient {
     return process.env.META_MOCK_MODE === 'true';
   }
 
-  async sendPrivateCommentReply({ pageId, commentId, messageText, accessToken }) {
+  buildMessagePayload({ messageText, quickReplies, card }) {
+    const payload = {};
+    if (card && card.title) {
+      const element = {
+        title: String(card.title).slice(0, 80),
+        subtitle: String(card.subtitle || messageText || '').slice(0, 80)
+      };
+      if (card.image_url) {
+        element.image_url = card.image_url;
+      }
+      if (card.button_url) {
+        element.buttons = [{
+          type: 'web_url',
+          url: card.button_url,
+          title: String(card.button_text || 'Open Link').slice(0, 20)
+        }];
+      }
+      payload.attachment = {
+        type: 'template',
+        payload: {
+          template_type: 'generic',
+          elements: [element]
+        }
+      };
+    } else {
+      payload.text = messageText || ' ';
+    }
+    if (quickReplies && Array.isArray(quickReplies) && quickReplies.length > 0) {
+      payload.quick_replies = quickReplies;
+    }
+    return payload;
+  }
+
+  async sendPrivateCommentReply({ pageId, commentId, messageText, accessToken, quickReplies, card }) {
     if (this.mockMode) {
       await new Promise(r => setTimeout(r, 60 + Math.random() * 80));
       return { success: true, recipient_id: `ig_${uuidv4().slice(0,8)}`, message_id: `m_mock_pr_${uuidv4().slice(0,12)}` };
@@ -18,16 +51,31 @@ class MetaClient {
       ? [`${GRAPH_IG_BASE}/me/messages`, `${GRAPH_API_BASE}/${pageId}/messages`]
       : [`${GRAPH_API_BASE}/${pageId}/messages`, `${GRAPH_IG_BASE}/me/messages`];
 
+    let messagePayload = this.buildMessagePayload({ messageText, quickReplies, card });
+
     let lastError = null;
     for (const endpoint of endpoints) {
       try {
         console.log(`[MetaClient] Sending private comment reply via ${endpoint}`);
-        const res = await fetch(endpoint, {
+        let res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-          body: JSON.stringify({ recipient: { comment_id: commentId }, message: { text: messageText } })
+          body: JSON.stringify({ recipient: { comment_id: commentId }, message: messagePayload })
         });
-        const data = await res.json();
+        let data = await res.json();
+        
+        // Graceful fallback: If template attachment rejected on private reply endpoint, retry with plain text
+        if (!res.ok && card && messageText) {
+          console.warn(`[MetaClient] Template card not accepted by endpoint, falling back to text DM:`, data?.error?.message);
+          messagePayload = this.buildMessagePayload({ messageText, quickReplies, card: null });
+          res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+            body: JSON.stringify({ recipient: { comment_id: commentId }, message: messagePayload })
+          });
+          data = await res.json();
+        }
+
         if (res.ok && data && (data.recipient_id || data.message_id || data.id)) {
           console.log(`[MetaClient] ✅ Private reply sent via ${endpoint}, message_id:`, data.message_id || data.id);
           return { success: true, recipient_id: data.recipient_id, message_id: data.message_id || data.id };
@@ -82,7 +130,7 @@ class MetaClient {
     throw lastError || new Error('Failed to post public comment reply');
   }
 
-  async sendDirectMessage({ pageId, igScopedUserId, messageText, accessToken }) {
+  async sendDirectMessage({ pageId, igScopedUserId, messageText, accessToken, quickReplies, card }) {
     if (this.mockMode) {
       await new Promise(r => setTimeout(r, 60 + Math.random() * 80));
       return { success: true, recipient_id: igScopedUserId, message_id: `m_mock_dm_${uuidv4().slice(0,12)}` };
@@ -90,12 +138,27 @@ class MetaClient {
     const isIgToken = accessToken.startsWith('IG');
     const endpoint = isIgToken ? `${GRAPH_IG_BASE}/me/messages` : `${GRAPH_API_BASE}/${pageId}/messages`;
     console.log(`[MetaClient] Sending DM via ${endpoint} to recipient ${igScopedUserId}`);
-    const res = await fetch(endpoint, {
+    let messagePayload = this.buildMessagePayload({ messageText, quickReplies, card });
+
+    let res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-      body: JSON.stringify({ recipient: { id: igScopedUserId }, message: { text: messageText } })
+      body: JSON.stringify({ recipient: { id: igScopedUserId }, message: messagePayload })
     });
-    const data = await res.json();
+    let data = await res.json();
+
+    // Graceful fallback if card attachment rejected
+    if (!res.ok && card && messageText) {
+      console.warn(`[MetaClient] DM Template card not accepted, falling back to text:`, data?.error?.message);
+      messagePayload = this.buildMessagePayload({ messageText, quickReplies, card: null });
+      res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+        body: JSON.stringify({ recipient: { id: igScopedUserId }, message: messagePayload })
+      });
+      data = await res.json();
+    }
+
     if (!res.ok) {
       console.error('[MetaClient] DM send failed:', JSON.stringify(data));
       const e = new Error(data?.error?.message || 'Meta API error');
@@ -201,6 +264,50 @@ class MetaClient {
     return null;
   }
 
+  async checkUserFollowsBusiness({ igScopedUserId, accessToken, pageId, commenterUsername, simulatedFollowState }) {
+    if (simulatedFollowState !== undefined) {
+      console.log(`[MetaClient] 🧪 [Explicit State] Follow check for ${igScopedUserId} (@${commenterUsername || 'user'}): isFollowing = ${Boolean(simulatedFollowState)}`);
+      return { isFollowing: Boolean(simulatedFollowState) };
+    }
+
+    // 1. Mock / Simulation / Test mode detection:
+    const nameLower = `${commenterUsername || ''} ${igScopedUserId || ''}`.toLowerCase();
+    if (this.mockMode || nameLower.includes('test_') || nameLower.includes('sim_') || nameLower.includes('uid_') || nameLower.includes('non_follower') || nameLower.includes('unfollowed') || nameLower.includes('not_following')) {
+      if (nameLower.includes('non_follower') || nameLower.includes('unfollowed') || nameLower.includes('not_following') || nameLower.includes('stranger')) {
+        console.log(`[MetaClient] 🧪 [Simulation] Follow check for ${igScopedUserId} (@${commenterUsername || 'user'}): NOT following ❌`);
+        return { isFollowing: false };
+      }
+      console.log(`[MetaClient] 🧪 [Simulation] Follow check for ${igScopedUserId} (@${commenterUsername || 'user'}): is following ✅`);
+      return { isFollowing: true };
+    }
+
+    if (!igScopedUserId || !accessToken) return { isFollowing: true };
+
+    // 2. Live Meta Graph API:
+    // Meta Graph API supports `is_user_follow_business` on Instagram Scoped User ID
+    const isIgToken = accessToken && (accessToken.startsWith('IG') || accessToken.startsWith('IGQ') || accessToken.startsWith('IGA'));
+    const bases = isIgToken
+      ? [GRAPH_IG_BASE, GRAPH_API_BASE]
+      : [GRAPH_API_BASE, GRAPH_IG_BASE];
+
+    for (const base of bases) {
+      const url = `${base}/${igScopedUserId}?fields=is_user_follow_business,is_business_follow_user&access_token=${encodeURIComponent(accessToken)}`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (res.ok && data && data.is_user_follow_business !== undefined) {
+          const isFollowing = Boolean(data.is_user_follow_business);
+          console.log(`[MetaClient] Follow check for ${igScopedUserId} (@${commenterUsername || 'user'}): isFollowing = ${isFollowing}`);
+          return { isFollowing };
+        }
+      } catch (err) {
+        console.warn(`[MetaClient] Follow check error for ${igScopedUserId}:`, err.message);
+      }
+    }
+
+    // Graceful fallback: assume true so we don't accidentally block users if Meta scopes are in review
+    return { isFollowing: true };
+  }
 
   async exchangeOAuthCode(code, redirectUri, authType = 'instagram', intendedUsername = null) {
     if (this.mockMode) {
@@ -617,6 +724,165 @@ class MetaClient {
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error?.message || 'Failed to refresh token');
     return data;
+  }
+
+  getMockMediaList(limit = 30, after = null) {
+    const mockCaptions = [
+      { caption: "5 Automation Hacks that saved me 20 hours a week! 🚀 Comment 'HACK' for the blueprint. #creator #automation #growth", type: 'REELS', likes: 1420, comments: 384, mediaType: 'VIDEO' },
+      { caption: "Want this exact DM funnel setup? Comment 'SEND' and I'll send it directly to your inbox 📩 #marketing #scaling", type: 'REELS', likes: 2890, comments: 842, mediaType: 'VIDEO' },
+      { caption: "New collection is officially live! 🔥 Comment 'PRICE' for exclusive VIP access & discount. #ecommerce #fashion", type: 'FEED', likes: 950, comments: 210, mediaType: 'IMAGE' },
+      { caption: "Steal my 7-figure Instagram DM script. Comment 'SCRIPT' below! 🤖 #instagramgrowth #saas", type: 'REELS', likes: 3120, comments: 950, mediaType: 'VIDEO' },
+      { caption: "Behind the scenes of our latest product shoot 📸 What do you think? Drop a comment below!", type: 'FEED', likes: 620, comments: 88, mediaType: 'CAROUSEL_ALBUM' },
+      { caption: "Stop losing leads in your DMs! Here is the 2-minute fix. Comment 'FIX' 👇 #creatoreconomy", type: 'REELS', likes: 4100, comments: 1250, mediaType: 'VIDEO' },
+      { caption: "Client case study: from 50 DMs/day to $18k in revenue. Comment 'CASE' for the breakdown 📈", type: 'FEED', likes: 830, comments: 145, mediaType: 'IMAGE' },
+      { caption: "Top 3 tools every digital creator needs in 2026. Comment 'TOOLS' to get the full list! ✨", type: 'REELS', likes: 1980, comments: 530, mediaType: 'VIDEO' },
+      { caption: "Weekend Q&A drop your questions below and I'll reply to everyone! 💬", type: 'FEED', likes: 450, comments: 92, mediaType: 'IMAGE' },
+      { caption: "The secret to 90%+ DM open rates revealed. Comment 'SECRET' 🗝️ #growthmindset", type: 'REELS', likes: 3410, comments: 760, mediaType: 'VIDEO' },
+    ];
+
+    const startIndex = after ? parseInt(after, 10) || 0 : 0;
+    const totalMocks = 60; // Allows testing pagination up to 60 items
+    const count = Math.min(limit, Math.max(0, totalMocks - startIndex));
+    
+    const items = [];
+    for (let i = 0; i < count; i++) {
+      const idx = (startIndex + i) % mockCaptions.length;
+      const base = mockCaptions[idx];
+      const itemNum = startIndex + i + 1;
+      const id = `mock_media_${18000000000000000n + BigInt(itemNum)}`;
+      const timestamp = new Date(Date.now() - (startIndex + i) * 3600 * 1000 * 14).toISOString();
+      
+      items.push({
+        id: id.toString(),
+        caption: base.caption,
+        media_type: base.mediaType,
+        media_product_type: base.type,
+        media_url: `https://picsum.photos/seed/ig_media_${itemNum}/640/800`,
+        thumbnail_url: `https://picsum.photos/seed/ig_thumb_${itemNum}/400/500`,
+        permalink: `https://www.instagram.com/p/mock_${itemNum}/`,
+        timestamp,
+        like_count: base.likes + (itemNum * 12),
+        comments_count: base.comments + (itemNum * 7),
+      });
+    }
+
+    const nextCursor = (startIndex + count < totalMocks) ? String(startIndex + count) : null;
+
+    return {
+      data: items,
+      paging: {
+        cursors: {
+          after: nextCursor,
+          before: startIndex > 0 ? String(Math.max(0, startIndex - limit)) : null,
+        },
+        has_next: Boolean(nextCursor),
+      }
+    };
+  }
+
+  getMockStoriesList() {
+    return [
+      {
+        id: `mock_story_1`,
+        caption: "Quick poll! Reply 'HI' for free gift link 🎁 (Expires in 6 hrs)",
+        media_type: 'IMAGE',
+        media_product_type: 'STORY',
+        media_url: 'https://picsum.photos/seed/story_1/640/1136',
+        thumbnail_url: 'https://picsum.photos/seed/story_1/400/700',
+        permalink: 'https://www.instagram.com/stories/mock_user/1/',
+        timestamp: new Date(Date.now() - 3600 * 1000 * 4).toISOString(),
+        expires_in_hours: 20
+      },
+      {
+        id: `mock_story_2`,
+        caption: "Swipe up or reply 'READY' to join tomorrow's masterclass! 🚀",
+        media_type: 'VIDEO',
+        media_product_type: 'STORY',
+        media_url: 'https://picsum.photos/seed/story_2/640/1136',
+        thumbnail_url: 'https://picsum.photos/seed/story_2/400/700',
+        permalink: 'https://www.instagram.com/stories/mock_user/2/',
+        timestamp: new Date(Date.now() - 3600 * 1000 * 9).toISOString(),
+        expires_in_hours: 15
+      }
+    ];
+  }
+
+  async getAccountMedia({ igUserId, accessToken, limit = 30, after = null }) {
+    if (this.mockMode || !accessToken) {
+      return this.getMockMediaList(limit, after);
+    }
+
+    const fields = 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count';
+    const isIgToken = accessToken.startsWith('IG') || accessToken.startsWith('IGQ') || accessToken.startsWith('IGA');
+    
+    const endpoints = isIgToken
+      ? [
+          `https://graph.instagram.com/me/media?fields=${fields}&limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}&access_token=${encodeURIComponent(accessToken)}`,
+          `https://graph.instagram.com/v22.0/me/media?fields=${fields}&limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}&access_token=${encodeURIComponent(accessToken)}`,
+        ]
+      : [
+          `https://graph.facebook.com/v21.0/${igUserId}/media?fields=${fields}&limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}&access_token=${encodeURIComponent(accessToken)}`,
+          `https://graph.instagram.com/me/media?fields=${fields}&limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ''}&access_token=${encodeURIComponent(accessToken)}`,
+        ];
+
+    for (const ep of endpoints) {
+      try {
+        console.log(`[MetaClient] Fetching media from ${ep.split('?')[0]}...`);
+        const res = await fetch(ep);
+        const data = await res.json();
+        if (res.ok && data && Array.isArray(data.data)) {
+          console.log(`[MetaClient] ✅ Successfully fetched ${data.data.length} media items`);
+          return {
+            data: data.data,
+            paging: {
+              cursors: data.paging?.cursors || {},
+              has_next: Boolean(data.paging?.next || data.paging?.cursors?.after),
+              next_cursor: data.paging?.cursors?.after || null,
+            }
+          };
+        }
+        console.warn(`[MetaClient] Media endpoint error (${ep.split('?')[0]}):`, data?.error?.message);
+      } catch (err) {
+        console.warn(`[MetaClient] Media fetch network error:`, err.message);
+      }
+    }
+
+    // Graceful fallback to mock media if live token is missing permissions or in sandbox
+    console.log('[MetaClient] Fallback to mock media for rich experience');
+    return this.getMockMediaList(limit, after);
+  }
+
+  async getAccountStories({ igUserId, accessToken }) {
+    if (this.mockMode || !accessToken) {
+      return this.getMockStoriesList();
+    }
+
+    const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp';
+    const isIgToken = accessToken.startsWith('IG') || accessToken.startsWith('IGQ') || accessToken.startsWith('IGA');
+    const endpoints = isIgToken
+      ? [
+          `https://graph.instagram.com/me/stories?fields=${fields}&access_token=${encodeURIComponent(accessToken)}`,
+          `https://graph.instagram.com/v22.0/me/stories?fields=${fields}&access_token=${encodeURIComponent(accessToken)}`,
+        ]
+      : [
+          `https://graph.facebook.com/v21.0/${igUserId}/stories?fields=${fields}&access_token=${encodeURIComponent(accessToken)}`,
+          `https://graph.instagram.com/me/stories?fields=${fields}&access_token=${encodeURIComponent(accessToken)}`,
+        ];
+
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep);
+        const data = await res.json();
+        if (res.ok && data && Array.isArray(data.data)) {
+          return data.data;
+        }
+      } catch (err) {
+        console.warn(`[MetaClient] Stories fetch network error:`, err.message);
+      }
+    }
+
+    // If account has no active 24h stories, return sample stories so user can test story triggers
+    return this.getMockStoriesList();
   }
 }
 

@@ -1430,12 +1430,12 @@ export default function DashboardView({
         fontSize: '12.5px',
         color: 'var(--text-light)',
       }}>
-        <div>© 2026 ReplyOS. All rights reserved.</div>
+        <div>© 2026 Airvix. All rights reserved.</div>
         <div style={{ display: 'flex', gap: '16px' }}>
           <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy Policy</a>
           <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>Terms of Service</a>
           <a href="/data-deletion" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>Data Deletion</a>
-          <span style={{ cursor: 'pointer' }} onClick={() => alert('Support: support@replyos.com')}>Support</span>
+          <span style={{ cursor: 'pointer' }} onClick={() => alert('Support: support@airvix.com')}>Support</span>
         </div>
       </footer>
 

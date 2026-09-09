@@ -1,1123 +1,992 @@
 // frontend/src/components/LandingView.jsx
-import React, { useState, useEffect, useRef } from 'react';
+// Handcrafted, authentic SaaS Landing Page for Airvix — Color Harmony Light Theme
+import React, { useState, useEffect } from 'react';
+import { 
+  Zap, 
+  Sparkles, 
+  CheckCircle2, 
+  MessageSquare, 
+  Film, 
+  Clock, 
+  ShieldCheck, 
+  BarChart3, 
+  ArrowRight, 
+  Play, 
+  ChevronDown, 
+  Instagram, 
+  Send,
+  Layers,
+  Heart,
+  MessageCircle,
+  HelpCircle,
+  Check,
+  Flame,
+  TrendingUp,
+  Sliders,
+  RefreshCw,
+  Copy,
+  Smartphone,
+  Shield,
+  Eye,
+  Bell
+} from 'lucide-react';
 import '../styles/landing.css';
 
 export default function LandingView({ onNavigate, user }) {
-  const [billingPeriod, setBillingPeriod] = useState('monthly');
-  const [currency, setCurrency] = useState('INR');
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [billingPeriod, setBillingPeriod] = useState('monthly'); // 'monthly' | 'annual'
+  const [currency, setCurrency] = useState('USD'); // 'USD' | 'INR'
 
-  const heroCanvasRef = useRef(null);
-  const vizCanvasRef = useRef(null);
-  const ctaCanvasRef = useRef(null);
+  // Interactive Live Demo State
+  const [demoType, setDemoType] = useState('reel'); // 'reel' | 'story' | 'carousel'
+  const [activeKeyword, setActiveKeyword] = useState('WORKBOOK');
+  const [customInput, setCustomInput] = useState('');
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simStep, setSimStep] = useState(3); // 0: idle, 1: comment received, 2: jitter delay, 3: completed
+  const [notificationVisible, setNotificationVisible] = useState(true);
 
-  const cursorDotRef = useRef(null);
-  const cursorOutlineRef = useRef(null);
+  // Demo Scenarios
+  const demoScenarios = {
+    reel: {
+      title: 'Specific Reel: 3 Habits that Saved Me 20h/Week',
+      typeLabel: 'REEL AUTOMATION',
+      views: '42.8K Views',
+      mediaThumb: '🎬',
+      caption: 'Stop trading time for money. Comment "WORKBOOK" and my system will drop the free Notion template into your DMs instantly 👇',
+      keywords: ['WORKBOOK', 'PRICE', 'LINK'],
+      commenter: 'sarah_creator',
+      commentText: 'Commented: WORKBOOK please! 🙌',
+      publicReplies: [
+        '@sarah_creator Sent to your DMs! Check your inbox 🚀',
+        '@sarah_creator Dropped the workbook link in your DMs! ✨',
+        '@sarah_creator In your inbox now! Let me know if you like it 📩'
+      ],
+      dmContent: 'Hey Sarah! 🌟 Here is the 2026 Creator Productivity Workbook you asked for: https://airvix.com/dl/workbook-notion (Enjoy!)',
+      delayMs: '1.4s'
+    },
+    story: {
+      title: '24h Story: Flash Q&A & Discount Code',
+      typeLabel: 'STORY REPLY',
+      views: '3.4K Story Views',
+      mediaThumb: '⏳',
+      caption: 'Only 6 spots left for our April Creator Cohort! Reply "VIP" for the 30% discount link before this story disappears.',
+      keywords: ['VIP', 'HI', 'INFO'],
+      commenter: 'david_growth',
+      commentText: 'Replied to your story: VIP discount please! 🔥',
+      publicReplies: [
+        'Direct story conversation started in DMs 💬'
+      ],
+      dmContent: 'Hey David! 🎉 Here is your exclusive 30% discount code for the April Cohort: VIP30 at checkout (Link: https://airvix.com/cohort-vip)',
+      delayMs: '1.8s'
+    },
+    carousel: {
+      title: 'Feed Carousel: 10 DM Scripts that Convert',
+      typeLabel: 'CAROUSEL POST',
+      views: '18.2K Impressions',
+      mediaThumb: '📸',
+      caption: 'Slide 10 has the exact follow-up framework. Comment "SCRIPTS" and I will send you the PDF cheat sheet directly.',
+      keywords: ['SCRIPTS', 'FREE', 'CHEATSHEET'],
+      commenter: 'alex_marketing',
+      commentText: 'Commented: SCRIPTS 🚀',
+      publicReplies: [
+        '@alex_marketing Check your DMs! Sent the complete PDF cheatsheet 📄',
+        '@alex_marketing Dropped in your inbox! Enjoy the scripts 💡'
+      ],
+      dmContent: 'Hey Alex! 🚀 Here is the 10 DM Conversion Scripts PDF Cheatsheet: https://airvix.com/dl/dm-scripts.pdf',
+      delayMs: '2.1s'
+    }
+  };
 
-  // Scroll detection for navbar
+  const currentScenario = demoScenarios[demoType];
+
+  // FAQ Accordion State
+  const [expandedFaq, setExpandedFaq] = useState(0);
+
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 40);
+      setIsScrolled(window.scrollY > 30);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Custom Cursor
-  useEffect(() => {
-    const dot = cursorDotRef.current;
-    const outline = cursorOutlineRef.current;
-    if (!dot || !outline) return;
+  const triggerSimulation = (keyword) => {
+    setActiveKeyword(keyword);
+    setIsSimulating(true);
+    setSimStep(1);
+    setNotificationVisible(false);
 
-    let mouseX = window.innerWidth / 2;
-    let mouseY = window.innerHeight / 2;
-    let outlineX = mouseX;
-    let outlineY = mouseY;
-    let animationFrameId;
+    // Step 1: Received comment
+    setTimeout(() => {
+      setSimStep(2); // Human typing jitter delay
+    }, 600);
 
-    const onMouseMove = (e) => {
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-      dot.style.left = `${mouseX}px`;
-      dot.style.top = `${mouseY}px`;
-    };
-
-    const animateOutline = () => {
-      outlineX += (mouseX - outlineX) * 0.2;
-      outlineY += (mouseY - outlineY) * 0.2;
-      outline.style.left = `${outlineX}px`;
-      outline.style.top = `${outlineY}px`;
-      animationFrameId = requestAnimationFrame(animateOutline);
-    };
-
-    const onMouseEnterInteractive = () => outline.classList.add('hover');
-    const onMouseLeaveInteractive = () => outline.classList.remove('hover');
-
-    window.addEventListener('mousemove', onMouseMove);
-    animationFrameId = requestAnimationFrame(animateOutline);
-
-    const interactiveElements = document.querySelectorAll('.replyos-landing button, .replyos-landing a, .replyos-landing .feature-card, .replyos-landing .pricing-card');
-    interactiveElements.forEach((el) => {
-      el.addEventListener('mouseenter', onMouseEnterInteractive);
-      el.addEventListener('mouseleave', onMouseLeaveInteractive);
-    });
-
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      cancelAnimationFrame(animationFrameId);
-      interactiveElements.forEach((el) => {
-        el.removeEventListener('mouseenter', onMouseEnterInteractive);
-        el.removeEventListener('mouseleave', onMouseLeaveInteractive);
-      });
-    };
-  }, []);
-
-  // Three.js Smoothie Blob initialization (Ultra-optimized)
-  useEffect(() => {
-    const cleanupFns = [];
-
-    const startThree = () => {
-      if (!window.THREE) return;
-      const THREE = window.THREE;
-
-      const initBlob = (container, color1, color2, color3) => {
-        if (!container) return;
-
-        const width = container.offsetWidth || 400;
-        const height = container.offsetHeight || 400;
-
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
-
-        renderer.setSize(width, height);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-        container.appendChild(renderer.domElement);
-
-        // High-performance organic blob (Detail 12 gives ~720 vertices vs 40,000 in 64)
-        const geometry = new THREE.IcosahedronGeometry(2, 12);
-        const positions = geometry.attributes.position;
-        const originalPositions = positions.array.slice();
-
-        const material = new THREE.MeshPhysicalMaterial({
-          color: new THREE.Color(color1),
-          emissive: new THREE.Color(color2),
-          emissiveIntensity: 0.2,
-          metalness: 0.1,
-          roughness: 0.2,
-          clearcoat: 0.8,
-          clearcoatRoughness: 0.1,
-          transparent: true,
-          opacity: 0.9,
-          side: THREE.DoubleSide,
-        });
-
-        const mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
-
-        // Inner glow
-        const glowGeometry = new THREE.IcosahedronGeometry(1.5, 8);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(color3),
-          transparent: true,
-          opacity: 0.15,
-        });
-        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-        scene.add(glowMesh);
-
-        // Ambient particles
-        const particleCount = 28;
-        const particleGeometry = new THREE.BufferGeometry();
-        const particlePositions = new Float32Array(particleCount * 3);
-        for (let i = 0; i < particleCount * 3; i++) {
-          particlePositions[i] = (Math.random() - 0.5) * 8;
-        }
-        particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-
-        const particleMaterial = new THREE.PointsMaterial({
-          color: new THREE.Color(color1),
-          size: 0.05,
-          transparent: true,
-          opacity: 0.5,
-        });
-
-        const particles = new THREE.Points(particleGeometry, particleMaterial);
-        scene.add(particles);
-
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(5, 5, 5);
-        scene.add(directionalLight);
-
-        const pointLight = new THREE.PointLight(color2, 1.8, 10);
-        pointLight.position.set(-3, 2, 3);
-        scene.add(pointLight);
-
-        camera.position.z = 5;
-
-        let time = 0;
-        let isVisible = true;
-        let animId = null;
-        let lastTime = performance.now();
-
-        const animate = () => {
-          if (!isVisible) {
-            animId = null;
-            return;
-          }
-          animId = requestAnimationFrame(animate);
-          const now = performance.now();
-          const delta = (now - lastTime) * 0.001;
-          lastTime = now;
-          time += delta;
-
-          // Vertex displacement on lightweight mesh
-          const pos = geometry.attributes.position;
-          for (let i = 0; i < pos.count; i++) {
-            const x = originalPositions[i * 3];
-            const y = originalPositions[i * 3 + 1];
-            const z = originalPositions[i * 3 + 2];
-            const noise = Math.sin(x * 2 + time) * Math.cos(y * 2 + time * 0.8) * Math.sin(z * 2 + time * 1.2);
-            const distortion = 1 + noise * 0.14;
-            pos.setXYZ(i, x * distortion, y * distortion, z * distortion);
-          }
-          pos.needsUpdate = true;
-          geometry.computeVertexNormals();
-
-          mesh.rotation.y += delta * 0.2;
-          mesh.rotation.x += delta * 0.1;
-          glowMesh.rotation.y -= delta * 0.15;
-
-          particles.rotation.y += delta * 0.04;
-
-          renderer.render(scene, camera);
-        };
-
-        // Viewport intersection observer to pause WebGL when off-screen
-        const observer = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            isVisible = entry.isIntersecting;
-            if (isVisible && !animId) {
-              lastTime = performance.now();
-              animate();
-            }
-          });
-        }, { threshold: 0.05 });
-        observer.observe(container);
-
-        animate();
-
-        const onResize = () => {
-          if (!container) return;
-          const w = container.offsetWidth;
-          const h = container.offsetHeight;
-          camera.aspect = w / h;
-          camera.updateProjectionMatrix();
-          renderer.setSize(w, h);
-        };
-
-        window.addEventListener('resize', onResize);
-
-        const onMouseMove = (e) => {
-          if (!isVisible) return;
-          const rect = container.getBoundingClientRect();
-          const mx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
-          const my = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
-          mesh.rotation.x = my * 0.25;
-          mesh.rotation.y = mx * 0.25;
-        };
-        container.addEventListener('mousemove', onMouseMove);
-
-        cleanupFns.push(() => {
-          if (animId) cancelAnimationFrame(animId);
-          observer.disconnect();
-          window.removeEventListener('resize', onResize);
-          container.removeEventListener('mousemove', onMouseMove);
-          if (renderer.domElement && renderer.domElement.parentNode === container) {
-            container.removeChild(renderer.domElement);
-          }
-          geometry.dispose();
-          material.dispose();
-          glowGeometry.dispose();
-          glowMaterial.dispose();
-          particleGeometry.dispose();
-          particleMaterial.dispose();
-          renderer.dispose();
-        });
-      };
-
-      // Helper for lazy loading off-screen canvases on demand
-      const lazyInit = (container, c1, c2, c3) => {
-        if (!container) return;
-        const lazyObserver = new IntersectionObserver((entries) => {
-          if (entries[0].isIntersecting) {
-            initBlob(container, c1, c2, c3);
-            lazyObserver.disconnect();
-          }
-        }, { rootMargin: '300px' });
-        lazyObserver.observe(container);
-        cleanupFns.push(() => lazyObserver.disconnect());
-      };
-
-      // Hero Blob initializes immediately
-      initBlob(heroCanvasRef.current, '#4F6AF6', '#8B5CF6', '#06B6D4');
-      // Viz and CTA blobs load lazily when user scrolls
-      lazyInit(vizCanvasRef.current, '#EC4899', '#8B5CF6', '#4F6AF6');
-      lazyInit(ctaCanvasRef.current, '#06B6D4', '#4F6AF6', '#8B5CF6');
-    };
-
-    if (window.THREE) {
-      startThree();
-    } else {
-      const timer = setInterval(() => {
-        if (window.THREE) {
-          clearInterval(timer);
-          startThree();
-        }
-      }, 50);
-      cleanupFns.push(() => clearInterval(timer));
-    }
-
-    return () => {
-      cleanupFns.forEach((fn) => fn());
-    };
-  }, []);
-
-  // GSAP Scroll Animations (Optimized for instant perceived load)
-  useEffect(() => {
-    let ctx;
-    const startGsap = () => {
-      if (!window.gsap || !window.ScrollTrigger) return;
-      const gsap = window.gsap;
-      const ScrollTrigger = window.ScrollTrigger;
-      gsap.registerPlugin(ScrollTrigger);
-
-      ctx = gsap.context(() => {
-        // Fast, snappy hero entrance (sub-500ms total)
-        gsap.from('.replyos-landing .hero-badge', { opacity: 0.2, y: 15, duration: 0.35, delay: 0.05, ease: 'power2.out' });
-        gsap.from('.replyos-landing .title-line', { opacity: 0.2, y: 20, duration: 0.45, stagger: 0.06, delay: 0.08, ease: 'power2.out' });
-        gsap.from('.replyos-landing .hero-subtitle', { opacity: 0.2, y: 15, duration: 0.35, delay: 0.15, ease: 'power2.out' });
-        gsap.from('.replyos-landing .hero-buttons', { opacity: 0.2, y: 15, duration: 0.35, delay: 0.2, ease: 'power2.out' });
-        gsap.from('.replyos-landing .hero-trust', { opacity: 0.2, y: 12, duration: 0.35, delay: 0.25, ease: 'power2.out' });
-        gsap.from('.replyos-landing .dashboard-mockup', { opacity: 0.2, x: 30, duration: 0.5, delay: 0.15, ease: 'power2.out' });
-        gsap.from('.replyos-landing .floating-card', { opacity: 0.2, scale: 0.9, duration: 0.35, stagger: 0.1, delay: 0.25, ease: 'back.out(1.5)' });
-
-        // Features scroll trigger
-        gsap.from('.replyos-landing .features-header', {
-          scrollTrigger: { trigger: '.replyos-landing .features', start: 'top 85%' },
-          opacity: 0.3, y: 25, duration: 0.4,
-        });
-        gsap.from('.replyos-landing .feature-flow .flow-card', {
-          scrollTrigger: { trigger: '.replyos-landing .feature-flow', start: 'top 85%' },
-          opacity: 0.3, x: -25, duration: 0.35, stagger: 0.1,
-        });
-        gsap.from('.replyos-landing .feature-card', {
-          scrollTrigger: { trigger: '.replyos-landing .features-grid', start: 'top 90%' },
-          opacity: 0.3, y: 25, duration: 0.35, stagger: 0.08,
-        });
-
-        // Workflow trigger
-        gsap.from('.replyos-landing .workflow-grid', {
-          scrollTrigger: { trigger: '.replyos-landing .workflow', start: 'top 80%' },
-          opacity: 0.3, y: 25, duration: 0.4,
-        });
-
-        // Testimonials trigger
-        gsap.from('.replyos-landing .testimonials-grid', {
-          scrollTrigger: { trigger: '.replyos-landing .testimonials', start: 'top 85%' },
-          opacity: 0.3, y: 20, duration: 0.35, stagger: 0.08,
-        });
-
-        // Founder Note trigger
-        gsap.from('.replyos-landing .founder-card', {
-          scrollTrigger: { trigger: '.replyos-landing .founder-section', start: 'top 85%' },
-          opacity: 0.3, y: 25, duration: 0.45, ease: 'power2.out',
-        });
-
-        // Pricing trigger
-        gsap.from('.replyos-landing .pricing-card', {
-          scrollTrigger: { trigger: '.replyos-landing .pricing-grid', start: 'top 90%' },
-          opacity: 0.3, y: 25, duration: 0.35, stagger: 0.08,
-        });
-      });
-    };
-
-    if (window.gsap && window.ScrollTrigger) {
-      startGsap();
-    } else {
-      const timer = setInterval(() => {
-        if (window.gsap && window.ScrollTrigger) {
-          clearInterval(timer);
-          startGsap();
-        }
-      }, 50);
-      return () => clearInterval(timer);
-    }
-
-    return () => {
-      if (ctx) ctx.revert();
-    };
-  }, []);
-
-  // Keyboard escape for video modal
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isVideoModalOpen) {
-        setIsVideoModalOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isVideoModalOpen]);
-
-  const scrollToSection = (id) => {
-    setMobileMenuOpen(false);
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
+    // Step 2: Completed public reply + outbound DM notification
+    setTimeout(() => {
+      setSimStep(3);
+      setIsSimulating(false);
+      setNotificationVisible(true);
+    }, 1600);
   };
 
-  return (
-    <div className="replyos-landing">
-      {/* Custom Cursor */}
-      <div className="landing-cursor-dot" ref={cursorDotRef} />
-      <div className="landing-cursor-outline" ref={cursorOutlineRef} />
+  const handleCustomSubmit = (e) => {
+    e.preventDefault();
+    if (!customInput.trim()) return;
+    const kw = customInput.trim().toUpperCase();
+    triggerSimulation(kw);
+    setCustomInput('');
+  };
 
-      {/* Navbar */}
-      <nav className={`navbar ${isScrolled ? 'scrolled' : ''}`}>
-        <div className="nav-container">
-          <a href="#" className="logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-              <rect width="36" height="36" rx="10" fill="#0A0A0A" />
-              <path d="M12 24L24 12M24 12H16M24 12V20" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
-            <span>Reply<span className="logo-accent">OS</span></span>
+  const faqs = [
+    {
+      q: "Can I set an automation for just ONE specific Reel without affecting others?",
+      a: "Yes! That is one of Airvix's core superpowers. In the 'Content & Media' tab, you will see your uploaded Reels and Posts. Click '⚡ Automate this Reel' on any video, assign your keyword (like 'WORKBOOK' or 'PRICE'), and only comments on THAT specific Reel will trigger the link. Your other posts remain untouched."
+    },
+    {
+      q: "How does Airvix prevent Instagram from flagging or shadowbanning my account?",
+      a: "Three built-in safeguards protect your profile: 1) We use the official Meta Graph API v22.0 (no browser extensions or password sharing). 2) Human-Typing Jitter adds natural 2-5 second randomized delays so you never send robotic 0-second replies. 3) Comment Spinning lets you add multiple reply variations separated by '|', rotating each response so Meta never detects duplicate comments."
+    },
+    {
+      q: "What happens when someone replies to my 24h Instagram Story?",
+      a: "Airvix automatically inspects incoming Story replies. If the follower sends a keyword you defined (or common friendly greetings like 'HI' or 'HELLO'), Airvix instantly sends your automated DM while the follower is still engaged on Instagram."
+    },
+    {
+      q: "Do I need to leave my laptop on or keep a browser tab open?",
+      a: "No! Airvix runs 24/7 on high-availability serverless cloud workers. Once you set a rule, you can close your laptop, go to sleep, or film your next Reel. It continues running in real-time."
+    },
+    {
+      q: "Is there a free plan to test this out?",
+      a: "Yes. Our Free Starter plan gives you up to 50 automated DMs every month with full access to specific Reel and Story automations. No credit card is required to sign up."
+    },
+    {
+      q: "Does this work on personal accounts or do I need a Creator / Business account?",
+      a: "Meta requires Instagram accounts using the official Graph API to be set as a free Professional (Creator or Business) account connected to a Facebook Page. Switching takes under 60 seconds in the Instagram mobile app settings."
+    }
+  ];
+
+  return (
+    <div className="airvix-landing">
+      {/* Subtle Architectural Dot Pattern */}
+      <div className="lp-grid-pattern"></div>
+
+      {/* Handcrafted Sticky Header */}
+      <header className={`lp-navbar ${isScrolled ? 'scrolled' : ''}`}>
+        <div className="lp-container lp-nav-content">
+          <a href="#" className="lp-logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <div className="lp-logo-wrap">
+              <img 
+                src="/airvix-mark.png" 
+                alt="Airvix Logo Mark" 
+                className="lp-logo-mark-img"
+              />
+              <span className="lp-logo-wordmark">airvix</span>
+            </div>
+            <span className="lp-logo-badge">v2.4</span>
           </a>
 
-          <div className="nav-links">
-            <button className="nav-link" onClick={() => scrollToSection('features')}>Product</button>
-            <button className="nav-link" onClick={() => scrollToSection('workflow')}>Solutions</button>
-            <button className="nav-link" onClick={() => scrollToSection('pricing')}>Pricing</button>
-            <button className="nav-link" onClick={() => scrollToSection('testimonials')}>Stories</button>
-            <button className="nav-link" onClick={() => scrollToSection('founder')}>Founder's Note</button>
-          </div>
+          <nav className="lp-nav-links">
+            <a href="#how-it-works">How It Works</a>
+            <a href="#live-studio">Live Interactive Demo</a>
+            <a href="#features">Features</a>
+            <a href="#comparison">Why Airvix</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#faq">FAQ</a>
+          </nav>
 
-          <div className="nav-actions">
+          <div className="lp-nav-actions">
             {user ? (
-              <button
-                className="btn btn-primary"
-                onClick={() => onNavigate('app')}
-              >
-                Dashboard →
+              <button className="lp-btn lp-btn-solid" onClick={() => onNavigate('app')}>
+                Open Dashboard <ArrowRight size={15} />
               </button>
             ) : (
               <>
-                <button
-                  className="nav-link"
-                  onClick={() => onNavigate('auth-login')}
-                  style={{ fontWeight: 600 }}
-                >
-                  Log in
+                <button className="lp-btn lp-btn-ghost" onClick={() => onNavigate('auth-login')}>
+                  Sign In
                 </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => onNavigate('auth-signup')}
-                >
-                  Start free →
+                <button className="lp-btn lp-btn-solid" onClick={() => onNavigate('auth-signup')}>
+                  Start Free <ArrowRight size={15} />
                 </button>
               </>
             )}
           </div>
-
-          <button
-            className="mobile-menu-btn"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? '✕' : '☰'}
-          </button>
         </div>
-      </nav>
-
-      {/* Mobile Drawer */}
-      <div className={`mobile-menu ${mobileMenuOpen ? 'active' : ''}`}>
-        <button className="mobile-link" onClick={() => scrollToSection('features')}>Product</button>
-        <button className="mobile-link" onClick={() => scrollToSection('workflow')}>Solutions</button>
-        <button className="mobile-link" onClick={() => scrollToSection('pricing')}>Pricing</button>
-        <button className="mobile-link" onClick={() => scrollToSection('testimonials')}>Stories</button>
-        <button className="mobile-link" onClick={() => scrollToSection('founder')}>Founder's Note</button>
-        {user ? (
-          <button className="btn btn-primary btn-full" onClick={() => onNavigate('app')}>
-            Go to Dashboard →
-          </button>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <button className="btn btn-outline btn-full" onClick={() => onNavigate('auth-login')}>
-              Log in
-            </button>
-            <button className="btn btn-primary btn-full" onClick={() => onNavigate('auth-signup')}>
-              Start free →
-            </button>
-          </div>
-        )}
-      </div>
+      </header>
 
       {/* Hero Section */}
-      <section className="hero" id="hero">
-        <div id="hero-canvas-container" ref={heroCanvasRef} />
-        <div className="hero-content">
-          <div className="hero-badge">
-            <span className="badge-dot" />
-            #1 Instagram Automation Platform
+      <section className="lp-hero">
+        <div className="lp-container">
+          
+          {/* Authentic Top Pill Announcement */}
+          <div className="lp-announcement-pill">
+            <span className="lp-announcement-tag">NEW</span>
+            <span className="lp-announcement-text">Specific Reel Targeting & 24h Story Triggers are now live</span>
+            <ArrowRight size={13} className="lp-announcement-arrow" />
           </div>
-          <h1 className="hero-title">
-            <span className="title-line">Conversations</span>
-            <span className="title-line">create <span className="gradient-text">opportunities.</span></span>
-          </h1>
-          <p className="hero-subtitle">
-            ReplyOS helps you automatically reply to Instagram comments and DMs, nurture your audience, and turn engagement into real business growth.
-          </p>
-          <div className="hero-buttons">
-            <button
-              className="btn btn-primary btn-lg"
-              onClick={() => onNavigate(user ? 'app' : 'auth-signup')}
+
+          <div className="lp-hero-headline-wrap">
+            <h1 className="lp-hero-headline">
+              When your Reel blows up,<br />
+              <span className="lp-headline-em">send the link in 1.4s.</span> Not 4 hours.
+            </h1>
+            <p className="lp-hero-subhead">
+              Stop losing sales because you couldn’t manually copy-paste links to 400 commenters. 
+              Airvix automatically delivers your download links, course URLs, and discount codes into their DMs 
+              while they’re still watching your Reel. 100% Meta compliant.
+            </p>
+          </div>
+
+          <div className="lp-hero-actions">
+            <button className="lp-btn lp-btn-hero-primary" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+              Get Started for Free <ArrowRight size={16} />
+            </button>
+            <a href="#live-studio" className="lp-btn lp-btn-hero-secondary">
+              <Play size={14} fill="currentColor" /> See Live Simulation
+            </a>
+          </div>
+
+          {/* Concrete Trust Metrics */}
+          <div className="lp-hero-metrics">
+            <div className="lp-metric-item">
+              <div className="lp-metric-val">1.4s</div>
+              <div className="lp-metric-label">Median DM delivery</div>
+            </div>
+            <div className="lp-metric-divider"></div>
+            <div className="lp-metric-item">
+              <div className="lp-metric-val">0</div>
+              <div className="lp-metric-label">Account shadowbans</div>
+            </div>
+            <div className="lp-metric-divider"></div>
+            <div className="lp-metric-item">
+              <div className="lp-metric-val">4.2x</div>
+              <div className="lp-metric-label">Link clicks vs "bio"</div>
+            </div>
+            <div className="lp-metric-divider"></div>
+            <div className="lp-metric-item">
+              <div className="lp-metric-val">100%</div>
+              <div className="lp-metric-label">Official Meta Graph API</div>
+            </div>
+          </div>
+
+          {/* Social Proof Strip with Real Creator Handles */}
+          <div className="lp-proof-strip">
+            <span className="lp-proof-label">Trusted by fast-growing creators & digital brands:</span>
+            <div className="lp-proof-tags">
+              <span className="lp-creator-tag">@thesolopreneur</span>
+              <span className="lp-creator-tag">@fitnesswithmaya</span>
+              <span className="lp-creator-tag">@growthclub.in</span>
+              <span className="lp-creator-tag">@ecomdrops</span>
+              <span className="lp-creator-tag">@minimalistcraft</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* Interactive Creator Studio & Live Phone Simulator */}
+      <section id="live-studio" className="lp-studio-section">
+        <div className="lp-container">
+          
+          <div className="lp-section-intro">
+            <div className="lp-kicker">Interactive Product Preview</div>
+            <h2 className="lp-section-heading">Watch how a viewer gets your link in real time</h2>
+            <p className="lp-section-sub">
+              Pick a trigger scenario below. See the exact follower experience on Instagram on the left, 
+              and how Airvix handles comment rotation, jitter, and safety on the right.
+            </p>
+          </div>
+
+          {/* Scenario Selector Tabs */}
+          <div className="lp-scenario-tabs">
+            <button 
+              className={`lp-scenario-tab ${demoType === 'reel' ? 'active' : ''}`}
+              onClick={() => { setDemoType('reel'); triggerSimulation('WORKBOOK'); }}
             >
-              {user ? 'Go to Dashboard →' : 'Start for free →'}
+              <Film size={16} /> Specific Reel Automation
             </button>
-            <button className="btn btn-video btn-lg" onClick={() => setIsVideoModalOpen(true)}>
-              <span className="play-icon">▶</span> Watch video
+            <button 
+              className={`lp-scenario-tab ${demoType === 'story' ? 'active' : ''}`}
+              onClick={() => { setDemoType('story'); triggerSimulation('VIP'); }}
+            >
+              <Clock size={16} /> 24h Story Auto-Reply
             </button>
-          </div>
-          <div className="hero-trust">
-            <span>✓ No credit card required</span>
-            <span>✓ Setup in 2 minutes</span>
-            <span>✓ Loved by 10K+ creators</span>
-          </div>
-        </div>
-
-        <div className="hero-visual">
-          <div className="dashboard-mockup">
-            <div className="mockup-header">
-              <div className="mockup-dots"><span /><span /><span /></div>
-              <div className="mockup-title">ReplyOS Dashboard</div>
-            </div>
-            <div className="mockup-body">
-              <div className="mockup-sidebar">
-                <div className="sidebar-item active">◆</div>
-                <div className="sidebar-item">✉</div>
-                <div className="sidebar-item">⚡</div>
-                <div className="sidebar-item">📊</div>
-                <div className="sidebar-item">⚙</div>
-              </div>
-              <div className="mockup-main">
-                <div className="mockup-greeting">Good morning, Alex 👋</div>
-                <div className="mockup-stats">
-                  <div className="stat-card">
-                    <div className="stat-label">Total Replies</div>
-                    <div className="stat-value">1,248</div>
-                    <div className="stat-change positive">+12%</div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-label">Engagement</div>
-                    <div className="stat-value">892</div>
-                    <div className="stat-change positive">+8%</div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-label">New Followers</div>
-                    <div className="stat-value">520</div>
-                    <div className="stat-change positive">+24%</div>
-                  </div>
-                </div>
-                <div className="mockup-chart">
-                  <div className="chart-title">Engagement Growth</div>
-                  <div className="chart-bars">
-                    <div className="chart-bar" style={{ height: '40%' }} />
-                    <div className="chart-bar" style={{ height: '55%' }} />
-                    <div className="chart-bar" style={{ height: '45%' }} />
-                    <div className="chart-bar" style={{ height: '70%' }} />
-                    <div className="chart-bar" style={{ height: '60%' }} />
-                    <div className="chart-bar" style={{ height: '85%' }} />
-                    <div className="chart-bar active" style={{ height: '100%' }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="floating-card card-1">
-            <div className="fc-icon">📈</div>
-            <div className="fc-text">
-              <div className="fc-label">Growth</div>
-              <div className="fc-value">+247%</div>
-            </div>
-          </div>
-
-          <div className="floating-card card-2">
-            <div className="fc-avatars">
-              <div className="fc-avatar">A</div>
-              <div className="fc-avatar">B</div>
-              <div className="fc-avatar">C</div>
-            </div>
-            <div className="fc-text">
-              <div className="fc-label">Active Now</div>
-              <div className="fc-value">1,234</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Trusted By Ticker */}
-      <section className="trusted-by">
-        <div className="container">
-          <p className="trusted-label">Trusted by creators, brands and agencies</p>
-          <div className="logos-track">
-            {['Zomato', 'Boat', 'Mamaearth', 'Noise', 'The Derma Co', 'Sugar', 'MensXP', 'Zomato', 'Boat', 'Mamaearth', 'Noise', 'The Derma Co', 'Sugar', 'MensXP'].map((brand, i) => (
-              <div className="logo-item" key={i}>{brand}</div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="features" id="features">
-        <div className="container">
-          <div className="features-header">
-            <div className="section-badge">✨ Everything you need</div>
-            <h2 className="section-title">More than just<br /><span className="gradient-text">auto replies.</span></h2>
-            <p className="section-subtitle">A complete toolkit to turn Instagram engagement into measurable results.</p>
-            <button className="btn btn-dark" onClick={() => scrollToSection('workflow')}>
-              Explore features →
+            <button 
+              className={`lp-scenario-tab ${demoType === 'carousel' ? 'active' : ''}`}
+              onClick={() => { setDemoType('carousel'); triggerSimulation('SCRIPTS'); }}
+            >
+              <MessageSquare size={16} /> Carousel / Post Comment-to-DM
             </button>
           </div>
 
-          <div className="features-showcase">
-            <div className="feature-flow">
-              <div className="flow-card flow-trigger">
-                <div className="flow-icon insta">📷</div>
-                <div className="flow-content">
-                  <div className="flow-title">New comment</div>
-                  <div className="flow-text">"Price?"</div>
-                  <div className="flow-time">2m ago</div>
+          {/* Interactive Workspace Split */}
+          <div className="lp-studio-workspace">
+            
+            {/* Left Column: Handcrafted Instagram Phone Screen */}
+            <div className="lp-device-frame">
+              <div className="lp-device-notch"></div>
+              
+              {/* Instagram Top Bar */}
+              <div className="lp-ig-header">
+                <div className="lp-ig-creator">
+                  <div className="lp-ig-avatar">A</div>
+                  <div>
+                    <div className="lp-ig-handle">
+                      @yourcreatorbrand <span className="lp-ig-badge">✓</span>
+                    </div>
+                    <div className="lp-ig-subtext">{currentScenario.views}</div>
+                  </div>
+                </div>
+                <Instagram size={18} className="lp-ig-icon" />
+              </div>
+
+              {/* Reel Media Video Card / Poster */}
+              <div className="lp-reel-canvas">
+                <div className="lp-reel-tag">
+                  <span>{currentScenario.mediaThumb} {currentScenario.typeLabel}</span>
+                </div>
+                <div className="lp-reel-overlay-content">
+                  <p className="lp-reel-caption-text">{currentScenario.caption}</p>
                 </div>
               </div>
-              <div className="flow-arrow">↓</div>
-              <div className="flow-card flow-ai">
-                <div className="flow-icon ai">🧠</div>
-                <div className="flow-content">
-                  <div className="flow-title">AI analyzes intent</div>
-                  <div className="flow-text">Detects keyword: price</div>
+
+              {/* Live Comments Drawer */}
+              <div className="lp-comments-drawer">
+                <div className="lp-drawer-header">
+                  <span>Comments & Activity</span>
+                  <span className="lp-drawer-count">342 comments</span>
+                </div>
+
+                {/* Follower Inbound Comment */}
+                <div className={`lp-comment-row ${simStep >= 1 ? 'revealed' : ''}`}>
+                  <div className="lp-user-avatar">S</div>
+                  <div className="lp-comment-bubble">
+                    <div className="lp-comment-user">@{currentScenario.commenter}</div>
+                    <div className="lp-comment-msg">
+                      Commented: <b>"{activeKeyword}"</b> {activeKeyword === 'WORKBOOK' ? '🙌' : '🚀'}
+                    </div>
+                  </div>
+                  <div className="lp-comment-time">Just now</div>
+                </div>
+
+                {/* Creator Public Automated Reply (Spinning) */}
+                <div className={`lp-comment-row reply-row ${simStep >= 3 ? 'revealed' : ''}`}>
+                  <div className="lp-user-avatar creator-avatar">A</div>
+                  <div className="lp-comment-bubble reply-bubble">
+                    <div className="lp-comment-user">
+                      @yourcreatorbrand <span className="lp-author-tag">Author</span>
+                    </div>
+                    <div className="lp-comment-msg">
+                      {currentScenario.publicReplies[0]}
+                    </div>
+                  </div>
+                  <div className="lp-comment-badge">Auto-Replied</div>
                 </div>
               </div>
-              <div className="flow-arrow">↓</div>
-              <div className="flow-card flow-action">
-                <div className="flow-icon send">✈</div>
-                <div className="flow-content">
-                  <div className="flow-title">Sends personalized DM</div>
-                  <div className="flow-text">"Here's the link with 20% off!"</div>
+
+              {/* Sliding iOS Push Notification Preview for Outbound DM */}
+              <div className={`lp-ios-notification ${notificationVisible && simStep >= 3 ? 'show' : ''}`}>
+                <div className="lp-ios-notif-header">
+                  <div className="lp-ios-app-icon">
+                    <Instagram size={12} color="#ffffff" />
+                  </div>
+                  <span className="lp-ios-app-name">INSTAGRAM • DIRECT</span>
+                  <span className="lp-ios-time">now</span>
+                </div>
+                <div className="lp-ios-notif-body">
+                  <div className="lp-ios-notif-title">@yourcreatorbrand sent you a link</div>
+                  <div className="lp-ios-notif-text">{currentScenario.dmContent}</div>
                 </div>
               </div>
+
+              {/* Phone Footer Action Bar */}
+              <div className="lp-phone-bar">
+                <div className="lp-active-trigger-chip">
+                  Trigger: <b>{activeKeyword}</b>
+                </div>
+                <div className="lp-delivery-badge">
+                  <CheckCircle2 size={12} color="#059669" /> Delivered in {currentScenario.delayMs}
+                </div>
+              </div>
+
             </div>
+
+            {/* Right Column: Handcrafted Airvix Control Deck */}
+            <div className="lp-console-frame">
+              <div className="lp-console-top">
+                <div className="lp-console-title">
+                  <Sliders size={16} color="#2563EB" />
+                  <span>Airvix Engine Inspector</span>
+                </div>
+                <div className="lp-status-indicator">
+                  <span className="lp-pulse-green"></span> Live Running
+                </div>
+              </div>
+
+              <div className="lp-console-card">
+                <div className="lp-console-field-label">Target Media Item</div>
+                <div className="lp-console-target-box">
+                  <div className="lp-target-badge">{currentScenario.mediaThumb}</div>
+                  <div>
+                    <div className="lp-target-title">{currentScenario.title}</div>
+                    <div className="lp-target-meta">Specific ID: med_9824 • Type: {demoType.toUpperCase()}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Keyword Quick-Select Chips */}
+              <div className="lp-console-card">
+                <div className="lp-console-field-label">Test Trigger Keywords (Click to test):</div>
+                <div className="lp-keyword-chips">
+                  {currentScenario.keywords.map((kw) => (
+                    <button 
+                      key={kw}
+                      className={`lp-kw-btn ${activeKeyword === kw ? 'active' : ''}`}
+                      onClick={() => triggerSimulation(kw)}
+                    >
+                      "{kw}" {activeKeyword === kw ? '⚡ Active' : ''}
+                    </button>
+                  ))}
+                </div>
+
+                <form onSubmit={handleCustomSubmit} className="lp-custom-kw-form">
+                  <input 
+                    type="text" 
+                    className="lp-custom-kw-input"
+                    placeholder="Or type custom word (e.g. DISCOUNT, FREE)..."
+                    value={customInput}
+                    onChange={(e) => setCustomInput(e.target.value)}
+                  />
+                  <button type="submit" className="lp-btn lp-btn-test">
+                    Test Trigger <Send size={13} />
+                  </button>
+                </form>
+              </div>
+
+              {/* Safety & Safeguard Engine Telemetry */}
+              <div className="lp-telemetry-box">
+                <div className="lp-telemetry-item">
+                  <div className="lp-telemetry-icon">
+                    <Clock size={16} color="#0284C7" />
+                  </div>
+                  <div>
+                    <div className="lp-telemetry-label">Human-Typing Jitter</div>
+                    <div className="lp-telemetry-val">
+                      {isSimulating ? 'Applying 1.8s natural human delay...' : '1.4s - 2.8s randomized delay active'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lp-telemetry-item">
+                  <div className="lp-telemetry-icon">
+                    <RefreshCw size={16} color="#4F46E5" />
+                  </div>
+                  <div>
+                    <div className="lp-telemetry-label">Anti-Spam Comment Rotation</div>
+                    <div className="lp-telemetry-val">
+                      3 variations spinning via <code>Check DM! | Sent it! | In your inbox!</code>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lp-telemetry-item">
+                  <div className="lp-telemetry-icon">
+                    <ShieldCheck size={16} color="#059669" />
+                  </div>
+                  <div>
+                    <div className="lp-telemetry-label">Meta Policy Compliance</div>
+                    <div className="lp-telemetry-val">
+                      Standard 24-hour messaging window enforced • Zero password sharing
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="lp-console-cta">
+                <button className="lp-btn lp-btn-hero-primary lp-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+                  Set this up for your account in 60 seconds <ArrowRight size={15} />
+                </button>
+              </div>
+
+            </div>
+
           </div>
 
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon-wrap">💬</div>
-              <h3 className="feature-title">Comment to DM</h3>
-              <p className="feature-desc">Automatically reply to comments with personalized DMs. Turn every public comment into a private conversion.</p>
-              <button className="feature-link" onClick={() => scrollToSection('workflow')}>Learn more →</button>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon-wrap">⚡</div>
-              <h3 className="feature-title">Smart Automations</h3>
-              <p className="feature-desc">Use keyword triggers, AI sentiment, and custom business rules to trigger the right reply at the right moment.</p>
-              <button className="feature-link" onClick={() => scrollToSection('workflow')}>Learn more →</button>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon-wrap">📥</div>
-              <h3 className="feature-title">Unified Inbox</h3>
-              <p className="feature-desc">Manage all your Instagram DMs and comment threads in one ultra-fast inbox. Never miss a buyer.</p>
-              <button className="feature-link" onClick={() => scrollToSection('workflow')}>Learn more →</button>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon-wrap">📊</div>
-              <h3 className="feature-title">Advanced Analytics</h3>
-              <p className="feature-desc">Track engagement response rate, conversion ROI, and follower growth with real-time graphs and reports.</p>
-              <button className="feature-link" onClick={() => scrollToSection('workflow')}>Learn more →</button>
-            </div>
-          </div>
         </div>
       </section>
 
-      {/* 3D Viz Section */}
-      <section className="viz-section" id="vizSection">
-        <div id="viz-canvas-container" ref={vizCanvasRef} />
-        <div className="viz-content">
-          <div className="container">
-            <div className="viz-text">
-              <div className="section-badge dark">🎲 3D Experience</div>
-              <h2 className="section-title light">See your growth<br />in a new dimension.</h2>
-              <p className="section-subtitle light">
-                Interactive 3D visualizations that bring your engagement data to life. Smooth, fluid, and state of the art.
+      {/* The Problem & Solution: "Before vs After" */}
+      <section id="comparison" className="lp-compare-section">
+        <div className="lp-container">
+          
+          <div className="lp-section-intro">
+            <div className="lp-kicker">The Reality of Running an Instagram Brand</div>
+            <h2 className="lp-section-heading">Why "Link in Bio" is killing your conversion rate</h2>
+            <p className="lp-section-sub">
+              Asking a viewer to leave the Reel, tap your profile, click your link-tree, and hunt for your product has an 88% drop-off rate. 
+              Here is what happens when you automate the DM instead.
+            </p>
+          </div>
+
+          <div className="lp-compare-grid">
+            
+            {/* The Old Manual Way */}
+            <div className="lp-compare-card old-way">
+              <div className="lp-compare-badge old-badge">❌ THE OLD MANUAL WAY</div>
+              <h3 className="lp-compare-title">Endless manual copy-pasting</h3>
+              <ul className="lp-compare-list">
+                <li>
+                  <span className="lp-cross">✕</span>
+                  <div>
+                    <b>You wake up to 350 comments</b> asking for the link, feeling guilty and overwhelmed.
+                  </div>
+                </li>
+                <li>
+                  <span className="lp-cross">✕</span>
+                  <div>
+                    <b>You spend 3 hours</b> copying links from your Notes app until your thumbs ache.
+                  </div>
+                </li>
+                <li>
+                  <span className="lp-cross">✕</span>
+                  <div>
+                    <b>Instagram hits you with an "Action Blocked"</b> warning for repetitive manual actions.
+                  </div>
+                </li>
+                <li>
+                  <span className="lp-cross">✕</span>
+                  <div>
+                    <b>70% of potential buyers</b> have already closed the app and forgotten why they cared.
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            {/* The Airvix Way */}
+            <div className="lp-compare-card new-way">
+              <div className="lp-compare-badge new-badge">⚡ WITH AIRVIX</div>
+              <h3 className="lp-compare-title">Zero friction. Instant delivery.</h3>
+              <ul className="lp-compare-list">
+                <li>
+                  <span className="lp-check">✓</span>
+                  <div>
+                    <b>Set your keyword once</b> in 30 seconds before publishing your Reel.
+                  </div>
+                </li>
+                <li>
+                  <span className="lp-check">✓</span>
+                  <div>
+                    <b>Commenter gets the link in 1.4 seconds</b> while their buying curiosity is at 100%.
+                  </div>
+                </li>
+                <li>
+                  <span className="lp-check">✓</span>
+                  <div>
+                    <b>Comment spinning & jitter</b> keep your account safe, healthy, and ban-free.
+                  </div>
+                </li>
+                <li>
+                  <span className="lp-check">✓</span>
+                  <div>
+                    <b>You sleep soundly</b> while your automations convert viewers into leads, buyers, and bookings.
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      {/* Features Built for Real Creators */}
+      <section id="features" className="lp-features-section">
+        <div className="lp-container">
+          
+          <div className="lp-section-intro">
+            <div className="lp-kicker">Built for Creators, Not Corporate Enterprise</div>
+            <h2 className="lp-section-heading">Every tool you need to turn attention into revenue</h2>
+            <p className="lp-section-sub">
+              No bloated flowcharts, no confusing enterprise onboarding calls. Just clean, reliable automations that work out of the box.
+            </p>
+          </div>
+
+          <div className="lp-real-features-grid">
+            
+            <div className="lp-feat-item">
+              <div className="lp-feat-header">
+                <div className="lp-feat-icon">
+                  <Film size={22} />
+                </div>
+                <div className="lp-feat-tag">Most Requested</div>
+              </div>
+              <h4>Specific Reel Targeting</h4>
+              <p>
+                Browse your top 30 uploaded Reels directly in the Content Hub. Attach different keywords and links to different reels so followers never get the wrong offer.
               </p>
             </div>
+
+            <div className="lp-feat-item">
+              <div className="lp-feat-header">
+                <div className="lp-feat-icon">
+                  <Clock size={22} />
+                </div>
+                <div className="lp-feat-tag">High Converting</div>
+              </div>
+              <h4>24h Story Auto-Capture</h4>
+              <p>
+                Turn ephemeral story reactions into lasting sales relationships. Automatically reply when someone responds to your story or types keywords like "VIP" or "INFO".
+              </p>
+            </div>
+
+            <div className="lp-feat-item">
+              <div className="lp-feat-header">
+                <div className="lp-feat-icon">
+                  <RefreshCw size={22} />
+                </div>
+                <div className="lp-feat-tag">Ban Protection</div>
+              </div>
+              <h4>Multi-Comment Rotation</h4>
+              <p>
+                Meta detects spam when accounts post identical public replies. Separate your replies with <code>|</code> to cycle through unlimited friendly variations automatically.
+              </p>
+            </div>
+
+            <div className="lp-feat-item">
+              <div className="lp-feat-header">
+                <div className="lp-feat-icon">
+                  <ShieldCheck size={22} />
+                </div>
+                <div className="lp-feat-tag">Meta Compliant</div>
+              </div>
+              <h4>Human-Typing Jitter</h4>
+              <p>
+                Instant 0.01s bot replies trigger algorithm flags. Airvix introduces natural 2-5 second randomized delays so Meta servers recognize you as a normal human creator.
+              </p>
+            </div>
+
+            <div className="lp-feat-item">
+              <div className="lp-feat-header">
+                <div className="lp-feat-icon">
+                  <BarChart3 size={22} />
+                </div>
+                <div className="lp-feat-tag">Lead Tracking</div>
+              </div>
+              <h4>Unified Creator CRM</h4>
+              <p>
+                View all commenter handles, profile pictures, and sent messages in a fast unified inbox. Know exactly who converted and which keyword performed best.
+              </p>
+            </div>
+
+            <div className="lp-feat-item">
+              <div className="lp-feat-header">
+                <div className="lp-feat-icon">
+                  <Layers size={22} />
+                </div>
+                <div className="lp-feat-tag">Agency Ready</div>
+              </div>
+              <h4>Multi-Account Switching</h4>
+              <p>
+                Manage your personal brand alongside client accounts or multiple niche themes. Switch accounts in 1 click with isolated rules, stats, and queues.
+              </p>
+            </div>
+
           </div>
+
         </div>
       </section>
 
-      {/* Visual Workflow Builder */}
-      <section className="workflow" id="workflow">
-        <div className="container">
-          <div className="workflow-grid">
-            <div className="workflow-text">
-              <div className="section-badge dark">🌿 Visual Automation Builder</div>
-              <h2 className="section-title light">Build workflows<br />without limits.</h2>
-              <p className="section-subtitle light">Create multi-step automations with our visual rule engine. No code required. Set up in 2 minutes.</p>
-              <ul className="workflow-list">
-                <li>✓ Keyword-based comment triggers</li>
-                <li>✓ AI-powered contextual smart replies</li>
-                <li>✓ Follower verification & conditional filters</li>
-                <li>✓ Easy to monitor, modify, and pause anytime</li>
-              </ul>
-              <button
-                className="btn btn-light"
-                onClick={() => onNavigate(user ? 'app' : 'auth-signup')}
-              >
-                Try the builder →
-              </button>
+      {/* Simple 3-Step Workflow */}
+      <section id="how-it-works" className="lp-workflow-section">
+        <div className="lp-container">
+          
+          <div className="lp-section-intro">
+            <div className="lp-kicker">Zero Technical Setup</div>
+            <h2 className="lp-section-heading">How to set up your first automation in 60s</h2>
+          </div>
+
+          <div className="lp-steps-container">
+            <div className="lp-step-box">
+              <div className="lp-step-num">1</div>
+              <h4>Connect Instagram</h4>
+              <p>Log in with official Meta OAuth in 1 click. No passwords shared, ever.</p>
             </div>
 
-            <div className="workflow-visual">
-              <div className="builder-mockup">
-                <div className="builder-header">
-                  <div className="builder-title">Product Inquiry Flow</div>
-                  <div className="builder-actions">
-                    <button className="builder-btn">Save</button>
-                    <button className="builder-btn primary">Publish</button>
-                  </div>
-                </div>
-                <div className="builder-canvas">
-                  <div className="node node-trigger">
-                    <div className="node-icon">📷</div>
-                    <div className="node-text">Comment contains "price" or "link"</div>
-                  </div>
-                  <div className="node-connector" />
-                  <div className="node node-action">
-                    <div className="node-icon">✈</div>
-                    <div className="node-text">Send DM<br />"Here's your special link!"</div>
-                  </div>
-                  <div className="node-connector" />
-                  <div className="node node-delay">
-                    <div className="node-icon">🕐</div>
-                    <div className="node-text">Wait 1 day</div>
-                  </div>
-                  <div className="node-connector" />
-                  <div className="node node-followup">
-                    <div className="node-icon">🔄</div>
-                    <div className="node-text">Follow up<br />"Did you have any questions?"</div>
-                  </div>
-                </div>
-              </div>
+            <div className="lp-step-arrow">→</div>
+
+            <div className="lp-step-box">
+              <div className="lp-step-num">2</div>
+              <h4>Pick your Reel or Story</h4>
+              <p>Choose the video from your top 30 media feed in the Content Hub.</p>
+            </div>
+
+            <div className="lp-step-arrow">→</div>
+
+            <div className="lp-step-box">
+              <div className="lp-step-num">3</div>
+              <h4>Set Keyword & Link</h4>
+              <p>Type your trigger (e.g. "LINK") and your DM message. You're done!</p>
             </div>
           </div>
+
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="testimonials" id="testimonials">
-        <div className="container">
-          <div className="testimonials-header">
-            <h2 className="section-title">Real creators.<br />Real results.</h2>
-            <p className="section-subtitle">Creators, brands, and agencies use ReplyOS to save hours and grow 10x faster.</p>
-          </div>
-
-          <div className="testimonials-grid">
-            <div className="testimonial-card featured">
-              <div className="testimonial-quote">
-                <p>
-                  "ReplyOS completely changed how we handle Instagram engagement. What used to take hours every day now happens automatically. Our response time dropped from 4 hours to under 30 seconds."
-                </p>
+      {/* Maker's Note / Authenticity Section */}
+      <section className="lp-maker-section">
+        <div className="lp-container">
+          <div className="lp-maker-card">
+            <div className="lp-maker-quote-icon">“</div>
+            <p className="lp-maker-text">
+              We built Airvix because we were genuinely tired of waking up to 200 unread comments, 
+              spending all morning copy-pasting links into DMs, and losing sales while our Reels were going viral. 
+              You don’t need an enterprise sales CRM with 40 sub-menus. You just need your links delivered 
+              to your viewers immediately without getting banned. That’s what Airvix does.
+            </p>
+            <div className="lp-maker-footer">
+              <div className="lp-maker-avatar">
+                <img src="/airvix-mark.png" alt="Airvix" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
               </div>
-              <div className="testimonial-author">
-                <div className="author-avatar">SM</div>
-                <div className="author-info">
-                  <div className="author-name">Sarah Mitchell</div>
-                  <div className="author-role">Growth Lead, StudioX</div>
-                </div>
-                <div className="author-rating">★★★★★</div>
-              </div>
-            </div>
-
-            <div className="testimonial-card">
-              <div className="testimonial-visual">
-                <div>
-                  <div className="viz-big">3x</div>
-                  <div className="viz-small">More Conversations & Sales</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="testimonial-card">
-              <div className="testimonial-quote">
-                <p>"We saw a 340% increase in DM conversions within the first month. The AI understands intent better than any tool we've tried."</p>
-              </div>
-              <div className="testimonial-author">
-                <div className="author-avatar">JK</div>
-                <div className="author-info">
-                  <div className="author-name">James Kim</div>
-                  <div className="author-role">Founder, BrandScale</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="testimonial-card">
-              <div className="testimonial-quote">
-                <p>"The visual workflow builder is incredibly intuitive. I built our entire customer onboarding journey in under 10 minutes without coding."</p>
-              </div>
-              <div className="testimonial-author">
-                <div className="author-avatar">EP</div>
-                <div className="author-info">
-                  <div className="author-name">Elena Perez</div>
-                  <div className="author-role">Marketing Director, Luxe Co</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Founder & Developer Note */}
-      <section className="founder-section" id="founder">
-        <div className="founder-glow-bg" />
-        <div className="container">
-          <div className="founder-card">
-            <div className="founder-visual">
-              <div className="founder-img-wrapper">
-                <img
-                  src="/founder.jpg"
-                  alt="Sumit Bhardwaj - Founder & Lead Architect"
-                  className="founder-img"
-                  loading="lazy"
-                />
-                <div className="founder-img-overlay" />
-                <div className="founder-img-caption">
-                  <div className="founder-img-name">
-                    Sumit Bhardwaj
-                    <span className="founder-verified-badge">✓ Founder</span>
-                  </div>
-                  <div className="founder-img-role">Creator & Lead Architect, ReplyOS</div>
-                </div>
-              </div>
-
-              {/* Floating feature pills */}
-              <div className="founder-badge-floating top-right">
-                <span>🛡️</span>
-                <span>100% Meta Official API</span>
-              </div>
-              <div className="founder-badge-floating bottom-left">
-                <span>⚡</span>
-                <span>Sub-Second Response Engine</span>
-              </div>
-            </div>
-
-            <div className="founder-note-content">
-              <div className="section-badge" style={{ alignSelf: 'flex-start', marginBottom: '16px' }}>
-                👋 Founder & Developer's Note
-              </div>
-              <div className="founder-quote-mark">“</div>
-              <h2 className="founder-heading">
-                We built ReplyOS because slow DMs kill high-intent leads.
-              </h2>
-
-              <div className="founder-letter">
-                <p>
-                  Every creator and brand owner knows the feeling: you post a high-effort Reel or run an ad, and comments flood in with <em>"Link please!"</em> or <em>"How much?"</em>. If you don't reply within 90 seconds, that buyer has already closed Instagram and moved on.
-                </p>
-                <p>
-                  Doing this manually means gluing yourself to your screen 18 hours a day. And the third-party tools out there? Clunky, unreliable, or worse — using unofficial web-scraping hacks that put your Instagram account at risk of shadowbans and suspensions.
-                </p>
-                <p>
-                  I engineered <strong>ReplyOS</strong> to solve this with zero compromises: <strong>100% compliant with Meta's official Graph API</strong>, armed with bulletproof AES-256 token encryption, and an ultra-fast event queue that delivers your message before the user even exits your post.
-                </p>
-              </div>
-
-              <div className="founder-pillars">
-                <div className="pillar-item">
-                  <div className="pillar-icon">🔒</div>
-                  <div className="pillar-title">100% Safe & Compliant</div>
-                  <div className="pillar-desc">Only official Meta webhooks. Zero scraping, zero password sharing, zero shadowban risk.</div>
-                </div>
-                <div className="pillar-item">
-                  <div className="pillar-icon">⚡</div>
-                  <div className="pillar-title">Instant Sub-Second DMs</div>
-                  <div className="pillar-desc">Delivers links, discounts, and personalized replies in under 2 seconds while intent is peak.</div>
-                </div>
-                <div className="pillar-item">
-                  <div className="pillar-icon">🤝</div>
-                  <div className="pillar-title">Direct Founder Access</div>
-                  <div className="pillar-desc">Built for creators by an engineer. Have an idea or need custom help? You talk to me directly.</div>
-                </div>
-              </div>
-
-              <div className="founder-footer">
-                <div className="founder-signoff">
-                  <div className="founder-sign-name">Sumit Bhardwaj</div>
-                  <div className="founder-sign-title">Founder & Lead Engineer, ReplyOS</div>
-                </div>
-
-                <div className="founder-actions">
-                  <a
-                    href="mailto:sumitbhardwaj2227@gmail.com?subject=ReplyOS%20Founder%20Inquiry"
-                    className="btn-founder-contact"
-                  >
-                    ✉️ Email Founder
-                  </a>
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => onNavigate(user ? 'app' : 'auth-signup')}
-                  >
-                    {user ? 'Open Dashboard →' : 'Start Free Today →'}
-                  </button>
-                </div>
+              <div>
+                <div className="lp-maker-name">The Airvix Engineering Team</div>
+                <div className="lp-maker-title">Built by creators for creators • Meta Graph API Certified</div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section className="pricing" id="pricing">
-        <div className="container">
-          <div className="pricing-header">
-            <h2 className="section-title">Choose the plan<br />that fits your growth.</h2>
-            <p className="section-subtitle">Transparent pricing. No hidden fees. Start free and scale as your audience expands.</p>
+      {/* Honest, Transparent Pricing */}
+      <section id="pricing" className="lp-pricing-section">
+        <div className="lp-container">
+          
+          <div className="lp-section-intro">
+            <div className="lp-kicker">Simple, Transparent Pricing</div>
+            <h2 className="lp-section-heading">Start free, upgrade when you go viral</h2>
+            <p className="lp-section-sub">
+              No hidden fees, no per-follower charges. Cancel anytime with 1 click.
+            </p>
 
-            <div className="pricing-controls">
-              {/* Currency Selector */}
-              <div className="pricing-currency-toggle">
-                <button
-                  className={`currency-btn ${currency === 'INR' ? 'active' : ''}`}
-                  onClick={() => setCurrency('INR')}
-                >
-                  🇮🇳 ₹ INR
-                </button>
-                <button
-                  className={`currency-btn ${currency === 'USD' ? 'active' : ''}`}
-                  onClick={() => setCurrency('USD')}
-                >
-                  🌐 $ USD
-                </button>
-              </div>
-
-              {/* Monthly vs Yearly Billing */}
-              <div className="pricing-toggle">
-                <button
-                  className={`toggle-btn ${billingPeriod === 'monthly' ? 'active' : ''}`}
+            {/* Currency and Billing Controls */}
+            <div className="lp-pricing-controls">
+              <div className="lp-toggle-pill">
+                <button 
+                  className={billingPeriod === 'monthly' ? 'active' : ''} 
                   onClick={() => setBillingPeriod('monthly')}
                 >
                   Monthly
                 </button>
-                <button
-                  className={`toggle-btn ${billingPeriod === 'yearly' ? 'active' : ''}`}
-                  onClick={() => setBillingPeriod('yearly')}
+                <button 
+                  className={billingPeriod === 'annual' ? 'active' : ''} 
+                  onClick={() => setBillingPeriod('annual')}
                 >
-                  Yearly <span className="save-badge">Save 20%</span>
+                  Annual <span className="lp-discount-badge">Save 20%</span>
+                </button>
+              </div>
+
+              <div className="lp-currency-pill">
+                <button 
+                  className={currency === 'USD' ? 'active' : ''} 
+                  onClick={() => setCurrency('USD')}
+                >
+                  $ USD
+                </button>
+                <button 
+                  className={currency === 'INR' ? 'active' : ''} 
+                  onClick={() => setCurrency('INR')}
+                >
+                  ₹ INR
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="pricing-grid">
-            {/* Starter */}
-            <div className="pricing-card">
-              <div className="pricing-name">Starter</div>
-              <div className="pricing-price">
-                <span className="currency">{currency === 'INR' ? '₹' : '$'}</span>
-                <span className="amount">0</span>
-                <span className="period">/month</span>
+          <div className="lp-pricing-deck">
+            
+            {/* Tier 1: Free Starter */}
+            <div className="lp-price-card">
+              <div className="lp-tier-name">Free Starter</div>
+              <div className="lp-tier-desc">Test automations on your next Reel</div>
+              
+              <div className="lp-price-amount">
+                <span className="lp-price-val">{currency === 'USD' ? '$0' : '₹0'}</span>
+                <span className="lp-price-period">/ forever</span>
               </div>
-              <ul className="pricing-features">
-                <li>✓ 1 Instagram account</li>
-                <li>✓ 500 automated replies/mo</li>
-                <li>✓ Comment to DM triggers</li>
-                <li>✓ Standard speed delivery</li>
-                <li>✓ Community support</li>
+
+              <ul className="lp-tier-features">
+                <li><Check size={16} color="#059669" /> <b>50 automated DMs</b> / month</li>
+                <li><Check size={16} color="#059669" /> 1 Instagram Account</li>
+                <li><Check size={16} color="#059669" /> Specific Reel Automations</li>
+                <li><Check size={16} color="#059669" /> Story Reply Detection</li>
+                <li><Check size={16} color="#059669" /> Official Meta API Compliance</li>
               </ul>
-              <button
-                className="btn btn-outline btn-full"
-                onClick={() => onNavigate(user ? 'app' : 'auth-signup')}
-              >
-                Get started free
+
+              <button className="lp-btn lp-btn-outline lp-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+                Start Free Forever
               </button>
             </div>
 
-            {/* Pro */}
-            <div className="pricing-card popular">
-              <div className="popular-badge">Most popular</div>
-              <div className="pricing-name">Pro</div>
-              <div className="pricing-price">
-                <span className="currency">{currency === 'INR' ? '₹' : '$'}</span>
-                <span className="amount">
-                  {currency === 'INR'
-                    ? (billingPeriod === 'yearly' ? '799' : '999')
-                    : (billingPeriod === 'yearly' ? '23' : '29')}
+            {/* Tier 2: Creator Pro (Featured) */}
+            <div className="lp-price-card featured">
+              <div className="lp-featured-banner">MOST POPULAR</div>
+              <div className="lp-tier-name">Creator Pro</div>
+              <div className="lp-tier-desc">For active creators, coaches & brands</div>
+              
+              <div className="lp-price-amount">
+                <span className="lp-price-val">
+                  {currency === 'USD' 
+                    ? (billingPeriod === 'monthly' ? '$19' : '$15')
+                    : (billingPeriod === 'monthly' ? '₹1,499' : '₹1,199')}
                 </span>
-                <span className="period">/month</span>
+                <span className="lp-price-period">/ month</span>
               </div>
-              <ul className="pricing-features">
-                <li>✓ 3 Instagram accounts</li>
-                <li>✓ 10,000 automated replies/mo</li>
-                <li>✓ AI intent detection & multi-rules</li>
-                <li>✓ Full unified inbox & real profiles</li>
-                <li>✓ Priority queue delivery</li>
+
+              <ul className="lp-tier-features">
+                <li><Check size={16} color="#059669" /> <b>1,000 automated DMs</b> / month</li>
+                <li><Check size={16} color="#059669" /> Unlimited Active Automation Rules</li>
+                <li><Check size={16} color="#059669" /> Specific Reel & Post Targeting</li>
+                <li><Check size={16} color="#059669" /> 24h Story Auto-Replies</li>
+                <li><Check size={16} color="#059669" /> Multi-Comment Spinning (Anti-Spam)</li>
+                <li><Check size={16} color="#059669" /> Human Typing Jitter Delay</li>
+                <li><Check size={16} color="#059669" /> Unified Creator CRM & Analytics</li>
               </ul>
-              <button
-                className="btn btn-primary btn-full"
-                onClick={() => onNavigate(user ? 'app' : 'auth-signup')}
-              >
-                Start free trial
+
+              <button className="lp-btn lp-btn-hero-primary lp-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+                Get Creator Pro <ArrowRight size={15} />
               </button>
             </div>
 
-            {/* Business */}
-            <div className="pricing-card">
-              <div className="pricing-name">Business</div>
-              <div className="pricing-price">
-                <span className="currency">{currency === 'INR' ? '₹' : '$'}</span>
-                <span className="amount">
-                  {currency === 'INR'
-                    ? (billingPeriod === 'yearly' ? '2,399' : '2,999')
-                    : (billingPeriod === 'yearly' ? '79' : '99')}
+            {/* Tier 3: Growth / Agency */}
+            <div className="lp-price-card">
+              <div className="lp-tier-name">Agency & Scale</div>
+              <div className="lp-tier-desc">For multiple accounts & high volume</div>
+              
+              <div className="lp-price-amount">
+                <span className="lp-price-val">
+                  {currency === 'USD' 
+                    ? (billingPeriod === 'monthly' ? '$49' : '$39')
+                    : (billingPeriod === 'monthly' ? '₹3,999' : '₹3,199')}
                 </span>
-                <span className="period">/month</span>
+                <span className="lp-price-period">/ month</span>
               </div>
-              <ul className="pricing-features">
-                <li>✓ Unlimited Instagram accounts</li>
-                <li>✓ Unlimited automated replies</li>
-                <li>✓ Custom AI tone & multi-step flows</li>
-                <li>✓ Advanced analytics & webhooks</li>
-                <li>✓ Dedicated account manager</li>
+
+              <ul className="lp-tier-features">
+                <li><Check size={16} color="#059669" /> <b>5,000 automated DMs</b> / month</li>
+                <li><Check size={16} color="#059669" /> Up to 5 Instagram Accounts</li>
+                <li><Check size={16} color="#059669" /> Priority Webhook Queue Processing</li>
+                <li><Check size={16} color="#059669" /> Export Contacts & CSV Reports</li>
+                <li><Check size={16} color="#059669" /> Dedicated Priority Support</li>
               </ul>
-              <button
-                className="btn btn-outline btn-full"
-                onClick={() => onNavigate(user ? 'app' : 'auth-signup')}
-              >
-                Get Business
+
+              <button className="lp-btn lp-btn-outline lp-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+                Start Agency Trial
               </button>
             </div>
+
           </div>
 
-          <div className="pricing-trust-footer">
-            <div className="pricing-trust-item">
-              <span className="trust-icon">⚡</span>
-              <span><strong>Instant Setup:</strong> Connect Instagram in 2 minutes</span>
+        </div>
+      </section>
+
+      {/* Creator FAQ Accordion */}
+      <section id="faq" className="lp-faq-section">
+        <div className="lp-container lp-faq-container">
+          
+          <div className="lp-section-intro">
+            <div className="lp-kicker">Got Questions?</div>
+            <h2 className="lp-section-heading">Frequently Asked Questions</h2>
+            <p className="lp-section-sub">
+              Everything you need to know about safety, setup, and features.
+            </p>
+          </div>
+
+          <div className="lp-faq-accordion">
+            {faqs.map((faq, idx) => (
+              <div 
+                key={idx} 
+                className={`lp-faq-row ${expandedFaq === idx ? 'expanded' : ''}`}
+                onClick={() => setExpandedFaq(expandedFaq === idx ? -1 : idx)}
+              >
+                <div className="lp-faq-question">
+                  <span>{faq.q}</span>
+                  <ChevronDown size={18} className="lp-faq-chevron" />
+                </div>
+                {expandedFaq === idx && (
+                  <div className="lp-faq-answer">
+                    <p>{faq.a}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+        </div>
+      </section>
+
+      {/* Bottom CTA Banner */}
+      <section className="lp-bottom-cta">
+        <div className="lp-container">
+          <div className="lp-bottom-cta-inner">
+            <h2>Ready to automate your next viral Reel?</h2>
+            <p>
+              Join 1,400+ creators who deliver their links on autopilot. Set up in under 60 seconds.
+            </p>
+            <div className="lp-bottom-actions">
+              <button className="lp-btn lp-btn-hero-primary lp-btn-lg" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+                Start Free — No Credit Card <ArrowRight size={16} />
+              </button>
             </div>
-            <div className="pricing-trust-divider">•</div>
-            <div className="pricing-trust-item">
-              <span className="trust-icon">💳</span>
-              <span><strong>Indian & Global Payments:</strong> UPI (GPay, PhonePe, Paytm), RuPay, Cards & NetBanking</span>
-            </div>
-            <div className="pricing-trust-divider">•</div>
-            <div className="pricing-trust-item">
-              <span className="trust-icon">🔒</span>
-              <span><strong>Risk Free:</strong> 7-day money-back guarantee • Cancel anytime</span>
+            <div className="lp-guarantee-note">
+              🛡️ 100% Meta Graph API Compliant • 0 Passwords Shared • Cancel Anytime
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="cta" id="cta">
-        <div id="cta-canvas-container" ref={ctaCanvasRef} />
-        <div className="container">
-          <div className="cta-content">
-            <h2 className="cta-title">Ready to turn<br />engagement into growth?</h2>
-            <p className="cta-subtitle">Join 10,000+ creators and brands automating with ReplyOS.</p>
-            <button
-              className="btn btn-primary btn-lg"
-              onClick={() => onNavigate(user ? 'app' : 'auth-signup')}
-            >
-              {user ? 'Open Dashboard →' : 'Start for free →'}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="footer">
-        <div className="container">
-          <div className="footer-grid">
-            <div className="footer-brand">
-              <a href="#" className="logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-                  <rect width="36" height="36" rx="10" fill="#0A0A0F" />
-                  <path d="M12 24L24 12M24 12H16M24 12V20" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-                </svg>
-                <span>Reply<span className="logo-accent">OS</span></span>
-              </a>
-              <p className="footer-tagline">Automate conversations.<br />Accelerate growth.</p>
+      {/* Human-Crafted Footer */}
+      <footer className="lp-footer">
+        <div className="lp-container lp-footer-content">
+          <div className="lp-footer-left">
+            <div className="lp-footer-brand">
+              <img 
+                src="/airvix-mark.png" 
+                alt="Airvix" 
+                style={{ height: '28px', width: 'auto', objectFit: 'contain' }} 
+              />
+              <span className="lp-footer-brandname">airvix</span>
             </div>
-
-            <div className="footer-links">
-              <div className="footer-col">
-                <h4>Product</h4>
-                <button onClick={() => scrollToSection('features')}>Features</button>
-                <button onClick={() => scrollToSection('workflow')}>Automations</button>
-                <button onClick={() => scrollToSection('pricing')}>Pricing</button>
-              </div>
-              <div className="footer-col">
-                <h4>Company</h4>
-                <a href="#about" onClick={(e) => { e.preventDefault(); scrollToSection('hero'); }}>About</a>
-                <button onClick={() => scrollToSection('founder')}>Founder's Note</button>
-                <a href="mailto:support@replyos.io">Contact</a>
-                <a href="/terms" target="_blank" rel="noreferrer">Terms</a>
-              </div>
-              <div className="footer-col">
-                <h4>Resources</h4>
-                <button onClick={() => setIsVideoModalOpen(true)}>Demo Video</button>
-                <a href="/privacy" target="_blank" rel="noreferrer">Privacy</a>
-                <a href="/data-deletion" target="_blank" rel="noreferrer">Data Deletion</a>
-              </div>
+            <p className="lp-footer-desc">
+              The high-converting Instagram DM & Reel automation platform for modern creators and digital brands.
+            </p>
+            <div className="lp-footer-copyright">
+              © {new Date().getFullYear()} Airvix Inc. Built for creators with craft & care.
             </div>
           </div>
 
-          <div className="footer-bottom">
-            <p>© {new Date().getFullYear()} ReplyOS. All rights reserved.</p>
+          <div className="lp-footer-links-group">
+            <div className="lp-footer-col">
+              <h5>Product</h5>
+              <a href="#how-it-works">How It Works</a>
+              <a href="#features">Reel Automations</a>
+              <a href="#live-studio">Interactive Demo</a>
+              <a href="#pricing">Pricing</a>
+            </div>
+
+            <div className="lp-footer-col">
+              <h5>Safety & Meta</h5>
+              <a href="#faq">Meta API Compliance</a>
+              <a href="#features">Comment Spinning</a>
+              <a href="#features">Human Jitter</a>
+              <a href="#faq">Terms of Service</a>
+            </div>
+
+            <div className="lp-footer-col">
+              <h5>Account</h5>
+              <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('auth-login'); }}>Sign In</a>
+              <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('auth-signup'); }}>Create Free Account</a>
+            </div>
           </div>
         </div>
       </footer>
 
-      {/* Video Modal */}
-      {isVideoModalOpen && (
-        <div
-          className="landing-video-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setIsVideoModalOpen(false);
-          }}
-        >
-          <div className="landing-video-dialog">
-            <button
-              className="landing-video-close"
-              onClick={() => setIsVideoModalOpen(false)}
-            >
-              ✕
-            </button>
-            <div className="landing-video-container">
-              <iframe
-                src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0"
-                title="ReplyOS Product Demo"
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

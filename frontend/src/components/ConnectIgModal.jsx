@@ -1,19 +1,13 @@
 // frontend/src/components/ConnectIgModal.jsx
 import React, { useState, useEffect } from 'react';
-import { X, Instagram, CheckCircle2, Sparkles, Shield, UserCheck, Search } from 'lucide-react';
-import { apiFetch, getToken } from '../api/client';
+import { X, Instagram, CheckCircle2, Shield, ArrowRight, ExternalLink } from 'lucide-react';
+import { getToken } from '../api/client';
 
 export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
-  const [tab, setTab] = useState('quick'); // 'quick' | 'oauth'
-  const [manualToken, setManualToken] = useState('');
-  const [quickHandle, setQuickHandle] = useState('');
-  const [lookingUp, setLookingUp] = useState(false);
-  const [previewProfile, setPreviewProfile] = useState(null);
-  const [connectingUsername, setConnectingUsername] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Listen for popup window completion message
+  // Listen for popup window completion message from Meta OAuth
   useEffect(() => {
     const handleAuthMessage = (event) => {
       if (event.data?.type === 'INSTAGRAM_CONNECTED') {
@@ -42,7 +36,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
 
     const popup = window.open(
       url,
-      'ReplyOS_Meta_Auth',
+      'Airvix_Meta_Auth',
       `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,status=no,resizable=yes`
     );
 
@@ -74,8 +68,7 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     const origin = window.location.origin;
     const token = getToken() || '';
     const BACKEND = getBackendUrl();
-    const handleToPass = (quickHandle || '').replace(/^@/, '').trim().toLowerCase();
-    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}${handleToPass ? `&username=${encodeURIComponent(handleToPass)}` : ''}`;
+    const startUrl = `${BACKEND}/api/instagram/oauth/start?type=instagram&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
     openOAuthPopup(startUrl);
   };
 
@@ -86,85 +79,6 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
     const BACKEND = getBackendUrl();
     const startUrl = `${BACKEND}/api/instagram/oauth/start?type=facebook&return_origin=${encodeURIComponent(origin)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
     openOAuthPopup(startUrl);
-  };
-
-  const handleLookupProfile = async (e) => {
-    if (e) e.preventDefault();
-    const clean = quickHandle.replace(/^@/, '').trim();
-    if (!clean) {
-      setError('Please enter your Instagram handle (e.g. join_sumit_)');
-      return;
-    }
-    setLookingUp(true);
-    setError(null);
-    setPreviewProfile(null);
-
-    try {
-      const res = await apiFetch(`/instagram/lookup-profile?username=${encodeURIComponent(clean)}`);
-      const data = await res.json();
-      if (res.ok && data.success && data.profile) {
-        setPreviewProfile(data.profile);
-      } else {
-        setError(data.error || `Instagram account @${clean} does not exist or is unavailable.`);
-      }
-    } catch (err) {
-      setError(`Could not verify @${clean}: ${err.message || 'Network error'}`);
-    } finally {
-      setLookingUp(false);
-    }
-  };
-
-  const handleConnectUsername = async () => {
-    if (!previewProfile || connectingUsername) return;
-    setConnectingUsername(true);
-    setError(null);
-
-    try {
-      const res = await apiFetch('/instagram/connect-username', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(previewProfile),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (onConnected) onConnected(data.account);
-        onClose();
-      } else {
-        throw new Error(data.error || data.message || 'Connection failed');
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to connect Instagram account');
-    } finally {
-      setConnectingUsername(false);
-    }
-  };
-
-  const handleManualTokenConnect = async (e) => {
-    e.preventDefault();
-    if (!manualToken.trim()) {
-      setError('Please paste a valid Meta User or Page Access Token');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await apiFetch('/instagram/connect-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: manualToken.trim() })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (onConnected) onConnected(data.account);
-        onClose();
-      } else {
-        throw new Error(data.error || data.message || 'Token verification failed');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
@@ -183,11 +97,11 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
         background: 'var(--bg-card)',
         borderRadius: '24px',
         width: '100%',
-        maxWidth: '520px',
+        maxWidth: '480px',
         boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.3)',
         border: '1px solid var(--border-light)',
         overflow: 'hidden',
-        padding: '30px 28px',
+        padding: '32px 28px',
         position: 'relative',
         animation: 'fadeIn 0.2s ease-out',
       }}>
@@ -224,24 +138,24 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
           margin: '0 auto 16px',
         }}>
           <div style={{
-            width: '50px',
-            height: '50px',
-            borderRadius: '15px',
+            width: '52px',
+            height: '52px',
+            borderRadius: '16px',
             background: '#ffffff',
             border: '1px solid var(--border-light)',
             boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '6px',
+            padding: '7px',
           }}>
-            <img src="/logo-icon.png" alt="ReplyOS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <img src="/logo-icon.png" alt="Airvix" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div style={{ color: 'var(--text-light)', fontSize: '18px', fontWeight: 600 }}>+</div>
           <div style={{
-            width: '50px',
-            height: '50px',
-            borderRadius: '15px',
+            width: '52px',
+            height: '52px',
+            borderRadius: '16px',
             background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
             display: 'flex',
             alignItems: 'center',
@@ -249,69 +163,16 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
             color: '#fff',
             boxShadow: '0 8px 22px rgba(220, 39, 67, 0.35)',
           }}>
-            <Instagram size={26} />
+            <Instagram size={28} />
           </div>
         </div>
 
-        <h2 style={{ fontSize: '21px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0', textAlign: 'center', letterSpacing: '-0.02em' }}>
-          Connect Instagram to ReplyOS
+        <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-main)', margin: '0 0 6px 0', textAlign: 'center', letterSpacing: '-0.02em' }}>
+          Connect Instagram
         </h2>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 20px 0', lineHeight: 1.45, textAlign: 'center' }}>
-          Log in with your Instagram account to auto-reply to DMs, comments, and story mentions in real time.
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 20px 0', lineHeight: 1.5, textAlign: 'center' }}>
+          Log in with your Instagram Professional (Creator or Business) account via Meta to enable real-time automations.
         </p>
-
-        {/* 2-Tab Switcher: Instagram Login | By Username */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '6px',
-          background: 'var(--bg-subtle)',
-          padding: '4px',
-          borderRadius: '12px',
-          marginBottom: '20px',
-        }}>
-          {[
-            { id: 'quick', label: 'Instant Connect (By Username)', badge: 'Recommended' },
-            { id: 'oauth', label: 'Meta OAuth Popup', badge: null },
-          ].map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => { setTab(t.id); setError(null); }}
-              style={{
-                padding: '10px 8px',
-                borderRadius: '9px',
-                border: 'none',
-                background: tab === t.id ? 'var(--bg-card)' : 'transparent',
-                color: tab === t.id ? 'var(--primary)' : 'var(--text-muted)',
-                fontWeight: tab === t.id ? 700 : 500,
-                fontSize: '12.5px',
-                cursor: 'pointer',
-                boxShadow: tab === t.id ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-                transition: 'all 0.15s',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '5px',
-              }}
-            >
-              <span>{t.label}</span>
-              {t.badge && (
-                <span style={{
-                  fontSize: '9px',
-                  fontWeight: 800,
-                  padding: '1px 5px',
-                  borderRadius: '6px',
-                  background: tab === t.id ? 'rgba(99, 102, 241, 0.12)' : 'rgba(0,0,0,0.05)',
-                  color: tab === t.id ? 'var(--primary)' : 'var(--text-light)',
-                  textTransform: 'uppercase',
-                }}>
-                  {t.badge}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
 
         {error && (
           <div style={{
@@ -322,421 +183,124 @@ export default function ConnectIgModal({ isOpen, onClose, onConnected }) {
             color: '#dc2626',
             fontSize: '12.5px',
             fontWeight: 500,
-            marginBottom: '16px',
+            marginBottom: '18px',
             textAlign: 'left',
             lineHeight: 1.4,
           }}>
-            <div style={{ marginBottom: quickHandle.trim() ? '8px' : '0' }}>{error}</div>
-            {quickHandle.trim() && (
-              <button
-                type="button"
-                onClick={() => {
-                  const clean = quickHandle.replace(/^@/, '').trim().toLowerCase();
-                  setPreviewProfile({
-                    username: clean,
-                    full_name: clean,
-                    followers_count: 0,
-                    profile_picture_url: null,
-                    account_type: 'Creator Account'
-                  });
-                  setError(null);
-                }}
-                style={{
-                  background: 'var(--primary)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '6px 12px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <span>Connect @{quickHandle.replace(/^@/, '').trim()} Directly Anyway →</span>
-              </button>
-            )}
+            {error}
           </div>
         )}
 
-        {/* TAB 1: INSTAGRAM / META LOGIN */}
-        {tab === 'oauth' && (
-          <div>
-            <div style={{
-              textAlign: 'left',
-              background: 'var(--bg-subtle)',
-              borderRadius: '14px',
-              padding: '14px 16px',
-              marginBottom: '18px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '9px',
-              fontSize: '12.5px',
-              color: 'var(--text-main)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-                <CheckCircle2 size={15} color="#10b981" />
-                <span>Auto-fetches real profile name, handle & follower count</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-                <CheckCircle2 size={15} color="#10b981" />
-                <span>Enables 24/7 automated instant DM replies</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-                <CheckCircle2 size={15} color="#10b981" />
-                <span>Official Meta Graph API authorized connection</span>
-              </div>
-            </div>
-
-
-
-            {/* Optional Handle Input for Guaranteed Profile Sync */}
-            <div style={{ textAlign: 'left', marginBottom: '14px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '5px' }}>
-                Your Instagram Handle <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — ensures real username sync)</span>
-              </label>
-              <div style={{ position: 'relative' }}>
-                <span style={{
-                  position: 'absolute',
-                  left: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'var(--text-light)',
-                  fontWeight: 600,
-                  fontSize: '13.5px',
-                }}>@</span>
-                <input
-                  type="text"
-                  value={quickHandle}
-                  onChange={(e) => setQuickHandle(e.target.value)}
-                  placeholder="e.g. join_sumit_ (recommended)"
-                  style={{
-                    width: '100%',
-                    padding: '9px 12px 9px 28px',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-subtle)',
-                    fontSize: '13px',
-                    outline: 'none',
-                    color: 'var(--text-main)',
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Instagram Login Button — opens instagram.com OAuth (Instagram Business Login) */}
-            <button
-              type="button"
-              onClick={handleInstagramOAuth}
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '15px',
-                borderRadius: '14px',
-                background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '15px',
-                fontWeight: 700,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                boxShadow: '0 8px 28px rgba(220, 39, 67, 0.38)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '10px',
-                marginBottom: '16px',
-                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                opacity: loading ? 0.75 : 1,
-              }}
-            >
-              <Instagram size={20} />
-              <span>{loading ? 'Opening Instagram Login...' : 'Continue with Instagram'}</span>
-            </button>
-
-            {/* Alternative: Connect via Facebook Page */}
-            <button
-              type="button"
-              onClick={handleFacebookOAuth}
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '11px',
-                borderRadius: '12px',
-                background: 'rgba(24, 119, 242, 0.08)',
-                color: '#1877f2',
-                border: '1px solid rgba(24, 119, 242, 0.25)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                marginBottom: '16px',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="#1877f2">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-              </svg>
-              <span>Or connect via Facebook Page (Meta Business)</span>
-            </button>
-
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              fontSize: '11.5px',
-              color: 'var(--text-light)',
-            }}>
-              <Shield size={13} color="#10b981" />
-              <span>Official Meta Verified App Integration • Safe &amp; Compliant</span>
-            </div>
+        {/* Benefits Checklist */}
+        <div style={{
+          textAlign: 'left',
+          background: 'var(--bg-subtle)',
+          borderRadius: '14px',
+          padding: '16px 18px',
+          marginBottom: '22px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          fontSize: '12.5px',
+          color: 'var(--text-main)',
+          border: '1px solid var(--border-light)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={16} color="#10b981" />
+            <span>Auto-fetches real profile name, avatar &amp; follower count</span>
           </div>
-        )}
-
-        {/* TAB 2: QUICK CONNECT BY USERNAME */}
-        {tab === 'quick' && (
-          <div>
-            <form onSubmit={handleLookupProfile} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
-              <div style={{ textAlign: 'left' }}>
-                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' }}>
-                  Instagram Username
-                </label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ position: 'relative', flex: 1 }}>
-                    <span style={{
-                      position: 'absolute',
-                      left: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: 'var(--text-light)',
-                      fontWeight: 600,
-                      fontSize: '14px',
-                    }}>@</span>
-                    <input
-                      type="text"
-                      required
-                      value={quickHandle}
-                      onChange={(e) => {
-                        setQuickHandle(e.target.value);
-                        setPreviewProfile(null);
-                        setError(null);
-                      }}
-                      placeholder="join_sumit_"
-                      style={{
-                        width: '100%',
-                        padding: '11px 12px 11px 28px',
-                        borderRadius: '11px',
-                        border: '1px solid var(--border-subtle)',
-                        background: 'var(--bg-subtle)',
-                        fontSize: '13.5px',
-                        outline: 'none',
-                        color: 'var(--text-main)',
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={lookingUp || !quickHandle.trim()}
-                    style={{
-                      padding: '0 16px',
-                      borderRadius: '11px',
-                      background: 'var(--primary)',
-                      color: '#fff',
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: '13px',
-                      cursor: lookingUp || !quickHandle.trim() ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      opacity: !quickHandle.trim() ? 0.7 : 1,
-                    }}
-                  >
-                    <Search size={15} />
-                    <span>{lookingUp ? 'Fetching...' : 'Fetch'}</span>
-                  </button>
-                </div>
-                <span style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '5px', display: 'block' }}>
-                  Enter your Instagram handle. We'll automatically fetch your real profile details, avatar, and followers count.
-                </span>
-              </div>
-            </form>
-
-            {/* Live Profile Preview Card */}
-            {previewProfile && (
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(238, 242, 255, 0.6) 0%, rgba(253, 242, 248, 0.6) 100%)',
-                border: '1px solid rgba(99, 102, 241, 0.25)',
-                borderRadius: '16px',
-                padding: '16px',
-                marginBottom: '16px',
-                textAlign: 'left',
-                animation: 'fadeIn 0.2s ease',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
-                  <div style={{ position: 'relative' }}>
-                    {previewProfile.profile_picture_url ? (
-                      <img
-                        src={previewProfile.profile_picture_url}
-                        alt={previewProfile.username}
-                        style={{
-                          width: '52px',
-                          height: '52px',
-                          borderRadius: '50%',
-                          objectFit: 'cover',
-                          border: '2px solid #fff',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        }}
-                      />
-                    ) : (
-                      <div style={{
-                        width: '52px',
-                        height: '52px',
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #f09433, #dc2743)',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '20px',
-                        fontWeight: 700,
-                        boxShadow: '0 4px 12px rgba(220, 39, 67, 0.25)',
-                      }}>
-                        {previewProfile.username.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <span style={{
-                      position: 'absolute',
-                      bottom: '0',
-                      right: '0',
-                      width: '14px',
-                      height: '14px',
-                      borderRadius: '50%',
-                      background: '#10b981',
-                      border: '2px solid #fff',
-                    }} />
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--text-main)' }}>
-                        {previewProfile.full_name || previewProfile.username}
-                      </h4>
-                      <span style={{
-                        background: '#38bdf8',
-                        color: '#fff',
-                        borderRadius: '50%',
-                        width: '14px',
-                        height: '14px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '9px',
-                        fontWeight: 900,
-                      }}>✓</span>
-                    </div>
-                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      @{previewProfile.username}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
-                      <span style={{
-                        fontSize: '11px',
-                        background: '#fff',
-                        border: '1px solid var(--border-light)',
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        color: 'var(--text-main)',
-                        fontWeight: 600,
-                      }}>
-                        👥 {previewProfile.followers_count.toLocaleString()} followers
-                      </span>
-                      {previewProfile.following_count !== undefined && previewProfile.following_count > 0 && (
-                        <span style={{
-                          fontSize: '11px',
-                          background: '#fff',
-                          border: '1px solid var(--border-light)',
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          color: 'var(--text-main)',
-                          fontWeight: 600,
-                        }}>
-                          {previewProfile.following_count.toLocaleString()} following
-                        </span>
-                      )}
-                      {previewProfile.posts_count !== undefined && previewProfile.posts_count > 0 && (
-                        <span style={{
-                          fontSize: '11px',
-                          background: '#fff',
-                          border: '1px solid var(--border-light)',
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          color: 'var(--text-main)',
-                          fontWeight: 600,
-                        }}>
-                          {previewProfile.posts_count.toLocaleString()} posts
-                        </span>
-                      )}
-                      <span style={{
-                        fontSize: '11px',
-                        background: '#ecfdf5',
-                        border: '1px solid #a7f3d0',
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        color: '#059669',
-                        fontWeight: 600,
-                      }}>
-                        {previewProfile.account_type || 'Creator Profile'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleConnectUsername}
-                  disabled={connectingUsername}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    borderRadius: '12px',
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontSize: '13.5px',
-                    fontWeight: 700,
-                    cursor: connectingUsername ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 6px 18px rgba(16, 185, 129, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <UserCheck size={16} />
-                  <span>{connectingUsername ? 'Connecting...' : `Confirm & Connect @${previewProfile.username}`}</span>
-                </button>
-              </div>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={16} color="#10b981" />
+            <span>Enables 24/7 instant DM replies &amp; Follower Check gates</span>
           </div>
-        )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={16} color="#10b981" />
+            <span>Official Meta Graph API authorized connection</span>
+          </div>
+        </div>
 
+        {/* Primary Action: Instagram OAuth */}
+        <button
+          type="button"
+          onClick={handleInstagramOAuth}
+          disabled={loading}
+          style={{
+            width: '100%',
+            padding: '15px',
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+            color: '#ffffff',
+            border: 'none',
+            fontSize: '15px',
+            fontWeight: 700,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            boxShadow: '0 8px 28px rgba(220, 39, 67, 0.38)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            marginBottom: '12px',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            opacity: loading ? 0.75 : 1,
+          }}
+        >
+          <Instagram size={20} />
+          <span>{loading ? 'Opening Meta Login...' : 'Continue with Instagram'}</span>
+        </button>
 
+        {/* Secondary Alternative: Facebook Page Login */}
+        <button
+          type="button"
+          onClick={handleFacebookOAuth}
+          disabled={loading}
+          style={{
+            width: '100%',
+            padding: '12px',
+            borderRadius: '12px',
+            background: 'rgba(24, 119, 242, 0.08)',
+            color: '#1877f2',
+            border: '1px solid rgba(24, 119, 242, 0.25)',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            marginBottom: '18px',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#1877f2">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          <span>Or connect via Facebook Page (Meta Business)</span>
+        </button>
+
+        {/* Security and Trust Footer */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          fontSize: '11.5px',
+          color: 'var(--text-light)',
+          marginBottom: '12px',
+        }}>
+          <Shield size={13} color="#10b981" />
+          <span>Official Meta Verified App Integration • Safe &amp; Compliant</span>
+        </div>
 
         <button
           type="button"
           onClick={onClose}
           style={{
-            marginTop: '16px',
             border: 'none',
             background: 'transparent',
-            color: 'var(--text-light)',
-            fontSize: '13px',
+            color: 'var(--text-muted)',
+            fontSize: '12.5px',
             cursor: 'pointer',
+            padding: '4px 8px',
           }}
         >
           Cancel

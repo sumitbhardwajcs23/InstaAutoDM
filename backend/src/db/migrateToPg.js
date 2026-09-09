@@ -42,6 +42,20 @@ async function migrate() {
   await client.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS full_name TEXT;');
   await client.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;');
   await client.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;');
+  await client.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_mode TEXT DEFAULT 'both';");
+  await client.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_message TEXT;");
+  await client.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS dm_reply_message TEXT;");
+  await client.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_id TEXT;");
+  await client.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_type TEXT;");
+  await client.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_thumbnail TEXT;");
+  await client.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_caption TEXT;");
+  await client.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS require_follow INTEGER DEFAULT 0;");
+  await client.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS follow_prompt_message TEXT;");
+  await client.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS follow_comment_reply TEXT;");
+  await client.query("ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS follower_status TEXT;");
+  await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pending_follow_rule_id TEXT;");
+  await client.query("ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS public_reply_sent TEXT;");
+  await client.query("ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS meta_comment_reply_id TEXT;");
   console.log('[Migration] ✅ Column migrations verified successfully!');
 
   await client.end();

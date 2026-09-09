@@ -49,7 +49,10 @@ router.post('/comment', async (req, res) => {
   if (reply) {
     public_reply_sent = reply.public_reply_sent || null;
     reply_sent = reply.reply_sent || null;
-    if (reply.status === 'sent' || reply.status === 'partial_sent') {
+    if (reply.status === 'follow_prompt_sent' || (reply.status === 'sent' && reply.follower_status === 'non_follower')) {
+      action = 'follow_prompt_sent';
+      reason = 'Follower Check: Non-follower detected. Dispatched Follow Prompt DM & set Follow-to-Unlock gate.';
+    } else if (reply.status === 'sent' || reply.status === 'partial_sent') {
       action = reply.status === 'partial_sent' ? 'partial_reply_sent' : 'reply_dispatched';
       reason = reply.status === 'partial_sent' 
         ? 'Processed rule with partial success.' 

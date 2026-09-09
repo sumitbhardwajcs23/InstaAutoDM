@@ -16,6 +16,7 @@ import {
   Moon,
   Sun,
   Instagram,
+  Film,
 } from 'lucide-react';
 
 export default function Sidebar({
@@ -30,11 +31,12 @@ export default function Sidebar({
 }) {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'connect', label: 'Connect Account', icon: Link2, action: onOpenConnect },
+    { id: 'media', label: 'Content & Media', icon: Film },
     { id: 'rules', label: 'Automation Rules', icon: Zap },
     { id: 'conversations', label: 'Conversations', icon: MessageSquare, badge: unreadCount },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'simulator', label: 'Live Simulator', icon: PlayCircle },
+    { id: 'connect', label: 'Connect Account', icon: Link2, action: onOpenConnect },
     { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -60,14 +62,14 @@ export default function Sidebar({
         }}>
           <img
             src="/logo-icon.png"
-            alt="ReplyOS Icon"
+            alt="Airvix Icon"
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
         </div>
         <div className="logo-text">
-          <div className="name" style={{ display: 'flex', alignItems: 'center', fontSize: '18px', fontWeight: 900, letterSpacing: '-0.3px', lineHeight: 1.15 }}>
-            <span style={{ color: 'var(--text-main)' }}>Reply</span>
-            <span style={{ color: '#0066FF' }}>OS</span>
+          <div className="name" style={{ display: 'flex', alignItems: 'center', fontSize: '19px', fontWeight: 900, letterSpacing: '-0.4px', lineHeight: 1.15 }}>
+            <span style={{ color: 'var(--text-main)' }}>Air</span>
+            <span style={{ color: '#6366F1' }}>vix</span>
           </div>
           <div className="tagline" style={{ fontSize: '8.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-light)', marginTop: '2px' }}>
             Automate Conversations
@@ -205,7 +207,7 @@ export default function Sidebar({
           type="button"
           className="nav-item"
           style={{ width: '100%', border: 'none', background: 'transparent' }}
-          onClick={() => alert('Need help? Contact support@replyos.com')}
+          onClick={() => alert('Need help? Contact support@airvix.com')}
         >
           <HelpCircle size={17} />
           <span className="label">Help & Support</span>

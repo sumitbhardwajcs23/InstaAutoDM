@@ -53,8 +53,23 @@ if (pgPool) {
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_mode TEXT DEFAULT 'both';");
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_message TEXT;");
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS dm_reply_message TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_id TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_type TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_thumbnail TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_caption TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS require_follow INTEGER DEFAULT 0;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS follow_prompt_message TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS follow_comment_reply TEXT;");
+        await pgPool.query("ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS follower_status TEXT;");
+        await pgPool.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pending_follow_rule_id TEXT;");
         await pgPool.query("ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS public_reply_sent TEXT;");
         await pgPool.query("ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS meta_comment_reply_id TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_enabled INTEGER DEFAULT 0;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_title TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_subtitle TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_image_url TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_button_text TEXT;");
+        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_button_url TEXT;");
       } catch (migErr) {
         console.warn('[PostgreSQL] Migration notice:', migErr.message);
       }

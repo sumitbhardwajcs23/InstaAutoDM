@@ -29,7 +29,7 @@ router.get('/', async (req, res) => {
   const total = (await db.prepare(`SELECT COUNT(*) as count FROM conversations c ${where}`).get(...params))?.count || 0;
   const rows = await db.prepare(`
     SELECT c.id, c.instagram_account_id, c.ig_scoped_user_id, c.username, c.name, c.profile_pic_url, c.avatar_seed, c.last_message, c.last_message_direction,
-           c.status, c.last_user_message_at, c.created_at, c.updated_at,
+           c.status, c.pending_follow_rule_id, c.last_user_message_at, c.created_at, c.updated_at,
            (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) as message_count
     FROM conversations c
     ${where}
@@ -103,10 +103,11 @@ router.get('/', async (req, res) => {
       avatarBg,
       profile_pic_url: profilePic,
       ig_scoped_user_id: c.ig_scoped_user_id,
+      pending_follow_rule_id: c.pending_follow_rule_id || null,
       lastMessage: c.last_message || (messages[messages.length - 1]?.text) || 'No messages yet',
       time: timeAgo,
       timeAgo,
-      status: c.status === 'replied' ? 'Replied' : 'Open',
+      status: c.pending_follow_rule_id ? 'Waiting on Follow' : (c.status === 'replied' ? 'Replied' : 'Open'),
       last_message_at: c.updated_at || c.last_user_message_at,
       is_window_active,
       window_expires_at,

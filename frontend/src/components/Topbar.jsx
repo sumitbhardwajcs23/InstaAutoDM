@@ -281,7 +281,7 @@ export default function Topbar({
             cursor: 'pointer',
             transition: 'background 0.15s',
           }}
-          onClick={() => alert('Notifications:\n• ReplyOS Engine is online\n• Webhook endpoints active\n• Connected account monitored')}
+          onClick={() => alert('Notifications:\n• Airvix Engine is online\n• Webhook endpoints active\n• Connected account monitored')}
         >
           <Bell size={18} />
           <span style={{

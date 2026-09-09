@@ -47,14 +47,26 @@ router.post('/instagram', async (req, res) => {
               const v = change.value;
               if (v.message?.text && !v.message?.is_echo) {
                 const targetAccountId = v.recipient?.id || accountId;
-                console.log(`[Webhook] ✉️ Direct DM event for accountId ${targetAccountId} from @${v.sender?.username || v.sender?.id}: "${v.message.text}"`);
+                const isStoryReply = Boolean(
+                  v.message.reply_to?.story || 
+                  v.message.is_story_reply || 
+                  v.message.story_share ||
+                  (v.message.attachments && v.message.attachments.some(a => a.type === 'story_mention' || a.type === 'story_share'))
+                );
+                const replyToStoryId = v.message.reply_to?.story?.id || null;
+                const quickReplyPayload = v.message.quick_reply?.payload || null;
+
+                console.log(`[Webhook] ✉️ Direct DM event (isStoryReply: ${isStoryReply}, quickReply: ${quickReplyPayload || 'none'}) for accountId ${targetAccountId} from @${v.sender?.username || v.sender?.id}: "${v.message.text}"`);
                 try {
                   await queue.processMessage(targetAccountId, {
                     messageId: v.message.mid,
                     senderId: v.sender?.id,
                     senderUsername: v.sender?.username || null,
                     text: v.message.text,
-                    timestamp: v.timestamp || entry.time || Date.now()
+                    timestamp: v.timestamp || entry.time || Date.now(),
+                    isStoryReply,
+                    replyToStoryId,
+                    quickReplyPayload
                   });
                   console.log(`[Webhook] ✅ Successfully processed DM ${v.message.mid}`);
                 } catch (msgErr) {
@@ -66,7 +78,7 @@ router.post('/instagram', async (req, res) => {
             // New format: comments under changes with field="comments"
             if (change.field === 'comments' && change.value) {
               const v = change.value;
-              console.log(`[Webhook] 💬 Direct Comment event for accountId ${accountId} from @${v.from?.username || v.from?.id}: "${v.text}" (commentId: ${v.id})`);
+              console.log(`[Webhook] 💬 Direct Comment event for accountId ${accountId} (mediaId: ${v.media?.id || 'none'}) from @${v.from?.username || v.from?.id}: "${v.text}" (commentId: ${v.id})`);
               try {
                 await queue.processComment(accountId, {
                   commentId: v.id,
@@ -88,14 +100,26 @@ router.post('/instagram', async (req, res) => {
         if (entry.messaging?.length) {
           for (const msg of entry.messaging) {
             if (msg.message?.text && !msg.message.is_echo) {
-              console.log(`[Webhook] ✉️ Messaging DM event for accountId ${accountId} from @${msg.sender?.username || msg.sender?.id}: "${msg.message.text}"`);
+              const isStoryReply = Boolean(
+                msg.message.reply_to?.story || 
+                msg.message.is_story_reply || 
+                msg.message.story_share ||
+                (msg.message.attachments && msg.message.attachments.some(a => a.type === 'story_mention' || a.type === 'story_share'))
+              );
+              const replyToStoryId = msg.message.reply_to?.story?.id || null;
+              const quickReplyPayload = msg.message.quick_reply?.payload || null;
+
+              console.log(`[Webhook] ✉️ Messaging DM event (isStoryReply: ${isStoryReply}, quickReply: ${quickReplyPayload || 'none'}) for accountId ${accountId} from @${msg.sender?.username || msg.sender?.id}: "${msg.message.text}"`);
               try {
                 await queue.processMessage(accountId, {
                   messageId: msg.message.mid,
                   senderId: msg.sender?.id,
                   senderUsername: msg.sender?.username || null,
                   text: msg.message.text,
-                  timestamp: msg.timestamp || entry.time || Date.now()
+                  timestamp: msg.timestamp || entry.time || Date.now(),
+                  isStoryReply,
+                  replyToStoryId,
+                  quickReplyPayload
                 });
                 console.log(`[Webhook] ✅ Successfully processed messaging DM ${msg.message.mid}`);
               } catch (msgErr) {

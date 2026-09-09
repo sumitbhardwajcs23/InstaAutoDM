@@ -637,7 +637,7 @@ export default function ConversationsView({ conversations: initialConversations 
                 ) : (
                     activeConvo.messages.map((msg, idx) => {
                     const isUser = msg.sender === 'user';
-                    const senderLabel = isUser ? (activeConvo.name || activeConvo.displayName) : (msg.rule ? 'ReplyOS Automation ⚡' : 'You (Manual Reply)');
+                    const senderLabel = isUser ? (activeConvo.name || activeConvo.displayName) : (msg.rule ? 'Airvix Automation ⚡' : 'You (Manual Reply)');
                     return (
                       <div
                         key={msg.id || idx}

@@ -1,6 +1,5 @@
-// frontend/src/components/RulesView.jsx
 import React, { useState } from 'react';
-import { Zap, Plus, Search, Trash2, Edit3, Send, MessageCircle, Layers, Check } from 'lucide-react';
+import { Zap, Plus, Search, Trash2, Edit3, Send, MessageCircle, Layers, Check, Film, Clock, Lock } from 'lucide-react';
 
 export default function RulesView({ 
   rules = [], 
@@ -13,14 +12,16 @@ export default function RulesView({
   const [filterType, setFilterType] = useState('all');
 
   const filteredRules = rules.filter((r) => {
+    const isStory = r.action_type === 'story' || r.type === 'story_reply';
     const isDm = r.action_type === 'dm' || r.type === 'dm_keyword_reply';
     const isComment = r.action_type === 'comment' || r.type === 'comment_to_dm';
-    const allText = `${r.name || ''} ${r.trigger_keyword || ''} ${r.reply_message || ''} ${r.reply_text || ''} ${r.comment_reply_message || ''} ${r.dm_reply_message || ''}`.toLowerCase();
+    const allText = `${r.name || ''} ${r.trigger_keyword || ''} ${r.reply_message || ''} ${r.reply_text || ''} ${r.comment_reply_message || ''} ${r.dm_reply_message || ''} ${r.target_media_caption || ''}`.toLowerCase();
 
     const matchesSearch = allText.includes(searchTerm.toLowerCase());
 
     const matchesFilter =
       filterType === 'all' ||
+      (filterType === 'story' && isStory) ||
       (filterType === 'dm' && isDm) ||
       (filterType === 'comment' && isComment);
 
@@ -118,6 +119,7 @@ export default function RulesView({
           {[
             { id: 'all', label: 'All Rules' },
             { id: 'comment', label: 'Comment Triggers' },
+            { id: 'story', label: 'Story Replies' },
             { id: 'dm', label: 'Direct Messages' },
           ].map((tab) => (
             <button
@@ -176,7 +178,8 @@ export default function RulesView({
           </div>
         ) : (
           filteredRules.map((rule) => {
-            const isDm = rule.action_type === 'dm' || rule.type === 'dm_keyword_reply';
+            const isStory = rule.type === 'story_reply' || rule.action_type === 'story';
+            const isDm = !isStory && (rule.action_type === 'dm' || rule.type === 'dm_keyword_reply');
             const mode = rule.comment_reply_mode || 'both';
 
             return (
@@ -200,15 +203,15 @@ export default function RulesView({
                     width: '40px',
                     height: '40px',
                     borderRadius: '10px',
-                    background: isDm ? '#eff6ff' : '#fdf2f8',
-                    color: isDm ? '#3b82f6' : '#ec4899',
+                    background: isStory ? '#fdf2f8' : (isDm ? '#eff6ff' : '#fdf2f8'),
+                    color: isStory ? '#ec4899' : (isDm ? '#3b82f6' : '#8b5cf6'),
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
                     marginTop: '2px',
                   }}>
-                    {isDm ? <Send size={19} /> : <MessageCircle size={19} />}
+                    {isStory ? <Clock size={19} /> : (isDm ? <Send size={19} /> : <MessageCircle size={19} />)}
                   </div>
 
                   <div style={{ flex: 1 }}>
@@ -218,7 +221,19 @@ export default function RulesView({
                       </span>
 
                       {/* Mode Badge */}
-                      {!isDm ? (
+                      {isStory ? (
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: '#fdf2f8',
+                          color: '#db2777',
+                          border: '1px solid #fbcfe8',
+                        }}>
+                          ⏳ Story Reply Trigger
+                        </span>
+                      ) : !isDm ? (
                         mode === 'both' ? (
                           <span style={{
                             fontSize: '11px',
@@ -270,6 +285,44 @@ export default function RulesView({
                         </span>
                       )}
 
+                      {/* Target Media Badge */}
+                      {rule.target_media_id && (
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: 'rgba(99, 102, 241, 0.1)',
+                          color: '#6366f1',
+                          border: '1px solid rgba(99, 102, 241, 0.25)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <Film size={11} />
+                          {rule.target_media_type === 'reel' ? '🎬 Specific Reel' : (rule.target_media_type === 'story' ? '⏳ Specific Story' : '📸 Specific Post')}
+                        </span>
+                      )}
+
+                      {/* Follower Check Badge */}
+                      {Boolean(rule.require_follow) && (
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: '#f0fdf4',
+                          color: '#16a34a',
+                          border: '1px solid #bbf7d0',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <Lock size={11} />
+                          Follow-to-Unlock
+                        </span>
+                      )}
+
                       {rule.fire_count !== undefined && rule.fire_count > 0 && (
                         <span style={{
                           fontSize: '11px',
@@ -303,6 +356,63 @@ export default function RulesView({
 
                     {/* Messages Details */}
                     <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {/* Follow Prompt Preview */}
+                      {Boolean(rule.require_follow) && (
+                        <div style={{
+                          fontSize: '12px',
+                          color: 'var(--text-main)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                          background: '#f8fafc',
+                          padding: '6px 8px',
+                          borderRadius: '8px',
+                          border: '1px solid #e2e8f0',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                            <span style={{ 
+                              fontSize: '10px', 
+                              fontWeight: 700, 
+                              color: '#16a34a', 
+                              background: '#f0fdf4', 
+                              padding: '1px 5px', 
+                              borderRadius: '4px',
+                              border: '1px solid #bbf7d0'
+                            }}>
+                              🔒 Follow Gate:
+                            </span>
+                            <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                              "{rule.follow_prompt_message || 'Hey {username}! Please follow @ourpage first to get your access link! Tap "✅ I\'ve Followed" below once done 🚀'}"
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--text-dim)', fontWeight: 600 }}>Interactive Buttons:</span>
+                            <span style={{
+                              fontSize: '10.5px',
+                              fontWeight: 600,
+                              background: '#ffffff',
+                              border: '1px solid #cbd5e1',
+                              padding: '1px 7px',
+                              borderRadius: '10px',
+                              color: '#334155'
+                            }}>
+                              👉 Follow Profile
+                            </span>
+                            <span style={{
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              background: '#ecfdf5',
+                              border: '1px solid #a7f3d0',
+                              padding: '1px 7px',
+                              borderRadius: '10px',
+                              color: '#059669'
+                            }}>
+                              ✅ I've Followed
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Comment Reply Preview */}
                       {!isDm && (mode === 'both' || mode === 'comment_only') && rule.comment_reply_message && (
                         <div style={{
