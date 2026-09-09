@@ -82,18 +82,18 @@ router.get('/accounts', async (req, res) => {
 // GET /api/instagram/media — list top media items (Reels, Posts) with pagination and rule associations
 router.get('/media', async (req, res) => {
   const uid = await getUserId(req);
-  if (!uid) return res.status(401).json({ error: 'Authentication required' });
-
   const limit = Math.min(parseInt(req.query.limit, 10) || 30, 50);
   const after = req.query.after || null;
   const filterType = (req.query.type || 'all').toLowerCase();
 
   const accountId = req.query.account_id;
   let account;
-  if (accountId) {
-    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(uid, accountId);
-  } else {
-    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(uid);
+  if (uid) {
+    if (accountId) {
+      account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(uid, accountId);
+    } else {
+      account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(uid);
+    }
   }
 
   if (!account) {
@@ -101,9 +101,9 @@ router.get('/media', async (req, res) => {
     return res.json({
       success: true,
       connected: false,
-      media: mockMedia,
-      paging: {},
-      message: 'No Instagram account connected. Displaying demo media.'
+      media: mockMedia.data || mockMedia,
+      paging: mockMedia.paging || {},
+      message: 'No connected Instagram account found. Displaying demo media.'
     });
   }
 
@@ -168,14 +168,14 @@ router.get('/media', async (req, res) => {
 // GET /api/instagram/stories — list active 24h stories
 router.get('/stories', async (req, res) => {
   const uid = await getUserId(req);
-  if (!uid) return res.status(401).json({ error: 'Authentication required' });
-
   const accountId = req.query.account_id;
   let account;
-  if (accountId) {
-    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(uid, accountId);
-  } else {
-    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(uid);
+  if (uid) {
+    if (accountId) {
+      account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(uid, accountId);
+    } else {
+      account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(uid);
+    }
   }
 
   if (!account) {
