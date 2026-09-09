@@ -84,6 +84,10 @@ router.get('/media', async (req, res) => {
   const uid = await getUserId(req);
   if (!uid) return res.status(401).json({ error: 'Authentication required' });
 
+  const limit = Math.min(parseInt(req.query.limit, 10) || 30, 50);
+  const after = req.query.after || null;
+  const filterType = (req.query.type || 'all').toLowerCase();
+
   const accountId = req.query.account_id;
   let account;
   if (accountId) {
@@ -93,12 +97,15 @@ router.get('/media', async (req, res) => {
   }
 
   if (!account) {
-    return res.status(404).json({ error: 'No connected Instagram account found', media: [], paging: {} });
+    const mockMedia = metaClient.getMockMediaList(limit, after);
+    return res.json({
+      success: true,
+      connected: false,
+      media: mockMedia,
+      paging: {},
+      message: 'No Instagram account connected. Displaying demo media.'
+    });
   }
-
-  const limit = Math.min(parseInt(req.query.limit, 10) || 30, 50);
-  const after = req.query.after || null;
-  const filterType = (req.query.type || 'all').toLowerCase();
 
   try {
     const rawToken = account.page_access_token_enc || account.long_lived_token_enc || account.access_token_enc;
@@ -139,13 +146,22 @@ router.get('/media', async (req, res) => {
 
     res.json({
       success: true,
+      connected: true,
       media: enriched,
       paging: result.paging || {},
       account: sanitizeAccount(account)
     });
   } catch (err) {
-    console.error('[Instagram Media] Error fetching media:', err.message);
-    res.status(500).json({ error: 'Failed to fetch Instagram media', details: err.message, media: [] });
+    console.warn('[Instagram Media] Warning fetching live media, returning fallback:', err.message);
+    const mockResult = metaClient.getMockMediaList(limit, after);
+    res.json({
+      success: true,
+      connected: true,
+      media: mockResult.data || mockResult,
+      paging: mockResult.paging || {},
+      account: sanitizeAccount(account),
+      warning: 'Could not fetch live media from Meta API. Displaying fallback demonstration media.'
+    });
   }
 });
 
@@ -162,7 +178,10 @@ router.get('/stories', async (req, res) => {
     account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(uid);
   }
 
-  if (!account) return res.status(404).json({ error: 'No Instagram account found', stories: [] });
+  if (!account) {
+    const mockStories = metaClient.getMockStoriesList();
+    return res.json({ success: true, connected: false, stories: mockStories });
+  }
 
   try {
     const rawToken = account.page_access_token_enc || account.long_lived_token_enc || account.access_token_enc;
@@ -180,11 +199,6 @@ router.get('/stories', async (req, res) => {
         active_rules: matched.map(r => ({
           id: r.id,
           trigger_keyword: r.trigger_keyword,
-          type: r.type
-        }))
-      };
-    });
-
     res.json({ success: true, stories: enriched, account: sanitizeAccount(account) });
   } catch (err) {
     console.error('[Instagram Stories] Error fetching stories:', err.message);

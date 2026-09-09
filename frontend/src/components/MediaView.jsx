@@ -46,10 +46,14 @@ export default function MediaView({
 
     try {
       const cursorParam = cursor ? `&after=${encodeURIComponent(cursor)}` : '';
-      const res = await apiFetch(`/instagram/media?account_id=${account.id}&limit=30${cursorParam}`);
-      if (!res.ok) throw new Error('Failed to load Instagram media');
-      
+      const accParam = account?.id ? `account_id=${account.id}&` : '';
+      const res = await apiFetch(`/instagram/media?${accParam}limit=30${cursorParam}`);
       const data = await res.json();
+
+      if (!res.ok && (!data || !data.media)) {
+        throw new Error(data?.error || data?.message || 'Failed to load Instagram media');
+      }
+      
       const newItems = data.media || [];
       
       if (isLoadMore) {
