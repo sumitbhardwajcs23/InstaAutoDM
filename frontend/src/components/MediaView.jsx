@@ -244,6 +244,93 @@ export default function MediaView({
         </div>
       </div>
 
+      {/* PRE-SET AUTOMATION FOR NEXT UPLOAD BANNER */}
+      <div style={{
+        background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)',
+        borderRadius: '20px',
+        padding: '22px 26px',
+        marginBottom: '28px',
+        color: '#ffffff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '16px',
+        boxShadow: '0 12px 30px -8px rgba(67, 56, 202, 0.4)',
+        border: '1.5px solid rgba(165, 180, 252, 0.35)',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', zIndex: 2, flex: 1, minWidth: '280px' }}>
+          <div style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+            color: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 14px rgba(99,102,241,0.4)',
+            flexShrink: 0
+          }}>
+            <Sparkles size={26} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.01em', color: '#ffffff' }}>
+                🚀 Set Automation for Next Upload (Next Reel, Story, or Post)
+              </span>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: '6px',
+                background: 'rgba(255,255,255,0.2)',
+                backdropFilter: 'blur(4px)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                color: '#ffffff'
+              }}>
+                FUTURE UPLOAD
+              </span>
+            </div>
+            <p style={{ fontSize: '13px', color: '#c7d2fe', margin: 0, lineHeight: 1.45 }}>
+              Pre-program your trigger keyword, comment reply, and DM card before publishing! Automatically triggers when your next Reel or Post is published on Instagram.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onAutomateMedia && onAutomateMedia({
+            media_product_type: 'REELS',
+            media_type: 'VIDEO',
+            id: null,
+            target_media_type: 'next_upload',
+            caption: '🚀 Next Uploaded Reel, Story, or Post (Future Upload)'
+          })}
+          style={{
+            padding: '12px 22px',
+            borderRadius: '12px',
+            background: '#ffffff',
+            color: '#312e81',
+            fontSize: '13.5px',
+            fontWeight: 800,
+            border: 'none',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+            transition: 'all 0.15s ease',
+            zIndex: 2,
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <span>+ Set Next Upload Automation ⚡</span>
+        </button>
+      </div>
+
       {/* Summary KPI Cards */}
       <div style={{
         display: 'grid',
@@ -520,6 +607,94 @@ export default function MediaView({
             gap: '20px',
             marginBottom: '32px'
           }}>
+            {/* FIRST CARD: Automate Next Upload Action Card */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+              borderRadius: '18px',
+              border: '1.5px solid rgba(129, 140, 248, 0.4)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              boxShadow: '0 4px 20px rgba(49, 46, 129, 0.25)',
+              color: '#ffffff',
+              padding: '20px',
+              position: 'relative'
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                  <span style={{
+                    fontSize: '10.5px',
+                    fontWeight: 800,
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+                    color: '#ffffff',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <Sparkles size={11} /> PRE-SCHEDULE AUTOMATION
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#a5b4fc', fontWeight: 600 }}>Next Upload</span>
+                </div>
+
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '14px',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  marginBottom: '14px'
+                }}>
+                  <Film size={24} />
+                </div>
+
+                <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0', lineHeight: 1.3 }}>
+                  🚀 Automate Next Reel / Post / Story
+                </h3>
+                <p style={{ fontSize: '12px', color: '#c7d2fe', margin: 0, lineHeight: 1.45 }}>
+                  Set your trigger keyword, DM reply, and card template <b>before you post</b> on Instagram!
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onAutomateMedia && onAutomateMedia({
+                  media_product_type: 'REELS',
+                  media_type: 'VIDEO',
+                  id: null,
+                  target_media_type: 'next_upload',
+                  caption: '🚀 Next Uploaded Reel, Story, or Post (Future Upload)'
+                })}
+                style={{
+                  marginTop: '18px',
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  fontSize: '12.5px',
+                  fontWeight: 800,
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
+                  transition: 'transform 0.15s ease'
+                }}
+              >
+                <Zap size={14} />
+                <span>+ Set Next Upload Automation</span>
+              </button>
+            </div>
+
             {filteredList.map((item) => {
               const isReel = item.media_product_type === 'REELS' || item.media_type === 'VIDEO';
               const isStory = activeTab === 'stories' || item.media_product_type === 'STORY';
