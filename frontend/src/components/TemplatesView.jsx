@@ -2071,7 +2071,7 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
                                   )}
                                 </div>
                                 <div style={{ padding: '6px', fontSize: '10.5px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
-                                  {reel.caption || `Reel #${reel.id.slice(-4)}`}
+                                  {reel.caption || (reel.id ? `Reel #${reel.id.slice(-4)}` : 'Reel')}
                                 </div>
                               </div>
                             );

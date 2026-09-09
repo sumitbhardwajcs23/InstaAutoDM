@@ -120,7 +120,8 @@ export default function CreateRuleModal({
         caption: preselectedMedia.caption || null,
       });
 
-      setName(isReel ? `Reel Auto Reply (#${preselectedMedia.id.slice(-4)})` : 'Content Auto Reply');
+      const mediaIdSuffix = preselectedMedia.id ? preselectedMedia.id.slice(-4) : 'Next';
+      setName(isReel ? `Reel Auto Reply (#${mediaIdSuffix})` : (preselectedMedia.target_media_type === 'next_upload' ? 'Next Upload Auto Reply' : 'Content Auto Reply'));
       setMatchMode('contains');
       setIsActive(true);
     } else {
