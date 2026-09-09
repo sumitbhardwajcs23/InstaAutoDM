@@ -72,12 +72,12 @@ export default function CreateRuleModal({
       setFollowPromptMessage(ruleToEdit.follow_prompt_message || "Hey {username}! Please follow @ourpage first to get your access link! Tap \"✅ I've Followed\" below once done 🚀");
       setFollowCommentReply(ruleToEdit.follow_comment_reply || "Almost there! Follow @ourpage and check your DMs to unlock 🚀");
 
-      if (ruleToEdit.target_media_id) {
+      if (ruleToEdit.target_media_id || ruleToEdit.target_media_type === 'next_upload') {
         setTargetMedia({
-          id: ruleToEdit.target_media_id,
+          id: ruleToEdit.target_media_id || null,
           type: ruleToEdit.target_media_type || 'reel',
           thumbnail: ruleToEdit.target_media_thumbnail || null,
-          caption: ruleToEdit.target_media_caption || null,
+          caption: ruleToEdit.target_media_caption || (ruleToEdit.target_media_type === 'next_upload' ? '🚀 Next Uploaded Reel/Post' : null),
         });
       } else {
         setTargetMedia(null);
@@ -344,43 +344,63 @@ export default function CreateRuleModal({
             </div>
           )}
 
-          {/* Target Media Banner (if attached to specific media) */}
+          {/* Target Media Banner (if attached to specific media or next upload) */}
           {targetMedia ? (
             <div style={{
               padding: '12px 14px',
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(236, 72, 153, 0.08))',
-              border: '1px solid rgba(99, 102, 241, 0.25)',
+              background: targetMedia.type === 'next_upload'
+                ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(99, 102, 241, 0.12))'
+                : 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(236, 72, 153, 0.08))',
+              border: targetMedia.type === 'next_upload' ? '1.5px solid #bfdbfe' : '1px solid rgba(99, 102, 241, 0.25)',
               display: 'flex',
               alignItems: 'center',
               gap: '12px'
             }}>
-              {targetMedia.thumbnail && (
+              {targetMedia.thumbnail ? (
                 <img 
                   src={targetMedia.thumbnail} 
                   alt="Target preview" 
                   style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
                 />
-              )}
+              ) : targetMedia.type === 'next_upload' ? (
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 8px rgba(37,99,235,0.25)'
+                }}>
+                  <Film size={20} />
+                </div>
+              ) : null}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
                   <span style={{
                     fontSize: '10.5px',
-                    fontWeight: 700,
+                    fontWeight: 800,
                     textTransform: 'uppercase',
-                    padding: '2px 6px',
+                    padding: '2px 7px',
                     borderRadius: '4px',
-                    background: '#6366f1',
+                    background: targetMedia.type === 'next_upload' ? '#2563eb' : '#6366f1',
                     color: '#fff'
                   }}>
-                    {targetMedia.type === 'reel' ? '🎬 Specific Reel' : (targetMedia.type === 'story' ? '⏳ Specific Story' : '📸 Specific Post')}
+                    {targetMedia.type === 'next_upload' 
+                      ? '🚀 Target: Next Reel / Post Upload' 
+                      : (targetMedia.type === 'reel' ? '🎬 Specific Reel' : (targetMedia.type === 'story' ? '⏳ Specific Story' : '📸 Specific Post'))}
                   </span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                    ID: {targetMedia.id?.slice(-8)}
-                  </span>
+                  {targetMedia.id && (
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      ID: {targetMedia.id?.slice(-8)}
+                    </span>
+                  )}
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {targetMedia.caption || 'No caption'}
+                <div style={{ fontSize: '12px', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                  {targetMedia.caption || (targetMedia.type === 'next_upload' ? 'Will automatically attach to your next Instagram upload' : 'No caption')}
                 </div>
               </div>
               <button
@@ -396,7 +416,7 @@ export default function CreateRuleModal({
                   textDecoration: 'underline'
                 }}
               >
-                Apply to All Content
+                Change Target
               </button>
             </div>
           ) : (

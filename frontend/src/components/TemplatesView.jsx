@@ -682,34 +682,63 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // Target Media Selection Modal State
+  const [targetPromptOpen, setTargetPromptOpen] = useState(false);
+  const [pendingTemplate, setPendingTemplate] = useState(null);
+  const [targetSelectionMode, setTargetSelectionMode] = useState('next'); // 'next' | 'previous' | 'all'
+  const [selectedPreviousReel, setSelectedPreviousReel] = useState(null);
+
   const handleUseTemplate = (template) => {
-    if (onOpenCreateRule) {
-      // Pass the template details along with the target Reel (if selected)
-      onOpenCreateRule({
-        name: template.name,
-        trigger_keyword: template.trigger_keyword,
-        match_mode: template.match_mode || 'contains',
-        action_type: template.action_type,
-        comment_reply_mode: template.comment_reply_mode || 'both',
-        comment_reply_message: template.comment_reply_message || '',
-        dm_reply_message: template.dm_reply_message || '',
-        require_follow: template.require_follow ? 1 : 0,
-        follow_prompt_message: template.follow_prompt_message || '',
-        follow_comment_reply: template.follow_comment_reply || '',
-        // Card specifics:
-        card_enabled: 1,
-        card_title: template.card_title || template.name,
-        card_subtitle: template.card_subtitle || '',
-        card_image_url: selectedReel ? (selectedReel.thumbnail_url || selectedReel.media_url) : template.card_image_url,
-        card_button_text: template.card_button_text || 'Open Link',
-        card_button_url: template.card_button_url || 'https://',
-        // Target Media specifics:
-        target_media_id: selectedReel ? selectedReel.id : null,
-        target_media_type: selectedReel ? 'reel' : 'all',
-        target_media_thumbnail: selectedReel ? (selectedReel.thumbnail_url || selectedReel.media_url) : null,
-        target_media_caption: selectedReel ? selectedReel.caption : null,
-      });
+    setPendingTemplate(template);
+    // If a reel is already selected in the topbar, pre-select 'previous' mode with that reel
+    if (selectedReel) {
+      setTargetSelectionMode('previous');
+      setSelectedPreviousReel(selectedReel);
+    } else {
+      setTargetSelectionMode('next');
+      if (reels && reels.length > 0) {
+        setSelectedPreviousReel(reels[0]);
+      }
     }
+    setTargetPromptOpen(true);
+  };
+
+  const handleConfirmTargetSelection = () => {
+    if (!pendingTemplate || !onOpenCreateRule) return;
+
+    const chosenReel = targetSelectionMode === 'previous' ? selectedPreviousReel : null;
+    const targetMediaId = chosenReel ? chosenReel.id : null;
+    const targetMediaType = targetSelectionMode === 'previous' ? 'reel' : (targetSelectionMode === 'next' ? 'next_upload' : 'all');
+    const targetMediaThumbnail = chosenReel ? (chosenReel.thumbnail_url || chosenReel.media_url) : null;
+    const targetMediaCaption = chosenReel ? chosenReel.caption : (targetSelectionMode === 'next' ? '🚀 Next Uploaded Reel/Post' : null);
+
+    onOpenCreateRule({
+      name: pendingTemplate.name,
+      trigger_keyword: pendingTemplate.trigger_keyword,
+      match_mode: pendingTemplate.match_mode || 'contains',
+      action_type: pendingTemplate.action_type,
+      comment_reply_mode: pendingTemplate.comment_reply_mode || 'both',
+      comment_reply_message: pendingTemplate.comment_reply_message || '',
+      dm_reply_message: pendingTemplate.dm_reply_message || '',
+      require_follow: pendingTemplate.require_follow ? 1 : 0,
+      follow_prompt_message: pendingTemplate.follow_prompt_message || '',
+      follow_comment_reply: pendingTemplate.follow_comment_reply || '',
+      // Card specifics:
+      card_enabled: 1,
+      card_title: pendingTemplate.card_title || pendingTemplate.name,
+      card_subtitle: pendingTemplate.card_subtitle || '',
+      card_image_url: chosenReel ? (chosenReel.thumbnail_url || chosenReel.media_url) : pendingTemplate.card_image_url,
+      card_button_text: pendingTemplate.card_button_text || 'Open Link',
+      card_button_url: pendingTemplate.card_button_url || 'https://',
+      // Target Media specifics:
+      target_media_id: targetMediaId,
+      target_media_type: targetMediaType,
+      target_media_thumbnail: targetMediaThumbnail,
+      target_media_caption: targetMediaCaption,
+    });
+
+    setTargetPromptOpen(false);
+    setPendingTemplate(null);
   };
 
   return (
@@ -1782,6 +1811,375 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
                 style={{ padding: '8px 16px', fontSize: '12.5px', fontWeight: 700 }}
               >
                 🚀 Use This Card Template
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* TARGET MEDIA SELECTION PROMPT MODAL */}
+      {targetPromptOpen && pendingTemplate && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.72)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10500,
+          padding: '20px',
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '620px',
+            maxHeight: '90vh',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.35)',
+            border: '1px solid var(--border-light)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '18px 24px',
+              borderBottom: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.06), rgba(236,72,153,0.06))',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+                }}>
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-main)', margin: 0 }}>
+                    Where do you want to apply this automation? 🎯
+                  </h2>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    Selecting target content for: <span style={{ fontWeight: 700, color: 'var(--primary)' }}>"{pendingTemplate.name}"</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetPromptOpen(false);
+                  setPendingTemplate(null);
+                }}
+                style={{
+                  border: 'none',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--text-muted)',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body: 3 Target Options */}
+            <div style={{
+              padding: '20px 24px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              flex: 1,
+            }}>
+              {/* Option 1: Next Upload (Future Content) */}
+              <div
+                onClick={() => setTargetSelectionMode('next')}
+                style={{
+                  padding: '16px',
+                  borderRadius: '16px',
+                  border: '2px solid',
+                  borderColor: targetSelectionMode === 'next' ? '#2563eb' : 'var(--border-light)',
+                  background: targetSelectionMode === 'next' ? 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' : 'var(--bg-subtle)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: targetSelectionMode === 'next' ? '0 4px 14px rgba(37,99,235,0.15)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: targetSelectionMode === 'next' ? '#2563eb' : 'var(--border-subtle)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Film size={17} />
+                    </div>
+                    <span style={{ fontSize: '15px', fontWeight: 800, color: targetSelectionMode === 'next' ? '#1e3a8a' : 'var(--text-main)' }}>
+                      🚀 Next Reel / Post You Upload
+                    </span>
+                  </div>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    background: '#2563eb',
+                    color: '#ffffff',
+                  }}>
+                    ✨ RECOMMENDED FOR LAUNCHES
+                  </span>
+                </div>
+                <p style={{ fontSize: '12.5px', color: targetSelectionMode === 'next' ? '#1e40af' : 'var(--text-muted)', margin: '0 0 0 42px', lineHeight: 1.45 }}>
+                  Automatically attaches to your <b>next uploaded Reel or Post</b>. Perfect when preparing automation before publishing new content on Instagram.
+                </p>
+              </div>
+
+              {/* Option 2: Previous / Existing Reel or Post */}
+              <div
+                onClick={() => setTargetSelectionMode('previous')}
+                style={{
+                  padding: '16px',
+                  borderRadius: '16px',
+                  border: '2px solid',
+                  borderColor: targetSelectionMode === 'previous' ? '#8b5cf6' : 'var(--border-light)',
+                  background: targetSelectionMode === 'previous' ? 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)' : 'var(--bg-subtle)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: targetSelectionMode === 'previous' ? '0 4px 14px rgba(139,92,246,0.15)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: targetSelectionMode === 'previous' ? '#8b5cf6' : 'var(--border-subtle)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Play size={16} fill="#fff" />
+                    </div>
+                    <span style={{ fontSize: '15px', fontWeight: 800, color: targetSelectionMode === 'previous' ? '#4c1d95' : 'var(--text-main)' }}>
+                      🎬 A Previous Reel or Post
+                    </span>
+                  </div>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    background: '#8b5cf6',
+                    color: '#ffffff',
+                  }}>
+                    🖼️ EXISTING CONTENT
+                  </span>
+                </div>
+                <p style={{ fontSize: '12.5px', color: targetSelectionMode === 'previous' ? '#5b21b6' : 'var(--text-muted)', margin: '0 0 10px 42px', lineHeight: 1.45 }}>
+                  Select an existing Reel or Post from your connected Instagram profile.
+                </p>
+
+                {/* If 'previous' is selected, show embedded Reel selector */}
+                {targetSelectionMode === 'previous' && (
+                  <div style={{ marginLeft: '42px', marginTop: '10px' }}>
+                    {loadingReels ? (
+                      <div style={{ fontSize: '12px', color: '#6d28d9', fontStyle: 'italic' }}>
+                        Loading your Instagram Reels...
+                      </div>
+                    ) : reels && reels.length > 0 ? (
+                      <div>
+                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#5b21b6', marginBottom: '8px' }}>
+                          Select your Reel ({reels.length} available):
+                        </div>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                          gap: '10px',
+                          maxHeight: '180px',
+                          overflowY: 'auto',
+                          paddingRight: '4px'
+                        }}>
+                          {reels.map((reel) => {
+                            const isReelPicked = selectedPreviousReel?.id === reel.id;
+                            const thumb = reel.thumbnail_url || reel.media_url;
+                            return (
+                              <div
+                                key={reel.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedPreviousReel(reel);
+                                }}
+                                style={{
+                                  borderRadius: '10px',
+                                  border: isReelPicked ? '2.5px solid #7c3aed' : '1px solid #c4b5fd',
+                                  background: '#ffffff',
+                                  overflow: 'hidden',
+                                  cursor: 'pointer',
+                                  position: 'relative',
+                                  boxShadow: isReelPicked ? '0 2px 8px rgba(124,58,237,0.3)' : 'none',
+                                }}
+                              >
+                                <div style={{ height: '70px', background: '#0f172a', position: 'relative' }}>
+                                  {thumb ? (
+                                    <img src={thumb} alt="Reel" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
+                                      <Film size={20} />
+                                    </div>
+                                  )}
+                                  {isReelPicked && (
+                                    <div style={{
+                                      position: 'absolute',
+                                      top: '4px',
+                                      right: '4px',
+                                      background: '#7c3aed',
+                                      color: '#fff',
+                                      borderRadius: '50%',
+                                      width: '18px',
+                                      height: '18px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center'
+                                    }}>
+                                      <Check size={12} />
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ padding: '6px', fontSize: '10.5px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                                  {reel.caption || `Reel #${reel.id.slice(-4)}`}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '12px', color: '#6d28d9', background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #ddd6fe' }}>
+                        No published Reels found on this account yet. You can choose <b>Next Reel Upload</b> or <b>All Content</b> instead!
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Option 3: All Current & Future Content (Profile-Wide) */}
+              <div
+                onClick={() => setTargetSelectionMode('all')}
+                style={{
+                  padding: '16px',
+                  borderRadius: '16px',
+                  border: '2px solid',
+                  borderColor: targetSelectionMode === 'all' ? '#06b6d4' : 'var(--border-light)',
+                  background: targetSelectionMode === 'all' ? 'linear-gradient(135deg, #ecfeff 0%, #cff4fc 100%)' : 'var(--bg-subtle)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: targetSelectionMode === 'all' ? '0 4px 14px rgba(6,182,212,0.15)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      background: targetSelectionMode === 'all' ? '#06b6d4' : 'var(--border-subtle)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Layers size={17} />
+                    </div>
+                    <span style={{ fontSize: '15px', fontWeight: 800, color: targetSelectionMode === 'all' ? '#155e75' : 'var(--text-main)' }}>
+                      🌐 All Reels &amp; Posts (Profile-Wide)
+                    </span>
+                  </div>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    background: '#06b6d4',
+                    color: '#ffffff',
+                  }}>
+                    GLOBAL RULE
+                  </span>
+                </div>
+                <p style={{ fontSize: '12.5px', color: targetSelectionMode === 'all' ? '#0e7490' : 'var(--text-muted)', margin: '0 0 0 42px', lineHeight: 1.45 }}>
+                  Triggers whenever anyone comments the keyword on <b>ANY current or future Reel or Post</b> across your entire Instagram account.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer CTA */}
+            <div style={{
+              padding: '16px 24px',
+              borderTop: '1px solid var(--border-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'var(--bg-card)',
+            }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetPromptOpen(false);
+                  setPendingTemplate(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleConfirmTargetSelection}
+                style={{
+                  padding: '10px 22px',
+                  fontSize: '13.5px',
+                  fontWeight: 800,
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+                }}
+              >
+                <span>Continue &amp; Customize Rule</span>
+                <ArrowRight size={16} />
               </button>
             </div>
           </div>
