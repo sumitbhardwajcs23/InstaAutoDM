@@ -7,9 +7,25 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { JWT_SECRET, requireAuth } = require('../middleware/auth');
 
+function isConfiguredAdminEmail(email) {
+  if (!email) return false;
+  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com')
+    .toLowerCase()
+    .split(',')
+    .map(e => e.trim());
+  return adminEmails.includes(email.toLowerCase().trim());
+}
+
 function makeToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name, plan: user.plan },
+    { 
+      id: user.id, 
+      email: user.email, 
+      name: user.name, 
+      plan: user.plan, 
+      role: user.role || (isConfiguredAdminEmail(user.email) ? 'admin' : 'user'),
+      status: user.status || 'active'
+    },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
@@ -22,20 +38,22 @@ router.post('/register', async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
-    const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
     if (existing) return res.status(409).json({ error: 'An account with this email already exists' });
 
     const password_hash = await bcrypt.hash(password, 12);
     const userId = uuidv4();
     const now = new Date().toISOString();
     const displayName = name || email.split('@')[0];
+    const initialRole = isConfiguredAdminEmail(normalizedEmail) ? 'admin' : 'user';
 
     await db.prepare(`
-      INSERT INTO users (id, email, name, plan, password_hash, dm_usage_this_period, usage_period_start, created_at, updated_at)
-      VALUES (?, ?, ?, 'free', ?, 0, ?, ?, ?)
-    `).run(userId, email.toLowerCase().trim(), displayName, password_hash, now.slice(0, 10), now, now);
+      INSERT INTO users (id, email, name, plan, role, status, password_hash, dm_usage_this_period, usage_period_start, created_at, updated_at)
+      VALUES (?, ?, ?, 'free', ?, 'active', ?, 0, ?, ?, ?)
+    `).run(userId, normalizedEmail, displayName, initialRole, password_hash, now.slice(0, 10), now, now);
 
-    const user = await db.prepare('SELECT id, email, name, plan FROM users WHERE id = ?').get(userId);
+    const user = await db.prepare('SELECT id, email, name, plan, role, status FROM users WHERE id = ?').get(userId);
     const token = makeToken(user);
 
     res.status(201).json({ token, user });
@@ -51,8 +69,13 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
-    const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
     if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+
+    if (user.status === 'suspended') {
+      return res.status(403).json({ error: 'This account has been suspended by an administrator. Please contact support.' });
+    }
 
     if (!user.password_hash) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -61,8 +84,23 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
-    const token = makeToken(user);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, plan: user.plan } });
+    // Auto-grant admin role if email is configured admin
+    let role = user.role || 'user';
+    if (isConfiguredAdminEmail(normalizedEmail) && role !== 'admin') {
+      role = 'admin';
+      await db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
+    }
+
+    const userData = { 
+      id: user.id, 
+      email: user.email, 
+      name: user.name, 
+      plan: user.plan, 
+      role, 
+      status: user.status || 'active' 
+    };
+    const token = makeToken(userData);
+    res.json({ token, user: userData });
   } catch (err) {
     console.error('[Auth] Login error:', err.message);
     res.status(500).json({ error: 'Login failed. Please try again.' });
@@ -71,8 +109,14 @@ router.post('/login', async (req, res) => {
 
 // GET /api/auth/me  (requires auth)
 router.get('/me', requireAuth, async (req, res) => {
-  const user = await db.prepare('SELECT id, email, name, plan, dm_usage_this_period, usage_period_start, created_at FROM users WHERE id = ?').get(req.user.id);
+  const user = await db.prepare('SELECT id, email, name, plan, role, status, dm_usage_this_period, usage_period_start, created_at FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  if (isConfiguredAdminEmail(user.email) && user.role !== 'admin') {
+    user.role = 'admin';
+    await db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
+  }
+
   res.json({ user });
 });
 

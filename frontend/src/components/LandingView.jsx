@@ -36,6 +36,18 @@ export default function LandingView({ onNavigate, user }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState('monthly'); // 'monthly' | 'annual'
   const [currency, setCurrency] = useState('USD'); // 'USD' | 'INR'
+  const [siteSettings, setSiteSettings] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/site/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.settings) {
+          setSiteSettings(data.settings);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Interactive Live Demo State
   const [demoType, setDemoType] = useState('reel'); // 'reel' | 'story' | 'carousel'
@@ -169,6 +181,53 @@ export default function LandingView({ onNavigate, user }) {
       {/* Subtle Architectural Dot Pattern */}
       <div className="lp-grid-pattern"></div>
 
+      {/* Dynamic Announcement Banner (Managed by Admin) */}
+      {siteSettings?.announcement_enabled && (
+        <div style={{
+          background: 'linear-gradient(90deg, #312e81 0%, #1e3a8a 50%, #4338ca 100%)',
+          color: '#ffffff',
+          padding: '8px 16px',
+          textAlign: 'center',
+          fontSize: '13px',
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+          borderBottom: '1px solid rgba(255,255,255,0.12)',
+          position: 'relative',
+          zIndex: 1000
+        }}>
+          {siteSettings.announcement_badge && (
+            <span style={{
+              background: '#2563eb',
+              color: '#ffffff',
+              fontSize: '10.5px',
+              fontWeight: 800,
+              padding: '2px 8px',
+              borderRadius: '999px',
+              letterSpacing: '0.04em'
+            }}>
+              {siteSettings.announcement_badge}
+            </span>
+          )}
+          <span>{siteSettings.announcement_text}</span>
+          {siteSettings.announcement_link && (
+            <a
+              href={siteSettings.announcement_link}
+              style={{
+                color: '#93c5fd',
+                textDecoration: 'underline',
+                fontWeight: 700,
+                marginLeft: '4px'
+              }}
+            >
+              Explore Now →
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Handcrafted Sticky Header */}
       <header className={`lp-navbar ${isScrolled ? 'scrolled' : ''}`}>
         <div className="lp-container lp-nav-content">
@@ -225,19 +284,25 @@ export default function LandingView({ onNavigate, user }) {
 
           <div className="lp-hero-headline-wrap">
             <h1 className="lp-hero-headline">
-              When your Reel blows up,<br />
-              <span className="lp-headline-em">send the link in 1.4s.</span> Not 4 hours.
+              {siteSettings?.hero_headline ? (
+                <span>{siteSettings.hero_headline}</span>
+              ) : (
+                <>
+                  When your Reel blows up,<br />
+                  <span className="lp-headline-em">send the link in 1.4s.</span> Not 4 hours.
+                </>
+              )}
             </h1>
             <p className="lp-hero-subhead">
-              Stop losing sales because you couldn’t manually copy-paste links to 400 commenters. 
+              {siteSettings?.hero_subtitle || `Stop losing sales because you couldn’t manually copy-paste links to 400 commenters. 
               Airvix automatically delivers your download links, course URLs, and discount codes into their DMs 
-              while they’re still watching your Reel. 100% Meta compliant.
+              while they’re still watching your Reel. 100% Meta compliant.`}
             </p>
           </div>
 
           <div className="lp-hero-actions">
             <button className="lp-btn lp-btn-hero-primary" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
-              Get Started for Free <ArrowRight size={16} />
+              {siteSettings?.primary_cta_text || 'Get Started for Free'} <ArrowRight size={16} />
             </button>
             <a href="#live-studio" className="lp-btn lp-btn-hero-secondary">
               <Play size={14} fill="currentColor" /> See Live Simulation

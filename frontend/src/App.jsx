@@ -16,6 +16,7 @@ import CreateRuleModal from './components/CreateRuleModal';
 import ConnectIgModal from './components/ConnectIgModal';
 import UpgradeModal from './components/UpgradeModal';
 import TemplatesView from './components/TemplatesView';
+import AdminView from './components/AdminView';
 import { getCurrentUser, clearAuthSession, apiFetch } from './api/client';
 
 export default function App() {
@@ -58,6 +59,14 @@ export default function App() {
       const hash = window.location.hash.toLowerCase();
       if (hash === '#login') setCurrentView('auth-login');
       else if (hash === '#signup' || hash === '#register') setCurrentView('auth-signup');
+      else if (hash === '#admin') {
+        if (user?.role === 'admin') {
+          setCurrentView('app');
+          setActiveTab('admin');
+        } else {
+          setCurrentView('auth-login');
+        }
+      }
       else if (hash === '#app') setCurrentView(user ? 'app' : 'auth-login');
       else if (hash === '#landing' || hash === '' || hash === '#') setCurrentView('landing');
     };
@@ -127,7 +136,7 @@ export default function App() {
         });
         setAccount(d.account || null);
         if (d.user) {
-          setUser(prev => ({ ...prev, name: d.user.name, plan: d.user.plan }));
+          setUser(prev => ({ ...prev, name: d.user.name, plan: d.user.plan, role: d.user.role || prev?.role }));
         }
       }
 
@@ -295,6 +304,7 @@ export default function App() {
     <div className="app-container" style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
       <Sidebar
+        user={user}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenUpgrade={() => setIsUpgradeOpen(true)}
@@ -435,6 +445,10 @@ export default function App() {
               onOpenCreateRule={handleOpenCreateRule}
               account={account}
             />
+          )}
+
+          {activeTab === 'admin' && user?.role === 'admin' && (
+            <AdminView user={user} />
           )}
         </main>
       </div>

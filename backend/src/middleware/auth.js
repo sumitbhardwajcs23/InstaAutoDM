@@ -38,5 +38,25 @@ function requireAuth(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, JWT_SECRET };
+function requireAdmin(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized: authentication required' });
+  }
+
+  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com')
+    .toLowerCase()
+    .split(',')
+    .map(e => e.trim());
+
+  const isEmailAdmin = req.user.email && adminEmails.includes(req.user.email.toLowerCase().trim());
+  const isRoleAdmin = req.user.role === 'admin';
+
+  if (!isRoleAdmin && !isEmailAdmin) {
+    return res.status(403).json({ error: 'Forbidden: Admin privileges required' });
+  }
+
+  next();
+}
+
+module.exports = { requireAuth, requireAdmin, JWT_SECRET };
 

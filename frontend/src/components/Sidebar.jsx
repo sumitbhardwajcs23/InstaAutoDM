@@ -17,9 +17,11 @@ import {
   Sun,
   Instagram,
   Film,
+  Shield,
 } from 'lucide-react';
 
 export default function Sidebar({
+  user,
   activeTab,
   setActiveTab,
   onOpenUpgrade,
@@ -41,6 +43,10 @@ export default function Sidebar({
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
+
+  if (user?.role === 'admin') {
+    navItems.push({ id: 'admin', label: 'Admin Panel', icon: Shield, badge: 'STAFF' });
+  }
 
   return (
     <aside className="sidebar">

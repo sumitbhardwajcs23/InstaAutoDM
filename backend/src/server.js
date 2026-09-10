@@ -26,6 +26,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // ── Public routes (no auth required / handles own auth) ──────────────
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/site', require('./routes/site'));
 app.use('/webhooks', require('./routes/webhooks'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/instagram', require('./routes/instagram'));
@@ -42,6 +43,7 @@ app.use('/api/rules', require('./routes/rules'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/usage', require('./routes/usage'));
 app.use('/api/simulator', require('./routes/simulator'));
+app.use('/api/admin', require('./routes/admin'));
 
 // ── Static frontend ──────────────────────────────────────────────────
 const distDir = path.join(__dirname, '../../frontend/dist');

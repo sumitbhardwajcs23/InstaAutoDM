@@ -9,9 +9,17 @@ CREATE TABLE IF NOT EXISTS users (
   avatar_url TEXT,
   password_hash TEXT,
   plan TEXT DEFAULT 'free',
+  role TEXT DEFAULT 'user',
+  status TEXT DEFAULT 'active',
   dm_usage_this_period INTEGER DEFAULT 0,
   usage_period_start TEXT NOT NULL,
   created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS site_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT,
   updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
 

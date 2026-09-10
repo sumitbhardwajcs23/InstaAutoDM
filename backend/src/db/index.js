@@ -70,6 +70,18 @@ if (pgPool) {
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_image_url TEXT;");
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_button_text TEXT;");
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_button_url TEXT;");
+        await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';");
+        await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';");
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS site_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          );
+        `);
+        // Ensure default admin user if owner email exists
+        const adminEmail = (process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com').toLowerCase().trim();
+        await pgPool.query("UPDATE users SET role = 'admin' WHERE LOWER(email) = $1", [adminEmail]);
       } catch (migErr) {
         console.warn('[PostgreSQL] Migration notice:', migErr.message);
       }
