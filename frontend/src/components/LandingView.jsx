@@ -828,9 +828,9 @@ export default function LandingView({ onNavigate, user }) {
           
           <div className="lp-section-intro">
             <div className="lp-kicker">Simple, Transparent Pricing</div>
-            <h2 className="lp-section-heading">Start free, upgrade when you go viral</h2>
+            <h2 className="lp-section-heading">Scale your Instagram engagement in Rupees</h2>
             <p className="lp-section-sub">
-              No hidden fees, no per-follower charges. Cancel anytime with 1 click.
+              No hidden international conversion charges. Instant activation with UPI, Cards &amp; Net Banking with GST.
             </p>
 
             {/* Currency and Billing Controls */}

@@ -2489,6 +2489,70 @@ export default function AdminView({ user, onBackToApp }) {
                         </div>
                       </div>
 
+                      {/* 6.5. Honest, Transparent Pricing Replica */}
+                      <div style={{ padding: '40px 32px', background: 'rgba(255,255,255,0.01)', borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+                          <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                            SIMPLE &amp; TRANSPARENT PRICING FOR INDIA
+                          </div>
+                          <h2 style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff', margin: '0 0 10px 0' }}>
+                            Scale your Instagram engagement in Rupees
+                          </h2>
+                          <p style={{ fontSize: '14px', color: '#94a3b8', margin: '0 auto 28px auto', maxWidth: '640px', lineHeight: 1.5 }}>
+                            No hidden international conversion charges. Instant activation with UPI, Cards &amp; Net Banking with GST invoices.
+                          </p>
+
+                          {/* Pricing Cards Grid */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', textAlign: 'left' }}>
+                            {/* Free Starter */}
+                            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                              <div>
+                                <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Free Starter</div>
+                                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Test automations on real traffic</div>
+                                <div style={{ fontSize: '28px', fontWeight: 900, color: '#ffffff', margin: '16px 0 12px 0' }}>₹0 <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>/ forever</span></div>
+                                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '12.5px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                  <li>✓ 1,000 automated DMs / mo</li>
+                                  <li>✓ 1 Connected IG Account</li>
+                                  <li>✓ 5 Active Keyword Rules</li>
+                                </ul>
+                              </div>
+                              <button type="button" style={{ marginTop: '20px', padding: '10px', background: 'rgba(255,255,255,0.06)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', fontWeight: 700, fontSize: '13px', width: '100%' }}>Start Free</button>
+                            </div>
+
+                            {/* Creator Pro */}
+                            <div style={{ background: 'linear-gradient(145deg, rgba(37,99,235,0.15), rgba(15,23,42,0.9))', border: '2px solid #3b82f6', borderRadius: '16px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                              <span style={{ position: 'absolute', top: '-11px', left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #2563eb, #a855f7)', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '3px 10px', borderRadius: '99px' }}>MOST POPULAR IN INDIA</span>
+                              <div>
+                                <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Creator Pro</div>
+                                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>For active creators &amp; brands</div>
+                                <div style={{ fontSize: '28px', fontWeight: 900, color: '#60a5fa', margin: '16px 0 12px 0' }}>₹1,499 <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>/ month</span></div>
+                                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '12.5px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                  <li>✓ Unlimited automated DMs</li>
+                                  <li>✓ Unlimited Active Rules</li>
+                                  <li>✓ GST Invoice + 18% Input Credit</li>
+                                </ul>
+                              </div>
+                              <button type="button" style={{ marginTop: '20px', padding: '10px', background: 'linear-gradient(135deg, #2563eb, #4f46e5)', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '13px', width: '100%' }}>Get Creator Pro →</button>
+                            </div>
+
+                            {/* Agency & Enterprise */}
+                            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                              <div>
+                                <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Agency &amp; Scale</div>
+                                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>For agencies &amp; multi-brands</div>
+                                <div style={{ fontSize: '28px', fontWeight: 900, color: '#ffffff', margin: '16px 0 12px 0' }}>₹3,999 <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>/ month</span></div>
+                                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '12.5px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                  <li>✓ Up to 10 Connected Accounts</li>
+                                  <li>✓ Dedicated Priority Support</li>
+                                  <li>✓ Official Vendor GST Contract</li>
+                                </ul>
+                              </div>
+                              <button type="button" style={{ marginTop: '20px', padding: '10px', background: 'rgba(255,255,255,0.06)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', fontWeight: 700, fontSize: '13px', width: '100%' }}>Start Agency Trial</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* 7. Official Contact & Business Info Bar Replica */}
                       <div style={{ padding: '24px 32px', background: 'rgba(15, 23, 42, 0.9)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                         <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', fontSize: '13px' }}>
