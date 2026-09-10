@@ -2278,7 +2278,7 @@ export default function AdminView({ user, onBackToApp }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>
                           <span>Features</span>
                           <span>How It Works</span>
-                          <span>Pricing</span>
+                          <span>Plans &amp; Billing</span>
                           <span>Support</span>
                           <button type="button" style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 800 }}>Sign In →</button>
                         </div>
@@ -2493,7 +2493,7 @@ export default function AdminView({ user, onBackToApp }) {
                       <div style={{ padding: '40px 32px', background: 'rgba(255,255,255,0.01)', borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
                         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
                           <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-                            SIMPLE &amp; TRANSPARENT PRICING FOR INDIA
+                            PLANS &amp; BILLING
                           </div>
                           <h2 style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff', margin: '0 0 10px 0' }}>
                             Scale your Instagram engagement in Rupees

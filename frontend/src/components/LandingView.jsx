@@ -254,7 +254,7 @@ export default function LandingView({ onNavigate, user }) {
             <a href="#live-studio">Live Interactive Demo</a>
             <a href="#features">Features</a>
             <a href="#comparison">Why Airvix</a>
-            <a href="#pricing">Pricing</a>
+            <a href="#pricing">Plans &amp; Billing</a>
             <a href="#faq">FAQ</a>
           </nav>
 
@@ -827,7 +827,7 @@ export default function LandingView({ onNavigate, user }) {
         <div className="lp-container">
           
           <div className="lp-section-intro">
-            <div className="lp-kicker">Simple, Transparent Pricing</div>
+            <div className="lp-kicker">Plans &amp; Billing</div>
             <h2 className="lp-section-heading">Scale your Instagram engagement in Rupees</h2>
             <p className="lp-section-sub">
               No hidden international conversion charges. Instant activation with UPI, Cards &amp; Net Banking with GST.
@@ -1040,7 +1040,7 @@ export default function LandingView({ onNavigate, user }) {
               <a href="#how-it-works">How It Works</a>
               <a href="#features">Reel Automations</a>
               <a href="#live-studio">Interactive Demo</a>
-              <a href="#pricing">Pricing</a>
+              <a href="#pricing">Plans &amp; Billing</a>
             </div>
 
             <div className="lp-footer-col">
