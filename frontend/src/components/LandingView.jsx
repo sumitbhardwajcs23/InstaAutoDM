@@ -569,37 +569,117 @@ export default function LandingView({ onNavigate, user }) {
         </div>
       </section>
 
-      {/* 10. FOOTER (Dark Theme) */}
+      {/* 10. COMPREHENSIVE SAAS FOOTER (Dark Obsidian Multi-Column Theme) */}
       <footer className="airvix-footer">
-        <div className="airvix-container airvix-footer-content">
-          <div className="airvix-footer-left">
-            <a href="#" className="airvix-logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-              <img src="/airvix-mark.png" alt="Airvix" className="airvix-logo-img" />
-              <span className="airvix-logo-text" style={{ color: '#ffffff' }}>Airvix</span>
-            </a>
-          </div>
-
-          <div className="airvix-footer-links">
-            <a href="#features">Product</a>
-            <a href="#features">Features</a>
-            <a href="#pricing">Pricing</a>
-            <a href="#how-it-works">Resources</a>
-            <a href="#legal" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('privacy'); }}>About</a>
-          </div>
-
-          <div className="airvix-footer-right">
-            <div className="airvix-social-icons">
-              <a href="https://instagram.com" target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={16} /></a>
-              <a href="https://x.com" target="_blank" rel="noreferrer" aria-label="Twitter"><Twitter size={16} /></a>
-              <a href="https://linkedin.com" target="_blank" rel="noreferrer" aria-label="LinkedIn"><Linkedin size={16} /></a>
-              <a href="https://youtube.com" target="_blank" rel="noreferrer" aria-label="YouTube"><Youtube size={16} /></a>
-            </div>
+        <div className="airvix-container">
+          {/* Main Footer Grid */}
+          <div className="airvix-footer-grid">
             
-            <div className="airvix-footer-meta">
-              <span>© 2026 Airvix. All rights reserved.</span>
-              <a href="#privacy" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('privacy'); }}>Privacy</a>
-              <a href="#terms" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('terms'); }}>Terms</a>
-              <a href="#contact" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('refund'); }}>Contact</a>
+            {/* Column 1: Brand & Bio */}
+            <div className="airvix-footer-col airvix-col-brand">
+              <a href="#" className="airvix-logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+                <img src="/airvix-mark.png" alt="Airvix" className="airvix-logo-img" />
+                <span className="airvix-logo-text" style={{ color: '#ffffff' }}>Airvix</span>
+              </a>
+
+              <p className="airvix-footer-tagline">
+                The high-speed Instagram comment-to-DM conversion engine. Turn post comments, reels, and stories into automated customer conversations in under 1.4 seconds.
+              </p>
+
+              <div className="airvix-footer-badges">
+                <div className="airvix-footer-badge">
+                  <span className="airvix-badge-flag">🇮🇳</span>
+                  <span>Made in India for creators worldwide</span>
+                </div>
+                <div className="airvix-footer-badge">
+                  <Shield size={13} color="#60a5fa" />
+                  <span>100% Official Meta Graph API v22.0</span>
+                </div>
+              </div>
+
+              <div className="airvix-uptime-status">
+                <span className="airvix-uptime-dot"></span>
+                <span>All Systems Operational • 99.98% Uptime</span>
+              </div>
+            </div>
+
+            {/* Column 2: Product */}
+            <div className="airvix-footer-col">
+              <h4 className="airvix-footer-heading">Product</h4>
+              <ul className="airvix-footer-nav-list">
+                <li><a href="#features">Comment-to-DM Engine</a></li>
+                <li><a href="#features">24h Story Auto-Replies</a></li>
+                <li><a href="#features">Anti-Spam Human Jitter</a></li>
+                <li><a href="#features">Follow-to-Unlock Protection</a></li>
+                <li><a href="#features">Interactive DM Cards &amp; Links</a></li>
+                <li><a href="#features">Smart Template Spintax</a></li>
+                <li><a href="#pricing">Multi-Account Growth Hub</a></li>
+              </ul>
+            </div>
+
+            {/* Column 3: Solutions */}
+            <div className="airvix-footer-col">
+              <h4 className="airvix-footer-heading">Solutions</h4>
+              <ul className="airvix-footer-nav-list">
+                <li><a href="#stories">For Content Creators</a></li>
+                <li><a href="#stories">For D2C &amp; E-commerce Brands</a></li>
+                <li><a href="#stories">For Social Media Agencies</a></li>
+                <li><a href="#stories">For Coaches &amp; Course Sellers</a></li>
+                <li><a href="#stories">For Event &amp; Webinar Hosts</a></li>
+                <li><a href="#pricing">Agency Client Workspaces</a></li>
+                <li><a href="#pricing">White-Label Enterprise</a></li>
+              </ul>
+            </div>
+
+            {/* Column 4: Resources */}
+            <div className="airvix-footer-col">
+              <h4 className="airvix-footer-heading">Resources</h4>
+              <ul className="airvix-footer-nav-list">
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#pricing">Rupee Pricing Plans</a></li>
+                <li><a href="#demo" onClick={(e) => { e.preventDefault(); setIsVideoModalOpen(true); }}>Watch 60s Product Demo</a></li>
+                <li><a href="#stories">Customer Success Stories</a></li>
+                <li><a href="#legal" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('privacy'); }}>Meta API Safety Guide</a></li>
+                <li><a href="#how-it-works">Reel Engagement Checklist</a></li>
+                <li><a href="#pricing">GST Invoicing &amp; Tax Info</a></li>
+              </ul>
+            </div>
+
+            {/* Column 5: Company & Support */}
+            <div className="airvix-footer-col">
+              <h4 className="airvix-footer-heading">Company &amp; Legal</h4>
+              <ul className="airvix-footer-nav-list">
+                <li><a href="#legal" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('privacy'); }}>Privacy Policy</a></li>
+                <li><a href="#legal" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('terms'); }}>Terms of Service</a></li>
+                <li><a href="#legal" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('refund'); }}>7-Day Money-Back Guarantee</a></li>
+                <li><a href="#legal" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('privacy'); }}>DPDP Act &amp; GDPR Compliance</a></li>
+                <li><a href="mailto:support@airvix.com">Email Support: support@airvix.com</a></li>
+                <li><a href="https://wa.me/919876543210" target="_blank" rel="noreferrer">WhatsApp Creator Desk</a></li>
+                <li><a href="#pricing" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>Sign Up / Get Started →</a></li>
+              </ul>
+            </div>
+
+          </div>
+
+          {/* Footer Bottom Divider Bar */}
+          <div className="airvix-footer-bottom-bar">
+            <div className="airvix-footer-copyright">
+              © {new Date().getFullYear()} Airvix Technologies Inc. All rights reserved. Empowering creators across India and globally.
+            </div>
+
+            <div className="airvix-footer-payments">
+              <span className="airvix-pay-pill">UPI</span>
+              <span className="airvix-pay-pill">RuPay</span>
+              <span className="airvix-pay-pill">Cards</span>
+              <span className="airvix-pay-pill">Net Banking</span>
+              <span className="airvix-pay-pill">GST Input Tax Credit</span>
+            </div>
+
+            <div className="airvix-footer-social-links">
+              <a href="https://instagram.com" target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={17} /></a>
+              <a href="https://x.com" target="_blank" rel="noreferrer" aria-label="Twitter"><Twitter size={17} /></a>
+              <a href="https://linkedin.com" target="_blank" rel="noreferrer" aria-label="LinkedIn"><Linkedin size={17} /></a>
+              <a href="https://youtube.com" target="_blank" rel="noreferrer" aria-label="YouTube"><Youtube size={17} /></a>
             </div>
           </div>
         </div>
