@@ -83,22 +83,7 @@ export default function LandingView({ onNavigate, user }) {
 
   return (
     <div className="airvix-page-wrapper">
-      {/* 1. TOP ANNOUNCEMENT BAR (If enabled) */}
-      {siteSettings?.announcement_enabled && (
-        <div className="airvix-announcement-bar">
-          {siteSettings.announcement_badge && (
-            <span className="airvix-announcement-badge">{siteSettings.announcement_badge}</span>
-          )}
-          <span>{siteSettings.announcement_text}</span>
-          {siteSettings.announcement_link && (
-            <a href={siteSettings.announcement_link} className="airvix-announcement-link">
-              Explore Now →
-            </a>
-          )}
-        </div>
-      )}
-
-      {/* 2. HEADER NAVBAR */}
+      {/* HEADER NAVBAR */}
       <header className={`airvix-navbar ${isScrolled ? 'scrolled' : ''}`}>
         <div className="airvix-nav-container">
           <a href="#" className="airvix-logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
@@ -142,8 +127,22 @@ export default function LandingView({ onNavigate, user }) {
         </div>
       </header>
 
-      {/* 3. HERO SECTION (Dark Obsidian Atmosphere) */}
+      {/* 3. HERO SECTION (Dark Obsidian Atmosphere with Ambient Background Video) */}
       <section className="airvix-hero-section">
+        {/* Ambient Looping Video Background */}
+        <div className="airvix-hero-video-bg">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="airvix-bg-video"
+          >
+            <source src="/Mere_ko_apne_business_air_airv.mp4" type="video/mp4" />
+          </video>
+          <div className="airvix-hero-video-overlay"></div>
+        </div>
+
         <div className="airvix-hero-radial-glow"></div>
         <div className="airvix-container airvix-hero-grid">
           
@@ -189,7 +188,7 @@ export default function LandingView({ onNavigate, user }) {
             </div>
           </div>
 
-          {/* Right Column: 3D Angle Tablet Device Mockup */}
+          {/* Right Column: Floating Highlights Over Live Background Video */}
           <div className="airvix-hero-right">
             <div className="airvix-handwritten-note airvix-hero-note">
               <span>From Comments to Customers</span>
@@ -198,70 +197,9 @@ export default function LandingView({ onNavigate, user }) {
               </svg>
             </div>
 
-            <div className="airvix-tablet-device">
-              <div className="airvix-tablet-screen">
-                
-                {/* Dashboard Top Header */}
-                <div className="airvix-tablet-top">
-                  <div className="airvix-tablet-brand">
-                    <img src="/airvix-mark.png" alt="Airvix" style={{ height: '18px' }} />
-                    <span>Airvix</span>
-                  </div>
-                  <div className="airvix-tablet-greeting">
-                    <span>Good morning 👋</span>
-                  </div>
-                </div>
-
-                {/* Dashboard KPI Cards */}
-                <div className="airvix-tablet-kpis">
-                  <div className="airvix-tablet-kpi">
-                    <div className="airvix-kpi-label">Comments</div>
-                    <div className="airvix-kpi-val">1,248</div>
-                    <div className="airvix-kpi-trend">+24%</div>
-                  </div>
-                  <div className="airvix-tablet-kpi">
-                    <div className="airvix-kpi-label">Auto Replies</div>
-                    <div className="airvix-kpi-val">882</div>
-                    <div className="airvix-kpi-trend">+18%</div>
-                  </div>
-                  <div className="airvix-tablet-kpi">
-                    <div className="airvix-kpi-label">Engagement</div>
-                    <div className="airvix-kpi-val">24.8K</div>
-                    <div className="airvix-kpi-trend">+64%</div>
-                  </div>
-                </div>
-
-                {/* Engagement Growth Smooth Area Chart */}
-                <div className="airvix-tablet-chart-wrap">
-                  <div className="airvix-chart-title-row">
-                    <span>Engagement Growth</span>
-                    <span className="airvix-chart-range">Last 7 days ▼</span>
-                  </div>
-                  <svg className="airvix-tablet-chart-svg" viewBox="0 0 400 120" preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id="purpleGlowGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.5" />
-                        <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.0" />
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d="M 0,90 Q 60,40 120,70 T 240,40 T 360,20 L 400,15 L 400,120 L 0,120 Z"
-                      fill="url(#purpleGlowGradient)"
-                    />
-                    <path
-                      d="M 0,90 Q 60,40 120,70 T 240,40 T 360,20 L 400,15"
-                      fill="none"
-                      stroke="#a855f7"
-                      strokeWidth="3"
-                    />
-                    <circle cx="360" cy="20" r="5" fill="#c084fc" stroke="#ffffff" strokeWidth="2" />
-                  </svg>
-                </div>
-
-              </div>
-
+            <div className="airvix-hero-floating-stage">
               {/* Floating Notification 1: Top Right New Comment */}
-              <div className="airvix-floating-toast airvix-toast-top">
+              <div className="airvix-floating-toast airvix-toast-hero-1">
                 <div className="airvix-toast-icon airvix-toast-ig">📸</div>
                 <div className="airvix-toast-content">
                   <div className="airvix-toast-header">
@@ -273,7 +211,7 @@ export default function LandingView({ onNavigate, user }) {
               </div>
 
               {/* Floating Notification 2: Bottom Right AI Reply Sent */}
-              <div className="airvix-floating-toast airvix-toast-bottom">
+              <div className="airvix-floating-toast airvix-toast-hero-2">
                 <div className="airvix-toast-icon airvix-toast-ai">🤖</div>
                 <div className="airvix-toast-content">
                   <div className="airvix-toast-header">
@@ -284,6 +222,11 @@ export default function LandingView({ onNavigate, user }) {
                 </div>
               </div>
 
+              {/* Live Status Badge */}
+              <div className="airvix-hero-live-badge">
+                <span className="airvix-live-dot"></span>
+                <span>Automated DM Engine Active</span>
+              </div>
             </div>
           </div>
 

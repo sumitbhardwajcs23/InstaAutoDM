@@ -6,10 +6,10 @@ const { DEFAULT_TEMPLATES } = require('../constants/defaultTemplates');
 
 const DEFAULT_SITE_SETTINGS = {
   // Announcement
-  announcement_enabled: true,
-  announcement_text: '🚀 Special Launch: Get 30% OFF Pro Plans with code AIRVIX30',
-  announcement_badge: 'LIMITED OFFER',
-  announcement_link: '#pricing',
+  announcement_enabled: false,
+  announcement_text: '',
+  announcement_badge: '',
+  announcement_link: '',
 
   // Hero Section
   hero_badge: '⚡ Powered by Official Meta Instagram Graph API',

@@ -308,14 +308,46 @@
 }
 
 /* ==========================================================================
-   3. HERO SECTION (Dark Obsidian Atmosphere)
+   3. HERO SECTION (Dark Obsidian Atmosphere with Ambient Video Background)
    ========================================================================== */
 .airvix-hero-section {
   background-color: var(--airvix-bg-dark);
-  padding-top: 140px;
-  padding-bottom: 90px;
+  padding-top: 150px;
+  padding-bottom: 100px;
   position: relative;
   overflow: hidden;
+  min-height: 85vh;
+  display: flex;
+  align-items: center;
+}
+
+/* Ambient Video Background */
+.airvix-hero-video-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.airvix-bg-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: right center;
+  filter: brightness(0.88) contrast(1.08);
+}
+
+.airvix-hero-video-overlay {
+  position: absolute;
+  inset: 0;
+  background: 
+    linear-gradient(90deg, rgba(8, 11, 20, 0.96) 0%, rgba(8, 11, 20, 0.9) 38%, rgba(8, 11, 20, 0.42) 72%, rgba(8, 11, 20, 0.65) 100%),
+    linear-gradient(180deg, rgba(8, 11, 20, 0.75) 0%, transparent 25%, rgba(8, 11, 20, 0.98) 100%);
+  pointer-events: none;
 }
 
 /* Radial Glow Backlight */
@@ -328,7 +360,7 @@
   background: radial-gradient(circle, rgba(59, 130, 246, 0.18) 0%, rgba(99, 102, 241, 0.08) 45%, transparent 70%);
   filter: blur(80px);
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
 }
 
 .airvix-hero-grid {
@@ -337,7 +369,8 @@
   gap: 50px;
   align-items: center;
   position: relative;
-  z-index: 1;
+  z-index: 2;
+  width: 100%;
 }
 
 .airvix-hero-left {
@@ -409,7 +442,7 @@
   color: #94a3b8;
 }
 
-/* Hero Right: 3D Angled Tablet Mockup */
+/* Hero Right: Floating Stage Over Ambient Video */
 .airvix-hero-right {
   position: relative;
   display: flex;
@@ -433,8 +466,8 @@
 }
 
 .airvix-hero-note {
-  top: -42px;
-  right: -20px;
+  top: -30px;
+  right: 10px;
   transform: rotate(4deg);
   text-align: center;
 }
@@ -443,116 +476,75 @@
   margin-top: 4px;
 }
 
-/* Tablet Device Frame */
-.airvix-tablet-device {
+/* Floating Stage Canvas */
+.airvix-hero-floating-stage {
   position: relative;
   width: 100%;
-  max-width: 540px;
-  background: #020408;
-  border-radius: 28px;
-  padding: 12px;
-  box-shadow: 
-    0 30px 60px -15px rgba(0, 0, 0, 0.9),
-    0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 0 40px rgba(59, 130, 246, 0.2);
-  transform: perspective(1000px) rotateY(-6deg) rotateX(4deg) scale(0.98);
-  transition: transform 0.4s ease;
-}
-
-.airvix-tablet-device:hover {
-  transform: perspective(1000px) rotateY(-2deg) rotateX(1deg) scale(1);
-}
-
-.airvix-tablet-screen {
-  background: #090e1a;
-  border-radius: 18px;
-  padding: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  min-height: 330px;
-}
-
-.airvix-tablet-top {
+  max-width: 520px;
+  height: 380px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  justify-content: center;
 }
 
-.airvix-tablet-brand {
-  display: flex;
+.airvix-toast-hero-1 {
+  top: 30px;
+  right: 10px;
+  animation: airvixFloat 6s ease-in-out infinite;
+}
+
+.airvix-toast-hero-2 {
+  bottom: 50px;
+  right: 30px;
+  animation: airvixFloat 6s ease-in-out infinite 3s;
+}
+
+.airvix-hero-live-badge {
+  position: absolute;
+  bottom: 12px;
+  left: 20px;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-weight: 700;
-  font-size: 14px;
-  color: #ffffff;
-}
-
-.airvix-tablet-greeting {
-  font-size: 13px;
-  color: #f1f5f9;
-  font-weight: 500;
-}
-
-.airvix-tablet-kpis {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.airvix-tablet-kpi {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.airvix-kpi-label {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-bottom: 4px;
-}
-
-.airvix-kpi-val {
-  font-size: 20px;
-  font-weight: 700;
-  color: #ffffff;
-}
-
-.airvix-kpi-trend {
-  font-size: 10px;
-  font-weight: 600;
-  color: #10b981;
-  margin-top: 2px;
-}
-
-.airvix-tablet-chart-wrap {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 14px;
-  padding: 14px;
-}
-
-.airvix-chart-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   font-size: 12px;
-  color: #cbd5e1;
-  margin-bottom: 8px;
+  font-weight: 600;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 8px 16px;
+  border-radius: 9999px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
 }
 
-.airvix-chart-range {
-  font-size: 10px;
-  color: #94a3b8;
+.airvix-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  animation: airvixPulse 2s infinite;
 }
 
-.airvix-tablet-chart-svg {
-  width: 100%;
-  height: 90px;
-  display: block;
+@keyframes airvixFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes airvixPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.3);
+  }
 }
 
 /* Floating Toasts */
