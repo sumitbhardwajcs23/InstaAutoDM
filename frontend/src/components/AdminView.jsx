@@ -55,6 +55,144 @@ import {
 import { apiFetch } from '../api/client';
 import '../styles/admin.css';
 
+// Inline Click-to-Edit CMS Field Component
+function InlineCMSField({
+  value,
+  onChange,
+  placeholder = 'Click to edit...',
+  tag = 'span',
+  multiline = false,
+  className = '',
+  style = {},
+  label = ''
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempValue, setTempValue] = useState(value || '');
+
+  useEffect(() => {
+    setTempValue(value || '');
+  }, [value]);
+
+  const handleCommit = () => {
+    setIsEditing(false);
+    onChange(tempValue);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!multiline && e.key === 'Enter') {
+      e.preventDefault();
+      handleCommit();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+      setTempValue(value || '');
+    }
+  };
+
+  const Tag = tag;
+
+  if (isEditing) {
+    return (
+      <span
+        className="inline-cms-editing-wrapper"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          display: multiline ? 'block' : 'inline-block',
+          position: 'relative',
+          width: multiline ? '100%' : 'auto',
+          margin: '4px 0',
+          zIndex: 999
+        }}
+      >
+        {multiline ? (
+          <textarea
+            autoFocus
+            rows={5}
+            value={tempValue}
+            onChange={(e) => setTempValue(e.target.value)}
+            onBlur={handleCommit}
+            onKeyDown={handleKeyDown}
+            style={{
+              width: '100%',
+              minHeight: '100px',
+              background: '#090d16',
+              color: '#60a5fa',
+              border: '2px solid #3b82f6',
+              borderRadius: '10px',
+              padding: '10px 14px',
+              fontSize: '13px',
+              fontFamily: 'monospace',
+              lineHeight: 1.6,
+              outline: 'none',
+              boxShadow: '0 0 25px rgba(59, 130, 246, 0.5)'
+            }}
+          />
+        ) : (
+          <input
+            autoFocus
+            type="text"
+            value={tempValue}
+            onChange={(e) => setTempValue(e.target.value)}
+            onBlur={handleCommit}
+            onKeyDown={handleKeyDown}
+            style={{
+              width: '100%',
+              minWidth: '180px',
+              background: '#090d16',
+              color: '#60a5fa',
+              border: '2px solid #3b82f6',
+              borderRadius: '8px',
+              padding: '6px 12px',
+              fontSize: 'inherit',
+              fontFamily: 'inherit',
+              fontWeight: 'inherit',
+              lineHeight: 'inherit',
+              outline: 'none',
+              boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)'
+            }}
+          />
+        )}
+        <span
+          style={{
+            position: 'absolute',
+            right: '8px',
+            bottom: '6px',
+            fontSize: '10px',
+            fontWeight: 800,
+            background: '#2563eb',
+            color: '#ffffff',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            pointerEvents: 'none',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.6)'
+          }}
+        >
+          Enter ↵
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <Tag
+      onClick={(e) => {
+        e.stopPropagation();
+        setIsEditing(true);
+      }}
+      className={`inline-cms-target ${className}`}
+      title={label ? `Click to edit ${label}` : 'Click to edit text directly'}
+      style={{
+        cursor: 'pointer',
+        position: 'relative',
+        transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+        ...style
+      }}
+    >
+      {value || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{placeholder}</span>}
+      <span className="inline-cms-badge">✏️ Edit</span>
+    </Tag>
+  );
+}
+
 export default function AdminView({ user, onBackToApp }) {
   // Navigation Tabs: 'overview' | 'users' | 'workspaces' | 'plans' | 'integrations' | 'safeguards' | 'analytics' | 'support' | 'security' | 'audit' | 'status'
   const [activeTab, setActiveTab] = useState('overview');
@@ -171,7 +309,7 @@ export default function AdminView({ user, onBackToApp }) {
   const [savingSiteSettings, setSavingSiteSettings] = useState(false);
   
   // Interactive CMS View Modes & Before/After Diff State
-  const [cmsViewMode, setCmsViewMode] = useState('split'); // 'split' | 'editor' | 'preview'
+  const [cmsViewMode, setCmsViewMode] = useState('visual_replica'); // 'visual_replica' | 'split' | 'editor'
   const [previewCompareMode, setPreviewCompareMode] = useState('after'); // 'after' (Modified Draft) | 'before' (Original Defaults)
   const [previewLegalTab, setPreviewLegalTab] = useState('privacy'); // 'privacy' | 'terms' | 'refund'
 
@@ -1965,12 +2103,21 @@ export default function AdminView({ user, onBackToApp }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <button
                       type="button"
+                      className={`admin-btn-secondary ${cmsViewMode === 'visual_replica' ? 'active' : ''}`}
+                      onClick={() => setCmsViewMode('visual_replica')}
+                      style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 800, background: cmsViewMode === 'visual_replica' ? '#2563eb' : 'transparent', color: '#ffffff', border: 'none' }}
+                    >
+                      <Sparkles size={14} />
+                      <span>✨ 1:1 Visual Page Replica Editor</span>
+                    </button>
+                    <button
+                      type="button"
                       className={`admin-btn-secondary ${cmsViewMode === 'split' ? 'active' : ''}`}
                       onClick={() => setCmsViewMode('split')}
                       style={{ padding: '6px 12px', fontSize: '12px', background: cmsViewMode === 'split' ? '#3b82f6' : 'transparent', color: '#ffffff', border: 'none' }}
                     >
                       <Eye size={14} />
-                      <span>Side-by-Side Card Preview</span>
+                      <span>⚡ Side-by-Side Split View</span>
                     </button>
                     <button
                       type="button"
@@ -1979,16 +2126,7 @@ export default function AdminView({ user, onBackToApp }) {
                       style={{ padding: '6px 12px', fontSize: '12px', background: cmsViewMode === 'editor' ? '#3b82f6' : 'transparent', color: '#ffffff', border: 'none' }}
                     >
                       <Edit3 size={14} />
-                      <span>Editor Only</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`admin-btn-secondary ${cmsViewMode === 'preview' ? 'active' : ''}`}
-                      onClick={() => setCmsViewMode('preview')}
-                      style={{ padding: '6px 12px', fontSize: '12px', background: cmsViewMode === 'preview' ? '#3b82f6' : 'transparent', color: '#ffffff', border: 'none' }}
-                    >
-                      <Smartphone size={14} />
-                      <span>Full Visual Card Preview</span>
+                      <span>📝 Form View</span>
                     </button>
                   </div>
 
@@ -2033,13 +2171,448 @@ export default function AdminView({ user, onBackToApp }) {
                   </div>
                 </div>
 
+                {/* =========================================================================
+                    VIEW MODE 1: 1:1 VISUAL PAGE REPLICA EDITOR (CLICK-TO-EDIT DIRECTLY ON PAGE)
+                   ========================================================================= */}
+                {cmsViewMode === 'visual_replica' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {/* Floating Editor Guidance Banner */}
+                    <div style={{
+                      background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(79, 70, 229, 0.15))',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      borderRadius: '14px',
+                      padding: '12px 18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      color: '#60a5fa',
+                      fontSize: '13px',
+                      fontWeight: 600
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Sparkles size={18} color="#3b82f6" />
+                        <span>
+                          <strong>1:1 Interactive Page Editor Active:</strong> Hover and click <strong>any text, title, phone, email, video link, feature card, or legal doc</strong> directly on the page to edit inline!
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSaveSiteSettings}
+                        disabled={savingSiteSettings}
+                        style={{
+                          background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '8px 16px',
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 4px 12px rgba(37,99,235,0.4)'
+                        }}
+                      >
+                        <Save size={14} />
+                        <span>{savingSiteSettings ? 'Publishing...' : 'Publish CMS Changes Live'}</span>
+                      </button>
+                    </div>
+
+                    {/* Exact 1:1 Landing Page Canvas Replica */}
+                    <div className="cms-replica-canvas" style={{ position: 'relative', width: '100%', borderRadius: '20px', overflow: 'hidden', border: '1px solid rgba(59, 130, 246, 0.25)', background: '#0b0f19' }}>
+                      
+                      {/* 1. Dynamic Top Announcement Ribbon */}
+                      {displaySettings.announcement_enabled && (
+                        <div style={{
+                          background: 'linear-gradient(90deg, #312e81 0%, #1e3a8a 50%, #4338ca 100%)',
+                          color: '#ffffff',
+                          padding: '10px 20px',
+                          textAlign: 'center',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '12px',
+                          borderBottom: '1px solid rgba(255,255,255,0.12)'
+                        }}>
+                          <InlineCMSField
+                            value={displaySettings.announcement_badge}
+                            onChange={(val) => setSiteSettings({ ...siteSettings, announcement_badge: val })}
+                            placeholder="Badge (e.g. META CERTIFIED)"
+                            label="Announcement Badge"
+                            style={{ background: '#2563eb', color: '#fff', fontSize: '10.5px', fontWeight: 800, padding: '2px 8px', borderRadius: '999px' }}
+                          />
+
+                          <InlineCMSField
+                            value={displaySettings.announcement_text}
+                            onChange={(val) => setSiteSettings({ ...siteSettings, announcement_text: val })}
+                            placeholder="Announcement text..."
+                            label="Announcement Text"
+                            style={{ fontSize: '13px', color: '#ffffff' }}
+                          />
+
+                          <span style={{ color: '#93c5fd', fontSize: '12px' }}>
+                            Link:{' '}
+                            <InlineCMSField
+                              value={displaySettings.announcement_link}
+                              onChange={(val) => setSiteSettings({ ...siteSettings, announcement_link: val })}
+                              placeholder="URL link"
+                              label="Announcement Link"
+                              style={{ color: '#93c5fd', textDecoration: 'underline' }}
+                            />
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 2. Replica Header Navbar */}
+                      <div style={{ padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(13, 18, 31, 0.8)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <img src="/airvix-mark.png" alt="Airvix" style={{ height: '28px' }} />
+                          <span style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.02em' }}>airvix</span>
+                          <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(59,130,246,0.2)', color: '#60a5fa', padding: '2px 6px', borderRadius: '4px' }}>v2.4</span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>
+                          <span>Features</span>
+                          <span>How It Works</span>
+                          <span>Pricing</span>
+                          <span>Support</span>
+                          <button type="button" style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 800 }}>Sign In →</button>
+                        </div>
+                      </div>
+
+                      {/* 3. Replica Hero Section */}
+                      <div style={{ padding: '50px 32px', textAlign: 'center', maxWidth: '900px', margin: '0 auto' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, marginBottom: '20px' }}>
+                          <InlineCMSField
+                            value={displaySettings.hero_badge}
+                            onChange={(val) => setSiteSettings({ ...siteSettings, hero_badge: val })}
+                            placeholder="Hero Badge"
+                            label="Hero Badge Pill"
+                          />
+                        </div>
+
+                        <h1 style={{ fontSize: '38px', fontWeight: 900, color: '#ffffff', margin: '0 0 16px 0', lineHeight: 1.25, letterSpacing: '-0.02em' }}>
+                          <InlineCMSField
+                            value={displaySettings.hero_headline}
+                            onChange={(val) => setSiteSettings({ ...siteSettings, hero_headline: val })}
+                            placeholder="Hero Headline"
+                            label="Hero Headline Main"
+                            tag="span"
+                          />
+                          <br />
+                          <span style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            <InlineCMSField
+                              value={displaySettings.hero_headline_highlight}
+                              onChange={(val) => setSiteSettings({ ...siteSettings, hero_headline_highlight: val })}
+                              placeholder="Highlight Text"
+                              label="Headline Highlight"
+                              tag="span"
+                            />
+                          </span>
+                        </h1>
+
+                        <p style={{ fontSize: '16px', color: '#94a3b8', margin: '0 auto 28px auto', maxWidth: '680px', lineHeight: 1.6 }}>
+                          <InlineCMSField
+                            value={displaySettings.hero_subtitle}
+                            onChange={(val) => setSiteSettings({ ...siteSettings, hero_subtitle: val })}
+                            placeholder="Hero Subtitle / Description"
+                            label="Hero Subtitle"
+                            multiline
+                            tag="span"
+                          />
+                        </p>
+
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                          <button type="button" style={{ padding: '12px 28px', background: 'linear-gradient(135deg, #2563eb, #4f46e5)', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 800, cursor: 'pointer' }}>
+                            <InlineCMSField
+                              value={displaySettings.primary_cta_text}
+                              onChange={(val) => setSiteSettings({ ...siteSettings, primary_cta_text: val })}
+                              placeholder="Primary CTA Text"
+                              label="Primary CTA Button"
+                            /> →
+                          </button>
+
+                          <button type="button" style={{ padding: '12px 24px', background: 'rgba(255,255,255,0.06)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
+                            <InlineCMSField
+                              value={displaySettings.secondary_cta_text}
+                              onChange={(val) => setSiteSettings({ ...siteSettings, secondary_cta_text: val })}
+                              placeholder="Secondary CTA Text"
+                              label="Secondary CTA Button"
+                            />
+                          </button>
+                        </div>
+
+                        {/* Stats Counter Bar */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '40px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', padding: '16px' }}>
+                          <div>
+                            <div style={{ fontSize: '20px', fontWeight: 900, color: '#38bdf8' }}>
+                              <InlineCMSField value={displaySettings.social_creators} onChange={(val) => setSiteSettings({ ...siteSettings, social_creators: val })} label="Creators Stat" />
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Active Creators</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '20px', fontWeight: 900, color: '#a855f7' }}>
+                              <InlineCMSField value={displaySettings.social_dms} onChange={(val) => setSiteSettings({ ...siteSettings, social_dms: val })} label="DMs Stat" />
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Automated DMs</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '20px', fontWeight: 900, color: '#10b981' }}>
+                              <InlineCMSField value={displaySettings.social_rating} onChange={(val) => setSiteSettings({ ...siteSettings, social_rating: val })} label="Rating Stat" />
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Creator Rating</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '20px', fontWeight: 900, color: '#f59e0b' }}>
+                              <InlineCMSField value={displaySettings.social_reply_speed} onChange={(val) => setSiteSettings({ ...siteSettings, social_reply_speed: val })} label="Speed Stat" />
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Average Dispatch</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 4. Product Demo & Video Embed Replica */}
+                      <div style={{ padding: '36px 32px', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
+                          <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', marginBottom: '12px' }}>
+                            <InlineCMSField
+                              value={displaySettings.demo_video_title}
+                              onChange={(val) => setSiteSettings({ ...siteSettings, demo_video_title: val })}
+                              placeholder="Demo Video Title"
+                              label="Demo Video Section Title"
+                              tag="span"
+                            />
+                          </h2>
+
+                          <div style={{ marginBottom: '16px', fontSize: '12px', color: '#94a3b8' }}>
+                            Video Link / Embed URL:{' '}
+                            <InlineCMSField
+                              value={displaySettings.demo_video_url}
+                              onChange={(val) => setSiteSettings({ ...siteSettings, demo_video_url: val })}
+                              placeholder="https://www.youtube.com/embed/demo"
+                              label="Demo Video Embed URL"
+                              style={{ color: '#38bdf8', fontFamily: 'monospace' }}
+                            />
+                          </div>
+
+                          <div style={{ position: 'relative', width: '100%', height: '360px', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', background: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {displaySettings.demo_video_url ? (
+                              <iframe
+                                src={displaySettings.demo_video_url}
+                                title="Demo Video Preview"
+                                style={{ width: '100%', height: '100%', border: 'none' }}
+                              />
+                            ) : (
+                              <div style={{ color: '#64748b', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                                <Film size={36} color="#3b82f6" />
+                                <span>Video Embed Frame (Click video link above to edit URL)</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 5. Feature Cards Grid Replica */}
+                      <div style={{ padding: '40px 32px', maxWidth: '1000px', margin: '0 auto' }}>
+                        <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', textAlign: 'center', marginBottom: '28px' }}>
+                          Engineered for Maximum Instagram Conversions
+                        </h2>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                          {/* Card 1 */}
+                          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                              <Zap size={20} color="#3b82f6" />
+                            </div>
+                            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0' }}>
+                              <InlineCMSField value={displaySettings.feature_1_title} onChange={(val) => setSiteSettings({ ...siteSettings, feature_1_title: val })} label="Feature 1 Title" />
+                            </h3>
+                            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+                              <InlineCMSField value={displaySettings.feature_1_desc} onChange={(val) => setSiteSettings({ ...siteSettings, feature_1_desc: val })} label="Feature 1 Description" multiline tag="span" />
+                            </p>
+                          </div>
+
+                          {/* Card 2 */}
+                          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(168,85,247,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                              <ShieldCheck size={20} color="#a855f7" />
+                            </div>
+                            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0' }}>
+                              <InlineCMSField value={displaySettings.feature_2_title} onChange={(val) => setSiteSettings({ ...siteSettings, feature_2_title: val })} label="Feature 2 Title" />
+                            </h3>
+                            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+                              <InlineCMSField value={displaySettings.feature_2_desc} onChange={(val) => setSiteSettings({ ...siteSettings, feature_2_desc: val })} label="Feature 2 Description" multiline tag="span" />
+                            </p>
+                          </div>
+
+                          {/* Card 3 */}
+                          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                              <MessageSquare size={20} color="#10b981" />
+                            </div>
+                            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0' }}>
+                              <InlineCMSField value={displaySettings.feature_3_title} onChange={(val) => setSiteSettings({ ...siteSettings, feature_3_title: val })} label="Feature 3 Title" />
+                            </h3>
+                            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+                              <InlineCMSField value={displaySettings.feature_3_desc} onChange={(val) => setSiteSettings({ ...siteSettings, feature_3_desc: val })} label="Feature 3 Description" multiline tag="span" />
+                            </p>
+                          </div>
+
+                          {/* Card 4 */}
+                          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                              <Clock size={20} color="#f59e0b" />
+                            </div>
+                            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0' }}>
+                              <InlineCMSField value={displaySettings.feature_4_title} onChange={(val) => setSiteSettings({ ...siteSettings, feature_4_title: val })} label="Feature 4 Title" />
+                            </h3>
+                            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+                              <InlineCMSField value={displaySettings.feature_4_desc} onChange={(val) => setSiteSettings({ ...siteSettings, feature_4_desc: val })} label="Feature 4 Description" multiline tag="span" />
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 6. Maker Quote Card Replica */}
+                      <div style={{ padding: '30px 32px', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+                        <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+                          <p style={{ fontSize: '15px', fontStyle: 'italic', color: '#cbd5e1', lineHeight: 1.6 }}>
+                            “<InlineCMSField value={displaySettings.maker_quote} onChange={(val) => setSiteSettings({ ...siteSettings, maker_quote: val })} label="Engineering Team Quote" multiline tag="span" />”
+                          </p>
+                          <div style={{ marginTop: '10px', fontSize: '13px', fontWeight: 800, color: '#38bdf8' }}>
+                            — <InlineCMSField value={displaySettings.maker_team} onChange={(val) => setSiteSettings({ ...siteSettings, maker_team: val })} label="Maker Team Name" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 7. Official Contact & Business Info Bar Replica */}
+                      <div style={{ padding: '24px 32px', background: 'rgba(15, 23, 42, 0.9)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', fontSize: '13px' }}>
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#10b981', marginBottom: '4px' }}>📧 Support Email:</div>
+                            <InlineCMSField value={displaySettings.support_email} onChange={(val) => setSiteSettings({ ...siteSettings, support_email: val })} label="Support Email" style={{ color: '#ffffff', fontWeight: 700 }} />
+                          </div>
+
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#38bdf8', marginBottom: '4px' }}>📞 Phone Support:</div>
+                            <InlineCMSField value={displaySettings.support_phone} onChange={(val) => setSiteSettings({ ...siteSettings, support_phone: val })} label="Support Phone" style={{ color: '#ffffff', fontWeight: 700 }} />
+                          </div>
+
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#a855f7', marginBottom: '4px' }}>💬 WhatsApp Support:</div>
+                            <InlineCMSField value={displaySettings.whatsapp_number} onChange={(val) => setSiteSettings({ ...siteSettings, whatsapp_number: val })} label="WhatsApp Number" style={{ color: '#ffffff', fontWeight: 700 }} />
+                          </div>
+
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#f59e0b', marginBottom: '4px' }}>🏢 Physical Office Address:</div>
+                            <InlineCMSField value={displaySettings.business_address} onChange={(val) => setSiteSettings({ ...siteSettings, business_address: val })} label="Business Address" style={{ color: '#94a3b8' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 8. Legal Documents Inline Live Editor Card */}
+                      <div style={{ padding: '24px 32px', background: '#090d16', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <FileText size={16} />
+                              <span>Legal Documents Visual Editor</span>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              {['privacy', 'terms', 'refund'].map(tab => (
+                                <button
+                                  key={tab}
+                                  type="button"
+                                  onClick={() => setPreviewLegalTab(tab)}
+                                  style={{
+                                    padding: '4px 12px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 800,
+                                    borderRadius: '6px',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    background: previewLegalTab === tab ? '#3b82f6' : 'rgba(255,255,255,0.08)',
+                                    color: previewLegalTab === tab ? '#ffffff' : '#94a3b8'
+                                  }}
+                                >
+                                  {tab === 'privacy' ? 'Privacy Policy' : (tab === 'terms' ? 'Terms of Service' : 'Refund Policy')}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '16px' }}>
+                            {previewLegalTab === 'privacy' && (
+                              <div>
+                                <div style={{ fontSize: '12px', fontWeight: 800, color: '#38bdf8', marginBottom: '8px' }}>Editing Privacy Policy Document (Click text below to edit):</div>
+                                <InlineCMSField
+                                  value={displaySettings.privacy_policy_text}
+                                  onChange={(val) => setSiteSettings({ ...siteSettings, privacy_policy_text: val })}
+                                  placeholder="Privacy policy content..."
+                                  label="Privacy Policy Document"
+                                  multiline
+                                  tag="div"
+                                  style={{ fontFamily: 'monospace', fontSize: '12px', color: '#cbd5e1', lineHeight: 1.6 }}
+                                />
+                              </div>
+                            )}
+
+                            {previewLegalTab === 'terms' && (
+                              <div>
+                                <div style={{ fontSize: '12px', fontWeight: 800, color: '#38bdf8', marginBottom: '8px' }}>Editing Terms of Service Document (Click text below to edit):</div>
+                                <InlineCMSField
+                                  value={displaySettings.terms_of_service_text}
+                                  onChange={(val) => setSiteSettings({ ...siteSettings, terms_of_service_text: val })}
+                                  placeholder="Terms of service content..."
+                                  label="Terms of Service Document"
+                                  multiline
+                                  tag="div"
+                                  style={{ fontFamily: 'monospace', fontSize: '12px', color: '#cbd5e1', lineHeight: 1.6 }}
+                                />
+                              </div>
+                            )}
+
+                            {previewLegalTab === 'refund' && (
+                              <div>
+                                <div style={{ fontSize: '12px', fontWeight: 800, color: '#38bdf8', marginBottom: '8px' }}>Editing Refund & Cancellation Policy Document (Click text below to edit):</div>
+                                <InlineCMSField
+                                  value={displaySettings.refund_policy_text}
+                                  onChange={(val) => setSiteSettings({ ...siteSettings, refund_policy_text: val })}
+                                  placeholder="Refund policy content..."
+                                  label="Refund Policy Document"
+                                  multiline
+                                  tag="div"
+                                  style={{ fontFamily: 'monospace', fontSize: '12px', color: '#cbd5e1', lineHeight: 1.6 }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 9. Replica Footer Section */}
+                      <div style={{ padding: '24px 32px', background: '#060911', borderTop: '1px solid rgba(255,255,255,0.06)', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                        <p style={{ margin: '0 0 6px 0' }}>
+                          <InlineCMSField value={displaySettings.footer_tagline} onChange={(val) => setSiteSettings({ ...siteSettings, footer_tagline: val })} label="Footer Tagline" />
+                        </p>
+                        <div>© 2026 Airvix Inc. All rights reserved. Meta Graph API v22.0 Certified.</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Main Split Grid */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: cmsViewMode === 'split' ? '1.1fr 0.9fr' : (cmsViewMode === 'editor' ? '1fr' : '1fr'),
-                  gap: '24px',
-                  alignItems: 'start'
-                }}>
+                {(cmsViewMode === 'split' || cmsViewMode === 'editor') && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: cmsViewMode === 'split' ? '1.1fr 0.9fr' : '1fr',
+                    gap: '24px',
+                    alignItems: 'start'
+                  }}>
                   
                   {/* ==================== LEFT COLUMN: EDITABLE FORM ==================== */}
                   {(cmsViewMode === 'split' || cmsViewMode === 'editor') && (
@@ -2580,9 +3153,10 @@ export default function AdminView({ user, onBackToApp }) {
                   )}
 
                 </div>
-              </div>
-            );
-          })()}
+              )}
+            </div>
+          );
+        })()}
         </main>
       </div>
 
