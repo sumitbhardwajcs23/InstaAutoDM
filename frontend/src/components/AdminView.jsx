@@ -191,16 +191,10 @@ export default function AdminView({ user, onBackToApp }) {
       if (res.ok) {
         const data = await res.json();
         setWorkspacesList(data.workspaces || []);
-        return;
       }
     } catch (err) {
       console.error('Failed to load workspaces:', err);
     }
-    setWorkspacesList([
-      { id: 'ws-1', name: 'Main Growth Workspace', owner_id: 'usr-1', owner_email_masked: 'p***@gmail.com', status: 'active', connected_accounts: 3, created_at: '2025-08-12' },
-      { id: 'ws-2', name: 'Agency Client Hub', owner_id: 'usr-2', owner_email_masked: 'a***@outlook.com', status: 'active', connected_accounts: 5, created_at: '2025-08-20' },
-      { id: 'ws-3', name: 'E-commerce Brand', owner_id: 'usr-3', owner_email_masked: 'r***@gmail.com', status: 'active', connected_accounts: 2, created_at: '2025-09-01' }
-    ]);
   }, []);
 
   // 4. Fetch Audit Logs
@@ -210,17 +204,10 @@ export default function AdminView({ user, onBackToApp }) {
       if (res.ok) {
         const data = await res.json();
         setAuditLogsList(data.logs || []);
-        return;
       }
     } catch (err) {
       console.error('Failed to load audit logs:', err);
     }
-    setAuditLogsList([
-      { id: 'log-101', actor_email_masked: 'admin@airvix.com', action: 'Viewed user account metadata', target_resource: 'usr_8291', ip_address: '192.168.x.x (Masked)', created_at: 'Today 10:42 AM' },
-      { id: 'log-102', actor_email_masked: 'admin@airvix.com', action: 'Updated user tier to Pro', target_resource: 'usr_3920', ip_address: '192.168.x.x (Masked)', created_at: 'Today 09:15 AM' },
-      { id: 'log-103', actor_email_masked: 'system@airvix.com', action: 'OAuth Token Encrypted & Saved', target_resource: 'ig_acc_902', ip_address: 'Internal API', created_at: 'Yesterday 11:30 PM' },
-      { id: 'log-104', actor_email_masked: 'system@airvix.com', action: 'Data Purge Completed (User Deletion)', target_resource: 'usr_1029', ip_address: 'Cron Job', created_at: 'Yesterday 06:00 PM' }
-    ]);
   }, []);
 
   // 5. Fetch Security & Privacy Metrics
@@ -230,22 +217,10 @@ export default function AdminView({ user, onBackToApp }) {
       if (res.ok) {
         const data = await res.json();
         setSecurityData(data);
-        return;
       }
     } catch (err) {
       console.error('Failed to load security privacy data:', err);
     }
-    setSecurityData({
-      securityControls: [
-        { key: 'dataEncryption', title: 'Data Encryption', subtitle: 'AES-256 GCM token & payload protection', status: 'Enabled', active: true },
-        { key: 'databaseEncryption', title: 'Database Encryption', subtitle: 'PostgreSQL encrypted storage at rest', status: 'Enabled', active: true },
-        { key: 'oauthProtection', title: 'OAuth Token Protection', subtitle: 'Encrypted storage with auto-revocation', status: 'Enabled', active: true },
-        { key: 'tenantIsolation', title: 'Tenant Isolation', subtitle: 'Strict workspace-level data scoping', status: 'Enabled', active: true },
-        { key: 'auditLogging', title: 'Audit Logging', subtitle: 'Immutable administrative audit trail', status: 'Enabled', active: true }
-      ],
-      dataRequests: { pendingDeletion: 3, pendingExport: 7, completedDeletions: 128, periodDays: 30 },
-      securityEvents: { failedLoginAttempts: 12, oauthErrors: 4, suspiciousApiRequests: 2 }
-    });
   }, []);
 
   // 6. Fetch System Status
@@ -255,22 +230,10 @@ export default function AdminView({ user, onBackToApp }) {
       if (res.ok) {
         const data = await res.json();
         setSystemStatusData(data);
-        return;
       }
     } catch (err) {
       console.error('Failed to load system status:', err);
     }
-    setSystemStatusData({
-      services: [
-        { name: 'API Services', status: 'Operational', uptime: '99.9%', latency: '24ms' },
-        { name: 'Automation Engine', status: 'Operational', uptime: '99.8%', latency: '12ms' },
-        { name: 'Database (PostgreSQL)', status: 'Operational', uptime: '99.9%', latency: '4ms' },
-        { name: 'Instagram Graph API', status: 'Operational', uptime: '99.7%', latency: '140ms' },
-        { name: 'Background Queue Jobs', status: 'Operational', uptime: '99.8%', latency: '8ms' },
-        { name: 'Webhook Ingestion Pipeline', status: 'Operational', uptime: '99.95%', latency: '18ms' }
-      ],
-      lastUpdated: new Date().toISOString()
-    });
   }, []);
 
   // 7. Fetch Plans Data
@@ -280,16 +243,10 @@ export default function AdminView({ user, onBackToApp }) {
       if (res.ok) {
         const data = await res.json();
         setPlansList(data.plans || []);
-        return;
       }
     } catch (err) {
       console.error('Failed to load pricing plans:', err);
     }
-    setPlansList([
-      { id: 'plan-free', slug: 'free', name: 'Free Starter', monthlyPrice: 0, annualPrice: 0, dmLimit: 1000, igLimit: 1, rulesLimit: 5, badge: 'COMMUNITY', popular: false, description: 'Perfect for creators starting out with automated comment DMs.', features: ['1,000 Automated DMs / Mo', '1 Connected Instagram Account', 'Up to 5 Active Keyword Rules'], active: true },
-      { id: 'plan-pro', slug: 'pro', name: 'Pro Creator', monthlyPrice: 29, annualPrice: 24, dmLimit: 25000, igLimit: 3, rulesLimit: 25, badge: '🔥 MOST POPULAR', popular: true, description: 'For growing creators & influencers who need high-speed DM automation.', features: ['25,000 Automated DMs / Mo', '3 Connected Instagram Accounts', '25 Active Keyword Rules'], active: true },
-      { id: 'plan-agency', slug: 'agency', name: 'Agency & Brand', monthlyPrice: 79, annualPrice: 65, dmLimit: 100000, igLimit: 10, rulesLimit: 100, badge: 'SCALE', popular: false, description: 'For digital agencies and multi-account social brand management.', features: ['100,000 Automated DMs / Mo', '10 Connected Instagram Accounts'], active: true }
-    ]);
   }, []);
 
   // 8. Fetch Payments Data
@@ -299,15 +256,10 @@ export default function AdminView({ user, onBackToApp }) {
       if (res.ok) {
         const data = await res.json();
         setPaymentsList(data.transactions || []);
-        return;
       }
     } catch (err) {
       console.error('Failed to load payments:', err);
     }
-    setPaymentsList([
-      { id: 'tx-101', user_name: 'Sarah Jenkins', user_email: 's***@gmail.com', plan: 'pro', amount: 29, currency: 'USD', status: 'succeeded', gateway: 'Stripe Auto-Billing', payment_date: '2026-09-08' },
-      { id: 'tx-102', user_name: 'Alex Rivera', user_email: 'a***@agency.io', plan: 'agency', amount: 79, currency: 'USD', status: 'succeeded', gateway: 'Stripe Auto-Billing', payment_date: '2026-09-05' }
-    ]);
   }, []);
 
   // 9. Fetch Integrations Data
