@@ -67,7 +67,7 @@ app.get('/data-deletion-status', (req, res) => {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>ReplyOS — Data Deletion Status</title>
+      <title>Airvix — Data Deletion Status</title>
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #080B12; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
         .card { background: #0E1420; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 36px 32px; max-width: 480px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
@@ -81,7 +81,7 @@ app.get('/data-deletion-status', (req, res) => {
       <div class="card">
         <div class="check">&#10003;</div>
         <h2>Data Deletion Request Processed</h2>
-        <p>Your request to delete data associated with ReplyOS has been completed in compliance with GDPR and Meta Platform Terms.</p>
+        <p>Your request to delete data associated with Airvix has been completed in compliance with GDPR and Meta Platform Terms.</p>
         <div>Confirmation Code: <span class="code">${code}</span></div>
       </div>
     </body>

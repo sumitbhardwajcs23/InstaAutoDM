@@ -362,7 +362,7 @@
 }
 
 /* =========================================================================
-   REPLYOS PRIVACY-FIRST DASHBOARD & SIDEBAR STYLING
+   AIRVIX PRIVACY-FIRST DASHBOARD & SIDEBAR STYLING
    ========================================================================= */
 .admin-layout-wrapper {
   display: flex;
@@ -408,7 +408,7 @@
   text-decoration: none;
 }
 
-.admin-replyos-icon {
+.admin-airvix-icon {
   width: 34px;
   height: 34px;
   border-radius: 10px;
@@ -420,7 +420,7 @@
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
 }
 
-.admin-replyos-title {
+.admin-airvix-title {
   font-size: 19px;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -742,7 +742,7 @@
   }
 }
 
-.admin-kpi-card-replyos {
+.admin-kpi-card-airvix {
   background: #111726;
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 16px;
@@ -754,7 +754,7 @@
   transition: all 0.2s ease;
 }
 
-.admin-kpi-card-replyos:hover {
+.admin-kpi-card-airvix:hover {
   border-color: rgba(37, 99, 235, 0.3);
   transform: translateY(-2px);
 }

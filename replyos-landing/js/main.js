@@ -1,4 +1,4 @@
-// Main interactions & UI logic for ReplyOS landing page
+// Main interactions & UI logic for Airvix landing page
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Initialize Lucide Icons

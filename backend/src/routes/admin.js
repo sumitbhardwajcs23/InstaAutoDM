@@ -869,10 +869,10 @@ router.get('/audit-logs', async (_req, res) => {
 
     if (logs.length === 0) {
       logs = [
-        { id: 'log-101', actor_email_masked: 'admin@replyos.com', action: 'Viewed user account metadata', target_resource: 'usr_8291', ip_address: '192.168.x.x (Masked)', created_at: 'Today 10:42 AM' },
-        { id: 'log-102', actor_email_masked: 'admin@replyos.com', action: 'Updated user tier to Pro', target_resource: 'usr_3920', ip_address: '192.168.x.x (Masked)', created_at: 'Today 09:15 AM' },
-        { id: 'log-103', actor_email_masked: 'system@replyos.com', action: 'OAuth Token Encrypted & Saved', target_resource: 'ig_acc_902', ip_address: 'Internal API', created_at: 'Yesterday 11:30 PM' },
-        { id: 'log-104', actor_email_masked: 'system@replyos.com', action: 'Data Purge Completed (User Deletion)', target_resource: 'usr_1029', ip_address: 'Cron Job', created_at: 'Yesterday 06:00 PM' }
+        { id: 'log-101', actor_email_masked: 'admin@airvix.com', action: 'Viewed user account metadata', target_resource: 'usr_8291', ip_address: '192.168.x.x (Masked)', created_at: 'Today 10:42 AM' },
+        { id: 'log-102', actor_email_masked: 'admin@airvix.com', action: 'Updated user tier to Pro', target_resource: 'usr_3920', ip_address: '192.168.x.x (Masked)', created_at: 'Today 09:15 AM' },
+        { id: 'log-103', actor_email_masked: 'system@airvix.com', action: 'OAuth Token Encrypted & Saved', target_resource: 'ig_acc_902', ip_address: 'Internal API', created_at: 'Yesterday 11:30 PM' },
+        { id: 'log-104', actor_email_masked: 'system@airvix.com', action: 'Data Purge Completed (User Deletion)', target_resource: 'usr_1029', ip_address: 'Cron Job', created_at: 'Yesterday 06:00 PM' }
       ];
     }
 

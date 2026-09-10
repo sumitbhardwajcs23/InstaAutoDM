@@ -245,7 +245,7 @@ router.get('/export-data', requireAuth, async (req, res) => {
       export_version: '1.0',
       exported_at: new Date().toISOString(),
       compliance: 'GDPR Article 20 / CCPA Data Portability Compliance',
-      data_controller: 'ReplyOS Inc.',
+      data_controller: 'Airvix Inc.',
       user: {
         id: user.id,
         email: user.email,
@@ -262,7 +262,7 @@ router.get('/export-data', requireAuth, async (req, res) => {
     };
 
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="replyos-user-data-${new Date().toISOString().slice(0, 10)}.json"`);
+    res.setHeader('Content-Disposition', `attachment; filename="airvix-user-data-${new Date().toISOString().slice(0, 10)}.json"`);
     res.json(exportBundle);
   } catch (err) {
     console.error('[Auth] Data export error:', err.message);

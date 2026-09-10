@@ -1,5 +1,4 @@
-// frontend/src/components/AdminView.jsx
-// ReplyOS Super Admin Control Center & Privacy-First Dashboard
+// Airvix Super Admin Control Center & Privacy-First Dashboard
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Shield,
@@ -368,17 +367,17 @@ export default function AdminView({ user, onBackToApp }) {
       )}
 
       {/* =========================================================================
-          REPLYOS LEFT SIDEBAR
+          AIRVIX LEFT SIDEBAR
       ========================================================================= */}
       <aside className="admin-sidebar">
         <div>
           {/* Header Brand */}
           <div className="admin-sidebar-header">
             <a href="#admin" className="admin-sidebar-logo-brand">
-              <div className="admin-replyos-icon">
+              <div className="admin-airvix-icon">
                 <Send size={18} />
               </div>
-              <h1 className="admin-replyos-title">ReplyOS</h1>
+              <h1 className="admin-airvix-title">Airvix</h1>
             </a>
           </div>
 
@@ -509,7 +508,7 @@ export default function AdminView({ user, onBackToApp }) {
         {/* Sidebar Footer */}
         <div className="admin-sidebar-footer">
           <div style={{ display: 'flex', gap: '8px' }}>
-            <span style={{ color: '#cbd5e1', fontWeight: 700 }}>ReplyOS</span>
+            <span style={{ color: '#cbd5e1', fontWeight: 700 }}>Airvix</span>
             <span>•</span>
             <a href="#privacy" style={{ color: '#64748b', textDecoration: 'none' }}>Privacy</a>
             <span>•</span>
@@ -586,7 +585,7 @@ export default function AdminView({ user, onBackToApp }) {
               {/* 5 Top KPI Cards */}
               <div className="admin-kpi-row-5">
                 {/* 1. Total Users */}
-                <div className="admin-kpi-card-replyos">
+                <div className="admin-kpi-card-airvix">
                   <div className="admin-kpi-card-header">
                     <div className="admin-kpi-icon-box" style={{ background: 'rgba(37, 99, 235, 0.15)', color: '#3b82f6' }}>
                       <Users size={18} />
@@ -609,7 +608,7 @@ export default function AdminView({ user, onBackToApp }) {
                 </div>
 
                 {/* 2. Active Workspaces */}
-                <div className="admin-kpi-card-replyos">
+                <div className="admin-kpi-card-airvix">
                   <div className="admin-kpi-card-header">
                     <div className="admin-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
                       <Briefcase size={18} />
@@ -631,7 +630,7 @@ export default function AdminView({ user, onBackToApp }) {
                 </div>
 
                 {/* 3. Connected Instagram Accounts */}
-                <div className="admin-kpi-card-replyos">
+                <div className="admin-kpi-card-airvix">
                   <div className="admin-kpi-card-header">
                     <div className="admin-kpi-icon-box" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
                       <Film size={18} />
@@ -653,7 +652,7 @@ export default function AdminView({ user, onBackToApp }) {
                 </div>
 
                 {/* 4. Messages Processed */}
-                <div className="admin-kpi-card-replyos">
+                <div className="admin-kpi-card-airvix">
                   <div className="admin-kpi-card-header">
                     <div className="admin-kpi-icon-box" style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' }}>
                       <Send size={18} />
@@ -675,7 +674,7 @@ export default function AdminView({ user, onBackToApp }) {
                 </div>
 
                 {/* 5. Monthly Revenue */}
-                <div className="admin-kpi-card-replyos">
+                <div className="admin-kpi-card-airvix">
                   <div className="admin-kpi-card-header">
                     <div className="admin-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
                       <CreditCard size={18} />
@@ -1139,7 +1138,7 @@ export default function AdminView({ user, onBackToApp }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '24px' }}>
                 <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
-                  🛡️ ReplyOS Security &amp; Privacy Architecture
+                  🛡️ Airvix Security &amp; Privacy Architecture
                 </h2>
                 <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
                   System-wide encryption, OAuth token protection, tenant isolation, and DPDP/GDPR compliance status.
@@ -1237,7 +1236,7 @@ export default function AdminView({ user, onBackToApp }) {
                   {auditLogsList.map(l => (
                     <tr key={l.id}>
                       <td style={{ fontFamily: 'monospace', fontSize: '11.5px', color: '#818cf8' }}>{l.id}</td>
-                      <td style={{ fontWeight: 700, color: '#ffffff' }}>{l.actor_email_masked || l.actor_email || 'admin@replyos.com'}</td>
+                      <td style={{ fontWeight: 700, color: '#ffffff' }}>{l.actor_email_masked || l.actor_email || 'admin@airvix.com'}</td>
                       <td>
                         <span style={{ fontWeight: 600, color: '#f8fafc' }}>{l.action}</span>
                       </td>

@@ -457,7 +457,7 @@ router.post('/connect-username', async (req, res) => {
           ON CONFLICT (id) DO UPDATE SET email=EXCLUDED.email, name=EXCLUDED.name, plan=EXCLUDED.plan
         `, [
           targetUser.id,
-          targetUser.email || 'creator@replyos.io',
+          targetUser.email || 'creator@airvix.io',
           targetUser.name || 'Creator',
           targetUser.plan || 'free',
           targetUser.password_hash || '',
@@ -641,7 +641,7 @@ router.get('/oauth/start', async (req, res) => {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>ReplyOS — Authentication Required</title>
+        <title>Airvix — Authentication Required</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #080B12; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
           h2 { margin: 0 0 10px 0; font-size: 22px; color: #60A5FA; }
@@ -651,7 +651,7 @@ router.get('/oauth/start', async (req, res) => {
       </head>
       <body>
         <h2>Authentication Required</h2>
-        <p>Please log in to your ReplyOS account before connecting an Instagram profile.</p>
+        <p>Please log in to your Airvix account before connecting an Instagram profile.</p>
         <a href="/#login">Go to Login &rarr;</a>
       </body>
       </html>
@@ -745,7 +745,7 @@ router.get('/oauth/callback', async (req, res) => {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>ReplyOS — Connection Note</title>
+        <title>Airvix — Connection Note</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
           h3 { margin: 0 0 8px 0; font-size: 18px; color: #f87171; }
@@ -775,7 +775,7 @@ router.get('/oauth/callback', async (req, res) => {
   let user = userId ? await db.prepare('SELECT * FROM users WHERE id = ?').get(userId) : null;
   if (!user) {
     const newUid = uuidv4();
-    const uniqueEmail = `creator_${newUid.slice(0, 8)}@user.replyos.io`;
+    const uniqueEmail = `creator_${newUid.slice(0, 8)}@user.airvix.io`;
     const now = new Date().toISOString();
     await db.prepare(`
       INSERT INTO users (id, email, name, plan, dm_usage_this_period, usage_period_start, created_at, updated_at)
@@ -901,7 +901,7 @@ router.get('/oauth/callback', async (req, res) => {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>ReplyOS — Connected</title>
+        <title>Airvix — Connected</title>
         <style>
           body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -932,7 +932,7 @@ router.get('/oauth/callback', async (req, res) => {
       <body>
         <div class="spinner"></div>
         <h3>Account Connected!</h3>
-        <p>Connecting @${tokenInfo.username || 'account'} to ReplyOS...</p>
+        <p>Connecting @${tokenInfo.username || 'account'} to Airvix...</p>
         <script>
           try {
             if (window.opener && !window.opener.closed) {
@@ -959,7 +959,7 @@ router.get('/oauth/callback', async (req, res) => {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>ReplyOS — Error</title>
+        <title>Airvix — Error</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
           h3 { margin: 0 0 8px 0; font-size: 18px; color: #ef4444; }

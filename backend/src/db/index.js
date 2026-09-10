@@ -1,5 +1,5 @@
 // backend/src/db/index.js
-// Pure PostgreSQL Database Layer for ReplyOS
+// Pure PostgreSQL Database Layer for Airvix
 const path = require('path');
 
 // Ensure environment variables are loaded regardless of how this file is called
@@ -15,7 +15,7 @@ const { CREATE_TABLES_PG_SQL } = require('./schema');
 const PG_URL = process.env.DATABASE_URL;
 
 if (!PG_URL) {
-  console.error('[PostgreSQL] ❌ FATAL: DATABASE_URL environment variable is missing! ReplyOS runs exclusively on PostgreSQL.');
+  console.error('[PostgreSQL] ❌ FATAL: DATABASE_URL environment variable is missing! Airvix runs exclusively on PostgreSQL.');
 }
 
 const isRenderInternal = PG_URL && PG_URL.includes('dpg-') && !PG_URL.includes('.render.com');
