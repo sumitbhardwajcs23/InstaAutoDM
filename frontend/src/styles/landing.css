@@ -1,1693 +1,1524 @@
-/* frontend/src/styles/landing.css - Airvix Color Harmony Light Theme */
+/* ==========================================================================
+   AIRVIX MODERN SAAS LANDING PAGE - 1:1 REPLICA STYLES
+   With Indian Rupees (₹) Pricing, Dark Obsidian Atmosphere, and Clean Light Grids
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --lp-bg-root: #f8fafc;
-  --lp-bg-surface: #ffffff;
-  --lp-bg-card: #ffffff;
-  --lp-bg-subtle: #f1f5f9;
-  --lp-bg-hover: #f8fafc;
+  --airvix-bg-dark: #080b14;
+  --airvix-bg-dark-card: #0f1523;
+  --airvix-bg-dark-border: rgba(255, 255, 255, 0.08);
+  --airvix-bg-white: #ffffff;
+  --airvix-bg-light-surface: #f8fafc;
+  --airvix-bg-subtle-border: #e2e8f0;
   
-  --lp-border-subtle: #e2e8f0;
-  --lp-border-card: rgba(15, 23, 42, 0.08);
-  --lp-border-active: #93c5fd;
+  --airvix-primary-blue: #3b82f6;
+  --airvix-primary-blue-hover: #2563eb;
+  --airvix-primary-gradient: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  --airvix-glow-blue: rgba(59, 130, 246, 0.35);
 
-  --lp-text-primary: #0a1128;
-  --lp-text-secondary: #334155;
-  --lp-text-muted: #64748b;
-  --lp-text-light: #94a3b8;
+  --airvix-text-main: #0f172a;
+  --airvix-text-muted: #64748b;
+  --airvix-text-white: #ffffff;
+  --airvix-text-light-gray: #94a3b8;
+  --airvix-text-dim-gray: #cbd5e1;
 
-  /* Airvix Brand Harmony Palette */
-  --lp-cyan: #00b4d8;
-  --lp-sky: #0284c7;
-  --lp-azure: #2563eb;
-  --lp-indigo: #4f46e5;
-  --lp-brand-gradient: linear-gradient(135deg, #00b4d8 0%, #2563eb 50%, #4f46e5 100%);
-  --lp-brand-gradient-hover: linear-gradient(135deg, #0284c7 0%, #1d4ed8 50%, #4338ca 100%);
-  --lp-brand-soft: #eff6ff;
-
-  --lp-emerald: #059669;
-  --lp-emerald-bg: #ecfdf5;
-  --lp-emerald-border: #a7f3d0;
-
-  --lp-rose: #e11d48;
-  --lp-rose-bg: #fff1f2;
-  --lp-rose-border: #fecdd3;
-
-  --lp-amber: #d97706;
-  --lp-amber-bg: #fffbeb;
-  --lp-amber-border: #fde68a;
-
-  --lp-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --airvix-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --airvix-font-script: 'Caveat', cursive, sans-serif;
 }
 
-.airvix-landing {
-  min-height: 100vh;
-  background-color: var(--lp-bg-root);
-  color: var(--lp-text-primary);
-  font-family: var(--lp-font-sans);
-  line-height: 1.6;
-  position: relative;
+/* Base Wrapper */
+.airvix-page-wrapper {
+  background-color: var(--airvix-bg-white);
+  color: var(--airvix-text-main);
+  font-family: var(--airvix-font-sans);
+  line-height: 1.5;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-.airvix-landing * {
+.airvix-page-wrapper * {
   box-sizing: border-box;
 }
 
-/* Subtle Architectural Grid Texture in Soft Blue Tint */
-.lp-grid-pattern {
-  position: absolute;
+.airvix-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ==========================================================================
+   1. ANNOUNCEMENT BAR
+   ========================================================================== */
+.airvix-announcement-bar {
+  background: linear-gradient(90deg, #1e1b4b 0%, #1e3a8a 50%, #1e1b4b 100%);
+  color: #e0e7ff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  z-index: 101;
+}
+
+.airvix-announcement-badge {
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.airvix-announcement-link {
+  color: #93c5fd;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.15s ease;
+}
+
+.airvix-announcement-link:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   2. NAVBAR
+   ========================================================================== */
+.airvix-navbar {
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 960px;
-  background-image: radial-gradient(rgba(2, 132, 199, 0.08) 1.2px, transparent 1.2px);
-  background-size: 28px 28px;
-  mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
-  pointer-events: none;
-  z-index: 0;
+  z-index: 100;
+  padding: 18px 0;
+  background: rgba(8, 11, 20, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.25s ease;
 }
 
-.lp-container {
-  max-width: 1160px;
+.airvix-navbar.scrolled {
+  padding: 12px 0;
+  background: rgba(8, 11, 20, 0.94);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.airvix-nav-container {
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 24px;
-  position: relative;
-  z-index: 1;
-}
-
-/* -------------------------------------------------------------
-   Sticky Navigation Bar (Light Harmony)
-------------------------------------------------------------- */
-.lp-navbar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  padding: 16px 0;
-  transition: all 0.2s ease;
-  border-bottom: 1px solid transparent;
-}
-
-.lp-navbar.scrolled {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--lp-border-subtle);
-  padding: 12px 0;
-  box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.06);
-}
-
-.lp-nav-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.lp-logo {
+.airvix-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   text-decoration: none;
-  color: var(--lp-text-primary);
 }
 
-.lp-logo-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.lp-logo-mark-img {
-  height: 32px;
+.airvix-logo-img {
+  height: 28px;
   width: auto;
   object-fit: contain;
-  filter: drop-shadow(0 2px 4px rgba(37, 99, 235, 0.2));
 }
 
-.lp-logo-wordmark {
-  font-size: 21px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: #0a1128;
-}
-
-.lp-logo-badge {
-  font-size: 11px;
+.airvix-logo-text {
+  font-size: 20px;
   font-weight: 700;
-  background: var(--lp-brand-soft);
-  color: var(--lp-azure);
-  padding: 2px 7px;
-  border-radius: 999px;
-  border: 1px solid rgba(37, 99, 235, 0.2);
+  color: #ffffff;
+  letter-spacing: -0.02em;
 }
 
-.lp-nav-links {
+.airvix-nav-links {
   display: flex;
   align-items: center;
-  gap: 26px;
+  gap: 32px;
 }
 
-@media (max-width: 860px) {
-  .lp-nav-links { display: none; }
-}
-
-.lp-nav-links a {
-  color: var(--lp-text-secondary);
+.airvix-nav-links a {
+  color: #cbd5e1;
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
   transition: color 0.15s ease;
 }
 
-.lp-nav-links a:hover {
-  color: var(--lp-azure);
+.airvix-nav-links a:hover {
+  color: #ffffff;
 }
 
-.lp-nav-actions {
+/* Nav Dropdown */
+.airvix-nav-dropdown {
+  position: relative;
+}
+
+.airvix-dropdown-label {
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease;
 }
 
-/* -------------------------------------------------------------
-   Buttons (Color Harmony Light Theme)
-------------------------------------------------------------- */
-.lp-btn {
+.airvix-dropdown-label:hover {
+  color: #ffffff;
+}
+
+.airvix-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  padding-top: 10px;
+  min-width: 180px;
+  display: none;
+  flex-direction: column;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.airvix-nav-dropdown:hover .airvix-dropdown-menu {
+  display: flex;
+}
+
+.airvix-dropdown-menu a {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #94a3b8;
+  transition: all 0.15s ease;
+}
+
+.airvix-dropdown-menu a:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.airvix-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Standard Buttons */
+.airvix-btn-ghost {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 14px;
+  transition: color 0.15s ease;
+}
+
+.airvix-btn-ghost:hover {
+  color: #ffffff;
+}
+
+.airvix-btn-primary {
+  background: #3b82f6;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-size: 13.5px;
-  font-weight: 600;
-  padding: 9px 18px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.35);
   text-decoration: none;
-  border: 1px solid transparent;
 }
 
-.lp-btn-ghost {
-  background: transparent;
-  color: var(--lp-text-secondary);
-}
-
-.lp-btn-ghost:hover {
-  color: var(--lp-text-primary);
-  background: rgba(15, 23, 42, 0.05);
-}
-
-.lp-btn-solid {
-  background: var(--lp-brand-gradient);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
-}
-
-.lp-btn-solid:hover {
-  background: var(--lp-brand-gradient-hover);
+.airvix-btn-primary:hover {
+  background: #2563eb;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.55);
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
 }
 
-.lp-btn-hero-primary {
-  background: var(--lp-brand-gradient);
+.airvix-btn-dark {
+  background: rgba(255, 255, 255, 0.06);
   color: #ffffff;
-  font-size: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
   font-weight: 600;
-  padding: 13px 26px;
-  border-radius: 9px;
-  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
 }
 
-.lp-btn-hero-primary:hover {
-  background: var(--lp-brand-gradient-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+.airvix-btn-dark:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
-.lp-btn-hero-secondary {
+.airvix-btn-outline {
   background: #ffffff;
-  color: var(--lp-text-primary);
-  border: 1px solid var(--lp-border-subtle);
-  font-size: 15px;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
   font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.airvix-btn-outline:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #f8fafc;
+}
+
+.airvix-btn-lg {
   padding: 13px 24px;
+  font-size: 15px;
   border-radius: 9px;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
 }
 
-.lp-btn-hero-secondary:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  transform: translateY(-1px);
-}
-
-.lp-btn-outline {
-  background: #ffffff;
-  color: var(--lp-text-primary);
-  border: 1px solid var(--lp-border-subtle);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
-}
-
-.lp-btn-outline:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.lp-btn-block {
+.airvix-btn-block {
   width: 100%;
 }
 
-.lp-btn-lg {
-  padding: 14px 28px;
-  font-size: 15px;
-}
-
-/* -------------------------------------------------------------
-   Hero Section
-------------------------------------------------------------- */
-.lp-hero {
-  padding: 68px 0 52px;
-  text-align: center;
-}
-
-.lp-announcement-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  padding: 5px 14px;
-  border-radius: 999px;
-  font-size: 12.5px;
-  color: var(--lp-text-secondary);
-  margin-bottom: 24px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
-
-.lp-announcement-tag {
-  background: var(--lp-brand-soft);
-  color: var(--lp-azure);
-  font-size: 10px;
-  font-weight: 800;
-  padding: 2px 7px;
-  border-radius: 999px;
-  letter-spacing: 0.04em;
-  border: 1px solid rgba(37, 99, 235, 0.2);
-}
-
-.lp-announcement-arrow {
-  color: var(--lp-azure);
-}
-
-.lp-hero-headline-wrap {
-  max-width: 880px;
-  margin: 0 auto;
-}
-
-.lp-hero-headline {
-  font-size: clamp(34px, 5.2vw, 56px);
-  font-weight: 850;
-  line-height: 1.15;
-  letter-spacing: -0.035em;
-  color: var(--lp-text-primary);
-  margin: 0 0 20px;
-}
-
-.lp-headline-em {
-  background: var(--lp-brand-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.lp-hero-subhead {
-  font-size: clamp(16px, 2vw, 18px);
-  color: var(--lp-text-secondary);
-  max-width: 680px;
-  margin: 0 auto 36px;
-  line-height: 1.6;
-}
-
-.lp-hero-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin-bottom: 44px;
-  flex-wrap: wrap;
-}
-
-/* Concrete Trust Metrics */
-.lp-hero-metrics {
-  display: inline-flex;
-  align-items: center;
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 12px;
-  padding: 16px 32px;
-  gap: 32px;
-  margin-bottom: 36px;
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06);
-}
-
-@media (max-width: 640px) {
-  .lp-hero-metrics {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    padding: 16px;
-  }
-  .lp-metric-divider { display: none; }
-}
-
-.lp-metric-item {
-  text-align: center;
-}
-
-.lp-metric-val {
-  font-size: 22px;
-  font-weight: 800;
-  color: #0a1128;
-  letter-spacing: -0.02em;
-}
-
-.lp-metric-label {
-  font-size: 12px;
-  color: var(--lp-text-muted);
-  font-weight: 500;
-}
-
-.lp-metric-divider {
-  width: 1px;
-  height: 28px;
-  background: var(--lp-border-subtle);
-}
-
-.lp-proof-strip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.lp-proof-label {
-  font-size: 13px;
-  color: var(--lp-text-muted);
-}
-
-.lp-proof-tags {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.lp-creator-tag {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--lp-text-secondary);
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  padding: 3px 10px;
-  border-radius: 6px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
-}
-
-/* -------------------------------------------------------------
-   Interactive Studio & Split Device Showcase (Light Theme)
-------------------------------------------------------------- */
-.lp-studio-section {
-  padding: 68px 0 84px;
-}
-
-.lp-section-intro {
-  text-align: center;
-  max-width: 680px;
-  margin: 0 auto 36px;
-}
-
-.lp-kicker {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--lp-azure);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 8px;
-}
-
-.lp-section-heading {
-  font-size: clamp(26px, 3.4vw, 36px);
-  font-weight: 850;
-  color: var(--lp-text-primary);
-  line-height: 1.25;
-  letter-spacing: -0.03em;
-  margin: 0 0 12px;
-}
-
-.lp-section-sub {
-  font-size: 15px;
-  color: var(--lp-text-secondary);
-  margin: 0;
-}
-
-.lp-scenario-tabs {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 32px;
-  flex-wrap: wrap;
-}
-
-.lp-scenario-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  color: var(--lp-text-secondary);
-  font-size: 13.5px;
-  font-weight: 600;
-  padding: 10px 18px;
-  border-radius: 9px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-}
-
-.lp-scenario-tab:hover {
-  background: #f8fafc;
-  color: var(--lp-text-primary);
-}
-
-.lp-scenario-tab.active {
-  background: var(--lp-brand-soft);
-  color: var(--lp-azure);
-  border-color: rgba(37, 99, 235, 0.35);
-  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.12);
-}
-
-.lp-studio-workspace {
-  display: grid;
-  grid-template-columns: 460px 1fr;
-  gap: 32px;
-  align-items: start;
-}
-
-@media (max-width: 960px) {
-  .lp-studio-workspace {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Handcrafted Phone Frame (Light Mode) */
-.lp-device-frame {
-  background: #ffffff;
-  border: 2px solid #cbd5e1;
-  border-radius: 36px;
-  padding: 16px;
-  box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.16), 0 1px 3px rgba(15, 23, 42, 0.05);
+/* ==========================================================================
+   3. HERO SECTION (Dark Obsidian Atmosphere)
+   ========================================================================== */
+.airvix-hero-section {
+  background-color: var(--airvix-bg-dark);
+  padding-top: 140px;
+  padding-bottom: 90px;
   position: relative;
   overflow: hidden;
 }
 
-.lp-device-notch {
-  width: 110px;
-  height: 18px;
-  background: #e2e8f0;
-  border-radius: 0 0 12px 12px;
-  margin: 0 auto 12px;
-}
-
-.lp-ig-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px 12px;
-  border-bottom: 1px solid var(--lp-border-subtle);
-}
-
-.lp-ig-creator {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.lp-ig-avatar {
-  width: 32px;
-  height: 32px;
-  background: var(--lp-brand-gradient);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.lp-ig-handle {
-  font-size: 13px;
-  font-weight: 700;
-  color: #0f172a;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.lp-ig-badge {
-  color: var(--lp-azure);
-  font-size: 11px;
-}
-
-.lp-ig-subtext {
-  font-size: 11px;
-  color: #64748b;
-}
-
-.lp-ig-icon {
-  color: #e11d48;
-}
-
-/* Reel Video Canvas Mock */
-.lp-reel-canvas {
-  height: 170px;
-  background: linear-gradient(145deg, #0ea5e9, #2563eb, #4f46e5);
-  border-radius: 14px;
-  margin: 12px 0;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-}
-
-.lp-reel-tag {
-  align-self: flex-start;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(8px);
-  padding: 4px 9px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #ffffff;
-}
-
-.lp-reel-caption-text {
-  margin: 0;
-  font-size: 12.5px;
-  color: #ffffff;
-  line-height: 1.45;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(8px);
-  padding: 8px 10px;
-  border-radius: 8px;
-}
-
-/* Comments Drawer (Light Mode) */
-.lp-comments-drawer {
-  background: #f8fafc;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 14px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 170px;
-}
-
-.lp-drawer-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #64748b;
-  border-bottom: 1px solid var(--lp-border-subtle);
-  padding-bottom: 6px;
-}
-
-.lp-comment-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  opacity: 0;
-  transform: translateY(6px);
-  transition: all 0.25s ease;
-}
-
-.lp-comment-row.revealed {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.lp-user-avatar {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #cbd5e1;
-  color: #334155;
-  font-size: 11px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.lp-user-avatar.creator-avatar {
-  background: var(--lp-azure);
-  color: #ffffff;
-}
-
-.lp-comment-bubble {
-  flex: 1;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 7px 10px;
-  font-size: 12px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.lp-comment-user {
-  font-weight: 700;
-  color: #0f172a;
-  margin-bottom: 2px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.lp-author-tag {
-  background: var(--lp-brand-soft);
-  color: var(--lp-azure);
-  font-size: 9px;
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-weight: 700;
-}
-
-.lp-comment-msg {
-  color: #334155;
-  line-height: 1.4;
-}
-
-.lp-comment-time {
-  font-size: 10px;
-  color: #94a3b8;
-  align-self: center;
-}
-
-.lp-comment-badge {
-  font-size: 10px;
-  font-weight: 700;
-  background: var(--lp-emerald-bg);
-  color: var(--lp-emerald);
-  border: 1px solid var(--lp-emerald-border);
-  padding: 2px 6px;
-  border-radius: 4px;
-  align-self: center;
-}
-
-.reply-row {
-  margin-left: 18px;
-}
-
-.reply-bubble {
-  background: #eff6ff;
-  border-left: 2px solid var(--lp-azure);
-}
-
-/* iOS Push Notification Mock (Light Theme) */
-.lp-ios-notification {
+/* Radial Glow Backlight */
+.airvix-hero-radial-glow {
   position: absolute;
-  top: 48px;
-  left: 20px;
-  right: 20px;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 16px;
-  padding: 12px 14px;
-  box-shadow: 0 14px 34px -4px rgba(15, 23, 42, 0.18);
-  transform: translateY(-90px);
-  opacity: 0;
+  top: 10%;
+  right: 15%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.18) 0%, rgba(99, 102, 241, 0.08) 45%, transparent 70%);
+  filter: blur(80px);
   pointer-events: none;
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 10;
+  z-index: 0;
 }
 
-.lp-ios-notification.show {
-  transform: translateY(0);
-  opacity: 1;
+.airvix-hero-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 50px;
+  align-items: center;
+  position: relative;
+  z-index: 1;
 }
 
-.lp-ios-notif-header {
+.airvix-hero-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.airvix-badge-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  margin-bottom: 24px;
+}
+
+.airvix-hero-heading {
+  font-size: 52px;
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  margin: 0 0 20px 0;
+}
+
+.airvix-gradient-highlight {
+  background: linear-gradient(135deg, #c084fc 0%, #818cf8 50%, #60a5fa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.airvix-hero-sub {
+  font-size: 17px;
+  line-height: 1.6;
+  color: #94a3b8;
+  margin: 0 0 32px 0;
+  max-width: 520px;
+}
+
+.airvix-hero-buttons {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 14px;
+  margin-bottom: 40px;
+}
+
+.airvix-play-icon {
+  fill: currentColor;
+}
+
+.airvix-hero-trust-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.airvix-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* Hero Right: 3D Angled Tablet Mockup */
+.airvix-hero-right {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Handwritten Script Annotations */
+.airvix-handwritten-note {
+  font-family: var(--airvix-font-script);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: #93c5fd;
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.airvix-hero-note {
+  top: -42px;
+  right: -20px;
+  transform: rotate(4deg);
+  text-align: center;
+}
+
+.airvix-curved-arrow {
+  margin-top: 4px;
+}
+
+/* Tablet Device Frame */
+.airvix-tablet-device {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  background: #020408;
+  border-radius: 28px;
+  padding: 12px;
+  box-shadow: 
+    0 30px 60px -15px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 40px rgba(59, 130, 246, 0.2);
+  transform: perspective(1000px) rotateY(-6deg) rotateX(4deg) scale(0.98);
+  transition: transform 0.4s ease;
+}
+
+.airvix-tablet-device:hover {
+  transform: perspective(1000px) rotateY(-2deg) rotateX(1deg) scale(1);
+}
+
+.airvix-tablet-screen {
+  background: #090e1a;
+  border-radius: 18px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  min-height: 330px;
+}
+
+.airvix-tablet-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.airvix-tablet-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.airvix-tablet-greeting {
+  font-size: 13px;
+  color: #f1f5f9;
+  font-weight: 500;
+}
+
+.airvix-tablet-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.airvix-tablet-kpi {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.airvix-kpi-label {
+  font-size: 11px;
+  color: #94a3b8;
   margin-bottom: 4px;
 }
 
-.lp-ios-app-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #f43f5e, #f97316);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lp-ios-app-name {
-  font-size: 10px;
+.airvix-kpi-val {
+  font-size: 20px;
   font-weight: 700;
-  color: #64748b;
-  letter-spacing: 0.04em;
+  color: #ffffff;
 }
 
-.lp-ios-time {
+.airvix-kpi-trend {
   font-size: 10px;
-  color: #94a3b8;
-  margin-left: auto;
-}
-
-.lp-ios-notif-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.lp-ios-notif-text {
-  font-size: 11.5px;
-  color: #334155;
-  line-height: 1.4;
+  font-weight: 600;
+  color: #10b981;
   margin-top: 2px;
 }
 
-.lp-phone-bar {
+.airvix-tablet-chart-wrap {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.airvix-chart-title-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 6px 4px;
-  font-size: 11.5px;
-}
-
-.lp-active-trigger-chip {
-  color: #64748b;
-}
-
-.lp-delivery-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--lp-emerald);
-  font-weight: 700;
-}
-
-/* Control Deck Console (Right Side Light Mode) */
-.lp-console-frame {
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 20px;
-  padding: 24px;
-  box-shadow: 0 8px 30px -4px rgba(15, 23, 42, 0.08);
-}
-
-.lp-console-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--lp-border-subtle);
-  margin-bottom: 20px;
-}
-
-.lp-console-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14.5px;
-  font-weight: 750;
-  color: #0f172a;
-}
-
-.lp-status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   font-size: 12px;
-  color: var(--lp-emerald);
-  font-weight: 700;
-  background: var(--lp-emerald-bg);
-  border: 1px solid var(--lp-emerald-border);
-  padding: 3px 9px;
-  border-radius: 6px;
-}
-
-.lp-pulse-green {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--lp-emerald);
-  box-shadow: 0 0 8px var(--lp-emerald);
-}
-
-.lp-console-card {
-  background: #f8fafc;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.lp-console-field-label {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--lp-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: #cbd5e1;
   margin-bottom: 8px;
 }
 
-.lp-console-target-box {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.lp-target-badge {
-  font-size: 22px;
-}
-
-.lp-target-title {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.lp-target-meta {
-  font-size: 11.5px;
-  color: var(--lp-text-muted);
-}
-
-.lp-keyword-chips {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.lp-kw-btn {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.lp-kw-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.lp-kw-btn.active {
-  background: var(--lp-brand-soft);
-  border-color: var(--lp-azure);
-  color: var(--lp-azure);
-}
-
-.lp-custom-kw-form {
-  display: flex;
-  gap: 8px;
-}
-
-.lp-custom-kw-input {
-  flex: 1;
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  color: #0f172a;
-  font-size: 12.5px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  outline: none;
-}
-
-.lp-custom-kw-input:focus {
-  border-color: var(--lp-azure);
-}
-
-.lp-btn-test {
-  background: #0f172a;
-  color: #ffffff;
-  border: 1px solid transparent;
-  font-size: 12.5px;
-  padding: 8px 14px;
-}
-
-.lp-btn-test:hover {
-  background: #1e293b;
-}
-
-/* Telemetry Box (Light Mode) */
-.lp-telemetry-box {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: #f8fafc;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 12px;
-  padding: 14px;
-  margin-bottom: 20px;
-}
-
-.lp-telemetry-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.lp-telemetry-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.lp-telemetry-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.lp-telemetry-val {
-  font-size: 12px;
-  color: var(--lp-text-secondary);
-}
-
-.lp-telemetry-val code {
-  background: #e2e8f0;
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-size: 11px;
-  color: #1e293b;
-}
-
-/* -------------------------------------------------------------
-   Comparison Grid: Old Way vs Airvix (Light Harmony)
-------------------------------------------------------------- */
-.lp-compare-section {
-  padding: 88px 0;
-  background: #f1f5f9;
-  border-top: 1px solid var(--lp-border-subtle);
-  border-bottom: 1px solid var(--lp-border-subtle);
-}
-
-.lp-compare-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 28px;
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-@media (max-width: 768px) {
-  .lp-compare-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.lp-compare-card {
-  border-radius: 16px;
-  padding: 32px 28px;
-  border: 1px solid var(--lp-border-subtle);
-}
-
-.lp-compare-card.old-way {
-  background: #ffffff;
-  border-color: var(--lp-rose-border);
-  box-shadow: 0 4px 16px -2px rgba(225, 29, 72, 0.06);
-}
-
-.lp-compare-card.new-way {
-  background: #ffffff;
-  border-color: #93c5fd;
-  box-shadow: 0 8px 30px -4px rgba(37, 99, 235, 0.12);
-}
-
-.lp-compare-badge {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  padding: 4px 10px;
-  border-radius: 6px;
-  display: inline-block;
-  margin-bottom: 16px;
-}
-
-.old-badge {
-  background: var(--lp-rose-bg);
-  color: var(--lp-rose);
-  border: 1px solid var(--lp-rose-border);
-}
-
-.new-badge {
-  background: var(--lp-brand-soft);
-  color: var(--lp-azure);
-  border: 1px solid #bfdbfe;
-}
-
-.lp-compare-title {
-  font-size: 20px;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0 0 20px;
-  letter-spacing: -0.02em;
-}
-
-.lp-compare-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.lp-compare-list li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--lp-text-secondary);
-}
-
-.lp-compare-list li b {
-  color: #0f172a;
-}
-
-.lp-cross {
-  color: var(--lp-rose);
-  font-weight: 800;
-  font-size: 16px;
-  line-height: 1.2;
-}
-
-.lp-check {
-  color: var(--lp-emerald);
-  font-weight: 800;
-  font-size: 16px;
-  line-height: 1.2;
-}
-
-/* -------------------------------------------------------------
-   Real Creator Features Grid (Light Mode)
-------------------------------------------------------------- */
-.lp-features-section {
-  padding: 96px 0;
-  background: #f8fafc;
-}
-
-.lp-real-features-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 22px;
-}
-
-@media (max-width: 900px) {
-  .lp-real-features-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 600px) {
-  .lp-real-features-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.lp-feat-item {
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 14px;
-  padding: 24px;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.05);
-}
-
-.lp-feat-item:hover {
-  border-color: #cbd5e1;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.09);
-}
-
-.lp-feat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.lp-feat-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: var(--lp-brand-soft);
-  border: 1px solid #bfdbfe;
-  color: var(--lp-azure);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lp-feat-tag {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--lp-text-muted);
-  background: #f1f5f9;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.lp-feat-item h4 {
-  font-size: 16px;
-  font-weight: 750;
-  color: #0f172a;
-  margin: 0 0 8px;
-}
-
-.lp-feat-item p {
-  font-size: 13.5px;
-  color: var(--lp-text-secondary);
-  margin: 0;
-  line-height: 1.55;
-}
-
-.lp-feat-item code {
-  background: #f1f5f9;
-  color: var(--lp-azure);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 12px;
-}
-
-/* -------------------------------------------------------------
-   3-Step Workflow (Light Mode)
-------------------------------------------------------------- */
-.lp-workflow-section {
-  padding: 80px 0;
-  background: #ffffff;
-  border-top: 1px solid var(--lp-border-subtle);
-  border-bottom: 1px solid var(--lp-border-subtle);
-}
-
-.lp-steps-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-@media (max-width: 768px) {
-  .lp-steps-container {
-    flex-direction: column;
-    gap: 24px;
-  }
-  .lp-step-arrow { display: none; }
-}
-
-.lp-step-box {
-  flex: 1;
-  background: #f8fafc;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 14px;
-  padding: 24px 20px;
-  text-align: center;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-}
-
-.lp-step-num {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--lp-brand-gradient);
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 14px;
-}
-
-.lp-step-box h4 {
-  font-size: 15px;
-  font-weight: 750;
-  color: #0f172a;
-  margin: 0 0 6px;
-}
-
-.lp-step-box p {
-  font-size: 12.5px;
-  color: var(--lp-text-secondary);
-  margin: 0;
-  line-height: 1.45;
-}
-
-.lp-step-arrow {
-  font-size: 20px;
+.airvix-chart-range {
+  font-size: 10px;
   color: #94a3b8;
 }
 
-/* -------------------------------------------------------------
-   Maker's Note Section (Light Mode)
-------------------------------------------------------------- */
-.lp-maker-section {
-  padding: 72px 0;
-  background: #f8fafc;
+.airvix-tablet-chart-svg {
+  width: 100%;
+  height: 90px;
+  display: block;
 }
 
-.lp-maker-card {
-  max-width: 760px;
-  margin: 0 auto;
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 18px;
-  padding: 36px;
-  position: relative;
-  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.06);
-}
-
-.lp-maker-quote-icon {
-  font-size: 48px;
-  line-height: 1;
-  color: var(--lp-azure);
-  font-family: serif;
-  margin-bottom: 8px;
-  opacity: 0.4;
-}
-
-.lp-maker-text {
-  font-size: 16px;
-  line-height: 1.65;
-  color: #1e293b;
-  margin: 0 0 24px;
-  font-style: italic;
-}
-
-.lp-maker-footer {
+/* Floating Toasts */
+.airvix-floating-toast {
+  position: absolute;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
-  border-top: 1px solid var(--lp-border-subtle);
-  padding-top: 18px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  z-index: 5;
+  transition: transform 0.3s ease;
 }
 
-.lp-maker-avatar {
+.airvix-floating-toast:hover {
+  transform: translateY(-3px) scale(1.02);
+}
+
+.airvix-toast-top {
+  top: -24px;
+  right: -24px;
+  min-width: 210px;
+}
+
+.airvix-toast-bottom {
+  bottom: -24px;
+  right: -28px;
+  min-width: 240px;
+}
+
+.airvix-toast-icon {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  background: var(--lp-brand-soft);
-  border: 1px solid #bfdbfe;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.lp-maker-name {
-  font-size: 13.5px;
-  font-weight: 750;
-  color: #0f172a;
-}
-
-.lp-maker-title {
-  font-size: 12px;
-  color: var(--lp-text-muted);
-}
-
-/* -------------------------------------------------------------
-   Pricing Section (Light Mode)
-------------------------------------------------------------- */
-.lp-pricing-section {
-  padding: 88px 0;
-  background: #ffffff;
-  border-top: 1px solid var(--lp-border-subtle);
-}
-
-.lp-pricing-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 24px;
-  flex-wrap: wrap;
-}
-
-.lp-toggle-pill,
-.lp-currency-pill {
-  display: inline-flex;
-  background: #f1f5f9;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 8px;
-  padding: 3px;
-}
-
-.lp-toggle-pill button,
-.lp-currency-pill button {
-  background: transparent;
-  border: none;
-  color: var(--lp-text-secondary);
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.lp-toggle-pill button.active,
-.lp-currency-pill button.active {
-  background: #ffffff;
-  color: #0f172a;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
-}
-
-.lp-discount-badge {
-  font-size: 10px;
-  background: var(--lp-emerald-bg);
-  color: var(--lp-emerald);
-  border: 1px solid var(--lp-emerald-border);
-  padding: 1px 5px;
-  border-radius: 4px;
-}
-
-.lp-pricing-deck {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  max-width: 1040px;
-  margin: 40px auto 0;
-}
-
-@media (max-width: 860px) {
-  .lp-pricing-deck {
-    grid-template-columns: 1fr;
-  }
-}
-
-.lp-price-card {
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 16px;
-  padding: 32px 24px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.05);
-}
-
-.lp-price-card.featured {
-  border-color: var(--lp-azure);
-  box-shadow: 0 12px 36px -4px rgba(37, 99, 235, 0.16), 0 0 0 1px var(--lp-azure);
-}
-
-.lp-featured-banner {
-  position: absolute;
-  top: -11px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--lp-brand-gradient);
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  padding: 3px 10px;
-  border-radius: 999px;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
-}
-
-.lp-tier-name {
   font-size: 18px;
-  font-weight: 800;
-  color: #0f172a;
-  margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
-.lp-tier-desc {
-  font-size: 12.5px;
-  color: var(--lp-text-secondary);
-  margin-bottom: 20px;
+.airvix-toast-ig {
+  background: linear-gradient(135deg, #f58529, #dd2a7b, #8134af);
 }
 
-.lp-price-amount {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-bottom: 24px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--lp-border-subtle);
+.airvix-toast-ai {
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
 }
 
-.lp-price-val {
-  font-size: 34px;
-  font-weight: 850;
-  color: #0a1128;
-  letter-spacing: -0.02em;
-}
-
-.lp-price-period {
-  font-size: 13px;
-  color: var(--lp-text-muted);
-}
-
-.lp-tier-features {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.airvix-toast-content {
   flex: 1;
 }
 
-.lp-tier-features li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  color: #334155;
-}
-
-/* -------------------------------------------------------------
-   FAQ Accordion (Light Mode)
-------------------------------------------------------------- */
-.lp-faq-section {
-  padding: 88px 0;
-  background: #f8fafc;
-}
-
-.lp-faq-container {
-  max-width: 760px;
-}
-
-.lp-faq-accordion {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 36px;
-}
-
-.lp-faq-row {
-  background: #ffffff;
-  border: 1px solid var(--lp-border-subtle);
-  border-radius: 12px;
-  padding: 18px 20px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
-}
-
-.lp-faq-row:hover {
-  border-color: #cbd5e1;
-}
-
-.lp-faq-row.expanded {
-  border-color: var(--lp-azure);
-}
-
-.lp-faq-question {
+.airvix-toast-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 14.5px;
-  font-weight: 750;
-  color: #0f172a;
+  margin-bottom: 2px;
 }
 
-.lp-faq-chevron {
-  color: var(--lp-text-secondary);
-  transition: transform 0.2s ease;
+.airvix-toast-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #f8fafc;
 }
 
-.lp-faq-row.expanded .lp-faq-chevron {
-  transform: rotate(180deg);
-  color: var(--lp-azure);
+.airvix-toast-time {
+  font-size: 9px;
+  color: #94a3b8;
 }
 
-.lp-faq-answer {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--lp-border-subtle);
-  font-size: 13.5px;
-  color: var(--lp-text-secondary);
-  line-height: 1.6;
-}
-
-.lp-faq-answer p {
-  margin: 0;
-}
-
-/* -------------------------------------------------------------
-   Bottom CTA (Light Mode)
-------------------------------------------------------------- */
-.lp-bottom-cta {
-  padding: 80px 0;
-  background: #ffffff;
-}
-
-.lp-bottom-cta-inner {
-  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
-  border: 1px solid #bfdbfe;
-  border-radius: 20px;
-  padding: 56px 36px;
-  text-align: center;
-  max-width: 860px;
-  margin: 0 auto;
-  box-shadow: 0 12px 36px -4px rgba(37, 99, 235, 0.1);
-}
-
-.lp-bottom-cta-inner h2 {
-  font-size: clamp(26px, 3.5vw, 36px);
-  font-weight: 850;
-  color: #0f172a;
-  margin: 0 0 12px;
-  letter-spacing: -0.02em;
-}
-
-.lp-bottom-cta-inner p {
-  font-size: 15px;
-  color: var(--lp-text-secondary);
-  max-width: 520px;
-  margin: 0 auto 28px;
-}
-
-.lp-bottom-actions {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-.lp-guarantee-note {
+.airvix-toast-body {
   font-size: 12px;
-  color: var(--lp-text-muted);
+  color: #cbd5e1;
+  font-weight: 500;
 }
 
-/* -------------------------------------------------------------
-   Footer (Light Harmony)
-------------------------------------------------------------- */
-.lp-footer {
-  padding: 56px 0 40px;
-  background: #f1f5f9;
-  border-top: 1px solid var(--lp-border-subtle);
+/* ==========================================================================
+   4. TRUSTED BRANDS LOGO CLOUD (White Background)
+   ========================================================================== */
+.airvix-brands-section {
+  background-color: var(--airvix-bg-white);
+  padding: 48px 0;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: center;
 }
 
-.lp-footer-content {
-  display: flex;
-  justify-content: space-between;
-  gap: 48px;
-  flex-wrap: wrap;
+.airvix-brands-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: #94a3b8;
+  margin: 0 0 28px 0;
+  text-transform: uppercase;
 }
 
-.lp-footer-left {
-  max-width: 320px;
-}
-
-.lp-footer-brand {
+.airvix-brands-grid {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.lp-footer-brandname {
-  font-size: 18px;
-  font-weight: 800;
-  color: #0a1128;
-  letter-spacing: -0.03em;
-}
-
-.lp-footer-desc {
-  font-size: 12.5px;
-  color: var(--lp-text-secondary);
-  line-height: 1.5;
-  margin: 0 0 16px;
-}
-
-.lp-footer-copyright {
-  font-size: 11.5px;
-  color: var(--lp-text-muted);
-}
-
-.lp-footer-links-group {
-  display: flex;
+  justify-content: center;
   gap: 56px;
   flex-wrap: wrap;
 }
 
-.lp-footer-col h5 {
-  font-size: 12px;
-  font-weight: 750;
-  color: #0f172a;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 0 0 14px;
+.airvix-brand-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: #334155;
+  letter-spacing: -0.03em;
+  opacity: 0.85;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.lp-footer-col {
+.airvix-brand-name:hover {
+  opacity: 1;
+  transform: scale(1.04);
+}
+
+/* ==========================================================================
+   5. WHY AIRVIX / VALUE PROPOSITION (Clean White Aesthetic)
+   ========================================================================== */
+.airvix-features-section {
+  background-color: var(--airvix-bg-white);
+  padding: 100px 0 90px 0;
+  position: relative;
+}
+
+.airvix-features-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 56px;
+  position: relative;
+}
+
+.airvix-section-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  margin-bottom: 16px;
+}
+
+.airvix-section-heading {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  margin: 0 0 16px 0;
+}
+
+.airvix-section-sub {
+  font-size: 17px;
+  color: #64748b;
+  max-width: 560px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.airvix-features-note {
+  position: relative;
+  top: 10px;
+  color: #3b82f6;
+  font-size: 28px;
+  transform: rotate(-3deg);
+  max-width: 220px;
+  text-align: center;
+}
+
+.airvix-feature-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+.airvix-feature-card {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 18px;
+  padding: 32px 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  transition: all 0.25s ease;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+}
+
+.airvix-feature-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.07);
+  transform: translateY(-4px);
+}
+
+.airvix-feature-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 22px;
+}
+
+.airvix-icon-blue { background: #eff6ff; }
+.airvix-icon-purple { background: #faf5ff; }
+.airvix-icon-green { background: #ecfdf5; }
+.airvix-icon-orange { background: #fff7ed; }
+
+.airvix-feature-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 10px 0;
+}
+
+.airvix-feature-desc {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ==========================================================================
+   6. HOW IT WORKS (Dark Themed Section with Laptop Desk Photo)
+   ========================================================================== */
+.airvix-how-section {
+  background-color: var(--airvix-bg-dark);
+  padding: 100px 0;
+  color: #ffffff;
+  position: relative;
+}
+
+.airvix-how-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 60px;
+  align-items: center;
+}
+
+.airvix-how-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.airvix-how-heading {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.18;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+  margin: 0 0 16px 0;
+}
+
+.airvix-how-sub {
+  font-size: 16px;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin: 0 0 36px 0;
+}
+
+.airvix-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  margin-bottom: 38px;
+  width: 100%;
+}
+
+.airvix-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.airvix-step-num {
+  width: 36px;
+  height: 36px;
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.4);
+}
+
+.airvix-step-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 4px 0;
+}
+
+.airvix-step-desc {
+  font-size: 14px;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Workspace Desk Mockup */
+.airvix-how-right {
+  position: relative;
+}
+
+.airvix-workspace-card {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.airvix-workspace-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.airvix-workspace-card:hover .airvix-workspace-img {
+  transform: scale(1.02);
+}
+
+.airvix-workspace-quote {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  font-family: var(--airvix-font-script);
+  font-size: 22px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   7. SUCCESS STORIES / TESTIMONIALS (Clean White Background)
+   ========================================================================== */
+.airvix-stories-section {
+  background-color: var(--airvix-bg-white);
+  padding: 100px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.airvix-stories-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 50px;
+}
+
+.airvix-carousel-arrows {
+  display: flex;
   gap: 10px;
 }
 
-.lp-footer-col a {
+.airvix-carousel-arrows button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.airvix-carousel-arrows button:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.airvix-testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+
+.airvix-testimonial-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 32px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.25s ease;
+}
+
+.airvix-testimonial-card.highlighted {
+  border-color: #93c5fd;
+  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.1);
+}
+
+.airvix-quote-icon {
+  font-size: 32px;
+  line-height: 1;
+  color: #3b82f6;
+  margin-bottom: 12px;
+  font-weight: 800;
+}
+
+.airvix-quote-text {
+  font-size: 15px;
+  color: #334155;
+  line-height: 1.6;
+  margin: 0 0 28px 0;
+  font-weight: 500;
+}
+
+.airvix-author-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.airvix-author-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e2e8f0;
+}
+
+.airvix-author-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.airvix-author-role {
   font-size: 13px;
-  color: var(--lp-text-secondary);
+  color: #64748b;
+}
+
+/* ==========================================================================
+   8. SIMPLE PRICING (STRICTLY IN INDIAN RUPEES ₹ - NO DOLLARS)
+   ========================================================================== */
+.airvix-pricing-section {
+  background-color: var(--airvix-bg-light-surface);
+  padding: 100px 0 110px 0;
+}
+
+.airvix-pricing-intro {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 56px;
+}
+
+.airvix-billing-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.airvix-billing-toggle {
+  background: #e2e8f0;
+  border-radius: 9999px;
+  padding: 4px;
+  display: flex;
+}
+
+.airvix-billing-toggle button {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  padding: 6px 18px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.airvix-billing-toggle button.active {
+  background: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+}
+
+.airvix-save-pill {
+  font-size: 11px;
+  font-weight: 700;
+  background: #dbeafe;
+  color: #1d4ed8;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+/* Pricing Cards Deck */
+.airvix-pricing-deck {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  align-items: stretch;
+}
+
+.airvix-price-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 38px 32px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.airvix-price-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+}
+
+/* Pro Card Accent */
+.airvix-card-popular {
+  border: 2px solid #3b82f6;
+  box-shadow: 0 12px 36px rgba(59, 130, 246, 0.15);
+}
+
+.airvix-popular-pill {
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+}
+
+.airvix-tier-name {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.airvix-tier-desc {
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 24px;
+}
+
+.airvix-tier-price {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* Indian Rupee Symbol and Price Typography */
+.airvix-currency-symbol {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-right: 2px;
+}
+
+.airvix-price-num {
+  font-size: 48px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.airvix-price-freq {
+  font-size: 14px;
+  color: #64748b;
+  margin-left: 6px;
+  font-weight: 500;
+}
+
+.airvix-tier-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 36px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex-grow: 1;
+}
+
+.airvix-tier-features li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #334155;
+}
+
+/* ==========================================================================
+   9. READY TO GROW CTA BANNER (Curved Obsidian Section)
+   ========================================================================== */
+.airvix-cta-section {
+  background: var(--airvix-bg-dark);
+  padding: 90px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.airvix-cta-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+.airvix-cta-content {
+  max-width: 620px;
+}
+
+.airvix-cta-heading {
+  font-size: 42px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+  margin: 0 0 16px 0;
+}
+
+.airvix-cta-sub {
+  font-size: 17px;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin: 0 0 32px 0;
+}
+
+.airvix-cta-buttons {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.airvix-cta-note {
+  position: relative;
+  font-size: 28px;
+  color: #cbd5e1;
+  transform: rotate(-3deg);
+  text-align: right;
+  border-bottom: 2px dashed rgba(255, 255, 255, 0.3);
+  padding-bottom: 6px;
+}
+
+/* ==========================================================================
+   10. FOOTER (Dark Theme)
+   ========================================================================== */
+.airvix-footer {
+  background: #04060c;
+  padding: 48px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.airvix-footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.airvix-footer-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.airvix-footer-links a {
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 14px;
+  transition: color 0.15s ease;
+}
+
+.airvix-footer-links a:hover {
+  color: #ffffff;
+}
+
+.airvix-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.airvix-footer-socials {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.airvix-footer-socials a {
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.airvix-footer-socials a:hover {
+  color: #3b82f6;
+}
+
+.airvix-footer-legal-links {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.airvix-footer-legal-links a {
+  color: #94a3b8;
   text-decoration: none;
   transition: color 0.15s ease;
 }
 
-.lp-footer-col a:hover {
-  color: var(--lp-azure);
+.airvix-footer-legal-links a:hover {
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   11. MODALS (Video Demo & Legal Documents)
+   ========================================================================== */
+.airvix-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(10px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.airvix-modal-card {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 760px;
+  color: #ffffff;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  animation: airvixPopIn 0.25s ease-out;
+}
+
+.airvix-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.airvix-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.airvix-modal-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.15s ease;
+}
+
+.airvix-modal-close:hover {
+  color: #ffffff;
+}
+
+.airvix-modal-body {
+  padding: 24px;
+  max-height: 70vh;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #cbd5e1;
+}
+
+.airvix-modal-body h4 {
+  color: #ffffff;
+  margin-top: 18px;
+  margin-bottom: 8px;
+}
+
+.airvix-video-container {
+  position: relative;
+  padding-bottom: 56.25%;
+  height: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.airvix-video-container iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes airvixPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ==========================================================================
+   12. RESPONSIVE BREAKPOINTS
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .airvix-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 60px;
+    text-align: center;
+  }
+
+  .airvix-hero-left {
+    align-items: center;
+  }
+
+  .airvix-hero-sub {
+    max-width: 100%;
+  }
+
+  .airvix-hero-buttons {
+    justify-content: center;
+  }
+
+  .airvix-hero-trust-row {
+    justify-content: center;
+  }
+
+  .airvix-tablet-device {
+    transform: none;
+    max-width: 480px;
+  }
+
+  .airvix-feature-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .airvix-how-grid {
+    grid-template-columns: 1fr;
+    gap: 50px;
+  }
+
+  .airvix-testimonials-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .airvix-pricing-deck {
+    grid-template-columns: 1fr;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .airvix-cta-box {
+    flex-direction: column;
+    text-align: center;
+    gap: 36px;
+  }
+
+  .airvix-cta-buttons {
+    justify-content: center;
+  }
+
+  .airvix-cta-note {
+    text-align: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .airvix-nav-links {
+    display: none;
+  }
+
+  .airvix-hero-heading {
+    font-size: 38px;
+  }
+
+  .airvix-section-heading {
+    font-size: 30px;
+  }
+
+  .airvix-how-heading {
+    font-size: 30px;
+  }
+
+  .airvix-cta-heading {
+    font-size: 30px;
+  }
+
+  .airvix-features-header-row {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .airvix-feature-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .airvix-floating-toast {
+    position: static;
+    margin: 10px 0;
+  }
+
+  .airvix-brands-grid {
+    gap: 30px;
+  }
+
+  .airvix-footer-content {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .airvix-footer-links {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .airvix-footer-right {
+    flex-direction: column;
+  }
 }
