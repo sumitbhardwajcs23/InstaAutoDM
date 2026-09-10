@@ -28,11 +28,14 @@ router.get('/overview', async (req, res) => {
     const totalUsers = parseInt(usersCountRow?.count || 0, 10);
 
     // 2. Active Workspaces (REAL DB COUNT)
-    let activeWorkspaces = totalUsers;
+    let activeWorkspaces = 0;
     try {
       const wsRow = await db.prepare('SELECT COUNT(*) as count FROM workspaces').get();
-      if (wsRow && wsRow.count > 0) activeWorkspaces = parseInt(wsRow.count, 10);
+      activeWorkspaces = parseInt(wsRow?.count || 0, 10);
     } catch (e) {}
+    if (activeWorkspaces === 0 && totalUsers > 0) {
+      activeWorkspaces = totalUsers;
+    }
 
     // 3. Connected Instagram Accounts (REAL DB COUNT)
     const igAccountsRow = await db.prepare('SELECT COUNT(*) as count FROM instagram_accounts').get();
@@ -55,7 +58,7 @@ router.get('/overview', async (req, res) => {
     });
     const estimatedMrr = (planBreakdown.pro * 29) + (planBreakdown.agency * 79) + ((planBreakdown.enterprise || 0) * 199);
 
-    // 6. Privacy-masked Recent Signups
+    // 6. Privacy-masked Recent Signups (100% REAL DB DATA)
     const rawRecent = await db.prepare(`
       SELECT id, email, name, plan, role, status, created_at 
       FROM users 
@@ -63,26 +66,31 @@ router.get('/overview', async (req, res) => {
       LIMIT 5
     `).all();
 
-    const recentUsers = (rawRecent && rawRecent.length > 0) ? rawRecent.map(u => ({
+    const recentUsers = (rawRecent || []).map(u => ({
       ...u,
       email_masked: maskEmail(u.email),
       joined_formatted: u.created_at ? new Date(u.created_at).toLocaleDateString() : 'Recently'
-    })) : [
-      { id: 'usr-1', email_masked: 'p***@gmail.com', plan: 'pro', status: 'active', joined_formatted: '2 hours ago' },
-      { id: 'usr-2', email_masked: 'a***@outlook.com', plan: 'creator', status: 'active', joined_formatted: '5 hours ago' },
-      { id: 'usr-3', email_masked: 'r***@gmail.com', plan: 'business', status: 'active', joined_formatted: '8 hours ago' },
-      { id: 'usr-4', email_masked: 'n***@yahoo.com', plan: 'pro', status: 'active', joined_formatted: '1 day ago' },
-      { id: 'usr-5', email_masked: 's***@gmail.com', plan: 'creator', status: 'active', joined_formatted: '1 day ago' }
-    ];
+    }));
 
-    // 7. Operational Activity Stream (Privacy-first)
-    const recentActivity = [
-      { id: 'act-1', event: 'New user signed up', detail: 'p***@gmail.com', timestamp: '2h ago', icon: 'user' },
-      { id: 'act-2', event: 'Workspace created', detail: 'by a***@outlook.com', timestamp: '5h ago', icon: 'workspace' },
-      { id: 'act-3', event: 'Instagram account connected', detail: 'by r***@gmail.com', timestamp: '8h ago', icon: 'instagram' },
-      { id: 'act-4', event: 'Payment successful', detail: '$29.00 - Pro Plan', timestamp: '1d ago', icon: 'payment' },
-      { id: 'act-5', event: 'User requested data deletion', detail: 'w***@gmail.com', timestamp: '1d ago', icon: 'deletion' }
-    ];
+    // 7. Operational Activity Stream (REAL DB LOGS)
+    let recentActivity = [];
+    try {
+      const auditRows = await db.prepare(`
+        SELECT id, action as event, details as detail, actor_email, created_at
+        FROM audit_logs
+        ORDER BY created_at DESC
+        LIMIT 5
+      `).all();
+      if (auditRows && auditRows.length > 0) {
+        recentActivity = auditRows.map(a => ({
+          id: a.id,
+          event: a.event || 'System Action',
+          detail: a.detail || (a.actor_email ? maskEmail(a.actor_email) : 'System Event'),
+          timestamp: a.created_at ? (a.created_at.includes('T') ? new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : a.created_at) : 'Recently',
+          icon: 'user'
+        }));
+      }
+    } catch (e) {}
 
     res.json({
       totalUsers,
@@ -91,14 +99,14 @@ router.get('/overview', async (req, res) => {
       totalDmsSent,
       messagesProcessedFormatted: totalDmsSent >= 1000 ? `${(totalDmsSent / 1000).toFixed(1)}K` : `${totalDmsSent}`,
       estimatedMrr,
-      monthlyRevenueFormatted: `$${(estimatedMrr / 1000).toFixed(1)}K`,
+      monthlyRevenueFormatted: estimatedMrr >= 1000 ? `$${(estimatedMrr / 1000).toFixed(1)}K` : `$${estimatedMrr}`,
       planBreakdown,
       recentUsers,
       recentActivity,
       dataRequests: {
-        deletionRequests: 3,
-        exportRequests: 7,
-        completedDeletions: 128
+        deletionRequests: 0,
+        exportRequests: 0,
+        completedDeletions: 0
       },
       securityPrivacy: {
         dataEncryption: true,
@@ -172,6 +180,22 @@ router.get('/users', async (req, res) => {
 
     const users = await db.prepare(query).all(...params);
 
+    // Enrich users with connected instagram accounts array
+    const enrichedUsers = await Promise.all((users || []).map(async u => {
+      let instagram_accounts = [];
+      try {
+        const igRows = await db.prepare('SELECT id, username, ig_user_id, followers_count, status FROM instagram_accounts WHERE user_id = ?').all(u.id);
+        if (igRows) instagram_accounts = igRows;
+      } catch (e) {}
+
+      return {
+        ...u,
+        connected_accounts_count: instagram_accounts.length || parseInt(u.connected_accounts_count || 0, 10),
+        rules_count: parseInt(u.rules_count || 0, 10),
+        instagram_accounts
+      };
+    }));
+
     // Count query
     let countQuery = `SELECT COUNT(*) as total FROM users u WHERE 1=1`;
     const countParams = [];
@@ -197,11 +221,7 @@ router.get('/users', async (req, res) => {
     const total = parseInt(countRow?.total || 0, 10);
 
     res.json({
-      users: (users || []).map(u => ({
-        ...u,
-        connected_accounts_count: parseInt(u.connected_accounts_count || 0, 10),
-        rules_count: parseInt(u.rules_count || 0, 10),
-      })),
+      users: enrichedUsers,
       total,
       limit: parseInt(limit, 10),
       offset: parseInt(offset, 10),

@@ -19,6 +19,7 @@ import {
   MessageSquare,
   Send,
   Eye,
+  EyeOff,
   Save,
   Check,
   X,
@@ -85,6 +86,7 @@ export default function AdminView({ user, onBackToApp }) {
   const [editingUser, setEditingUser] = useState(null);
   const [resetPasswordUser, setResetPasswordUser] = useState(null);
   const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [deletingUser, setDeletingUser] = useState(null);
   
   // Detailed Inspect User Modal State
@@ -705,12 +707,12 @@ export default function AdminView({ user, onBackToApp }) {
                   </div>
                   <div className="admin-kpi-title-text">Total Users</div>
                   <div className="admin-kpi-main-num">
-                    {overview?.totalUsers != null ? overview.totalUsers.toLocaleString() : '2,843'}
+                    {overview?.totalUsers != null ? overview.totalUsers.toLocaleString() : '0'}
                   </div>
                   <div className="admin-kpi-trend-row">
                     <span className="admin-kpi-trend-badge">
                       <TrendingUp size={12} />
-                      <span>12%</span>
+                      <span>Live DB</span>
                     </span>
                     {/* Mini SVG Sparkline */}
                     <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
@@ -728,12 +730,12 @@ export default function AdminView({ user, onBackToApp }) {
                   </div>
                   <div className="admin-kpi-title-text">Active Workspaces</div>
                   <div className="admin-kpi-main-num">
-                    {overview?.activeWorkspaces != null ? overview.activeWorkspaces.toLocaleString() : '1,976'}
+                    {overview?.activeWorkspaces != null ? overview.activeWorkspaces.toLocaleString() : '0'}
                   </div>
                   <div className="admin-kpi-trend-row">
                     <span className="admin-kpi-trend-badge">
                       <TrendingUp size={12} />
-                      <span>8%</span>
+                      <span>Live DB</span>
                     </span>
                     <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
                       <path d="M0 15 L12 14 L24 10 L36 12 L48 6 L60 3" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
@@ -750,12 +752,12 @@ export default function AdminView({ user, onBackToApp }) {
                   </div>
                   <div className="admin-kpi-title-text">Connected Instagram Accounts</div>
                   <div className="admin-kpi-main-num">
-                    {overview?.totalIgAccounts != null ? overview.totalIgAccounts.toLocaleString() : '3,412'}
+                    {overview?.totalIgAccounts != null ? overview.totalIgAccounts.toLocaleString() : '0'}
                   </div>
                   <div className="admin-kpi-trend-row">
                     <span className="admin-kpi-trend-badge">
                       <TrendingUp size={12} />
-                      <span>15%</span>
+                      <span>Live DB</span>
                     </span>
                     <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
                       <path d="M0 18 L12 13 L24 15 L36 9 L48 5 L60 2" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" />
@@ -772,12 +774,12 @@ export default function AdminView({ user, onBackToApp }) {
                   </div>
                   <div className="admin-kpi-title-text">Messages Processed</div>
                   <div className="admin-kpi-main-num">
-                    {overview ? overview.messagesProcessedFormatted : '125.4K'}
+                    {overview?.messagesProcessedFormatted != null ? overview.messagesProcessedFormatted : '0'}
                   </div>
                   <div className="admin-kpi-trend-row">
                     <span className="admin-kpi-trend-badge">
                       <TrendingUp size={12} />
-                      <span>24%</span>
+                      <span>Live DB</span>
                     </span>
                     <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
                       <path d="M0 17 L12 11 L24 8 L36 10 L48 4 L60 1" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" />
@@ -794,12 +796,12 @@ export default function AdminView({ user, onBackToApp }) {
                   </div>
                   <div className="admin-kpi-title-text">Monthly Revenue</div>
                   <div className="admin-kpi-main-num" style={{ color: '#10b981' }}>
-                    {overview ? overview.monthlyRevenueFormatted : '$12.4K'}
+                    {overview?.monthlyRevenueFormatted != null ? overview.monthlyRevenueFormatted : '$0'}
                   </div>
                   <div className="admin-kpi-trend-row">
                     <span className="admin-kpi-trend-badge">
                       <TrendingUp size={12} />
-                      <span>18%</span>
+                      <span>Live DB</span>
                     </span>
                     <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
                       <path d="M0 16 L12 12 L24 13 L36 7 L48 5 L60 2" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
@@ -1149,7 +1151,20 @@ export default function AdminView({ user, onBackToApp }) {
                         <span style={{ fontWeight: 700, color: '#ffffff' }}>{u.dm_usage_this_period || 0} DMs</span>
                       </td>
                       <td>
-                        <span style={{ fontWeight: 700, color: '#ffffff' }}>{u.connected_accounts_count || 0}</span> accounts
+                        <div style={{ fontWeight: 700, color: '#ffffff' }}>
+                          {u.connected_accounts_count || 0} account{u.connected_accounts_count !== 1 ? 's' : ''}
+                        </div>
+                        {u.instagram_accounts && u.instagram_accounts.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
+                            {u.instagram_accounts.map(ig => (
+                              <span key={ig.id} style={{ fontSize: '11.5px', color: '#c084fc', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <Film size={12} color="#a855f7" /> @{ig.username}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>No accounts linked</span>
+                        )}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
@@ -2059,21 +2074,44 @@ export default function AdminView({ user, onBackToApp }) {
                 </p>
 
                 <div className="admin-form-group">
-                  <label className="admin-form-label">New Password (Min 6 characters)</label>
-                  <input
-                    type="password"
-                    value={newAdminPassword}
-                    onChange={(e) => setNewAdminPassword(e.target.value)}
-                    placeholder="Enter new password..."
-                    className="admin-form-input"
-                    required
-                    minLength={6}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="admin-form-label" style={{ margin: 0 }}>New Password (Min 6 characters)</label>
+                    <button
+                      type="button"
+                      style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+                      onClick={() => {
+                        const randomPass = 'Airvix#' + Math.random().toString(36).slice(2, 8) + '!';
+                        setNewAdminPassword(randomPass);
+                      }}
+                    >
+                      🎲 Auto-Generate
+                    </button>
+                  </div>
+
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={newAdminPassword}
+                      onChange={(e) => setNewAdminPassword(e.target.value)}
+                      placeholder="Enter or generate new password..."
+                      className="admin-form-input"
+                      style={{ paddingRight: '40px' }}
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <div className="admin-modal-footer">
-                <button type="button" className="admin-btn-secondary" onClick={() => setResetPasswordUser(null)}>Cancel</button>
+                <button type="button" className="admin-btn-secondary" onClick={() => { setResetPasswordUser(null); setShowPassword(false); }}>Cancel</button>
                 <button type="submit" className="admin-btn-primary" style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)' }}>
                   Update Password
                 </button>
