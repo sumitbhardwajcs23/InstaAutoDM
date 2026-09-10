@@ -231,24 +231,15 @@ export default function LandingView({ onNavigate, user }) {
           </div>
 
         </div>
+
+        {/* Full-Page Cover Scroll Hint */}
+        <a href="#features" className="airvix-hero-scroll-hint" aria-label="Scroll to features">
+          <span>Scroll to explore</span>
+          <ChevronDown size={15} className="airvix-scroll-bounce" />
+        </a>
       </section>
 
-      {/* 4. TRUSTED BY LOGO CLOUD (Crisp White Background) */}
-      <section className="airvix-brands-section">
-        <div className="airvix-container">
-          <p className="airvix-brands-label">TRUSTED BY CREATORS, BRANDS AND AGENCIES</p>
-          <div className="airvix-brands-grid">
-            <span className="airvix-brand-name">zomato</span>
-            <span className="airvix-brand-name">boat</span>
-            <span className="airvix-brand-name">mamaearth</span>
-            <span className="airvix-brand-name">noise</span>
-            <span className="airvix-brand-name">SUGAR</span>
-            <span className="airvix-brand-name">THE DERMA CO</span>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. WHY AIRVIX / VALUE PROPOSITION (Clean White Aesthetic) */}
+      {/* 4. WHY AIRVIX / VALUE PROPOSITION (Clean White Aesthetic) */}
       <section id="features" className="airvix-features-section">
         <div className="airvix-container">
           
