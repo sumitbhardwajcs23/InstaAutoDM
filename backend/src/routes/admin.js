@@ -1,29 +1,16 @@
 // backend/src/routes/admin.js
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { DEFAULT_TEMPLATES } = require('../constants/defaultTemplates');
+const { DEFAULT_SITE_SETTINGS } = require('./site');
 
 // All endpoints in this router require authentication and admin privileges
 router.use(requireAuth);
 router.use(requireAdmin);
-
-// Default site settings template
-const DEFAULT_SITE_SETTINGS = {
-  announcement_enabled: true,
-  announcement_text: '🚀 Special Launch: Get 30% OFF Pro Plans with code AIRVIX30',
-  announcement_badge: 'LIMITED OFFER',
-  announcement_link: '#pricing',
-  hero_headline: 'Turn conversations into customers.',
-  hero_subtitle: 'Automate replies, engage your audience, and convert Instagram comments into sales automatically.',
-  primary_cta_text: 'Get Started Free',
-  primary_cta_url: '#signup',
-  demo_keyword: 'GROWTH',
-  support_email: 'support@airvix.com',
-  maintenance_mode: false,
-  allow_registrations: true,
-  free_dm_limit: 1000,
-};
 
 // ── GET /api/admin/overview ──────────────────────────────────────────
 router.get('/overview', async (req, res) => {
@@ -298,6 +285,199 @@ router.put('/settings', async (req, res) => {
   } catch (err) {
     console.error('[Admin] Save settings error:', err);
     res.status(500).json({ error: 'Failed to save site settings' });
+  }
+});
+
+// ── DELETE /api/admin/users/:id ──────────────────────────────────────
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.id === id) {
+      return res.status(400).json({ error: 'Cannot delete your own active administrator account' });
+    }
+
+    const user = await db.prepare('SELECT id, email, role FROM users WHERE id = ?').get(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Cascaded deletion of accounts, rules, convos, messages
+    const accounts = await db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ?').all(id);
+    const accountIds = (accounts || []).map(a => a.id);
+
+    if (accountIds.length > 0) {
+      const placeholders = accountIds.map(() => '?').join(',');
+      await db.prepare(`DELETE FROM comment_replies WHERE instagram_account_id IN (${placeholders})`).run(...accountIds);
+      await db.prepare(`DELETE FROM conversations WHERE instagram_account_id IN (${placeholders})`).run(...accountIds);
+      await db.prepare(`DELETE FROM automation_rules WHERE instagram_account_id IN (${placeholders})`).run(...accountIds);
+      await db.prepare(`DELETE FROM activity_log WHERE instagram_account_id IN (${placeholders})`).run(...accountIds);
+      await db.prepare('DELETE FROM instagram_accounts WHERE user_id = ?').run(id);
+    }
+
+    await db.prepare('DELETE FROM users WHERE id = ?').run(id);
+
+    res.json({ success: true, message: `User ${user.email} and all associated data permanently deleted` });
+  } catch (err) {
+    console.error('[Admin] Delete user error:', err);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// ── POST /api/admin/users/:id/reset-password ─────────────────────────
+router.post('/users/:id/reset-password', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    const user = await db.prepare('SELECT id, email FROM users WHERE id = ?').get(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const password_hash = await bcrypt.hash(newPassword, 12);
+    const now = new Date().toISOString();
+    await db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(password_hash, now, id);
+
+    res.json({ success: true, message: `Password for ${user.email} has been updated successfully` });
+  } catch (err) {
+    console.error('[Admin] Reset password error:', err);
+    res.status(500).json({ error: 'Failed to reset user password' });
+  }
+});
+
+// ── Templates Management Helpers ─────────────────────────────────────
+async function getStoredTemplates() {
+  const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_templates'").get();
+  if (row && row.value) {
+    try {
+      const parsed = JSON.parse(row.value);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch (e) {}
+  }
+  return [...DEFAULT_TEMPLATES];
+}
+
+async function saveStoredTemplates(templates) {
+  const serialized = JSON.stringify(templates);
+  const existing = await db.prepare("SELECT key FROM site_settings WHERE key = 'custom_templates'").get();
+  if (existing) {
+    await db.prepare("UPDATE site_settings SET value = ?, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE key = 'custom_templates'").run(serialized);
+  } else {
+    await db.prepare("INSERT INTO site_settings (key, value, updated_at) VALUES ('custom_templates', ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))").run(serialized);
+  }
+}
+
+// ── GET /api/admin/templates ─────────────────────────────────────────
+router.get('/templates', async (_req, res) => {
+  try {
+    const templates = await getStoredTemplates();
+    res.json({ templates });
+  } catch (err) {
+    console.error('[Admin] Get templates error:', err);
+    res.status(500).json({ error: 'Failed to fetch templates' });
+  }
+});
+
+// ── POST /api/admin/templates ────────────────────────────────────────
+router.post('/templates', async (req, res) => {
+  try {
+    const templateData = req.body;
+    if (!templateData.name || !templateData.trigger_keyword) {
+      return res.status(400).json({ error: 'Template name and trigger keyword are required' });
+    }
+
+    const templates = await getStoredTemplates();
+    const newTemplate = {
+      id: templateData.id || `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: templateData.name,
+      category: templateData.category || 'general',
+      categoryLabel: templateData.categoryLabel || '⚡ Custom Automation',
+      badge: templateData.badge || '✨ New Template',
+      trigger_keyword: templateData.trigger_keyword.toUpperCase().trim(),
+      match_mode: templateData.match_mode || 'contains',
+      action_type: 'comment',
+      comment_reply_mode: templateData.comment_reply_mode || 'both',
+      require_follow: Boolean(templateData.require_follow),
+      description: templateData.description || '',
+      comment_reply_message: templateData.comment_reply_message || 'Sent your details in DM! 🚀',
+      dm_reply_message: templateData.dm_reply_message || 'Hey {username}! Here is the link you requested.',
+      card_enabled: templateData.card_enabled !== undefined ? (templateData.card_enabled ? 1 : 0) : 1,
+      card_title: templateData.card_title || templateData.name,
+      card_subtitle: templateData.card_subtitle || '',
+      card_image_url: templateData.card_image_url || '',
+      card_button_text: templateData.card_button_text || 'Open Link 🚀',
+      card_button_url: templateData.card_button_url || 'https://airvix.com',
+      stats: 'Custom Template • Active',
+      created_at: new Date().toISOString()
+    };
+
+    templates.unshift(newTemplate);
+    await saveStoredTemplates(templates);
+
+    res.status(201).json({ success: true, message: 'Template created successfully', template: newTemplate });
+  } catch (err) {
+    console.error('[Admin] Create template error:', err);
+    res.status(500).json({ error: 'Failed to create template' });
+  }
+});
+
+// ── PUT /api/admin/templates/:id ─────────────────────────────────────
+router.put('/templates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    let templates = await getStoredTemplates();
+    const idx = templates.findIndex(t => t.id === id);
+
+    if (idx === -1) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    templates[idx] = {
+      ...templates[idx],
+      ...updates,
+      id, // Preserve ID
+      updated_at: new Date().toISOString()
+    };
+
+    await saveStoredTemplates(templates);
+    res.json({ success: true, message: 'Template updated successfully', template: templates[idx] });
+  } catch (err) {
+    console.error('[Admin] Update template error:', err);
+    res.status(500).json({ error: 'Failed to update template' });
+  }
+});
+
+// ── DELETE /api/admin/templates/:id ──────────────────────────────────
+router.delete('/templates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    let templates = await getStoredTemplates();
+    const filtered = templates.filter(t => t.id !== id);
+
+    if (filtered.length === templates.length) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    await saveStoredTemplates(filtered);
+    res.json({ success: true, message: 'Template deleted successfully' });
+  } catch (err) {
+    console.error('[Admin] Delete template error:', err);
+    res.status(500).json({ error: 'Failed to delete template' });
+  }
+});
+
+// ── POST /api/admin/templates/reset ──────────────────────────────────
+router.post('/templates/reset', async (_req, res) => {
+  try {
+    await saveStoredTemplates([...DEFAULT_TEMPLATES]);
+    res.json({ success: true, message: 'Templates reset to factory defaults', templates: DEFAULT_TEMPLATES });
+  } catch (err) {
+    console.error('[Admin] Reset templates error:', err);
+    res.status(500).json({ error: 'Failed to reset templates' });
   }
 });
 

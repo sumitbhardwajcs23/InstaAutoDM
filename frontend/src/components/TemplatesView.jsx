@@ -607,11 +607,28 @@ export const TEMPLATES_DATA = [
 ];
 
 export default function TemplatesView({ onOpenCreateRule, account }) {
+  const [templatesList, setTemplatesList] = useState(TEMPLATES_DATA);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [filterType, setFilterType] = useState('all'); // 'all' | 'follow' | 'comment' | 'dm'
   const [copiedId, setCopiedId] = useState(null);
   const [previewTemplate, setPreviewTemplate] = useState(null);
+
+  // Load custom/updated templates from backend API
+  useEffect(() => {
+    async function loadDynamicTemplates() {
+      try {
+        const res = await apiFetch('/site/templates');
+        const data = await res.json();
+        if (data && Array.isArray(data.templates) && data.templates.length > 0) {
+          setTemplatesList(data.templates);
+        }
+      } catch (err) {
+        // fallback to default TEMPLATES_DATA silently
+      }
+    }
+    loadDynamicTemplates();
+  }, []);
 
   // User's Connected Reels
   const [reels, setReels] = useState([]);
@@ -640,18 +657,26 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
   }, [account?.id]);
 
   const categories = useMemo(() => [
-    { id: 'all', label: '🌟 All Templates', count: TEMPLATES_DATA.length },
-    { id: 'ecommerce', label: '🛍️ E-Commerce & Retail', count: TEMPLATES_DATA.filter(t => t.category === 'ecommerce').length },
-    { id: 'creator', label: '🎓 Creators & Coaches', count: TEMPLATES_DATA.filter(t => t.category === 'creator').length },
-    { id: 'lead_magnet', label: '🔒 Follower Check', count: TEMPLATES_DATA.filter(t => t.category === 'lead_magnet').length },
-    { id: 'services', label: '💼 Services & Agencies', count: TEMPLATES_DATA.filter(t => t.category === 'services').length },
-  ], []);
+    { id: 'all', label: '🌟 All Templates', count: templatesList.length },
+    { id: 'ecommerce', label: '🛍️ E-Commerce & Retail', count: templatesList.filter(t => t.category === 'ecommerce').length },
+    { id: 'creator', label: '🎓 Creators & Coaches', count: templatesList.filter(t => t.category === 'creator' || t.category === 'education').length },
+    { id: 'lead_magnet', label: '🔒 Follower Check', count: templatesList.filter(t => t.require_follow).length },
+    { id: 'services', label: '💼 Services & Agencies', count: templatesList.filter(t => t.category === 'services' || t.category === 'agency').length },
+  ], [templatesList]);
 
   const filteredTemplates = useMemo(() => {
-    return TEMPLATES_DATA.filter((item) => {
+    return templatesList.filter((item) => {
       // Category filter
-      if (selectedCategory !== 'all' && item.category !== selectedCategory) {
-        return false;
+      if (selectedCategory !== 'all') {
+        if (selectedCategory === 'creator' && (item.category === 'creator' || item.category === 'education')) {
+          // match
+        } else if (selectedCategory === 'services' && (item.category === 'services' || item.category === 'agency')) {
+          // match
+        } else if (selectedCategory === 'lead_magnet' && item.require_follow) {
+          // match
+        } else if (item.category !== selectedCategory) {
+          return false;
+        }
       }
       // Sub-filter by feature
       if (filterType === 'follow' && !item.require_follow) return false;
@@ -662,14 +687,14 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchTitle = item.name.toLowerCase().includes(q);
-        const matchDesc = item.description.toLowerCase().includes(q);
-        const matchKeyword = item.trigger_keyword.toLowerCase().includes(q);
+        const matchDesc = (item.description || '').toLowerCase().includes(q);
+        const matchKeyword = (item.trigger_keyword || '').toLowerCase().includes(q);
         const matchCard = item.card_title?.toLowerCase().includes(q);
         return matchTitle || matchDesc || matchKeyword || matchCard;
       }
       return true;
     });
-  }, [selectedCategory, filterType, searchQuery]);
+  }, [templatesList, selectedCategory, filterType, searchQuery]);
 
   const handleCopy = (template) => {
     const textToCopy = `Card Title: ${template.card_title || template.name}\nSubtitle: ${template.card_subtitle || ''}\nTrigger Keyword: ${template.trigger_keyword}\nButton: ${template.card_button_text} -> ${template.card_button_url}\nDM Text: ${template.dm_reply_message}`;

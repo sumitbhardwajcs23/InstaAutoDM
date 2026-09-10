@@ -1047,6 +1047,7 @@ export default function LandingView({ onNavigate, user }) {
               <h5>Account</h5>
               <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('auth-login'); }}>Sign In</a>
               <a href="#" onClick={(e) => { e.preventDefault(); onNavigate('auth-signup'); }}>Create Free Account</a>
+              <a href="#admin-login" onClick={(e) => { e.preventDefault(); onNavigate('admin-login'); }} style={{ opacity: 0.6, fontSize: '12px' }}>🛡️ Staff Portal</a>
             </div>
           </div>
         </div>

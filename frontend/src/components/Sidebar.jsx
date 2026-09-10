@@ -26,6 +26,7 @@ export default function Sidebar({
   setActiveTab,
   onOpenUpgrade,
   onOpenConnect,
+  onOpenAdmin,
   onLogout,
   darkMode,
   setDarkMode,
@@ -45,7 +46,13 @@ export default function Sidebar({
   ];
 
   if (user?.role === 'admin') {
-    navItems.push({ id: 'admin', label: 'Admin Panel', icon: Shield, badge: 'STAFF' });
+    navItems.push({
+      id: 'admin',
+      label: 'Admin Panel',
+      icon: Shield,
+      badge: 'STAFF',
+      action: onOpenAdmin || (() => { window.location.hash = '#admin'; }),
+    });
   }
 
   return (

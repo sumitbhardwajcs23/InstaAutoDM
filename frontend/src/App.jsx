@@ -25,14 +25,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(false);
 
-  // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'admin-login' | 'app'
+  // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'admin-login' | 'admin' | 'app'
   const [currentView, setCurrentView] = useState(() => {
     const hash = window.location.hash.toLowerCase();
     const path = window.location.pathname.toLowerCase();
     if (path === '/admin-login' || hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') return 'admin-login';
     if (path === '/admin' || hash === '#admin') {
       const u = getCurrentUser();
-      return u?.role === 'admin' ? 'app' : 'admin-login';
+      return u?.role === 'admin' ? 'admin' : 'admin-login';
     }
     if (path === '/login' || hash === '#login') return 'auth-login';
     if (path === '/signup' || path === '/register' || hash === '#signup' || hash === '#register') return 'auth-signup';
@@ -70,8 +70,7 @@ export default function App() {
       else if (hash === '#signup' || hash === '#register') setCurrentView('auth-signup');
       else if (hash === '#admin') {
         if (user?.role === 'admin') {
-          setCurrentView('app');
-          setActiveTab('admin');
+          setCurrentView('admin');
         } else {
           setCurrentView('admin-login');
         }
@@ -193,6 +192,12 @@ export default function App() {
     } else if (view === 'auth-signup') {
       window.location.hash = '#signup';
       setCurrentView('auth-signup');
+    } else if (view === 'admin-login') {
+      window.location.hash = '#admin-login';
+      setCurrentView('admin-login');
+    } else if (view === 'admin') {
+      window.location.hash = '#admin';
+      setCurrentView('admin');
     } else if (view === 'app') {
       window.location.hash = '#app';
       setCurrentView('app');
@@ -204,8 +209,13 @@ export default function App() {
 
   const handleAuthSuccess = (loggedUser) => {
     setUser(loggedUser);
-    window.location.hash = '#app';
-    setCurrentView('app');
+    if (loggedUser?.role === 'admin' && (currentView === 'admin-login' || window.location.hash === '#admin-login')) {
+      window.location.hash = '#admin';
+      setCurrentView('admin');
+    } else {
+      window.location.hash = '#app';
+      setCurrentView('app');
+    }
   };
 
   const handleToggleRule = async (ruleId, newActiveState) => {
@@ -304,9 +314,36 @@ export default function App() {
       <AdminLoginView
         onAuthSuccess={(adminUser) => {
           handleAuthSuccess(adminUser);
-          setActiveTab('admin');
+          window.location.hash = '#admin';
+          setCurrentView('admin');
         }}
         onBackToUserLogin={() => handleNavigate('auth-login')}
+      />
+    );
+  }
+
+  // 1.8 Standalone Super Admin Panel (Separate Governance Portal)
+  if (currentView === 'admin') {
+    if (!user || user?.role !== 'admin') {
+      return (
+        <AdminLoginView
+          onAuthSuccess={(adminUser) => {
+            handleAuthSuccess(adminUser);
+            window.location.hash = '#admin';
+            setCurrentView('admin');
+          }}
+          onBackToUserLogin={() => handleNavigate('auth-login')}
+        />
+      );
+    }
+    return (
+      <AdminView
+        user={user}
+        onBackToApp={() => {
+          window.location.hash = '#app';
+          setCurrentView('app');
+          setActiveTab('dashboard');
+        }}
       />
     );
   }
@@ -331,6 +368,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         onOpenUpgrade={() => setIsUpgradeOpen(true)}
         onOpenConnect={() => setIsConnectIgOpen(true)}
+        onOpenAdmin={() => handleNavigate('admin')}
         onLogout={handleLogout}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
