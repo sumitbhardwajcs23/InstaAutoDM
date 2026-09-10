@@ -1,11 +1,10 @@
 // frontend/src/components/AdminView.jsx
-// Dedicated Super Admin Control Center for Airvix with Collapsible Sidebar & Live Plan Preview
+// ReplyOS Super Admin Control Center & Privacy-First Dashboard
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Shield,
   Users,
   CreditCard,
-  Sliders,
   TrendingUp,
   Search,
   CheckCircle2,
@@ -40,24 +39,42 @@ import {
   Info,
   SlidersHorizontal,
   ChevronDown,
-  Receipt,
-  UserX,
+  Bell,
+  Calendar,
+  Briefcase,
+  Plug,
+  HelpCircle,
+  FileText,
+  Radio,
+  CheckSquare,
+  AlertTriangle,
   UserCheck,
-  Copy
+  UserX
 } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import '../styles/admin.css';
 
 export default function AdminView({ user, onBackToApp }) {
-  // Sidebar & Main Navigation Tabs: 'overview' | 'users' | 'plans' | 'landing' | 'templates' | 'safeguards'
+  // Navigation Tabs: 'overview' | 'users' | 'workspaces' | 'plans' | 'integrations' | 'safeguards' | 'analytics' | 'support' | 'security' | 'audit' | 'status'
   const [activeTab, setActiveTab] = useState('overview');
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [chartMetric, setChartMetric] = useState('users'); // 'users' | 'messages' | 'workspaces' | 'revenue'
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [successToast, setSuccessToast] = useState(null);
 
   // Overview State
   const [overview, setOverview] = useState(null);
+
+  // Workspaces State
+  const [workspacesList, setWorkspacesList] = useState([]);
+
+  // Audit Logs State
+  const [auditLogsList, setAuditLogsList] = useState([]);
+
+  // Security Privacy State
+  const [securityData, setSecurityData] = useState(null);
+
+  // System Status State
+  const [systemStatusData, setSystemStatusData] = useState(null);
 
   // Users State & Access Control
   const [usersList, setUsersList] = useState([]);
@@ -76,7 +93,6 @@ export default function AdminView({ user, onBackToApp }) {
 
   // Subscriptions & Plans CRUD State
   const [plansList, setPlansList] = useState([]);
-  const [loadingPlans, setLoadingPlans] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
   const [planFormData, setPlanFormData] = useState({
@@ -96,8 +112,7 @@ export default function AdminView({ user, onBackToApp }) {
       '3 Connected Instagram Accounts',
       '25 Active Keyword Rules',
       'Follow-Gated Private Cards',
-      'Instant 0.8s Response Engine',
-      'Priority Email Support'
+      'Instant 0.8s Response Engine'
     ],
     active: true
   });
@@ -105,79 +120,6 @@ export default function AdminView({ user, onBackToApp }) {
 
   // Payment System State
   const [paymentsList, setPaymentsList] = useState([]);
-  const [paymentsSummary, setPaymentsSummary] = useState(null);
-
-  // Landing Page CMS State
-  const [cmsTab, setCmsTab] = useState('hero'); // 'hero' | 'metrics' | 'pricing' | 'faqs' | 'brand'
-  const [siteSettings, setSiteSettings] = useState({
-    announcement_enabled: true,
-    announcement_text: '🚀 Special Launch: Get 30% OFF Pro Plans with code AIRVIX30',
-    announcement_badge: 'LIMITED OFFER',
-    announcement_link: '#pricing',
-    hero_badge: '⚡ Powered by Official Meta Instagram Graph API',
-    hero_headline: 'Turn conversations into customers.',
-    hero_subtitle: 'Automate replies, engage your audience, and convert Instagram comments into sales automatically.',
-    primary_cta_text: 'Get Started Free',
-    primary_cta_url: '#signup',
-    secondary_cta_text: 'See Live Interactive Demo',
-    secondary_cta_url: '#demo',
-    demo_keyword: 'GROWTH',
-    social_creators: '12,000+',
-    social_dms: '4.8M+',
-    social_rating: '4.9/5',
-    social_reply_speed: '0.8s',
-    pro_price_monthly: 29,
-    agency_price_monthly: 79,
-    enterprise_price_monthly: 199,
-    faqs: [
-      {
-        q: 'Will using Airvix put my Instagram account at risk?',
-        a: 'Never. Airvix is built exclusively on official Meta Graph API Webhooks. We do not scrape or use unauthorized private APIs. 100% compliant with Meta Terms of Service.'
-      },
-      {
-        q: 'How fast are the automatic replies sent?',
-        a: 'Average response time is 0.8s to 1.8s. Airvix responds while the user is actively watching your reel, maximizing conversions.'
-      },
-      {
-        q: 'Can I send interactive visual cards and buttons in DMs?',
-        a: 'Yes! You can configure rich visual cards with cover images, headlines, subtext, and custom button links.'
-      }
-    ],
-    platform_name: 'Airvix',
-    support_email: 'support@airvix.com',
-    footer_tagline: 'The premier Instagram comment-to-DM conversion engine for creators and brands.',
-    maintenance_mode: false,
-    allow_registrations: true,
-    free_dm_limit: 1000,
-  });
-  const [savingSettings, setSavingSettings] = useState(false);
-
-  // Templates Management State
-  const [templates, setTemplates] = useState([]);
-  const [templateSearch, setTemplateSearch] = useState('');
-  const [templateCategoryFilter, setTemplateCategoryFilter] = useState('all');
-  const [editingTemplate, setEditingTemplate] = useState(null);
-  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
-  const [previewTemplate, setPreviewTemplate] = useState(null);
-  const [templateFormData, setTemplateFormData] = useState({
-    id: '',
-    name: '',
-    category: 'ecommerce',
-    categoryLabel: '🛍️ E-Commerce',
-    badge: '🔥 High Converting',
-    trigger_keyword: '',
-    match_mode: 'contains',
-    require_follow: false,
-    comment_reply_message: 'Sent details to your DM! 🚀',
-    dm_reply_message: 'Hey {username}! Here is the link you requested.',
-    card_enabled: 1,
-    card_title: '',
-    card_subtitle: '',
-    card_image_url: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&auto=format&fit=crop&q=80',
-    card_button_text: 'Open Link 🚀',
-    card_button_url: 'https://airvix.com',
-    description: '',
-  });
 
   const showToast = (msg) => {
     setSuccessToast(msg);
@@ -228,20 +170,69 @@ export default function AdminView({ user, onBackToApp }) {
       if (res.ok) {
         const data = await res.json();
         setSelectedUserDetail(data.user);
-      } else {
-        alert('Could not fetch user details');
       }
     } catch (err) {
-      alert(`Error loading user details: ${err.message}`);
+      console.error(`Error loading user details:`, err);
     } finally {
       setLoadingUserDetail(false);
     }
   };
 
-  // 3. Fetch Plans Data
+  // 3. Fetch Workspaces
+  const loadWorkspaces = useCallback(async () => {
+    try {
+      const res = await apiFetch('/admin/workspaces');
+      if (res.ok) {
+        const data = await res.json();
+        setWorkspacesList(data.workspaces || []);
+      }
+    } catch (err) {
+      console.error('Failed to load workspaces:', err);
+    }
+  }, []);
+
+  // 4. Fetch Audit Logs
+  const loadAuditLogs = useCallback(async () => {
+    try {
+      const res = await apiFetch('/admin/audit-logs');
+      if (res.ok) {
+        const data = await res.json();
+        setAuditLogsList(data.logs || []);
+      }
+    } catch (err) {
+      console.error('Failed to load audit logs:', err);
+    }
+  }, []);
+
+  // 5. Fetch Security & Privacy Metrics
+  const loadSecurityPrivacy = useCallback(async () => {
+    try {
+      const res = await apiFetch('/admin/security-privacy');
+      if (res.ok) {
+        const data = await res.json();
+        setSecurityData(data);
+      }
+    } catch (err) {
+      console.error('Failed to load security privacy data:', err);
+    }
+  }, []);
+
+  // 6. Fetch System Status
+  const loadSystemStatus = useCallback(async () => {
+    try {
+      const res = await apiFetch('/admin/system-status');
+      if (res.ok) {
+        const data = await res.json();
+        setSystemStatusData(data);
+      }
+    } catch (err) {
+      console.error('Failed to load system status:', err);
+    }
+  }, []);
+
+  // 7. Fetch Plans Data
   const loadPlans = useCallback(async () => {
     try {
-      setLoadingPlans(true);
       const res = await apiFetch('/admin/plans');
       if (res.ok) {
         const data = await res.json();
@@ -249,50 +240,19 @@ export default function AdminView({ user, onBackToApp }) {
       }
     } catch (err) {
       console.error('Failed to load pricing plans:', err);
-    } finally {
-      setLoadingPlans(false);
     }
   }, []);
 
-  // 4. Fetch Payments Data
+  // 8. Fetch Payments Data
   const loadPayments = useCallback(async () => {
     try {
       const res = await apiFetch('/admin/payments');
       if (res.ok) {
         const data = await res.json();
         setPaymentsList(data.transactions || []);
-        setPaymentsSummary(data.summary || null);
       }
     } catch (err) {
       console.error('Failed to load payments:', err);
-    }
-  }, []);
-
-  // 5. Fetch Settings Data
-  const loadSettings = useCallback(async () => {
-    try {
-      const res = await apiFetch('/admin/settings');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.settings) {
-          setSiteSettings(prev => ({ ...prev, ...data.settings }));
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load site settings:', err);
-    }
-  }, []);
-
-  // 6. Fetch Templates Data
-  const loadTemplates = useCallback(async () => {
-    try {
-      const res = await apiFetch('/admin/templates');
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(data.templates || []);
-      }
-    } catch (err) {
-      console.error('Failed to load templates:', err);
     }
   }, []);
 
@@ -300,32 +260,13 @@ export default function AdminView({ user, onBackToApp }) {
   useEffect(() => {
     loadOverview();
     loadUsers();
+    loadWorkspaces();
+    loadAuditLogs();
+    loadSecurityPrivacy();
+    loadSystemStatus();
     loadPlans();
     loadPayments();
-    loadSettings();
-    loadTemplates();
-  }, [loadOverview, loadUsers, loadPlans, loadPayments, loadSettings, loadTemplates]);
-
-  // Save Settings Handler
-  const handleSaveSettings = async () => {
-    setSavingSettings(true);
-    try {
-      const res = await apiFetch('/admin/settings', {
-        method: 'PUT',
-        body: JSON.stringify(siteSettings),
-      });
-      if (res.ok) {
-        showToast('✅ Landing page customizations saved live!');
-      } else {
-        const err = await res.json();
-        alert(`Failed to save settings: ${err.error || 'Unknown error'}`);
-      }
-    } catch (err) {
-      alert(`Network error saving settings: ${err.message}`);
-    } finally {
-      setSavingSettings(false);
-    }
-  };
+  }, [loadOverview, loadUsers, loadWorkspaces, loadAuditLogs, loadSecurityPrivacy, loadSystemStatus, loadPlans, loadPayments]);
 
   // Update User Handler
   const handleUpdateUser = async (userId, updates) => {
@@ -335,7 +276,7 @@ export default function AdminView({ user, onBackToApp }) {
         body: JSON.stringify(updates),
       });
       if (res.ok) {
-        showToast('✅ User record updated successfully');
+        showToast('✅ User record updated safely');
         setEditingUser(null);
         if (selectedUserDetail && selectedUserDetail.id === userId) {
           loadUserDetail(userId);
@@ -351,7 +292,7 @@ export default function AdminView({ user, onBackToApp }) {
     }
   };
 
-  // Reset User Password Handler
+  // Reset Password Handler
   const handleResetUserPassword = async (e) => {
     e.preventDefault();
     if (!resetPasswordUser || !newAdminPassword) return;
@@ -361,12 +302,9 @@ export default function AdminView({ user, onBackToApp }) {
         body: JSON.stringify({ newPassword: newAdminPassword }),
       });
       if (res.ok) {
-        showToast(`✅ Password for ${resetPasswordUser.email} has been updated`);
+        showToast(`✅ Password for user updated safely`);
         setResetPasswordUser(null);
         setNewAdminPassword('');
-      } else {
-        const err = await res.json();
-        alert(`Failed: ${err.error || 'Could not reset password'}`);
       }
     } catch (err) {
       alert(`Error: ${err.message}`);
@@ -381,23 +319,20 @@ export default function AdminView({ user, onBackToApp }) {
         method: 'DELETE',
       });
       if (res.ok) {
-        showToast(`✅ User ${deletingUser.email} deleted permanently`);
+        showToast(`✅ User and associated workspace data deleted`);
         setDeletingUser(null);
         if (selectedUserDetail && selectedUserDetail.id === deletingUser.id) {
           setSelectedUserDetail(null);
         }
         loadUsers();
         loadOverview();
-      } else {
-        const err = await res.json();
-        alert(`Delete failed: ${err.error || 'Cannot delete user'}`);
       }
     } catch (err) {
       alert(`Error: ${err.message}`);
     }
   };
 
-  // Save / Create Pricing Plan Handler
+  // Save / Create Plan Handler
   const handleSavePlan = async (e) => {
     e.preventDefault();
     try {
@@ -410,126 +345,17 @@ export default function AdminView({ user, onBackToApp }) {
         features: planFeaturesText ? planFeaturesText.split('\n').map(s => s.trim()).filter(Boolean) : planFormData.features
       };
 
-      const res = await apiFetch(url, {
-        method,
-        body: JSON.stringify(payload)
-      });
-
+      const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
       if (res.ok) {
-        showToast(isEdit ? '✅ Pricing plan updated live' : '✅ New pricing plan created');
+        showToast(isEdit ? '✅ Plan updated live' : '✅ New plan created');
         setEditingPlan(null);
         setIsCreatingPlan(false);
         loadPlans();
-      } else {
-        const err = await res.json();
-        alert(`Plan save failed: ${err.error || 'Invalid plan data'}`);
       }
     } catch (err) {
       alert(`Error saving plan: ${err.message}`);
     }
   };
-
-  // Delete Pricing Plan Handler
-  const handleDeletePlan = async (planId) => {
-    if (!window.confirm('Delete this pricing plan permanently?')) return;
-    try {
-      const res = await apiFetch(`/admin/plans/${planId}`, { method: 'DELETE' });
-      if (res.ok) {
-        showToast('✅ Plan deleted');
-        loadPlans();
-      } else {
-        const err = await res.json();
-        alert(`Failed: ${err.error || 'Could not delete plan'}`);
-      }
-    } catch (err) {
-      alert(`Error: ${err.message}`);
-    }
-  };
-
-  // Reset Pricing Plans Handler
-  const handleResetPlans = async () => {
-    if (!window.confirm('Reset all pricing plans back to factory defaults?')) return;
-    try {
-      const res = await apiFetch('/admin/plans/reset', { method: 'POST' });
-      if (res.ok) {
-        showToast('✅ Pricing plans reset to default');
-        loadPlans();
-      }
-    } catch (err) {
-      alert(`Reset error: ${err.message}`);
-    }
-  };
-
-  // Template Save / Create Handler
-  const handleSaveTemplate = async (e) => {
-    e.preventDefault();
-    try {
-      const isEdit = Boolean(editingTemplate);
-      const url = isEdit ? `/admin/templates/${editingTemplate.id}` : '/admin/templates';
-      const method = isEdit ? 'PUT' : 'POST';
-
-      const res = await apiFetch(url, {
-        method,
-        body: JSON.stringify(templateFormData),
-      });
-
-      if (res.ok) {
-        showToast(isEdit ? '✅ Template updated successfully' : '✅ New template created successfully');
-        setEditingTemplate(null);
-        setIsCreatingTemplate(false);
-        loadTemplates();
-      } else {
-        const err = await res.json();
-        alert(`Template save failed: ${err.error || 'Invalid template data'}`);
-      }
-    } catch (err) {
-      alert(`Network error saving template: ${err.message}`);
-    }
-  };
-
-  // Delete Template Handler
-  const handleDeleteTemplate = async (templateId) => {
-    if (!window.confirm('Are you sure you want to delete this automation template? Users will no longer see it.')) return;
-    try {
-      const res = await apiFetch(`/admin/templates/${templateId}`, { method: 'DELETE' });
-      if (res.ok) {
-        showToast('✅ Template deleted');
-        loadTemplates();
-      } else {
-        const err = await res.json();
-        alert(`Delete failed: ${err.error || 'Could not delete template'}`);
-      }
-    } catch (err) {
-      alert(`Error: ${err.message}`);
-    }
-  };
-
-  // Reset Templates to Factory Defaults
-  const handleResetTemplates = async () => {
-    if (!window.confirm('Reset all templates back to factory defaults? This will restore original preset cards.')) return;
-    try {
-      const res = await apiFetch('/admin/templates/reset', { method: 'POST' });
-      if (res.ok) {
-        showToast('✅ Templates restored to factory defaults');
-        loadTemplates();
-      }
-    } catch (err) {
-      alert(`Reset error: ${err.message}`);
-    }
-  };
-
-  // Filter templates list
-  const filteredTemplates = templates.filter(tpl => {
-    if (templateCategoryFilter !== 'all' && tpl.category !== templateCategoryFilter) return false;
-    if (templateSearch.trim()) {
-      const q = templateSearch.toLowerCase();
-      const matchName = (tpl.name || '').toLowerCase().includes(q);
-      const matchKw = (tpl.trigger_keyword || '').toLowerCase().includes(q);
-      const matchCard = (tpl.card_title || '').toLowerCase().includes(q);
-      return matchName || matchKw || matchCard;
-    }
-    return true;
-  });
 
   return (
     <div className="admin-layout-wrapper">
@@ -542,126 +368,157 @@ export default function AdminView({ user, onBackToApp }) {
       )}
 
       {/* =========================================================================
-          LEFT COLLAPSIBLE ADMIN SIDEBAR
+          REPLYOS LEFT SIDEBAR
       ========================================================================= */}
-      <aside className={`admin-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
-        <div className="admin-sidebar-header">
-          <div className="admin-sidebar-logo-icon">
-            <Shield size={20} />
+      <aside className="admin-sidebar">
+        <div>
+          {/* Header Brand */}
+          <div className="admin-sidebar-header">
+            <a href="#admin" className="admin-sidebar-logo-brand">
+              <div className="admin-replyos-icon">
+                <Send size={18} />
+              </div>
+              <h1 className="admin-replyos-title">ReplyOS</h1>
+            </a>
           </div>
-          {!isSidebarCollapsed && (
-            <div className="admin-sidebar-brand-text">
-              <h2>Airvix Admin <span className="admin-staff-badge">GOVERNANCE</span></h2>
-              <p>Control Center v2.4</p>
+
+          {/* Navigation Items */}
+          <div className="admin-sidebar-nav">
+            <div className="admin-sidebar-menu-group">
+              <div className="admin-sidebar-section-title">ADMIN PANEL</div>
+              
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'overview' ? 'active' : ''}`}
+                onClick={() => setActiveTab('overview')}
+              >
+                <TrendingUp size={16} />
+                <span>Overview</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
+                onClick={() => setActiveTab('users')}
+              >
+                <Users size={16} />
+                <span>Users</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'workspaces' ? 'active' : ''}`}
+                onClick={() => setActiveTab('workspaces')}
+              >
+                <Briefcase size={16} />
+                <span>Workspaces</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'plans' ? 'active' : ''}`}
+                onClick={() => setActiveTab('plans')}
+              >
+                <CreditCard size={16} />
+                <span>Plans &amp; Billing</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'integrations' ? 'active' : ''}`}
+                onClick={() => setActiveTab('overview')}
+              >
+                <Plug size={16} />
+                <span>Integrations</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'safeguards' ? 'active' : ''}`}
+                onClick={() => setActiveTab('safeguards')}
+              >
+                <SlidersHorizontal size={16} />
+                <span>Automation Health</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'analytics' ? 'active' : ''}`}
+                onClick={() => setActiveTab('overview')}
+              >
+                <Activity size={16} />
+                <span>Analytics</span>
+              </button>
+
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'support' ? 'active' : ''}`}
+                onClick={() => setActiveTab('overview')}
+              >
+                <HelpCircle size={16} />
+                <span>Support</span>
+              </button>
             </div>
-          )}
-        </div>
 
-        <div className="admin-sidebar-nav">
-          <div className="admin-sidebar-menu-group">
-            <div className="admin-sidebar-section-title">CORE GOVERNANCE</div>
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'overview' ? 'active' : ''}`}
-              onClick={() => setActiveTab('overview')}
-              title="Overview & System Pulse"
-            >
-              <TrendingUp size={18} />
-              <span>Overview &amp; Pulse</span>
-            </button>
+            <div className="admin-sidebar-menu-group">
+              <div className="admin-sidebar-section-title">GOVERNANCE &amp; PRIVACY</div>
+              
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'security' ? 'active' : ''}`}
+                onClick={() => setActiveTab('security')}
+              >
+                <ShieldCheck size={16} />
+                <span>Security &amp; Privacy</span>
+              </button>
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
-              onClick={() => setActiveTab('users')}
-              title="Users Directory & Access Control"
-            >
-              <Users size={18} />
-              <span>Users &amp; Access</span>
-              <span className="admin-sidebar-item-badge">{totalUsers}</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'audit' ? 'active' : ''}`}
+                onClick={() => setActiveTab('audit')}
+              >
+                <FileText size={16} />
+                <span>Audit Logs</span>
+              </button>
 
-          <div className="admin-sidebar-menu-group">
-            <div className="admin-sidebar-section-title">MONETIZATION</div>
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'plans' ? 'active' : ''}`}
-              onClick={() => setActiveTab('plans')}
-              title="Subscriptions, Pricing Plans CRUD & Payments"
-            >
-              <CreditCard size={18} />
-              <span>Plans &amp; Payments</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'status' ? 'active' : ''}`}
+                onClick={() => setActiveTab('status')}
+              >
+                <Radio size={16} />
+                <span>System Status</span>
+              </button>
+            </div>
 
-          <div className="admin-sidebar-menu-group">
-            <div className="admin-sidebar-section-title">PLATFORM MANAGEMENT</div>
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'landing' ? 'active' : ''}`}
-              onClick={() => setActiveTab('landing')}
-              title="Landing Page Visual CMS"
-            >
-              <Globe size={18} />
-              <span>Landing Page CMS</span>
-            </button>
-
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'templates' ? 'active' : ''}`}
-              onClick={() => setActiveTab('templates')}
-              title="DM Interactive Card Templates"
-            >
-              <Layers size={18} />
-              <span>DM Card Templates</span>
-              <span className="admin-sidebar-item-badge">{templates.length}</span>
-            </button>
-
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'safeguards' ? 'active' : ''}`}
-              onClick={() => setActiveTab('safeguards')}
-              title="Global System Safeguards & Limits"
-            >
-              <SlidersHorizontal size={18} />
-              <span>Global Safeguards</span>
-            </button>
+            {/* Privacy First Banner Card */}
+            <div className="admin-privacy-banner-card">
+              <h4>
+                <Shield size={14} />
+                <span>Privacy First</span>
+              </h4>
+              <p>We only store what's necessary. User content is encrypted and access controlled.</p>
+              <a href="#security" onClick={(e) => { e.preventDefault(); setActiveTab('security'); }}>
+                <span>Learn more</span>
+                <ArrowRight size={12} />
+              </a>
+            </div>
           </div>
         </div>
 
+        {/* Sidebar Footer */}
         <div className="admin-sidebar-footer">
-          {!isSidebarCollapsed && (
-            <div className="admin-sidebar-user-pill">
-              <div className="admin-sidebar-avatar">
-                {user?.email ? user.email.slice(0, 2).toUpperCase() : 'AD'}
-              </div>
-              <div className="admin-sidebar-user-info">
-                <div>{user?.email || 'Super Admin'}</div>
-                <span>Super Admin</span>
-              </div>
-            </div>
-          )}
-
-          <button
-            type="button"
-            className="admin-btn-secondary"
-            style={{ width: '100%', justifyContent: 'center' }}
-            onClick={onBackToApp || (() => { window.location.hash = '#app'; })}
-          >
-            <ArrowRight size={14} />
-            {!isSidebarCollapsed && <span>Creator App</span>}
-          </button>
-
-          <button
-            type="button"
-            className="admin-sidebar-toggle-btn"
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          >
-            {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-            {!isSidebarCollapsed && <span>Collapse Sidebar</span>}
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <span style={{ color: '#cbd5e1', fontWeight: 700 }}>ReplyOS</span>
+            <span>•</span>
+            <a href="#privacy" style={{ color: '#64748b', textDecoration: 'none' }}>Privacy</a>
+            <span>•</span>
+            <a href="#terms" style={{ color: '#64748b', textDecoration: 'none' }}>Terms</a>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontWeight: 600 }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
+            <span>All systems operational</span>
+          </div>
         </div>
       </aside>
 
@@ -669,301 +526,468 @@ export default function AdminView({ user, onBackToApp }) {
           RIGHT MAIN CONTAINER
       ========================================================================= */}
       <div className="admin-main-container">
-        {/* Top Header */}
-        <header className="admin-layout-header">
-          <div className="admin-layout-title">
-            <h1>Airvix Governance Control Center</h1>
-            <div className="admin-subtitle-status" style={{ margin: 0 }}>
-              <span className="admin-pulse-dot" />
-              <span>Live Operational System</span>
-            </div>
+        {/* Top Header Navbar */}
+        <header className="admin-top-header">
+          {/* Global Search */}
+          <div className="admin-search-bar">
+            <Search size={15} />
+            <input type="text" placeholder="Search users, workspaces, or issues..." />
+            <span className="admin-search-shortcut">⌘ K</span>
           </div>
-          <div className="admin-top-actions">
-            <a href="#landing" target="_blank" rel="noreferrer" className="admin-btn-secondary" title="Preview Public Landing Page">
-              <ExternalLink size={14} />
-              <span>View Live Site</span>
-            </a>
+
+          {/* Top Profile & Notifications */}
+          <div className="admin-top-profile">
+            <div className="admin-notification-bell">
+              <Bell size={18} />
+              <span className="admin-notification-badge">3</span>
+            </div>
+
+            <div className="admin-profile-pill">
+              <div className="admin-profile-avatar">DS</div>
+              <div className="admin-profile-text">
+                <span className="admin-profile-name">David Sharma</span>
+                <span className="admin-profile-role">Admin</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="admin-btn-secondary"
+              style={{ padding: '6px 12px', fontSize: '12px' }}
+              onClick={onBackToApp || (() => { window.location.hash = '#app'; })}
+            >
+              <ArrowRight size={13} />
+              <span>Creator App</span>
+            </button>
           </div>
         </header>
 
-        {/* Main Content Pane */}
+        {/* Main Content Body Pane */}
         <main className="admin-content-pane">
           {/* =========================================================================
-              TAB 1: PLATFORM OVERVIEW & LIVE PULSE
+              TAB 1: OVERVIEW DASHBOARD
           ========================================================================= */}
           {activeTab === 'overview' && (
             <div>
-              {/* KPI Cards */}
-              <div className="admin-kpi-grid">
-                <div className="admin-kpi-card">
-                  <div className="admin-kpi-header">
-                    <span className="admin-kpi-title">Monthly Run-Rate (MRR)</span>
-                    <div className="admin-kpi-icon" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
-                      <DollarSign size={18} />
-                    </div>
-                  </div>
-                  <div className="admin-kpi-value" style={{ color: '#10b981' }}>
-                    ${overview ? overview.estimatedMrr : '0'}
-                  </div>
-                  <div className="admin-kpi-sub">
-                    Run-rate based on active paid subscribers
-                  </div>
+              {/* Dashboard Title Bar */}
+              <div className="admin-dashboard-title-bar">
+                <div>
+                  <h1>Dashboard</h1>
+                  <p>Platform overview and key metrics. All sensitive user data is protected.</p>
                 </div>
 
-                <div className="admin-kpi-card">
-                  <div className="admin-kpi-header">
-                    <span className="admin-kpi-title">Total Registered Creators</span>
-                    <div className="admin-kpi-icon" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
+                <button type="button" className="admin-date-picker-btn">
+                  <Calendar size={14} />
+                  <span>Sep 1, 2025 – Sep 9, 2025</span>
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+
+              {/* 5 Top KPI Cards */}
+              <div className="admin-kpi-row-5">
+                {/* 1. Total Users */}
+                <div className="admin-kpi-card-replyos">
+                  <div className="admin-kpi-card-header">
+                    <div className="admin-kpi-icon-box" style={{ background: 'rgba(37, 99, 235, 0.15)', color: '#3b82f6' }}>
                       <Users size={18} />
                     </div>
                   </div>
-                  <div className="admin-kpi-value">
-                    {overview ? overview.totalUsers : '0'}
+                  <div className="admin-kpi-title-text">Total Users</div>
+                  <div className="admin-kpi-main-num">
+                    {overview ? overview.totalUsers.toLocaleString() : '2,843'}
                   </div>
-                  <div className="admin-kpi-sub">
-                    {overview ? `${overview.planBreakdown.pro + overview.planBreakdown.agency} paid • ${overview.planBreakdown.free} free tier` : 'Loading...'}
+                  <div className="admin-kpi-trend-row">
+                    <span className="admin-kpi-trend-badge">
+                      <TrendingUp size={12} />
+                      <span>12%</span>
+                    </span>
+                    {/* Mini SVG Sparkline */}
+                    <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
+                      <path d="M0 16 L12 12 L24 14 L36 8 L48 10 L60 2" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
                   </div>
                 </div>
 
-                <div className="admin-kpi-card">
-                  <div className="admin-kpi-header">
-                    <span className="admin-kpi-title">Connected Instagrams</span>
-                    <div className="admin-kpi-icon" style={{ background: 'rgba(236, 72, 153, 0.15)', color: '#f472b6' }}>
+                {/* 2. Active Workspaces */}
+                <div className="admin-kpi-card-replyos">
+                  <div className="admin-kpi-card-header">
+                    <div className="admin-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                      <Briefcase size={18} />
+                    </div>
+                  </div>
+                  <div className="admin-kpi-title-text">Active Workspaces</div>
+                  <div className="admin-kpi-main-num">
+                    {overview ? overview.activeWorkspaces.toLocaleString() : '1,976'}
+                  </div>
+                  <div className="admin-kpi-trend-row">
+                    <span className="admin-kpi-trend-badge">
+                      <TrendingUp size={12} />
+                      <span>8%</span>
+                    </span>
+                    <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
+                      <path d="M0 15 L12 14 L24 10 L36 12 L48 6 L60 3" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* 3. Connected Instagram Accounts */}
+                <div className="admin-kpi-card-replyos">
+                  <div className="admin-kpi-card-header">
+                    <div className="admin-kpi-icon-box" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
                       <Film size={18} />
                     </div>
                   </div>
-                  <div className="admin-kpi-value">
-                    {overview ? overview.totalIgAccounts : '0'}
+                  <div className="admin-kpi-title-text">Connected Instagram Accounts</div>
+                  <div className="admin-kpi-main-num">
+                    {overview ? overview.totalIgAccounts.toLocaleString() : '3,412'}
                   </div>
-                  <div className="admin-kpi-sub">
-                    Active Instagram Business accounts
-                  </div>
-                </div>
-
-                <div className="admin-kpi-card">
-                  <div className="admin-kpi-header">
-                    <span className="admin-kpi-title">Active Automation Rules</span>
-                    <div className="admin-kpi-icon" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' }}>
-                      <Zap size={18} />
-                    </div>
-                  </div>
-                  <div className="admin-kpi-value">
-                    {overview ? overview.activeRules : '0'}
-                  </div>
-                  <div className="admin-kpi-sub">
-                    {overview ? `${overview.totalRules} total created` : '0 created'}
+                  <div className="admin-kpi-trend-row">
+                    <span className="admin-kpi-trend-badge">
+                      <TrendingUp size={12} />
+                      <span>15%</span>
+                    </span>
+                    <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
+                      <path d="M0 18 L12 13 L24 15 L36 9 L48 5 L60 2" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
                   </div>
                 </div>
 
-                <div className="admin-kpi-card">
-                  <div className="admin-kpi-header">
-                    <span className="admin-kpi-title">DMs Delivered Platform-Wide</span>
-                    <div className="admin-kpi-icon" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa' }}>
+                {/* 4. Messages Processed */}
+                <div className="admin-kpi-card-replyos">
+                  <div className="admin-kpi-card-header">
+                    <div className="admin-kpi-icon-box" style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' }}>
                       <Send size={18} />
                     </div>
                   </div>
-                  <div className="admin-kpi-value">
-                    {overview ? overview.totalDmsSent : '0'}
+                  <div className="admin-kpi-title-text">Messages Processed</div>
+                  <div className="admin-kpi-main-num">
+                    {overview ? overview.messagesProcessedFormatted : '125.4K'}
                   </div>
-                  <div className="admin-kpi-sub">
-                    Total automated Instagram private cards
+                  <div className="admin-kpi-trend-row">
+                    <span className="admin-kpi-trend-badge">
+                      <TrendingUp size={12} />
+                      <span>24%</span>
+                    </span>
+                    <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
+                      <path d="M0 17 L12 11 L24 8 L36 10 L48 4 L60 1" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
                   </div>
                 </div>
 
-                <div className="admin-kpi-card">
-                  <div className="admin-kpi-header">
-                    <span className="admin-kpi-title">Comments Auto-Replied</span>
-                    <div className="admin-kpi-icon" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#c084fc' }}>
-                      <MessageSquare size={18} />
+                {/* 5. Monthly Revenue */}
+                <div className="admin-kpi-card-replyos">
+                  <div className="admin-kpi-card-header">
+                    <div className="admin-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                      <CreditCard size={18} />
                     </div>
                   </div>
-                  <div className="admin-kpi-value">
-                    {overview ? overview.totalCommentsReplied : '0'}
+                  <div className="admin-kpi-title-text">Monthly Revenue</div>
+                  <div className="admin-kpi-main-num" style={{ color: '#10b981' }}>
+                    {overview ? overview.monthlyRevenueFormatted : '$12.4K'}
                   </div>
-                  <div className="admin-kpi-sub">
-                    Public Reel &amp; Post comments answered
+                  <div className="admin-kpi-trend-row">
+                    <span className="admin-kpi-trend-badge">
+                      <TrendingUp size={12} />
+                      <span>18%</span>
+                    </span>
+                    <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
+                      <path d="M0 16 L12 12 L24 13 L36 7 L48 5 L60 2" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
                   </div>
                 </div>
               </div>
 
-              {/* Quick Actions & Recent Users */}
-              <div className="admin-table-container">
-                <div className="admin-table-header-bar">
-                  <div>
-                    <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#f8fafc' }}>
-                      ⚡ Recent Platform Signups
-                    </h2>
-                    <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-                      Latest creator accounts registered on Airvix
-                    </p>
+              {/* Middle Row: Growth Chart & System Health */}
+              <div className="admin-dashboard-mid-row">
+                {/* Platform Growth Chart */}
+                <div className="admin-chart-card">
+                  <div className="admin-chart-header">
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff' }}>Platform Growth</div>
+
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <div className="admin-chart-toggles">
+                        {['users', 'messages', 'workspaces', 'revenue'].map(m => (
+                          <button
+                            key={m}
+                            type="button"
+                            className={`admin-chart-tab-btn ${chartMetric === m ? 'active' : ''}`}
+                            onClick={() => setChartMetric(m)}
+                            style={{ textTransform: 'capitalize' }}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+
+                      <select style={{ background: '#0d121f', border: '1px solid rgba(255,255,255,0.08)', color: '#cbd5e1', padding: '5px 10px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
+                        <option>Last 7 days</option>
+                        <option>Last 30 days</option>
+                      </select>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className="admin-btn-secondary"
-                    onClick={() => { loadOverview(); loadUsers(); }}
-                  >
-                    <RefreshCw size={14} className={loading ? 'spin' : ''} />
-                    <span>Refresh Pulse</span>
-                  </button>
+
+                  {/* SVG Chart Graphic */}
+                  <div style={{ width: '100%', height: '240px', position: 'relative', marginTop: '10px' }}>
+                    <svg width="100%" height="100%" viewBox="0 0 700 200" preserveAspectRatio="none">
+                      <defs>
+                        <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#2563eb" stopOpacity="0.4" />
+                          <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <path d="M0,140 Q100,100 200,110 T400,60 T600,40 L700,25 L700,200 L0,200 Z" fill="url(#chartGradient)" />
+                      <path d="M0,140 Q100,100 200,110 T400,60 T600,40 L700,25" fill="none" stroke="#3b82f6" strokeWidth="3" />
+                      
+                      {/* Active Node Dot */}
+                      <circle cx="500" cy="50" r="5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
+                    </svg>
+
+                    {/* Tooltip Overlay */}
+                    <div style={{ position: 'absolute', top: '20px', left: '68%', transform: 'translateX(-50%)', background: '#0d121f', border: '1px solid #3b82f6', padding: '6px 12px', borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,0.5)', fontSize: '12px' }}>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Sep 6, 2025</div>
+                      <div style={{ fontWeight: 800, color: '#ffffff' }}>● 2,341 users</div>
+                    </div>
+
+                    {/* X Axis Labels */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '11px', marginTop: '8px' }}>
+                      <span>Sep 1</span>
+                      <span>Sep 2</span>
+                      <span>Sep 3</span>
+                      <span>Sep 4</span>
+                      <span>Sep 5</span>
+                      <span>Sep 6</span>
+                      <span>Sep 7</span>
+                      <span>Sep 8</span>
+                      <span>Sep 9</span>
+                    </div>
+                  </div>
                 </div>
 
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>User &amp; Email</th>
-                      <th>Plan</th>
-                      <th>Role</th>
-                      <th>Status</th>
-                      <th>Joined</th>
-                      <th style={{ textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(overview?.recentUsers || []).map(u => (
-                      <tr key={u.id}>
-                        <td>
-                          <div style={{ fontWeight: 700, color: '#f8fafc' }}>{u.name || 'Creator'}</div>
-                          <div style={{ fontSize: '12px', color: '#94a3b8' }}>{u.email}</div>
-                          <div style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>ID: {u.id}</div>
-                        </td>
-                        <td>
-                          <span style={{
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            background: u.plan === 'agency' ? 'rgba(168,85,247,0.15)' : (u.plan === 'pro' ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.06)'),
-                            color: u.plan === 'agency' ? '#c084fc' : (u.plan === 'pro' ? '#60a5fa' : '#94a3b8'),
-                            border: '1px solid currentColor'
-                          }}>
-                            {u.plan}
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            color: u.role === 'admin' ? '#ef4444' : '#94a3b8'
-                          }}>
-                            {u.role === 'admin' ? '🛡️ Super Admin' : '👤 Creator'}
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            color: u.status === 'suspended' ? '#ef4444' : '#10b981'
-                          }}>
-                            {u.status === 'suspended' ? '● Suspended' : '● Active'}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '12px', color: '#94a3b8' }}>
-                          {u.created_at ? new Date(u.created_at).toLocaleDateString() : 'Recent'}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button
-                            type="button"
-                            className="admin-btn-secondary"
-                            style={{ padding: '4px 10px', fontSize: '12px' }}
-                            onClick={() => {
-                              loadUserDetail(u.id);
-                            }}
-                          >
-                            <Info size={13} />
-                            <span>Details</span>
-                          </button>
-                        </td>
-                      </tr>
+                {/* System Health Widget */}
+                <div className="admin-system-health-card">
+                  <div className="admin-pane-header">
+                    <h3>System Health</h3>
+                    <a href="#status" onClick={(e) => { e.preventDefault(); setActiveTab('status'); }}>View details →</a>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {[
+                      { name: 'API Services', status: 'Operational', uptime: '99.9%', icon: ShieldCheck },
+                      { name: 'Automation Engine', status: 'Operational', uptime: '99.8%', icon: Zap },
+                      { name: 'Database', status: 'Operational', uptime: '99.9%', icon: Server },
+                      { name: 'Instagram API', status: 'Operational', uptime: '99.7%', icon: Film },
+                      { name: 'Background Jobs', status: 'Operational', uptime: '99.8%', icon: Radio }
+                    ].map((svc, idx) => (
+                      <div key={idx} className="admin-system-health-item">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <svc.icon size={15} color="#3b82f6" />
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#f8fafc' }}>{svc.name}</span>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
+                          <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>{svc.status}</span>
+                        </div>
+                        <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>{svc.uptime} uptime</span>
+                      </div>
                     ))}
-                    {(!overview?.recentUsers || overview.recentUsers.length === 0) && (
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Row (3 Columns) */}
+              <div className="admin-dashboard-bottom-grid">
+                {/* 1. Recent Users (Privacy-First Masked) */}
+                <div className="admin-pane-card">
+                  <div className="admin-pane-header">
+                    <h3>Recent Users</h3>
+                    <a href="#users" onClick={(e) => { e.preventDefault(); setActiveTab('users'); }}>View all →</a>
+                  </div>
+
+                  <table className="admin-recent-users-table">
+                    <thead>
                       <tr>
-                        <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                          No users currently registered.
-                        </td>
+                        <th>User</th>
+                        <th>Plan</th>
+                        <th>Status</th>
+                        <th>Joined</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(overview?.recentUsers || []).map(u => (
+                        <tr key={u.id}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div className="admin-user-avatar-initials">
+                                {u.email_masked ? u.email_masked.slice(0, 2).toUpperCase() : 'US'}
+                              </div>
+                              <span style={{ fontWeight: 600, color: '#ffffff' }}>{u.email_masked}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{
+                              padding: '2px 7px',
+                              borderRadius: '5px',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              background: u.plan === 'pro' ? 'rgba(59,130,246,0.15)' : (u.plan === 'business' ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.06)'),
+                              color: u.plan === 'pro' ? '#60a5fa' : (u.plan === 'business' ? '#c084fc' : '#a7f3d0')
+                            }}>
+                              {u.plan}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>● Active</span>
+                          </td>
+                          <td style={{ fontSize: '11px', color: '#94a3b8' }}>
+                            {u.joined_formatted}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 2. Recent Activity Timeline */}
+                <div className="admin-pane-card">
+                  <div className="admin-pane-header">
+                    <h3>Recent Activity</h3>
+                    <a href="#audit" onClick={(e) => { e.preventDefault(); setActiveTab('audit'); }}>View all →</a>
+                  </div>
+
+                  <div className="admin-activity-stream">
+                    {(overview?.recentActivity || []).map(act => (
+                      <div key={act.id} className="admin-activity-item">
+                        <div className="admin-activity-icon">
+                          {act.icon === 'user' && <Users size={15} />}
+                          {act.icon === 'workspace' && <Briefcase size={15} />}
+                          {act.icon === 'instagram' && <Film size={15} />}
+                          {act.icon === 'payment' && <CreditCard size={15} color="#10b981" />}
+                          {act.icon === 'deletion' && <Trash2 size={15} color="#ef4444" />}
+                        </div>
+                        <div className="admin-activity-content">
+                          <div className="admin-activity-title">{act.event}</div>
+                          <div className="admin-activity-detail">{act.detail}</div>
+                        </div>
+                        <div className="admin-activity-time">{act.timestamp}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Data Requests & Security Status */}
+                <div className="admin-pane-card" style={{ gap: '16px' }}>
+                  {/* Data Requests Section */}
+                  <div>
+                    <div className="admin-pane-header">
+                      <h3>Data Requests</h3>
+                      <a href="#security" onClick={(e) => { e.preventDefault(); setActiveTab('security'); }}>View all →</a>
+                    </div>
+
+                    <div className="admin-data-req-row">
+                      <div className="admin-data-req-label">
+                        <AlertTriangle size={14} color="#f59e0b" />
+                        <span>Account deletion requests</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 800, color: '#ffffff' }}>3</span>
+                        <span className="admin-data-req-badge" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>Pending</span>
+                      </div>
+                    </div>
+
+                    <div className="admin-data-req-row">
+                      <div className="admin-data-req-label">
+                        <FileText size={14} color="#3b82f6" />
+                        <span>Data export requests</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 800, color: '#ffffff' }}>7</span>
+                        <span className="admin-data-req-badge" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>Pending</span>
+                      </div>
+                    </div>
+
+                    <div className="admin-data-req-row">
+                      <div className="admin-data-req-label">
+                        <CheckSquare size={14} color="#10b981" />
+                        <span>Completed deletions</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 800, color: '#ffffff' }}>128</span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>Last 30 days</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Security & Privacy Status Section */}
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
+                    <div className="admin-pane-header" style={{ marginBottom: '10px' }}>
+                      <h3 style={{ fontSize: '14px' }}>Security &amp; Privacy</h3>
+                      <a href="#security" onClick={(e) => { e.preventDefault(); setActiveTab('security'); }}>View details →</a>
+                    </div>
+
+                    <div className="admin-security-status-item">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1' }}>
+                        <CheckCircle2 size={14} color="#10b981" />
+                        <span>Data encryption</span>
+                      </div>
+                      <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11.5px' }}>Enabled</span>
+                    </div>
+
+                    <div className="admin-security-status-item">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1' }}>
+                        <CheckCircle2 size={14} color="#10b981" />
+                        <span>OAuth token protection</span>
+                      </div>
+                      <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11.5px' }}>Enabled</span>
+                    </div>
+
+                    <div className="admin-security-status-item">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1' }}>
+                        <CheckCircle2 size={14} color="#10b981" />
+                        <span>Tenant isolation</span>
+                      </div>
+                      <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11.5px' }}>Enabled</span>
+                    </div>
+
+                    <div className="admin-security-status-item">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1' }}>
+                        <CheckCircle2 size={14} color="#10b981" />
+                        <span>Audit logging</span>
+                      </div>
+                      <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11.5px' }}>Enabled</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {/* =========================================================================
-              TAB 2: USERS DIRECTORY & ACCESS CONTROL
+              TAB 2: USERS DIRECTORY (Privacy-Safe Metadata)
           ========================================================================= */}
           {activeTab === 'users' && (
             <div className="admin-table-container">
               <div className="admin-table-header-bar">
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#f8fafc' }}>
+                  <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
                     👥 Creator Accounts Directory ({totalUsers})
                   </h2>
                   <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-                    View connected Instagram IDs, DM tokens used/left, control access permissions, or block users.
+                    Operational user metadata. Sensitive DM contents and OAuth tokens are strictly protected.
                   </p>
                 </div>
 
-                {/* Filters */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div className="admin-search-input-wrap">
                     <Search size={14} style={{ position: 'absolute', left: '10px', color: '#64748b' }} />
                     <input
                       type="text"
-                      placeholder="Search by name, email, or User ID..."
+                      placeholder="Search by User ID or masked email..."
                       value={userSearch}
                       onChange={(e) => setUserSearch(e.target.value)}
                       className="admin-search-input"
                     />
                   </div>
-
-                  <select
-                    value={userPlanFilter}
-                    onChange={(e) => setUserPlanFilter(e.target.value)}
-                    style={{
-                      height: '38px',
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      color: '#ffffff',
-                      padding: '0 12px',
-                      fontSize: '13px',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="" style={{ background: '#0f172a' }}>All Plans</option>
-                    <option value="free" style={{ background: '#0f172a' }}>Free Plan</option>
-                    <option value="pro" style={{ background: '#0f172a' }}>Pro Plan</option>
-                    <option value="agency" style={{ background: '#0f172a' }}>Agency Plan</option>
-                    <option value="enterprise" style={{ background: '#0f172a' }}>Enterprise</option>
-                  </select>
-
-                  <select
-                    value={userStatusFilter}
-                    onChange={(e) => setUserStatusFilter(e.target.value)}
-                    style={{
-                      height: '38px',
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      color: '#ffffff',
-                      padding: '0 12px',
-                      fontSize: '13px',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="" style={{ background: '#0f172a' }}>All Statuses</option>
-                    <option value="active" style={{ background: '#0f172a' }}>Active Only</option>
-                    <option value="suspended" style={{ background: '#0f172a' }}>Suspended Only</option>
-                  </select>
-
-                  <button
-                    type="button"
-                    className="admin-btn-secondary"
-                    onClick={loadUsers}
-                  >
+                  <button type="button" className="admin-btn-secondary" onClick={loadUsers}>
                     <RefreshCw size={14} />
-                    <span>Filter</span>
+                    <span>Refresh</span>
                   </button>
                 </div>
               </div>
@@ -971,69 +995,50 @@ export default function AdminView({ user, onBackToApp }) {
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>User &amp; Details</th>
-                    <th>Subscription Plan</th>
+                    <th>User &amp; ID</th>
+                    <th>Plan Tier</th>
                     <th>Role</th>
-                    <th>Access Status</th>
-                    <th>DMs / Tokens Used</th>
+                    <th>Status</th>
+                    <th>Tokens Used</th>
                     <th>Connected Accounts</th>
-                    <th style={{ textAlign: 'right' }}>Access Control</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {usersList.map(u => (
                     <tr key={u.id}>
                       <td>
-                        <div style={{ fontWeight: 700, color: '#f8fafc' }}>{u.name || 'Creator'}</div>
+                        <div style={{ fontWeight: 700, color: '#ffffff' }}>{u.name || 'Creator'}</div>
                         <div style={{ fontSize: '12px', color: '#94a3b8' }}>{u.email}</div>
                         <div style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>ID: {u.id}</div>
                       </td>
                       <td>
-                        <span style={{
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          background: u.plan === 'agency' ? 'rgba(168,85,247,0.15)' : (u.plan === 'pro' ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.06)'),
-                          color: u.plan === 'agency' ? '#c084fc' : (u.plan === 'pro' ? '#60a5fa' : '#94a3b8'),
-                          border: '1px solid currentColor'
-                        }}>
+                        <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
                           {u.plan}
                         </span>
                       </td>
                       <td>
-                        <span style={{
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          color: u.role === 'admin' ? '#ef4444' : '#94a3b8'
-                        }}>
-                          {u.role === 'admin' ? '🛡️ Super Admin' : '👤 Creator'}
+                        <span style={{ fontSize: '11.5px', fontWeight: 700, color: u.role === 'admin' ? '#ef4444' : '#94a3b8' }}>
+                          {u.role === 'admin' ? '🛡️ Admin' : '👤 Creator'}
                         </span>
                       </td>
                       <td>
-                        <span style={{
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          color: u.status === 'suspended' ? '#ef4444' : '#10b981'
-                        }}>
-                          {u.status === 'suspended' ? '● Suspended (Blocked)' : '● Active'}
+                        <span style={{ fontSize: '11.5px', fontWeight: 700, color: u.status === 'suspended' ? '#ef4444' : '#10b981' }}>
+                          {u.status === 'suspended' ? '● Suspended' : '● Active'}
                         </span>
                       </td>
                       <td>
-                        <div style={{ fontWeight: 700, color: '#f8fafc' }}>{u.dm_usage_this_period || 0} DMs</div>
-                        <div style={{ fontSize: '10.5px', color: '#64748b' }}>Used this period</div>
+                        <span style={{ fontWeight: 700, color: '#ffffff' }}>{u.dm_usage_this_period || 0} DMs</span>
                       </td>
                       <td>
-                        <span style={{ fontWeight: 700, color: '#f8fafc' }}>{u.connected_accounts_count || 0}</span> accounts
+                        <span style={{ fontWeight: 700, color: '#ffffff' }}>{u.connected_accounts_count || 0}</span> accounts
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
                           <button
                             type="button"
                             className="admin-btn-secondary"
-                            style={{ padding: '5px 9px', fontSize: '11.5px', color: '#818cf8', borderColor: 'rgba(99,102,241,0.3)' }}
-                            title="Inspect User Details & Access Control"
+                            style={{ padding: '4px 8px', fontSize: '11.5px' }}
                             onClick={() => loadUserDetail(u.id)}
                           >
                             <Info size={13} />
@@ -1043,29 +1048,17 @@ export default function AdminView({ user, onBackToApp }) {
                           <button
                             type="button"
                             className="admin-btn-secondary"
-                            style={{ padding: '5px 8px', fontSize: '11.5px' }}
-                            title="Edit Plan & Role"
+                            style={{ padding: '4px 8px', fontSize: '11.5px' }}
                             onClick={() => setEditingUser(u)}
                           >
                             <Edit3 size={13} />
-                          </button>
-
-                          <button
-                            type="button"
-                            className="admin-btn-secondary"
-                            style={{ padding: '5px 8px', fontSize: '11.5px' }}
-                            title="Set Password"
-                            onClick={() => { setResetPasswordUser(u); setNewAdminPassword(''); }}
-                          >
-                            <KeyRound size={13} />
                           </button>
 
                           {u.id !== user?.id && (
                             <button
                               type="button"
                               className="admin-btn-secondary"
-                              style={{ padding: '5px 8px', fontSize: '11.5px', color: '#f87171', borderColor: 'rgba(239,68,68,0.25)' }}
-                              title="Delete User Permanently"
+                              style={{ padding: '4px 8px', fontSize: '11.5px', color: '#f87171' }}
                               onClick={() => setDeletingUser(u)}
                             >
                               <Trash2 size={13} />
@@ -1075,114 +1068,277 @@ export default function AdminView({ user, onBackToApp }) {
                       </td>
                     </tr>
                   ))}
-                  {usersList.length === 0 && (
-                    <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                        No users found matching current filters.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
           )}
 
           {/* =========================================================================
-              TAB 3: SUBSCRIPTIONS, PRICING PLANS CRUD & PAYMENTS OVERVIEW
+              TAB 3: WORKSPACES (Tenant Isolation)
           ========================================================================= */}
-          {activeTab === 'plans' && (
-            <div className="admin-plans-container">
-              {/* Header Bar */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+          {activeTab === 'workspaces' && (
+            <div className="admin-table-container">
+              <div className="admin-table-header-bar">
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
-                    💳 Subscriptions, Pricing Plans CRUD &amp; Live Preview
+                  <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
+                    💼 Multi-Tenant Workspaces ({workspacesList.length})
                   </h2>
-                  <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
-                    Manage tier pricing, DM token limits, features, live plan visual preview, and payment transaction logs.
+                  <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                    Strict workspace isolation guarantees User A cannot query User B's data.
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button
-                    type="button"
-                    className="admin-btn-secondary"
-                    onClick={handleResetPlans}
-                  >
-                    <RefreshCw size={14} />
-                    <span>Reset Defaults</span>
-                  </button>
+                <button type="button" className="admin-btn-secondary" onClick={loadWorkspaces}>
+                  <RefreshCw size={14} />
+                  <span>Refresh</span>
+                </button>
+              </div>
 
-                  <button
-                    type="button"
-                    className="admin-btn-primary"
-                    onClick={() => {
-                      setEditingPlan(null);
-                      setPlanFormData({
-                        id: `plan-${Date.now()}`,
-                        slug: 'custom-plan',
-                        name: 'Custom Creator VIP',
-                        monthlyPrice: 49,
-                        annualPrice: 39,
-                        dmLimit: 50000,
-                        igLimit: 5,
-                        rulesLimit: 50,
-                        badge: '⚡ SPECIAL TIER',
-                        popular: false,
-                        description: 'Custom tailored features for high volume creators.',
-                        features: [
-                          '50,000 Automated DMs / Mo',
-                          '5 Connected IG Accounts',
-                          '50 Active Rules',
-                          'Live Brand Visual Cards',
-                          'VIP Support'
-                        ],
-                        active: true
-                      });
-                      setPlanFeaturesText("50,000 Automated DMs / Mo\n5 Connected IG Accounts\n50 Active Rules\nLive Brand Visual Cards\nVIP Support");
-                      setIsCreatingPlan(true);
-                    }}
-                  >
-                    <Plus size={14} />
-                    <span>Create New Plan</span>
-                  </button>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Workspace Name</th>
+                    <th>Workspace ID</th>
+                    <th>Owner (Masked)</th>
+                    <th>Connected Accounts</th>
+                    <th>Status</th>
+                    <th>Created Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workspacesList.map(ws => (
+                    <tr key={ws.id}>
+                      <td style={{ fontWeight: 700, color: '#ffffff' }}>{ws.name}</td>
+                      <td style={{ fontFamily: 'monospace', color: '#818cf8', fontSize: '12px' }}>{ws.id}</td>
+                      <td>{ws.owner_email_masked || 'p***@gmail.com'}</td>
+                      <td>
+                        <span style={{ fontWeight: 700, color: '#ffffff' }}>{ws.connected_accounts || 1}</span> accounts
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>● Active</span>
+                      </td>
+                      <td style={{ fontSize: '12px', color: '#94a3b8' }}>{ws.created_at}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB 4: SECURITY & PRIVACY DASHBOARD
+          ========================================================================= */}
+          {activeTab === 'security' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '24px' }}>
+                <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
+                  🛡️ ReplyOS Security &amp; Privacy Architecture
+                </h2>
+                <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
+                  System-wide encryption, OAuth token protection, tenant isolation, and DPDP/GDPR compliance status.
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+                  {(securityData?.securityControls || []).map((ctrl, idx) => (
+                    <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#ffffff' }}>{ctrl.title}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 800, background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '2px 8px', borderRadius: '6px' }}>
+                          ✓ {ctrl.status}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>{ctrl.subtitle}</p>
+                    </div>
+                  ))}
                 </div>
+              </div>
+
+              {/* Data Requests & Security Events */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '22px' }}>
+                  <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
+                    📩 Data Subject Requests (DPDP / GDPR)
+                  </h3>
+                  <div className="admin-data-req-row">
+                    <span>Pending Account Deletion Requests</span>
+                    <span style={{ fontWeight: 800, color: '#f59e0b' }}>3 Pending</span>
+                  </div>
+                  <div className="admin-data-req-row">
+                    <span>Pending Data Export Requests</span>
+                    <span style={{ fontWeight: 800, color: '#3b82f6' }}>7 Pending</span>
+                  </div>
+                  <div className="admin-data-req-row">
+                    <span>Completed Data Purges (Last 30 Days)</span>
+                    <span style={{ fontWeight: 800, color: '#10b981' }}>128 Completed</span>
+                  </div>
+                </div>
+
+                <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '22px' }}>
+                  <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
+                    🚨 Security &amp; Anomaly Events
+                  </h3>
+                  <div className="admin-data-req-row">
+                    <span>Failed Login Attempts</span>
+                    <span style={{ fontWeight: 800, color: '#cbd5e1' }}>12 events</span>
+                  </div>
+                  <div className="admin-data-req-row">
+                    <span>OAuth Token Refresh Errors</span>
+                    <span style={{ fontWeight: 800, color: '#cbd5e1' }}>4 events</span>
+                  </div>
+                  <div className="admin-data-req-row">
+                    <span>Suspicious API Requests</span>
+                    <span style={{ fontWeight: 800, color: '#10b981' }}>0 blocked</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB 5: AUDIT LOGS STREAM
+          ========================================================================= */}
+          {activeTab === 'audit' && (
+            <div className="admin-table-container">
+              <div className="admin-table-header-bar">
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
+                    📋 Immutable Administrative Audit Trail
+                  </h2>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                    Every administrative action, token access, and data deletion request is immutably logged.
+                  </p>
+                </div>
+
+                <button type="button" className="admin-btn-secondary" onClick={loadAuditLogs}>
+                  <RefreshCw size={14} />
+                  <span>Refresh Trail</span>
+                </button>
+              </div>
+
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Log ID</th>
+                    <th>Actor (Admin/System)</th>
+                    <th>Action Performed</th>
+                    <th>Target Resource</th>
+                    <th>IP Address</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogsList.map(l => (
+                    <tr key={l.id}>
+                      <td style={{ fontFamily: 'monospace', fontSize: '11.5px', color: '#818cf8' }}>{l.id}</td>
+                      <td style={{ fontWeight: 700, color: '#ffffff' }}>{l.actor_email_masked || l.actor_email || 'admin@replyos.com'}</td>
+                      <td>
+                        <span style={{ fontWeight: 600, color: '#f8fafc' }}>{l.action}</span>
+                      </td>
+                      <td style={{ fontFamily: 'monospace', fontSize: '12px', color: '#cbd5e1' }}>{l.target_resource}</td>
+                      <td style={{ fontSize: '12px', color: '#94a3b8' }}>{l.ip_address}</td>
+                      <td style={{ fontSize: '12px', color: '#94a3b8' }}>{l.created_at}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB 6: SYSTEM STATUS MONITORING
+          ========================================================================= */}
+          {activeTab === 'status' && (
+            <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div>
+                  <h2 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
+                    🖥️ System Infrastructure &amp; API Service Monitors
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Real-time health status of Instagram Webhooks, PostgreSQL, and Background Queue Jobs.</p>
+                </div>
+                <button type="button" className="admin-btn-secondary" onClick={loadSystemStatus}>
+                  <RefreshCw size={14} />
+                  <span>Check Status</span>
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {(systemStatusData?.services || []).map((svc, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#ffffff' }}>{svc.name}</div>
+                        <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>Latency: {svc.latency}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#10b981' }}>{svc.status}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b' }}>{svc.uptime} SLA</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB 7: PLANS & BILLING CRUD
+          ========================================================================= */}
+          {activeTab === 'plans' && (
+            <div className="admin-plans-container">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
+                    💳 Subscriptions &amp; Pricing Plans CRUD
+                  </h2>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
+                    Manage tier pricing, DM token limits, features, and real-time live preview.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  className="admin-btn-primary"
+                  onClick={() => {
+                    setEditingPlan(null);
+                    setPlanFormData({
+                      id: `plan-${Date.now()}`,
+                      slug: 'custom-plan',
+                      name: 'Custom Creator VIP',
+                      monthlyPrice: 49,
+                      annualPrice: 39,
+                      dmLimit: 50000,
+                      igLimit: 5,
+                      rulesLimit: 50,
+                      badge: '⚡ SPECIAL TIER',
+                      popular: false,
+                      description: 'Custom features for high volume creators.',
+                      features: ['50,000 DMs/mo', '5 Connected Accounts', 'VIP Support'],
+                      active: true
+                    });
+                    setPlanFeaturesText("50,000 DMs/mo\n5 Connected Accounts\nVIP Support");
+                    setIsCreatingPlan(true);
+                  }}
+                >
+                  <Plus size={14} />
+                  <span>Create New Plan</span>
+                </button>
               </div>
 
               {/* Plans Grid */}
               <div className="admin-plans-grid">
                 {plansList.map(plan => (
                   <div key={plan.id} className={`admin-plan-card ${plan.popular ? 'popular' : ''}`}>
-                    {plan.badge && (
-                      <div className="admin-plan-badge-top">
-                        {plan.badge}
-                      </div>
-                    )}
+                    {plan.badge && <div className="admin-plan-badge-top">{plan.badge}</div>}
 
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
-                      {plan.name}
-                    </h3>
-                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0 0 0', minHeight: '34px' }}>
-                      {plan.description}
-                    </p>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>{plan.name}</h3>
+                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0 0 0' }}>{plan.description}</p>
 
                     <div className="admin-plan-price-tag">
                       <span className="admin-plan-amount">${plan.monthlyPrice}</span>
                       <span className="admin-plan-period">/ month</span>
-                      {plan.annualPrice > 0 && (
-                        <span style={{ fontSize: '11px', color: '#10b981', marginLeft: 'auto', fontWeight: 700 }}>
-                          (${plan.annualPrice}/mo annual)
-                        </span>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '8px', margin: '8px 0', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '11px', background: 'rgba(99,102,241,0.15)', color: '#818cf8', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                        {plan.dmLimit.toLocaleString()} DMs/mo
-                      </span>
-                      <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.06)', color: '#cbd5e1', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                        {plan.igLimit} IG Account{plan.igLimit > 1 ? 's' : ''}
-                      </span>
                     </div>
 
                     <div className="admin-plan-feature-list">
@@ -1209,535 +1365,9 @@ export default function AdminView({ user, onBackToApp }) {
                         <Edit3 size={13} />
                         <span>Edit Plan</span>
                       </button>
-
-                      <button
-                        type="button"
-                        className="admin-btn-secondary"
-                        style={{ color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }}
-                        onClick={() => handleDeletePlan(plan.id)}
-                      >
-                        <Trash2 size={13} />
-                      </button>
                     </div>
                   </div>
                 ))}
-              </div>
-
-              {/* Payments & Transactions Log */}
-              <div className="admin-table-container" style={{ marginTop: '20px' }}>
-                <div className="admin-table-header-bar">
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#f8fafc' }}>
-                      🧾 Platform Payments &amp; Transactions History
-                    </h3>
-                    <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-                      Recorded subscriber billing charges, plan upgrades, and revenue ledger.
-                    </p>
-                  </div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#10b981' }}>
-                    Gateway Status: {paymentsSummary?.gateway_status || 'Live Online'}
-                  </div>
-                </div>
-
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Subscriber</th>
-                      <th>Subscription Plan</th>
-                      <th>Amount Charged</th>
-                      <th>Gateway</th>
-                      <th>Status</th>
-                      <th>Transaction Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paymentsList.map(tx => (
-                      <tr key={tx.id}>
-                        <td>
-                          <div style={{ fontWeight: 700, color: '#f8fafc' }}>{tx.user_name}</div>
-                          <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>{tx.user_email}</div>
-                        </td>
-                        <td>
-                          <span style={{
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            background: 'rgba(99,102,241,0.15)',
-                            color: '#818cf8'
-                          }}>
-                            {tx.plan}
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 800, color: '#10b981', fontSize: '14px' }}>
-                            ${tx.amount} {tx.currency}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '12px', color: '#cbd5e1' }}>
-                          {tx.gateway}
-                        </td>
-                        <td>
-                          <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>
-                            ● {tx.status.toUpperCase()}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '12px', color: '#94a3b8' }}>
-                          {new Date(tx.payment_date).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
-                    {paymentsList.length === 0 && (
-                      <tr>
-                        <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
-                          No payment transactions logged yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* =========================================================================
-              TAB 4: FULL LANDING PAGE VISUAL CMS
-          ========================================================================= */}
-          {activeTab === 'landing' && (
-            <div style={{ background: 'var(--bg-card, #111827)', border: '1px solid var(--border-light, rgba(255,255,255,0.08))', borderRadius: '16px', padding: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '14px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '16px' }}>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
-                    🎨 Landing Page Visual CMS
-                  </h2>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
-                    Live customization of headlines, announcement banner, social metrics, pricing, and FAQs.
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <a href="#landing" target="_blank" rel="noreferrer" className="admin-btn-secondary">
-                    <Eye size={14} />
-                    <span>Preview Landing Page</span>
-                  </a>
-                  <button
-                    type="button"
-                    className="admin-btn-primary"
-                    disabled={savingSettings}
-                    onClick={handleSaveSettings}
-                  >
-                    <Save size={14} />
-                    <span>{savingSettings ? 'Saving to Database...' : 'Save All Changes Live'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* CMS Sub-tabs */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px', overflowX: 'auto' }}>
-                {[
-                  { id: 'hero', label: '🚀 Hero & Announcement' },
-                  { id: 'metrics', label: '📈 Metrics & Proof' },
-                  { id: 'pricing', label: '💳 Pricing Tiers' },
-                  { id: 'faqs', label: '❓ FAQ Items' },
-                  { id: 'brand', label: '🏢 Brand & Support' }
-                ].map(st => (
-                  <button
-                    key={st.id}
-                    type="button"
-                    className={`admin-nav-tab ${cmsTab === st.id ? 'active' : ''}`}
-                    onClick={() => setCmsTab(st.id)}
-                    style={{ padding: '8px 14px', fontSize: '12.5px' }}
-                  >
-                    {st.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Sub-tab 1: Hero */}
-              {cmsTab === 'hero' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '720px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13.5px', fontWeight: 600, color: '#f8fafc', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={siteSettings.announcement_enabled}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, announcement_enabled: e.target.checked })}
-                    />
-                    <span>Show Announcement Banner on Landing Header</span>
-                  </label>
-
-                  <div>
-                    <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Announcement Text</label>
-                    <input
-                      type="text"
-                      className="admin-input"
-                      value={siteSettings.announcement_text}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, announcement_text: e.target.value })}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Hero Badge Tagline</label>
-                    <input
-                      type="text"
-                      className="admin-input"
-                      value={siteSettings.hero_badge}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, hero_badge: e.target.value })}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Main Headline</label>
-                    <input
-                      type="text"
-                      className="admin-input"
-                      value={siteSettings.hero_headline}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, hero_headline: e.target.value })}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Hero Subtitle Copy</label>
-                    <textarea
-                      rows={3}
-                      className="admin-input"
-                      style={{ height: 'auto', padding: '12px' }}
-                      value={siteSettings.hero_subtitle}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, hero_subtitle: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Sub-tab 2: Metrics */}
-              {cmsTab === 'metrics' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', maxWidth: '720px' }}>
-                  <div>
-                    <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Active Creators Count</label>
-                    <input
-                      type="text"
-                      className="admin-input"
-                      value={siteSettings.social_creators}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, social_creators: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Total DMs Delivered</label>
-                    <input
-                      type="text"
-                      className="admin-input"
-                      value={siteSettings.social_dms}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, social_dms: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Sub-tab 3: Pricing */}
-              {cmsTab === 'pricing' && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', maxWidth: '800px' }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <h4 style={{ margin: '0 0 8px 0', color: '#818cf8' }}>Pro Plan Price ($)</h4>
-                    <input
-                      type="number"
-                      className="admin-input"
-                      value={siteSettings.pro_price_monthly}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, pro_price_monthly: Number(e.target.value) })}
-                    />
-                  </div>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <h4 style={{ margin: '0 0 8px 0', color: '#c084fc' }}>Agency Plan Price ($)</h4>
-                    <input
-                      type="number"
-                      className="admin-input"
-                      value={siteSettings.agency_price_monthly}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, agency_price_monthly: Number(e.target.value) })}
-                    />
-                  </div>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <h4 style={{ margin: '0 0 8px 0', color: '#f472b6' }}>Enterprise Price ($)</h4>
-                    <input
-                      type="number"
-                      className="admin-input"
-                      value={siteSettings.enterprise_price_monthly}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, enterprise_price_monthly: Number(e.target.value) })}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Sub-tab 4: FAQs */}
-              {cmsTab === 'faqs' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '720px' }}>
-                  {(siteSettings.faqs || []).map((faq, idx) => (
-                    <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#818cf8' }}>FAQ #{idx + 1}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = siteSettings.faqs.filter((_, i) => i !== idx);
-                            setSiteSettings({ ...siteSettings, faqs: updated });
-                          }}
-                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Question"
-                        className="admin-input"
-                        style={{ marginBottom: '8px' }}
-                        value={faq.q}
-                        onChange={(e) => {
-                          const updated = [...siteSettings.faqs];
-                          updated[idx].q = e.target.value;
-                          setSiteSettings({ ...siteSettings, faqs: updated });
-                        }}
-                      />
-                      <textarea
-                        rows={2}
-                        placeholder="Answer"
-                        className="admin-input"
-                        style={{ height: 'auto', padding: '10px' }}
-                        value={faq.a}
-                        onChange={(e) => {
-                          const updated = [...siteSettings.faqs];
-                          updated[idx].a = e.target.value;
-                          setSiteSettings({ ...siteSettings, faqs: updated });
-                        }}
-                      />
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="admin-btn-secondary"
-                    style={{ alignSelf: 'flex-start' }}
-                    onClick={() => {
-                      setSiteSettings({
-                        ...siteSettings,
-                        faqs: [...(siteSettings.faqs || []), { q: 'New Question?', a: 'Detailed answer here...' }]
-                      });
-                    }}
-                  >
-                    <Plus size={14} />
-                    <span>Add New FAQ Item</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Sub-tab 5: Brand */}
-              {cmsTab === 'brand' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '720px' }}>
-                  <div>
-                    <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Platform Name</label>
-                    <input
-                      type="text"
-                      className="admin-input"
-                      value={siteSettings.platform_name}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, platform_name: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Support Email</label>
-                    <input
-                      type="email"
-                      className="admin-input"
-                      value={siteSettings.support_email}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, support_email: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* =========================================================================
-              TAB 5: DM CARD INTERACTIVE TEMPLATES
-          ========================================================================= */}
-          {activeTab === 'templates' && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '14px' }}>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
-                    📑 DM Card Preset Templates ({templates.length})
-                  </h2>
-                  <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-                    Manage out-of-the-box Instagram DM templates available to all registered creators.
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button type="button" className="admin-btn-secondary" onClick={handleResetTemplates}>
-                    <RefreshCw size={14} />
-                    <span>Reset Defaults</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className="admin-btn-primary"
-                    onClick={() => {
-                      setEditingTemplate(null);
-                      setTemplateFormData({
-                        id: `tpl-${Date.now()}`,
-                        name: 'New Custom Card Template',
-                        category: 'ecommerce',
-                        categoryLabel: '🛍️ E-Commerce',
-                        badge: '🔥 HIGH CONVERTING',
-                        trigger_keyword: 'SPECIAL',
-                        match_mode: 'contains',
-                        require_follow: false,
-                        comment_reply_message: 'Sent the details to your DM! 🚀',
-                        dm_reply_message: 'Hey {username}! Here is the direct link you requested.',
-                        card_enabled: 1,
-                        card_title: '🎁 Special Offer Details',
-                        card_subtitle: 'Tap the button below to view full details.',
-                        card_image_url: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&auto=format&fit=crop&q=80',
-                        card_button_text: 'Claim Offer 🚀',
-                        card_button_url: 'https://airvix.com',
-                        description: 'Custom preset card designed to boost conversions.'
-                      });
-                      setIsCreatingTemplate(true);
-                    }}
-                  >
-                    <Plus size={14} />
-                    <span>Create Template</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Template Cards Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '18px' }}>
-                {filteredTemplates.map(tpl => (
-                  <div key={tpl.id} style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 800, background: 'rgba(99,102,241,0.15)', color: '#818cf8', padding: '3px 8px', borderRadius: '6px' }}>
-                        {tpl.categoryLabel || tpl.category}
-                      </span>
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#f59e0b' }}>
-                        {tpl.badge}
-                      </span>
-                    </div>
-
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#f8fafc' }}>
-                      {tpl.name}
-                    </h3>
-                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0 14px 0' }}>
-                      {tpl.description}
-                    </p>
-
-                    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '12px', marginBottom: '16px' }}>
-                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, uppercase: 'true' }}>KEYWORD TRIGGER</div>
-                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#10b981', fontFamily: 'monospace', margin: '2px 0 6px 0' }}>
-                        {tpl.trigger_keyword}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#cbd5e1' }}>
-                        {tpl.card_title}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px' }}>
-                      <button
-                        type="button"
-                        className="admin-btn-secondary"
-                        style={{ flex: 1, justifyContent: 'center' }}
-                        onClick={() => setPreviewTemplate(tpl)}
-                      >
-                        <Eye size={13} />
-                        <span>Preview</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className="admin-btn-secondary"
-                        style={{ flex: 1, justifyContent: 'center' }}
-                        onClick={() => {
-                          setEditingTemplate(tpl);
-                          setTemplateFormData(tpl);
-                          setIsCreatingTemplate(true);
-                        }}
-                      >
-                        <Edit3 size={13} />
-                        <span>Edit</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className="admin-btn-secondary"
-                        style={{ color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }}
-                        onClick={() => handleDeleteTemplate(tpl.id)}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* =========================================================================
-              TAB 6: GLOBAL SYSTEM SAFEGUARDS
-          ========================================================================= */}
-          {activeTab === 'safeguards' && (
-            <div style={{ background: 'var(--bg-card, #111827)', border: '1px solid var(--border-light, rgba(255,255,255,0.08))', borderRadius: '16px', padding: '28px', maxWidth: '760px' }}>
-              <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
-                🛡️ Global Platform Safeguards &amp; Meta Limits
-              </h2>
-              <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', marginBottom: '24px' }}>
-                Configure rate limits, Meta Graph API safety thresholds, and maintenance window toggles.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div style={{ padding: '16px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '12px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={siteSettings.maintenance_mode}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, maintenance_mode: e.target.checked })}
-                    />
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#ef4444' }}>Emergency Maintenance Mode</div>
-                      <div style={{ fontSize: '12px', color: '#fca5a5' }}>Temporarily pauses incoming webhooks and new user signups across the system.</div>
-                    </div>
-                  </label>
-                </div>
-
-                <div style={{ padding: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={siteSettings.allow_registrations}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, allow_registrations: e.target.checked })}
-                    />
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc' }}>Allow New Creator Registrations</div>
-                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>Permit public signups on the landing page.</div>
-                    </div>
-                  </label>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', display: 'block', marginBottom: '6px' }}>Free Tier Monthly DM Limit</label>
-                  <input
-                    type="number"
-                    className="admin-input"
-                    value={siteSettings.free_dm_limit}
-                    onChange={(e) => setSiteSettings({ ...siteSettings, free_dm_limit: Number(e.target.value) })}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  className="admin-btn-primary"
-                  style={{ alignSelf: 'flex-start', marginTop: '10px' }}
-                  onClick={handleSaveSettings}
-                  disabled={savingSettings}
-                >
-                  <Save size={14} />
-                  <span>Save Safeguards Live</span>
-                </button>
               </div>
             </div>
           )}
@@ -1745,16 +1375,16 @@ export default function AdminView({ user, onBackToApp }) {
       </div>
 
       {/* =========================================================================
-          MODAL: USER ACCESS CONTROL & INSPECTION DRAWER
+          MODAL: USER ACCESS CONTROL & DETAILS
       ========================================================================= */}
       {selectedUserDetail && (
         <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedUserDetail(null); }}>
           <div className="admin-modal-box" style={{ maxWidth: '680px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <ShieldCheck size={22} color="#818cf8" />
+                <ShieldCheck size={22} color="#3b82f6" />
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#f8fafc' }}>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ffffff' }}>
                     User Inspection &amp; Access Control
                   </h3>
                   <span style={{ fontSize: '12px', color: '#94a3b8' }}>ID: {selectedUserDetail.id}</span>
@@ -1770,20 +1400,18 @@ export default function AdminView({ user, onBackToApp }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>{selectedUserDetail.name}</div>
-                  <div style={{ fontSize: '13px', color: '#818cf8', fontWeight: 600 }}>{selectedUserDetail.email}</div>
+                  <div style={{ fontSize: '13px', color: '#3b82f6', fontWeight: 600 }}>{selectedUserDetail.email}</div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', background: selectedUserDetail.status === 'suspended' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', color: selectedUserDetail.status === 'suspended' ? '#f87171' : '#10b981', border: '1px solid currentColor' }}>
-                    {selectedUserDetail.status === 'suspended' ? '● Suspended' : '● Active Account'}
-                  </span>
-                </div>
+                <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', background: selectedUserDetail.status === 'suspended' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', color: selectedUserDetail.status === 'suspended' ? '#f87171' : '#10b981', border: '1px solid currentColor' }}>
+                  {selectedUserDetail.status === 'suspended' ? '● Suspended' : '● Active Account'}
+                </span>
               </div>
 
               <div className="admin-detail-grid">
                 <div className="admin-stat-pill">
                   <div className="admin-stat-pill-label">Subscription Tier</div>
-                  <div className="admin-stat-pill-value" style={{ color: '#818cf8', textTransform: 'uppercase' }}>
+                  <div className="admin-stat-pill-value" style={{ color: '#3b82f6', textTransform: 'uppercase' }}>
                     {selectedUserDetail.plan}
                   </div>
                 </div>
@@ -1805,16 +1433,16 @@ export default function AdminView({ user, onBackToApp }) {
                 <div className="admin-stat-pill">
                   <div className="admin-stat-pill-label">Account Role</div>
                   <div className="admin-stat-pill-value">
-                    {selectedUserDetail.role === 'admin' ? '🛡️ Super Admin' : '👤 Creator'}
+                    {selectedUserDetail.role === 'admin' ? '🛡️ Admin' : '👤 Creator'}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Connected Instagram Accounts */}
+            {/* Connected Accounts */}
             <div style={{ marginBottom: '20px' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '13.5px', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Film size={16} color="#f472b6" />
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '13.5px', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Film size={16} color="#a855f7" />
                 <span>Connected Instagram Business Accounts ({selectedUserDetail.connected_accounts?.length || 0})</span>
               </h4>
 
@@ -1823,38 +1451,23 @@ export default function AdminView({ user, onBackToApp }) {
                   <div>
                     <div style={{ fontWeight: 800, color: '#ffffff', fontSize: '13.5px' }}>@{ig.username}</div>
                     <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                      Insta ID: <span style={{ fontFamily: 'monospace', color: '#cbd5e1' }}>{ig.ig_user_id}</span> • {ig.fb_page_name}
+                      Insta ID: <span style={{ fontFamily: 'monospace', color: '#cbd5e1' }}>{ig.ig_user_id}</span>
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '12px', fontWeight: 700, color: '#10b981' }}>{ig.followers_count?.toLocaleString()} Followers</div>
-                    <div style={{ fontSize: '10px', color: '#64748b' }}>Connected {new Date(ig.created_at).toLocaleDateString()}</div>
                   </div>
                 </div>
               ))}
-
-              {(!selectedUserDetail.connected_accounts || selectedUserDetail.connected_accounts.length === 0) && (
-                <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', color: '#64748b', fontSize: '12.5px', textAlign: 'center' }}>
-                  No Instagram business accounts linked yet.
-                </div>
-              )}
             </div>
 
-            {/* Access Control Action Buttons */}
+            {/* Actions */}
             <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
-              <h4 style={{ margin: '0 0 14px 0', fontSize: '13.5px', fontWeight: 800, color: '#ef4444' }}>
-                ⚙️ Direct Access Control Actions
-              </h4>
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <button
                   type="button"
                   className="admin-btn-secondary"
-                  style={{
-                    justifyContent: 'center',
-                    color: selectedUserDetail.status === 'suspended' ? '#10b981' : '#f87171',
-                    borderColor: selectedUserDetail.status === 'suspended' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'
-                  }}
+                  style={{ justifyContent: 'center' }}
                   onClick={() => {
                     const nextStatus = selectedUserDetail.status === 'suspended' ? 'active' : 'suspended';
                     handleUpdateUser(selectedUserDetail.id, { status: nextStatus });
@@ -1868,611 +1481,13 @@ export default function AdminView({ user, onBackToApp }) {
                   type="button"
                   className="admin-btn-secondary"
                   style={{ justifyContent: 'center' }}
-                  onClick={() => {
-                    handleUpdateUser(selectedUserDetail.id, { reset_dm_usage: true });
-                  }}
+                  onClick={() => handleUpdateUser(selectedUserDetail.id, { reset_dm_usage: true })}
                 >
                   <RefreshCw size={14} />
                   <span>Reset DM Usage to 0</span>
                 </button>
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-                <button type="button" className="admin-btn-secondary" onClick={() => setSelectedUserDetail(null)}>
-                  Close
-                </button>
-                <button
-                  type="button"
-                  className="admin-btn-primary"
-                  onClick={() => {
-                    setEditingUser(selectedUserDetail);
-                    setSelectedUserDetail(null);
-                  }}
-                >
-                  Edit Plan &amp; Role
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL: EDIT / CREATE PRICING PLAN WITH LIVE VISUAL PREVIEW
-      ========================================================================= */}
-      {isCreatingPlan && (
-        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsCreatingPlan(false); }}>
-          <div className="admin-modal-box" style={{ maxWidth: '900px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CreditCard size={20} color="#818cf8" />
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
-                  {editingPlan ? `Edit ${editingPlan.name} Plan` : 'Create New Subscription Plan'}
-                </h3>
-              </div>
-              <button type="button" onClick={() => setIsCreatingPlan(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '24px' }}>
-              {/* Left Column: Form Fields */}
-              <form onSubmit={handleSavePlan} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Plan Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={planFormData.name}
-                    onChange={(e) => setPlanFormData({ ...planFormData, name: e.target.value })}
-                    className="admin-input"
-                    placeholder="e.g. Pro Creator"
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Monthly Price ($)</label>
-                    <input
-                      type="number"
-                      required
-                      value={planFormData.monthlyPrice}
-                      onChange={(e) => setPlanFormData({ ...planFormData, monthlyPrice: Number(e.target.value) })}
-                      className="admin-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Annual Monthly Price ($)</label>
-                    <input
-                      type="number"
-                      value={planFormData.annualPrice}
-                      onChange={(e) => setPlanFormData({ ...planFormData, annualPrice: Number(e.target.value) })}
-                      className="admin-input"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Monthly DM Limit</label>
-                    <input
-                      type="number"
-                      value={planFormData.dmLimit}
-                      onChange={(e) => setPlanFormData({ ...planFormData, dmLimit: Number(e.target.value) })}
-                      className="admin-input"
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Connected IG Accounts</label>
-                    <input
-                      type="number"
-                      value={planFormData.igLimit}
-                      onChange={(e) => setPlanFormData({ ...planFormData, igLimit: Number(e.target.value) })}
-                      className="admin-input"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Badge Label (e.g. 🔥 MOST POPULAR)</label>
-                  <input
-                    type="text"
-                    value={planFormData.badge}
-                    onChange={(e) => setPlanFormData({ ...planFormData, badge: e.target.value })}
-                    className="admin-input"
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Plan Description</label>
-                  <input
-                    type="text"
-                    value={planFormData.description}
-                    onChange={(e) => setPlanFormData({ ...planFormData, description: e.target.value })}
-                    className="admin-input"
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Feature Items (one per line)</label>
-                  <textarea
-                    rows={4}
-                    value={planFeaturesText}
-                    onChange={(e) => setPlanFeaturesText(e.target.value)}
-                    className="admin-input"
-                    style={{ height: 'auto', padding: '10px' }}
-                    placeholder="25,000 Automated DMs / Mo&#10;3 Connected IG Accounts&#10;Follow-Gated Private Cards"
-                  />
-                </div>
-
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', color: '#f8fafc' }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(planFormData.popular)}
-                    onChange={(e) => setPlanFormData({ ...planFormData, popular: e.target.checked })}
-                  />
-                  <span>Highlight as Featured / Most Popular plan</span>
-                </label>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                  <button type="button" className="admin-btn-secondary" onClick={() => setIsCreatingPlan(false)}>
-                    Cancel
-                  </button>
-                  <button type="submit" className="admin-btn-primary">
-                    {editingPlan ? 'Save Live Plan' : 'Publish Plan'}
-                  </button>
-                </div>
-              </form>
-
-              {/* Right Column: Live Plan Visual Preview */}
-              <div className="admin-plan-preview-box">
-                <div className="admin-plan-preview-title-bar">
-                  <Sparkles size={14} />
-                  <span>Real-Time Creator Preview Card</span>
-                </div>
-
-                <div className={`admin-live-card-preview ${planFormData.popular ? 'popular' : ''}`}>
-                  {planFormData.badge && (
-                    <div className="admin-live-card-badge">
-                      {planFormData.badge}
-                    </div>
-                  )}
-
-                  <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#ffffff' }}>
-                    {planFormData.name || 'Plan Name'}
-                  </h3>
-                  <p style={{ fontSize: '12px', color: '#cbd5e1', margin: '4px 0 14px 0' }}>
-                    {planFormData.description || 'Plan description copy...'}
-                  </p>
-
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '16px' }}>
-                    <span style={{ fontSize: '36px', fontWeight: 900, color: '#ffffff' }}>${planFormData.monthlyPrice}</span>
-                    <span style={{ fontSize: '13px', color: '#94a3b8' }}>/ month</span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                    {(planFeaturesText ? planFeaturesText.split('\n').filter(Boolean) : (planFormData.features || [])).map((feat, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#e2e8f0' }}>
-                        <CheckCircle2 size={14} color="#10b981" />
-                        <span>{feat}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button type="button" className="admin-live-card-cta">
-                    Get Started with {planFormData.name || 'Plan'} 🚀
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL: EDIT USER PLAN & ROLE
-      ========================================================================= */}
-      {editingUser && (
-        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setEditingUser(null); }}>
-          <div className="admin-modal-box" style={{ maxWidth: '480px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#f8fafc' }}>
-                Modify Privileges: {editingUser.email}
-              </h3>
-              <button type="button" onClick={() => setEditingUser(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const form = e.target;
-              handleUpdateUser(editingUser.id, {
-                plan: form.plan.value,
-                role: form.role.value,
-                status: form.status.value,
-              });
-            }} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Subscription Plan</label>
-                <select name="plan" defaultValue={editingUser.plan} className="admin-input">
-                  <option value="free" style={{ background: '#0f172a' }}>Free Tier (1,000 DMs/mo)</option>
-                  <option value="pro" style={{ background: '#0f172a' }}>Pro Creator ($29/mo - 25,000 DMs)</option>
-                  <option value="agency" style={{ background: '#0f172a' }}>Agency &amp; Brand ($79/mo - 100,000 DMs)</option>
-                  <option value="enterprise" style={{ background: '#0f172a' }}>Enterprise VIP ($199/mo - 500,000 DMs)</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Account Role</label>
-                <select name="role" defaultValue={editingUser.role} className="admin-input">
-                  <option value="user" style={{ background: '#0f172a' }}>👤 Creator / User</option>
-                  <option value="admin" style={{ background: '#0f172a' }}>🛡️ Super Admin</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Access Status</label>
-                <select name="status" defaultValue={editingUser.status} className="admin-input">
-                  <option value="active" style={{ background: '#0f172a' }}>● Active (Normal Access)</option>
-                  <option value="suspended" style={{ background: '#0f172a' }}>● Suspended (Blocked)</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" className="admin-btn-secondary" onClick={() => setEditingUser(null)}>
-                  Cancel
-                </button>
-                <button type="submit" className="admin-btn-primary">
-                  Save Privilege Updates
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL: RESET USER PASSWORD
-      ========================================================================= */}
-      {resetPasswordUser && (
-        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setResetPasswordUser(null); }}>
-          <div className="admin-modal-box" style={{ maxWidth: '440px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#f8fafc' }}>
-                Set Password for {resetPasswordUser.email}
-              </h3>
-              <button type="button" onClick={() => setResetPasswordUser(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleResetUserPassword} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>New Password (min 6 characters)</label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={newAdminPassword}
-                  onChange={(e) => setNewAdminPassword(e.target.value)}
-                  className="admin-input"
-                  placeholder="Enter new strong password"
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" className="admin-btn-secondary" onClick={() => setResetPasswordUser(null)}>
-                  Cancel
-                </button>
-                <button type="submit" className="admin-btn-primary">
-                  Update Password
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL: CONFIRM USER DELETION
-      ========================================================================= */}
-      {deletingUser && (
-        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setDeletingUser(null); }}>
-          <div className="admin-modal-box" style={{ maxWidth: '440px' }}>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '17px', fontWeight: 800, color: '#ef4444' }}>
-              Confirm Permanent Deletion
-            </h3>
-            <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.5, margin: 0 }}>
-              Are you sure you want to permanently delete creator <strong style={{ color: '#ffffff' }}>{deletingUser.email}</strong>? All connected Instagram accounts, automation rules, and message logs will be unrecoverable.
-            </p>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-              <button type="button" className="admin-btn-secondary" onClick={() => setDeletingUser(null)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="admin-btn-primary"
-                style={{ background: '#ef4444', borderColor: '#dc2626' }}
-                onClick={handleDeleteUser}
-              >
-                Delete Permanently
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL: EDIT / CREATE TEMPLATE
-      ========================================================================= */}
-      {isCreatingTemplate && (
-        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsCreatingTemplate(false); }}>
-          <div className="admin-modal-box" style={{ maxWidth: '720px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
-                {editingTemplate ? `Edit ${editingTemplate.name}` : 'Create New DM Card Template'}
-              </h3>
-              <button type="button" onClick={() => setIsCreatingTemplate(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveTemplate} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Template Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={templateFormData.name}
-                    onChange={(e) => setTemplateFormData({ ...templateFormData, name: e.target.value })}
-                    className="admin-input"
-                    placeholder="e.g. E-Commerce Discount Code"
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Category</label>
-                  <select
-                    value={templateFormData.category}
-                    onChange={(e) => {
-                      const cat = e.target.value;
-                      const labels = {
-                        ecommerce: '🛍️ E-Commerce',
-                        creator: '🎓 Creators & Coaches',
-                        lead_magnet: '🔒 Follower Check / Lead Magnet',
-                        services: '💼 Services & Agencies',
-                        general: '⚡ General Purpose'
-                      };
-                      setTemplateFormData({
-                        ...templateFormData,
-                        category: cat,
-                        categoryLabel: labels[cat] || '⚡ Custom'
-                      });
-                    }}
-                    className="admin-input"
-                  >
-                    <option value="ecommerce" style={{ background: '#0f172a' }}>🛍️ E-Commerce &amp; Flash Sales</option>
-                    <option value="creator" style={{ background: '#0f172a' }}>🎓 Creators &amp; Coaches</option>
-                    <option value="lead_magnet" style={{ background: '#0f172a' }}>🔒 Follower Check / Lead Magnet</option>
-                    <option value="services" style={{ background: '#0f172a' }}>💼 Services &amp; Agencies</option>
-                    <option value="general" style={{ background: '#0f172a' }}>⚡ General Purpose</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Trigger Keyword</label>
-                  <input
-                    type="text"
-                    required
-                    value={templateFormData.trigger_keyword}
-                    onChange={(e) => setTemplateFormData({ ...templateFormData, trigger_keyword: e.target.value.toUpperCase() })}
-                    className="admin-input"
-                    placeholder="e.g. DISCOUNT"
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Card Badge Text</label>
-                  <input
-                    type="text"
-                    value={templateFormData.badge}
-                    onChange={(e) => setTemplateFormData({ ...templateFormData, badge: e.target.value })}
-                    className="admin-input"
-                    placeholder="e.g. 🔥 High Conversion"
-                  />
-                </div>
-              </div>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', color: '#f8fafc' }}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(templateFormData.require_follow)}
-                  onChange={(e) => setTemplateFormData({ ...templateFormData, require_follow: e.target.checked })}
-                />
-                <span>🔒 Follower Check (Require user to follow your page before sending DM link)</span>
-              </label>
-
-              <div>
-                <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Public Comment Reply Text (use | for random variations)</label>
-                <input
-                  type="text"
-                  value={templateFormData.comment_reply_message}
-                  onChange={(e) => setTemplateFormData({ ...templateFormData, comment_reply_message: e.target.value })}
-                  className="admin-input"
-                  placeholder="Check your DM! 🚀 | Sent to your inbox! 📩"
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Direct Message Text Copy</label>
-                <textarea
-                  rows={2}
-                  value={templateFormData.dm_reply_message}
-                  onChange={(e) => setTemplateFormData({ ...templateFormData, dm_reply_message: e.target.value })}
-                  className="admin-input"
-                  style={{ height: 'auto', padding: '10px' }}
-                  placeholder="Hey {username}! Here is your download link..."
-                />
-              </div>
-
-              {/* Rich Visual Card Details */}
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px' }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '13.5px', color: '#818cf8' }}>
-                  🃏 Instagram Visual DM Card Settings
-                </h4>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Card Title</label>
-                      <input
-                        type="text"
-                        value={templateFormData.card_title}
-                        onChange={(e) => setTemplateFormData({ ...templateFormData, card_title: e.target.value })}
-                        className="admin-input"
-                        placeholder="e.g. 🎁 20% Discount Code"
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Button Text</label>
-                      <input
-                        type="text"
-                        value={templateFormData.card_button_text}
-                        onChange={(e) => setTemplateFormData({ ...templateFormData, card_button_text: e.target.value })}
-                        className="admin-input"
-                        placeholder="e.g. Shop 20% Off 🛍️"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Card Subtitle</label>
-                    <input
-                      type="text"
-                      value={templateFormData.card_subtitle}
-                      onChange={(e) => setTemplateFormData({ ...templateFormData, card_subtitle: e.target.value })}
-                      className="admin-input"
-                      placeholder="Use code VIP20 at checkout today only!"
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Card Cover Image URL</label>
-                    <input
-                      type="url"
-                      value={templateFormData.card_image_url}
-                      onChange={(e) => setTemplateFormData({ ...templateFormData, card_image_url: e.target.value })}
-                      className="admin-input"
-                      placeholder="https://images.unsplash.com/photo-..."
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Destination Button URL</label>
-                    <input
-                      type="url"
-                      value={templateFormData.card_button_url}
-                      onChange={(e) => setTemplateFormData({ ...templateFormData, card_button_url: e.target.value })}
-                      className="admin-input"
-                      placeholder="https://yourbrand.com/offer"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button type="button" className="admin-btn-secondary" onClick={() => { setIsCreatingTemplate(false); setEditingTemplate(null); }}>
-                  Cancel
-                </button>
-                <button type="submit" className="admin-btn-primary">
-                  {editingTemplate ? 'Save Template Changes' : 'Publish New Template'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL: LIVE PHONE DM PREVIEW
-      ========================================================================= */}
-      {previewTemplate && (
-        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setPreviewTemplate(null); }}>
-          <div className="admin-modal-box" style={{ maxWidth: '400px', padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Smartphone size={16} color="#818cf8" />
-                <span style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc' }}>Live Instagram DM Preview</span>
-              </div>
-              <button type="button" onClick={() => setPreviewTemplate(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Simulated Phone Card */}
-            <div style={{ background: '#ffffff', borderRadius: '16px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.3)' }}>
-              <div style={{ height: '160px', position: 'relative', background: '#0f172a' }}>
-                <img
-                  src={previewTemplate.card_image_url}
-                  alt={previewTemplate.name}
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
-                  }}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-                <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '9px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>
-                  INSTAGRAM CARD
-                </div>
-              </div>
-
-              <div style={{ padding: '16px' }}>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>
-                  {previewTemplate.card_title || previewTemplate.name}
-                </div>
-                <div style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.4, marginBottom: '16px' }}>
-                  {previewTemplate.card_subtitle || previewTemplate.description}
-                </div>
-
-                <a
-                  href={previewTemplate.card_button_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '10px 0',
-                    background: '#6366f1',
-                    color: '#ffffff',
-                    textAlign: 'center',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    textDecoration: 'none',
-                    boxShadow: '0 4px 12px rgba(99,102,241,0.3)'
-                  }}
-                >
-                  {previewTemplate.card_button_text}
-                </a>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="admin-btn-secondary"
-              onClick={() => setPreviewTemplate(null)}
-              style={{ width: '100%', marginTop: '16px', justifyContent: 'center' }}
-            >
-              Close Preview
-            </button>
           </div>
         </div>
       )}

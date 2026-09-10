@@ -140,6 +140,46 @@ CREATE TABLE IF NOT EXISTS activity_log (
   UNIQUE(instagram_account_id, event_date)
 );
 
+CREATE TABLE IF NOT EXISTS workspaces (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT,
+  actor_id TEXT NOT NULL,
+  actor_email TEXT,
+  action TEXT NOT NULL,
+  target_resource TEXT,
+  ip_address TEXT DEFAULT 'masked',
+  details TEXT,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS data_requests (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_email TEXT,
+  request_type TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  requested_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  completed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS security_events (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  severity TEXT DEFAULT 'medium',
+  details TEXT,
+  ip_address TEXT DEFAULT 'masked',
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
 CREATE INDEX IF NOT EXISTS idx_ig_accounts_user ON instagram_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_comment_replies_comment_id ON comment_replies(comment_id);
 CREATE INDEX IF NOT EXISTS idx_rules_account_active ON automation_rules(instagram_account_id, is_active);
@@ -148,9 +188,14 @@ CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(insta
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_activity_date ON activity_log(event_date);
 CREATE INDEX IF NOT EXISTS idx_comment_replies_created ON comment_replies(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_data_requests_user ON data_requests(user_id);
 `;
 
 module.exports = {
   CREATE_TABLES_PG_SQL,
   CREATE_TABLES_SQL: CREATE_TABLES_PG_SQL,
 };
+
