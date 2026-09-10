@@ -127,9 +127,91 @@ export default function AdminView({ user, onBackToApp }) {
   const [analyticsData, setAnalyticsData] = useState(null);
   const [supportData, setSupportData] = useState(null);
 
+  // Site CMS & Settings State
+  const [siteSettings, setSiteSettings] = useState({
+    announcement_enabled: true,
+    announcement_text: '',
+    announcement_badge: '',
+    announcement_link: '',
+    hero_badge: '',
+    hero_headline: '',
+    hero_headline_highlight: '',
+    hero_subtitle: '',
+    primary_cta_text: '',
+    primary_cta_url: '',
+    secondary_cta_text: '',
+    secondary_cta_url: '',
+    support_email: '',
+    support_phone: '',
+    whatsapp_number: '',
+    business_address: '',
+    privacy_policy_text: '',
+    terms_of_service_text: '',
+    refund_policy_text: '',
+    demo_video_url: '',
+    demo_video_title: '',
+    feature_1_title: '',
+    feature_1_desc: '',
+    feature_2_title: '',
+    feature_2_desc: '',
+    feature_3_title: '',
+    feature_3_desc: '',
+    feature_4_title: '',
+    feature_4_desc: '',
+    maker_quote: '',
+    maker_team: '',
+    social_creators: '12,000+',
+    social_dms: '4.8M+',
+    social_rating: '4.9/5',
+    social_reply_speed: '0.8s',
+    footer_tagline: ''
+  });
+  const [loadingSiteSettings, setLoadingSiteSettings] = useState(false);
+  const [savingSiteSettings, setSavingSiteSettings] = useState(false);
+
   const showToast = (msg) => {
     setSuccessToast(msg);
     setTimeout(() => setSuccessToast(null), 3500);
+  };
+
+  // Fetch Site Settings from DB
+  const loadSiteSettings = useCallback(async () => {
+    try {
+      setLoadingSiteSettings(true);
+      const res = await apiFetch('/admin/settings');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.settings) {
+          setSiteSettings(prev => ({ ...prev, ...data.settings }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load site settings:', err);
+    } finally {
+      setLoadingSiteSettings(false);
+    }
+  }, []);
+
+  // Save Site Settings Handler
+  const handleSaveSiteSettings = async (e) => {
+    if (e) e.preventDefault();
+    try {
+      setSavingSiteSettings(true);
+      const res = await apiFetch('/admin/settings', {
+        method: 'PUT',
+        body: JSON.stringify(siteSettings)
+      });
+      if (res.ok) {
+        showToast('✅ Landing Page CMS updated & published live!');
+      } else {
+        const err = await res.json();
+        alert(`Error saving CMS settings: ${err.error || 'Failed'}`);
+      }
+    } catch (err) {
+      alert(`Error saving CMS settings: ${err.message}`);
+    } finally {
+      setSavingSiteSettings(false);
+    }
   };
 
   // 1. Fetch Overview Data
@@ -328,7 +410,8 @@ export default function AdminView({ user, onBackToApp }) {
     loadSafeguards();
     loadAnalytics();
     loadSupport();
-  }, [loadOverview, loadUsers, loadWorkspaces, loadAuditLogs, loadSecurityPrivacy, loadSystemStatus, loadPlans, loadPayments, loadIntegrations, loadSafeguards, loadAnalytics, loadSupport]);
+    loadSiteSettings();
+  }, [loadOverview, loadUsers, loadWorkspaces, loadAuditLogs, loadSecurityPrivacy, loadSystemStatus, loadPlans, loadPayments, loadIntegrations, loadSafeguards, loadAnalytics, loadSupport, loadSiteSettings]);
 
 
   // Update User Handler
@@ -469,6 +552,15 @@ export default function AdminView({ user, onBackToApp }) {
 
               <button
                 type="button"
+                className={`admin-sidebar-item ${activeTab === 'landing_cms' ? 'active' : ''}`}
+                onClick={() => setActiveTab('landing_cms')}
+              >
+                <Globe size={16} />
+                <span>Landing Page CMS</span>
+              </button>
+
+              <button
+                type="button"
                 className={`admin-sidebar-item ${activeTab === 'integrations' ? 'active' : ''}`}
                 onClick={() => setActiveTab('integrations')}
               >
@@ -587,10 +679,12 @@ export default function AdminView({ user, onBackToApp }) {
             </div>
 
             <div className="admin-profile-pill">
-              <div className="admin-profile-avatar">DS</div>
+              <div className="admin-profile-avatar">
+                {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'SB'}
+              </div>
               <div className="admin-profile-text">
-                <span className="admin-profile-name">David Sharma</span>
-                <span className="admin-profile-role">Admin</span>
+                <span className="admin-profile-name">{user?.name || 'Sumit Bhardwaj'}</span>
+                <span className="admin-profile-role">{user?.role === 'admin' ? 'Admin' : 'Super Admin'}</span>
               </div>
             </div>
 
@@ -1810,6 +1904,421 @@ export default function AdminView({ user, onBackToApp }) {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB: LANDING PAGE & WEBSITE CMS (100% MUTABLE)
+          ========================================================================= */}
+          {activeTab === 'landing_cms' && (
+            <div className="admin-cms-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Header Bar */}
+              <div className="admin-dashboard-title-bar" style={{ marginBottom: 0 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Globe size={24} color="#3b82f6" />
+                    <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#ffffff' }}>Website &amp; Landing Page CMS</h1>
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
+                    Customize every text, email ID, phone number, legal document, demo video URL, and feature card displayed on the public landing page in real-time.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    type="button"
+                    className="admin-btn-secondary"
+                    onClick={loadSiteSettings}
+                    disabled={loadingSiteSettings}
+                  >
+                    <RefreshCw size={14} className={loadingSiteSettings ? 'animate-spin' : ''} />
+                    <span>Refresh CMS</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="admin-btn-primary"
+                    onClick={handleSaveSiteSettings}
+                    disabled={savingSiteSettings}
+                    style={{ background: 'linear-gradient(135deg, #2563eb, #4f46e5)' }}
+                  >
+                    <Save size={15} />
+                    <span>{savingSiteSettings ? 'Publishing Live...' : 'Publish CMS Changes Live'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Form Container */}
+              <form onSubmit={handleSaveSiteSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                
+                {/* 1. Hero & Header Banner */}
+                <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sparkles size={18} />
+                    <span>1. Hero &amp; Top Header Banner</span>
+                  </h3>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Hero Badge Text</label>
+                      <input
+                        type="text"
+                        value={siteSettings.hero_badge || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, hero_badge: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="⚡ Powered by Official Meta Instagram Graph API"
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Hero Headline Main</label>
+                      <input
+                        type="text"
+                        value={siteSettings.hero_headline || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, hero_headline: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="Turn conversations into customers."
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Headline Highlight Text (Emphasized)</label>
+                      <input
+                        type="text"
+                        value={siteSettings.hero_headline_highlight || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, hero_headline_highlight: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="send the link in 1.4s."
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Primary CTA Button Text</label>
+                      <input
+                        type="text"
+                        value={siteSettings.primary_cta_text || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, primary_cta_text: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="Get Started Free"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="admin-form-group" style={{ marginTop: '16px' }}>
+                    <label className="admin-form-label">Hero Subtitle / Description Text</label>
+                    <textarea
+                      rows={3}
+                      value={siteSettings.hero_subtitle || ''}
+                      onChange={(e) => setSiteSettings({ ...siteSettings, hero_subtitle: e.target.value })}
+                      className="admin-form-input"
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+
+                  {/* Announcement Bar */}
+                  <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', fontWeight: 700, color: '#f8fafc', marginBottom: '12px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(siteSettings.announcement_enabled)}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, announcement_enabled: e.target.checked })}
+                      />
+                      <span>Enable Top Header Announcement Ribbon</span>
+                    </label>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: '12px' }}>
+                      <input
+                        type="text"
+                        value={siteSettings.announcement_badge || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, announcement_badge: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="Badge (e.g. LIMITED OFFER)"
+                      />
+                      <input
+                        type="text"
+                        value={siteSettings.announcement_text || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, announcement_text: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="Announcement Banner Text"
+                      />
+                      <input
+                        type="text"
+                        value={siteSettings.announcement_link || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, announcement_link: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="Link (e.g. #pricing)"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Contact & Business Details */}
+                <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <HelpCircle size={18} />
+                    <span>2. Contact Info &amp; Business Details</span>
+                  </h3>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Official Support Email</label>
+                      <input
+                        type="email"
+                        value={siteSettings.support_email || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, support_email: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="support@airvix.com"
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Support Phone Number</label>
+                      <input
+                        type="text"
+                        value={siteSettings.support_phone || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, support_phone: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="+1 (800) 555-0199"
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">WhatsApp Business Number</label>
+                      <input
+                        type="text"
+                        value={siteSettings.whatsapp_number || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, whatsapp_number: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="+91 98765 43210"
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Physical Office / Business Address</label>
+                      <input
+                        type="text"
+                        value={siteSettings.business_address || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, business_address: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="123 Airvix Tower, Tech Park, San Francisco, CA"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Legal & Compliance Documents */}
+                <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FileText size={18} />
+                    <span>3. Legal &amp; Compliance Documents (100% Mutable)</span>
+                  </h3>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Privacy Policy Document Content</label>
+                      <textarea
+                        rows={6}
+                        value={siteSettings.privacy_policy_text || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, privacy_policy_text: e.target.value })}
+                        className="admin-form-input"
+                        style={{ fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Terms of Service Document Content</label>
+                      <textarea
+                        rows={6}
+                        value={siteSettings.terms_of_service_text || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, terms_of_service_text: e.target.value })}
+                        className="admin-form-input"
+                        style={{ fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Refund &amp; Cancellation Policy Content</label>
+                      <textarea
+                        rows={4}
+                        value={siteSettings.refund_policy_text || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, refund_policy_text: e.target.value })}
+                        className="admin-form-input"
+                        style={{ fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Media & Video Links */}
+                <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#ec4899', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Film size={18} />
+                    <span>4. Product Media &amp; Demo Video</span>
+                  </h3>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Demo Video Embed URL (YouTube / Vimeo / MP4)</label>
+                      <input
+                        type="text"
+                        value={siteSettings.demo_video_url || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, demo_video_url: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="https://www.youtube.com/embed/dQw4w9WgXcQ"
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Demo Video Title</label>
+                      <input
+                        type="text"
+                        value={siteSettings.demo_video_title || ''}
+                        onChange={(e) => setSiteSettings({ ...siteSettings, demo_video_title: e.target.value })}
+                        className="admin-form-input"
+                        placeholder="Watch 60-Second Airvix Product Demo"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Feature Showcase Bundles */}
+                <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#a855f7', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Zap size={18} />
+                    <span>5. Feature Cards &amp; Value Bundles</span>
+                  </h3>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Feature 1 Title</label>
+                        <input
+                          type="text"
+                          value={siteSettings.feature_1_title || ''}
+                          onChange={(e) => setSiteSettings({ ...siteSettings, feature_1_title: e.target.value })}
+                          className="admin-form-input"
+                        />
+                      </div>
+                      <div className="admin-form-group" style={{ marginTop: '8px' }}>
+                        <label className="admin-form-label">Feature 1 Description</label>
+                        <input
+                          type="text"
+                          value={siteSettings.feature_1_desc || ''}
+                          onChange={(e) => setSiteSettings({ ...siteSettings, feature_1_desc: e.target.value })}
+                          className="admin-form-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Feature 2 Title</label>
+                        <input
+                          type="text"
+                          value={siteSettings.feature_2_title || ''}
+                          onChange={(e) => setSiteSettings({ ...siteSettings, feature_2_title: e.target.value })}
+                          className="admin-form-input"
+                        />
+                      </div>
+                      <div className="admin-form-group" style={{ marginTop: '8px' }}>
+                        <label className="admin-form-label">Feature 2 Description</label>
+                        <input
+                          type="text"
+                          value={siteSettings.feature_2_desc || ''}
+                          onChange={(e) => setSiteSettings({ ...siteSettings, feature_2_desc: e.target.value })}
+                          className="admin-form-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Feature 3 Title</label>
+                        <input
+                          type="text"
+                          value={siteSettings.feature_3_title || ''}
+                          onChange={(e) => setSiteSettings({ ...siteSettings, feature_3_title: e.target.value })}
+                          className="admin-form-input"
+                        />
+                      </div>
+                      <div className="admin-form-group" style={{ marginTop: '8px' }}>
+                        <label className="admin-form-label">Feature 3 Description</label>
+                        <input
+                          type="text"
+                          value={siteSettings.feature_3_desc || ''}
+                          onChange={(e) => setSiteSettings({ ...siteSettings, feature_3_desc: e.target.value })}
+                          className="admin-form-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Feature 4 Title</label>
+                        <input
+                          type="text"
+                          value={siteSettings.feature_4_title || ''}
+                          onChange={(e) => setSiteSettings({ ...siteSettings, feature_4_title: e.target.value })}
+                          className="admin-form-input"
+                        />
+                      </div>
+                      <div className="admin-form-group" style={{ marginTop: '8px' }}>
+                        <label className="admin-form-label">Feature 4 Description</label>
+                        <input
+                          type="text"
+                          value={siteSettings.feature_4_desc || ''}
+                          onChange={(e) => setSiteSettings({ ...siteSettings, feature_4_desc: e.target.value })}
+                          className="admin-form-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6. Footer & Maker Note */}
+                <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <MessageSquare size={18} />
+                    <span>6. Footer Tagline &amp; Team Quote</span>
+                  </h3>
+
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Footer Brand Tagline</label>
+                    <input
+                      type="text"
+                      value={siteSettings.footer_tagline || ''}
+                      onChange={(e) => setSiteSettings({ ...siteSettings, footer_tagline: e.target.value })}
+                      className="admin-form-input"
+                      placeholder="The premier Instagram comment-to-DM conversion engine for creators, brands, and agencies."
+                    />
+                  </div>
+
+                  <div className="admin-form-group" style={{ marginTop: '14px' }}>
+                    <label className="admin-form-label">Engineering Team Quote / Creator Note</label>
+                    <textarea
+                      rows={3}
+                      value={siteSettings.maker_quote || ''}
+                      onChange={(e) => setSiteSettings({ ...siteSettings, maker_quote: e.target.value })}
+                      className="admin-form-input"
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Bottom Publish Bar */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
+                  <button
+                    type="submit"
+                    className="admin-btn-primary"
+                    style={{ padding: '12px 28px', fontSize: '15px', fontWeight: 800, background: 'linear-gradient(135deg, #2563eb, #4f46e5)' }}
+                    disabled={savingSiteSettings}
+                  >
+                    <Save size={18} />
+                    <span>{savingSiteSettings ? 'Publishing Live...' : 'Publish CMS Changes Live'}</span>
+                  </button>
+                </div>
+
+              </form>
             </div>
           )}
         </main>

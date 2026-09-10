@@ -26,9 +26,14 @@ import {
   RefreshCw,
   Copy,
   Smartphone,
-  Shield,
-  Eye,
-  Bell
+  Shield, 
+  Eye, 
+  Bell,
+  X,
+  FileText,
+  Phone,
+  Mail,
+  Globe
 } from 'lucide-react';
 import '../styles/landing.css';
 
@@ -37,6 +42,7 @@ export default function LandingView({ onNavigate, user }) {
   const [billingPeriod, setBillingPeriod] = useState('monthly'); // 'monthly' | 'annual'
   const [currency, setCurrency] = useState('USD'); // 'USD' | 'INR'
   const [siteSettings, setSiteSettings] = useState(null);
+  const [activeLegalDoc, setActiveLegalDoc] = useState(null); // 'privacy' | 'terms' | 'refund' | null
 
   useEffect(() => {
     fetch('/api/site/settings')
@@ -683,9 +689,9 @@ export default function LandingView({ onNavigate, user }) {
                 </div>
                 <div className="lp-feat-tag">Most Requested</div>
               </div>
-              <h4>Specific Reel Targeting</h4>
+              <h4>{siteSettings?.feature_1_title || 'Specific Reel Targeting'}</h4>
               <p>
-                Browse your top 30 uploaded Reels directly in the Content Hub. Attach different keywords and links to different reels so followers never get the wrong offer.
+                {siteSettings?.feature_1_desc || 'Browse your top 30 uploaded Reels directly in the Content Hub. Attach different keywords and links to different reels so followers never get the wrong offer.'}
               </p>
             </div>
 
@@ -696,9 +702,9 @@ export default function LandingView({ onNavigate, user }) {
                 </div>
                 <div className="lp-feat-tag">High Converting</div>
               </div>
-              <h4>24h Story Auto-Capture</h4>
+              <h4>{siteSettings?.feature_2_title || '24h Story Auto-Capture'}</h4>
               <p>
-                Turn ephemeral story reactions into lasting sales relationships. Automatically reply when someone responds to your story or types keywords like "VIP" or "INFO".
+                {siteSettings?.feature_2_desc || 'Turn ephemeral story reactions into lasting sales relationships. Automatically reply when someone responds to your story or types keywords like "VIP" or "INFO".'}
               </p>
             </div>
 
@@ -709,9 +715,9 @@ export default function LandingView({ onNavigate, user }) {
                 </div>
                 <div className="lp-feat-tag">Ban Protection</div>
               </div>
-              <h4>Multi-Comment Rotation</h4>
+              <h4>{siteSettings?.feature_3_title || 'Multi-Comment Rotation'}</h4>
               <p>
-                Meta detects spam when accounts post identical public replies. Separate your replies with <code>|</code> to cycle through unlimited friendly variations automatically.
+                {siteSettings?.feature_3_desc || 'Meta detects spam when accounts post identical public replies. Separate your replies with | to cycle through unlimited friendly variations automatically.'}
               </p>
             </div>
 
@@ -722,9 +728,9 @@ export default function LandingView({ onNavigate, user }) {
                 </div>
                 <div className="lp-feat-tag">Meta Compliant</div>
               </div>
-              <h4>Human-Typing Jitter</h4>
+              <h4>{siteSettings?.feature_4_title || 'Human-Typing Jitter'}</h4>
               <p>
-                Instant 0.01s bot replies trigger algorithm flags. Airvix introduces natural 2-5 second randomized delays so Meta servers recognize you as a normal human creator.
+                {siteSettings?.feature_4_desc || 'Instant 0.01s bot replies trigger algorithm flags. Airvix introduces natural 2-5 second randomized delays so Meta servers recognize you as a normal human creator.'}
               </p>
             </div>
 
@@ -801,17 +807,14 @@ export default function LandingView({ onNavigate, user }) {
           <div className="lp-maker-card">
             <div className="lp-maker-quote-icon">“</div>
             <p className="lp-maker-text">
-              We built Airvix because we were genuinely tired of waking up to 200 unread comments, 
-              spending all morning copy-pasting links into DMs, and losing sales while our Reels were going viral. 
-              You don’t need an enterprise sales CRM with 40 sub-menus. You just need your links delivered 
-              to your viewers immediately without getting banned. That’s what Airvix does.
+              {siteSettings?.maker_quote || `We built Airvix because we were genuinely tired of waking up to 200 unread comments, spending all morning copy-pasting links into DMs, and losing sales while our Reels were going viral. You don’t need an enterprise sales CRM with 40 sub-menus. You just need your links delivered to your viewers immediately without getting banned. That’s what Airvix does.`}
             </p>
             <div className="lp-maker-footer">
               <div className="lp-maker-avatar">
                 <img src="/airvix-mark.png" alt="Airvix" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
               </div>
               <div>
-                <div className="lp-maker-name">The Airvix Engineering Team</div>
+                <div className="lp-maker-name">{siteSettings?.maker_team || 'The Airvix Engineering Team'}</div>
                 <div className="lp-maker-title">Built by creators for creators • Meta Graph API Certified</div>
               </div>
             </div>
@@ -1016,11 +1019,16 @@ export default function LandingView({ onNavigate, user }) {
                 alt="Airvix" 
                 style={{ height: '28px', width: 'auto', objectFit: 'contain' }} 
               />
-              <span className="lp-footer-brandname">airvix</span>
+              <span className="lp-footer-brandname">{siteSettings?.platform_name || 'airvix'}</span>
             </div>
             <p className="lp-footer-desc">
-              The high-converting Instagram DM & Reel automation platform for modern creators and digital brands.
+              {siteSettings?.footer_tagline || 'The high-converting Instagram DM & Reel automation platform for modern creators and digital brands.'}
             </p>
+            {siteSettings?.support_email && (
+              <div style={{ fontSize: '13px', color: '#64748b', marginTop: '6px' }}>
+                📧 {siteSettings.support_email} {siteSettings.support_phone ? `• 📞 ${siteSettings.support_phone}` : ''}
+              </div>
+            )}
             <div className="lp-footer-copyright">
               © {new Date().getFullYear()} Airvix Inc. Built for creators with craft & care.
             </div>
@@ -1036,11 +1044,11 @@ export default function LandingView({ onNavigate, user }) {
             </div>
 
             <div className="lp-footer-col">
-              <h5>Safety & Meta</h5>
+              <h5>Legal &amp; Safety</h5>
+              <a href="#privacy" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('privacy'); }}>Privacy Policy</a>
+              <a href="#terms" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('terms'); }}>Terms of Service</a>
+              <a href="#refund" onClick={(e) => { e.preventDefault(); setActiveLegalDoc('refund'); }}>Refund Policy</a>
               <a href="#faq">Meta API Compliance</a>
-              <a href="#features">Comment Spinning</a>
-              <a href="#features">Human Jitter</a>
-              <a href="#faq">Terms of Service</a>
             </div>
 
             <div className="lp-footer-col">
@@ -1052,6 +1060,93 @@ export default function LandingView({ onNavigate, user }) {
           </div>
         </div>
       </footer>
+
+      {/* Interactive Legal Document Modal */}
+      {activeLegalDoc && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setActiveLegalDoc(null); }}
+        >
+          <div style={{
+            background: '#1e293b',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '20px',
+            width: '100%',
+            maxWidth: '680px',
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(255,255,255,0.02)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FileText size={20} color="#3b82f6" />
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
+                  {activeLegalDoc === 'privacy' && 'Privacy Policy'}
+                  {activeLegalDoc === 'terms' && 'Terms of Service'}
+                  {activeLegalDoc === 'refund' && 'Refund & Cancellation Policy'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveLegalDoc(null)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{
+              padding: '24px',
+              overflowY: 'auto',
+              fontSize: '13.5px',
+              color: '#cbd5e1',
+              lineHeight: 1.7,
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'system-ui, -apple-system, sans-serif'
+            }}>
+              {activeLegalDoc === 'privacy' && (siteSettings?.privacy_policy_text || 'Loading Privacy Policy...')}
+              {activeLegalDoc === 'terms' && (siteSettings?.terms_of_service_text || 'Loading Terms of Service...')}
+              {activeLegalDoc === 'refund' && (siteSettings?.refund_policy_text || 'Loading Refund Policy...')}
+            </div>
+
+            <div style={{
+              padding: '16px 24px',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              background: 'rgba(255,255,255,0.02)'
+            }}>
+              <button
+                type="button"
+                className="lp-btn lp-btn-solid"
+                onClick={() => setActiveLegalDoc(null)}
+                style={{ padding: '8px 20px', fontSize: '13px' }}
+              >
+                Close Document
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
