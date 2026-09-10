@@ -59,6 +59,7 @@ export default function AdminView({ user, onBackToApp }) {
   // Navigation Tabs: 'overview' | 'users' | 'workspaces' | 'plans' | 'integrations' | 'safeguards' | 'analytics' | 'support' | 'security' | 'audit' | 'status'
   const [activeTab, setActiveTab] = useState('overview');
   const [chartMetric, setChartMetric] = useState('users'); // 'users' | 'messages' | 'workspaces' | 'revenue'
+  const [chartTimeframe, setChartTimeframe] = useState('30d'); // '7d' | '30d'
   const [loading, setLoading] = useState(false);
   const [successToast, setSuccessToast] = useState(null);
 
@@ -84,9 +85,6 @@ export default function AdminView({ user, onBackToApp }) {
   const [userPlanFilter, setUserPlanFilter] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState('');
   const [editingUser, setEditingUser] = useState(null);
-  const [resetPasswordUser, setResetPasswordUser] = useState(null);
-  const [newAdminPassword, setNewAdminPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [deletingUser, setDeletingUser] = useState(null);
   
   // Detailed Inspect User Modal State
@@ -405,25 +403,6 @@ export default function AdminView({ user, onBackToApp }) {
     }
   };
 
-  // Reset Password Handler
-  const handleResetUserPassword = async (e) => {
-    e.preventDefault();
-    if (!resetPasswordUser || !newAdminPassword) return;
-    try {
-      const res = await apiFetch(`/admin/users/${resetPasswordUser.id}/reset-password`, {
-        method: 'POST',
-        body: JSON.stringify({ newPassword: newAdminPassword }),
-      });
-      if (res.ok) {
-        showToast(`✅ Password for user updated safely`);
-        setResetPasswordUser(null);
-        setNewAdminPassword('');
-      }
-    } catch (err) {
-      alert(`Error: ${err.message}`);
-    }
-  };
-
   // Delete User Handler
   const handleDeleteUser = async () => {
     if (!deletingUser) return;
@@ -680,201 +659,235 @@ export default function AdminView({ user, onBackToApp }) {
           {/* =========================================================================
               TAB 1: OVERVIEW DASHBOARD
           ========================================================================= */}
-          {activeTab === 'overview' && (
-            <div>
-              {/* Dashboard Title Bar */}
-              <div className="admin-dashboard-title-bar">
-                <div>
-                  <h1>Dashboard</h1>
-                  <p>Platform overview and key metrics. All sensitive user data is protected.</p>
+          {activeTab === 'overview' && (() => {
+            // Dynamic calculations for Platform Growth Chart from Real DB Timeline
+            const activeTimeline = (chartTimeframe === '7d' ? overview?.growthTimeline?.growth7d : overview?.growthTimeline?.growth30d) || [];
+            const currentMetricKey = chartMetric || 'users';
+
+            const chartPoints = activeTimeline.map((item, idx) => {
+              const totalCount = activeTimeline.length;
+              const x = totalCount > 1 ? (idx / (totalCount - 1)) * 700 : 350;
+              const rawVal = item[currentMetricKey] || 0;
+              const maxVal = Math.max(...activeTimeline.map(i => i[currentMetricKey] || 0), 1);
+              const minVal = 0;
+              // Map value to SVG Y coordinate (30 top, 160 bottom)
+              const y = 160 - ((rawVal - minVal) / (maxVal - minVal)) * 130;
+              return { x, y, date: item.date, value: rawVal };
+            });
+
+            const linePathD = chartPoints.length > 0
+              ? chartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+              : 'M 0,160 L 700,160';
+
+            const areaPathD = chartPoints.length > 0
+              ? `${linePathD} L 700,160 L 0,160 Z`
+              : 'M 0,160 L 700,160 L 700,160 L 0,160 Z';
+
+            const activeLastPoint = chartPoints.length > 0 ? chartPoints[chartPoints.length - 1] : { x: 500, y: 50, value: 0 };
+            const firstDateLabel = activeTimeline.length > 0 ? activeTimeline[0].date : '';
+            const lastDateLabel = activeTimeline.length > 0 ? activeTimeline[activeTimeline.length - 1].date : '';
+            const dateRangeBadgeText = firstDateLabel && lastDateLabel ? `${firstDateLabel} – ${lastDateLabel}` : 'Live Overview';
+
+            return (
+              <div>
+                {/* Dashboard Title Bar */}
+                <div className="admin-dashboard-title-bar">
+                  <div>
+                    <h1>Dashboard</h1>
+                    <p>Platform overview and key metrics. All sensitive user data is protected.</p>
+                  </div>
+
+                  <button type="button" className="admin-date-picker-btn">
+                    <Calendar size={14} />
+                    <span>{dateRangeBadgeText}</span>
+                    <ChevronDown size={14} />
+                  </button>
                 </div>
 
-                <button type="button" className="admin-date-picker-btn">
-                  <Calendar size={14} />
-                  <span>Sep 1, 2025 – Sep 9, 2025</span>
-                  <ChevronDown size={14} />
-                </button>
-              </div>
-
-              {/* 5 Top KPI Cards */}
-              <div className="admin-kpi-row-5">
-                {/* 1. Total Users */}
-                <div className="admin-kpi-card-airvix">
-                  <div className="admin-kpi-card-header">
-                    <div className="admin-kpi-icon-box" style={{ background: 'rgba(37, 99, 235, 0.15)', color: '#3b82f6' }}>
-                      <Users size={18} />
+                {/* 5 Top KPI Cards */}
+                <div className="admin-kpi-row-5">
+                  {/* 1. Total Users */}
+                  <div className="admin-kpi-card-airvix">
+                    <div className="admin-kpi-card-header">
+                      <div className="admin-kpi-icon-box" style={{ background: 'rgba(37, 99, 235, 0.15)', color: '#3b82f6' }}>
+                        <Users size={18} />
+                      </div>
+                    </div>
+                    <div className="admin-kpi-title-text">Total Users</div>
+                    <div className="admin-kpi-main-num">
+                      {overview?.totalUsers != null ? overview.totalUsers.toLocaleString() : '0'}
+                    </div>
+                    <div className="admin-kpi-trend-row">
+                      <span className="admin-kpi-trend-badge">
+                        <TrendingUp size={12} />
+                        <span>Live DB</span>
+                      </span>
+                      {/* Mini SVG Sparkline */}
+                      <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
+                        <path d="M0 16 L12 12 L24 14 L36 8 L48 10 L60 2" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
                     </div>
                   </div>
-                  <div className="admin-kpi-title-text">Total Users</div>
-                  <div className="admin-kpi-main-num">
-                    {overview?.totalUsers != null ? overview.totalUsers.toLocaleString() : '0'}
-                  </div>
-                  <div className="admin-kpi-trend-row">
-                    <span className="admin-kpi-trend-badge">
-                      <TrendingUp size={12} />
-                      <span>Live DB</span>
-                    </span>
-                    {/* Mini SVG Sparkline */}
-                    <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
-                      <path d="M0 16 L12 12 L24 14 L36 8 L48 10 L60 2" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                </div>
 
-                {/* 2. Active Workspaces */}
-                <div className="admin-kpi-card-airvix">
-                  <div className="admin-kpi-card-header">
-                    <div className="admin-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
-                      <Briefcase size={18} />
+                  {/* 2. Active Workspaces */}
+                  <div className="admin-kpi-card-airvix">
+                    <div className="admin-kpi-card-header">
+                      <div className="admin-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                        <Briefcase size={18} />
+                      </div>
+                    </div>
+                    <div className="admin-kpi-title-text">Active Workspaces</div>
+                    <div className="admin-kpi-main-num">
+                      {overview?.activeWorkspaces != null ? overview.activeWorkspaces.toLocaleString() : '0'}
+                    </div>
+                    <div className="admin-kpi-trend-row">
+                      <span className="admin-kpi-trend-badge">
+                        <TrendingUp size={12} />
+                        <span>Live DB</span>
+                      </span>
+                      <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
+                        <path d="M0 15 L12 14 L24 10 L36 12 L48 6 L60 3" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
                     </div>
                   </div>
-                  <div className="admin-kpi-title-text">Active Workspaces</div>
-                  <div className="admin-kpi-main-num">
-                    {overview?.activeWorkspaces != null ? overview.activeWorkspaces.toLocaleString() : '0'}
-                  </div>
-                  <div className="admin-kpi-trend-row">
-                    <span className="admin-kpi-trend-badge">
-                      <TrendingUp size={12} />
-                      <span>Live DB</span>
-                    </span>
-                    <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
-                      <path d="M0 15 L12 14 L24 10 L36 12 L48 6 L60 3" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                </div>
 
-                {/* 3. Connected Instagram Accounts */}
-                <div className="admin-kpi-card-airvix">
-                  <div className="admin-kpi-card-header">
-                    <div className="admin-kpi-icon-box" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
-                      <Film size={18} />
+                  {/* 3. Connected Instagram Accounts */}
+                  <div className="admin-kpi-card-airvix">
+                    <div className="admin-kpi-card-header">
+                      <div className="admin-kpi-icon-box" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
+                        <Film size={18} />
+                      </div>
+                    </div>
+                    <div className="admin-kpi-title-text">Connected Instagram Accounts</div>
+                    <div className="admin-kpi-main-num">
+                      {overview?.totalIgAccounts != null ? overview.totalIgAccounts.toLocaleString() : '0'}
+                    </div>
+                    <div className="admin-kpi-trend-row">
+                      <span className="admin-kpi-trend-badge">
+                        <TrendingUp size={12} />
+                        <span>Live DB</span>
+                      </span>
+                      <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
+                        <path d="M0 18 L12 13 L24 15 L36 9 L48 5 L60 2" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
                     </div>
                   </div>
-                  <div className="admin-kpi-title-text">Connected Instagram Accounts</div>
-                  <div className="admin-kpi-main-num">
-                    {overview?.totalIgAccounts != null ? overview.totalIgAccounts.toLocaleString() : '0'}
-                  </div>
-                  <div className="admin-kpi-trend-row">
-                    <span className="admin-kpi-trend-badge">
-                      <TrendingUp size={12} />
-                      <span>Live DB</span>
-                    </span>
-                    <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
-                      <path d="M0 18 L12 13 L24 15 L36 9 L48 5 L60 2" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                </div>
 
-                {/* 4. Messages Processed */}
-                <div className="admin-kpi-card-airvix">
-                  <div className="admin-kpi-card-header">
-                    <div className="admin-kpi-icon-box" style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' }}>
-                      <Send size={18} />
+                  {/* 4. Messages Processed */}
+                  <div className="admin-kpi-card-airvix">
+                    <div className="admin-kpi-card-header">
+                      <div className="admin-kpi-icon-box" style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' }}>
+                        <Send size={18} />
+                      </div>
+                    </div>
+                    <div className="admin-kpi-title-text">Messages Processed</div>
+                    <div className="admin-kpi-main-num">
+                      {overview?.messagesProcessedFormatted != null ? overview.messagesProcessedFormatted : '0'}
+                    </div>
+                    <div className="admin-kpi-trend-row">
+                      <span className="admin-kpi-trend-badge">
+                        <TrendingUp size={12} />
+                        <span>Live DB</span>
+                      </span>
+                      <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
+                        <path d="M0 17 L12 11 L24 8 L36 10 L48 4 L60 1" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
                     </div>
                   </div>
-                  <div className="admin-kpi-title-text">Messages Processed</div>
-                  <div className="admin-kpi-main-num">
-                    {overview?.messagesProcessedFormatted != null ? overview.messagesProcessedFormatted : '0'}
-                  </div>
-                  <div className="admin-kpi-trend-row">
-                    <span className="admin-kpi-trend-badge">
-                      <TrendingUp size={12} />
-                      <span>Live DB</span>
-                    </span>
-                    <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
-                      <path d="M0 17 L12 11 L24 8 L36 10 L48 4 L60 1" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                </div>
 
-                {/* 5. Monthly Revenue */}
-                <div className="admin-kpi-card-airvix">
-                  <div className="admin-kpi-card-header">
-                    <div className="admin-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
-                      <CreditCard size={18} />
+                  {/* 5. Monthly Revenue */}
+                  <div className="admin-kpi-card-airvix">
+                    <div className="admin-kpi-card-header">
+                      <div className="admin-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                        <CreditCard size={18} />
+                      </div>
+                    </div>
+                    <div className="admin-kpi-title-text">Monthly Revenue</div>
+                    <div className="admin-kpi-main-num" style={{ color: '#10b981' }}>
+                      {overview?.monthlyRevenueFormatted != null ? overview.monthlyRevenueFormatted : '$0'}
+                    </div>
+                    <div className="admin-kpi-trend-row">
+                      <span className="admin-kpi-trend-badge">
+                        <TrendingUp size={12} />
+                        <span>Live DB</span>
+                      </span>
+                      <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
+                        <path d="M0 16 L12 12 L24 13 L36 7 L48 5 L60 2" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
                     </div>
                   </div>
-                  <div className="admin-kpi-title-text">Monthly Revenue</div>
-                  <div className="admin-kpi-main-num" style={{ color: '#10b981' }}>
-                    {overview?.monthlyRevenueFormatted != null ? overview.monthlyRevenueFormatted : '$0'}
-                  </div>
-                  <div className="admin-kpi-trend-row">
-                    <span className="admin-kpi-trend-badge">
-                      <TrendingUp size={12} />
-                      <span>Live DB</span>
-                    </span>
-                    <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
-                      <path d="M0 16 L12 12 L24 13 L36 7 L48 5 L60 2" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </div>
                 </div>
-              </div>
 
-              {/* Middle Row: Growth Chart & System Health */}
-              <div className="admin-dashboard-mid-row">
-                {/* Platform Growth Chart */}
-                <div className="admin-chart-card">
-                  <div className="admin-chart-header">
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff' }}>Platform Growth</div>
+                {/* Middle Row: Growth Chart & System Health */}
+                <div className="admin-dashboard-mid-row">
+                  {/* Platform Growth Chart */}
+                  <div className="admin-chart-card">
+                    <div className="admin-chart-header">
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff' }}>Platform Growth</div>
 
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                      <div className="admin-chart-toggles">
-                        {['users', 'messages', 'workspaces', 'revenue'].map(m => (
-                          <button
-                            key={m}
-                            type="button"
-                            className={`admin-chart-tab-btn ${chartMetric === m ? 'active' : ''}`}
-                            onClick={() => setChartMetric(m)}
-                            style={{ textTransform: 'capitalize' }}
-                          >
-                            {m}
-                          </button>
-                        ))}
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div className="admin-chart-toggles">
+                          {['users', 'messages', 'workspaces', 'revenue'].map(m => (
+                            <button
+                              key={m}
+                              type="button"
+                              className={`admin-chart-tab-btn ${chartMetric === m ? 'active' : ''}`}
+                              onClick={() => setChartMetric(m)}
+                              style={{ textTransform: 'capitalize' }}
+                            >
+                              {m}
+                            </button>
+                          ))}
+                        </div>
+
+                        <select
+                          value={chartTimeframe}
+                          onChange={(e) => setChartTimeframe(e.target.value)}
+                          style={{ background: '#0d121f', border: '1px solid rgba(255,255,255,0.08)', color: '#cbd5e1', padding: '5px 10px', borderRadius: '8px', fontSize: '12px', outline: 'none', cursor: 'pointer' }}
+                        >
+                          <option value="7d">Last 7 days</option>
+                          <option value="30d">Last 30 days</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* SVG Chart Graphic */}
+                    <div style={{ width: '100%', height: '240px', position: 'relative', marginTop: '10px' }}>
+                      <svg width="100%" height="100%" viewBox="0 0 700 200" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.4" />
+                            <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
+                          </linearGradient>
+                        </defs>
+                        <path d={areaPathD} fill="url(#chartGradient)" />
+                        <path d={linePathD} fill="none" stroke="#3b82f6" strokeWidth="3" />
+                        
+                        {/* Active Node Dot */}
+                        {chartPoints.length > 0 && (
+                          <circle cx={activeLastPoint.x} cy={activeLastPoint.y} r="5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
+                        )}
+                      </svg>
+
+                      {/* Live Tooltip Overlay */}
+                      <div style={{ position: 'absolute', top: '15px', right: '15px', background: '#0d121f', border: '1px solid #3b82f6', padding: '6px 12px', borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,0.5)', fontSize: '12px' }}>
+                        <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'capitalize' }}>Live Overview ({chartMetric})</div>
+                        <div style={{ fontWeight: 800, color: '#ffffff' }}>
+                          ● {activeLastPoint.value} {chartMetric}
+                        </div>
                       </div>
 
-                      <select style={{ background: '#0d121f', border: '1px solid rgba(255,255,255,0.08)', color: '#cbd5e1', padding: '5px 10px', borderRadius: '8px', fontSize: '12px', outline: 'none' }}>
-                        <option>Last 7 days</option>
-                        <option>Last 30 days</option>
-                      </select>
+                      {/* X Axis Labels */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '11px', marginTop: '8px' }}>
+                        {activeTimeline.filter((_, idx) => {
+                          if (chartTimeframe === '7d') return true;
+                          return idx % 5 === 0 || idx === activeTimeline.length - 1;
+                        }).map((item, idx) => (
+                          <span key={idx}>{item.date}</span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-
-                  {/* SVG Chart Graphic */}
-                  <div style={{ width: '100%', height: '240px', position: 'relative', marginTop: '10px' }}>
-                    <svg width="100%" height="100%" viewBox="0 0 700 200" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#2563eb" stopOpacity="0.4" />
-                          <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path d="M0,140 Q100,100 200,110 T400,60 T600,40 L700,25 L700,200 L0,200 Z" fill="url(#chartGradient)" />
-                      <path d="M0,140 Q100,100 200,110 T400,60 T600,40 L700,25" fill="none" stroke="#3b82f6" strokeWidth="3" />
-                      
-                      {/* Active Node Dot */}
-                      <circle cx="500" cy="50" r="5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
-                    </svg>
-
-                    {/* Tooltip Overlay */}
-                    <div style={{ position: 'absolute', top: '20px', left: '68%', transform: 'translateX(-50%)', background: '#0d121f', border: '1px solid #3b82f6', padding: '6px 12px', borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,0.5)', fontSize: '12px' }}>
-                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Live Overview</div>
-                      <div style={{ fontWeight: 800, color: '#ffffff' }}>● {overview?.totalUsers != null ? overview.totalUsers : 0} users</div>
-                    </div>
-
-                    {/* X Axis Labels */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '11px', marginTop: '8px' }}>
-                      <span>Sep 1</span>
-                      <span>Sep 2</span>
-                      <span>Sep 3</span>
-                      <span>Sep 4</span>
-                      <span>Sep 5</span>
-                      <span>Sep 6</span>
-                      <span>Sep 7</span>
-                      <span>Sep 8</span>
-                      <span>Sep 9</span>
-                    </div>
-                  </div>
-                </div>
 
                 {/* System Health Widget */}
                 <div className="admin-system-health-card">
@@ -1073,19 +1086,12 @@ export default function AdminView({ user, onBackToApp }) {
                       </div>
                       <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11.5px' }}>Enabled</span>
                     </div>
-
-                    <div className="admin-security-status-item">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1' }}>
-                        <CheckCircle2 size={14} color="#10b981" />
-                        <span>Audit logging</span>
-                      </div>
-                      <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11.5px' }}>Enabled</span>
-                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          )}
+          );
+        })()}
 
           {/* =========================================================================
               TAB 2: USERS DIRECTORY (Privacy-Safe Metadata)
@@ -1196,17 +1202,6 @@ export default function AdminView({ user, onBackToApp }) {
                           >
                             <Edit3 size={13} />
                             <span>Edit</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            className="admin-btn-secondary"
-                            style={{ padding: '5px 10px', fontSize: '11.5px', color: '#f59e0b' }}
-                            title="Reset Password"
-                            onClick={() => { setResetPasswordUser(u); setNewAdminPassword(''); }}
-                          >
-                            <Key size={13} />
-                            <span>Pass</span>
                           </button>
 
                           {u.id !== user?.id && (
@@ -2055,74 +2050,6 @@ export default function AdminView({ user, onBackToApp }) {
               <div className="admin-modal-footer">
                 <button type="button" className="admin-btn-secondary" onClick={() => setEditingUser(null)}>Cancel</button>
                 <button type="submit" className="admin-btn-primary">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL: RESET USER PASSWORD
-      ========================================================================= */}
-      {resetPasswordUser && (
-        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setResetPasswordUser(null); }}>
-          <div className="admin-modal-box" style={{ maxWidth: '460px' }}>
-            <div className="admin-modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Key size={20} color="#f59e0b" />
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ffffff' }}>Reset User Password</h3>
-              </div>
-              <button type="button" onClick={() => setResetPasswordUser(null)} className="admin-modal-close-btn"><X size={18} /></button>
-            </div>
-
-            <form onSubmit={handleResetUserPassword}>
-              <div style={{ margin: '16px 0' }}>
-                <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 14px 0' }}>
-                  Set a new master password for <strong style={{ color: '#ffffff' }}>{resetPasswordUser.email}</strong>.
-                </p>
-
-                <div className="admin-form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label className="admin-form-label" style={{ margin: 0 }}>New Password (Min 6 characters)</label>
-                    <button
-                      type="button"
-                      style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
-                      onClick={() => {
-                        const randomPass = 'Airvix#' + Math.random().toString(36).slice(2, 8) + '!';
-                        setNewAdminPassword(randomPass);
-                      }}
-                    >
-                      🎲 Auto-Generate
-                    </button>
-                  </div>
-
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={newAdminPassword}
-                      onChange={(e) => setNewAdminPassword(e.target.value)}
-                      placeholder="Enter or generate new password..."
-                      className="admin-form-input"
-                      style={{ paddingRight: '40px' }}
-                      required
-                      minLength={6}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="admin-modal-footer">
-                <button type="button" className="admin-btn-secondary" onClick={() => { setResetPasswordUser(null); setShowPassword(false); }}>Cancel</button>
-                <button type="submit" className="admin-btn-primary" style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)' }}>
-                  Update Password
-                </button>
               </div>
             </form>
           </div>
