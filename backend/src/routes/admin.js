@@ -20,6 +20,19 @@ function maskEmail(email) {
   return `${name.slice(0, 1)}***@${domain}`;
 }
 
+// Audit logging helper to record all system & admin mutations live in PostgreSQL
+async function logAuditEvent(actorId, actorEmail, action, targetResource, details = '') {
+  try {
+    const id = `log-${uuidv4().slice(0, 8)}`;
+    await db.prepare(`
+      INSERT INTO audit_logs (id, actor_id, actor_email, action, target_resource, ip_address, details, created_at)
+      VALUES (?, ?, ?, ?, ?, 'Protected (Internal API)', ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+    `).run(id, actorId || 'admin-system', actorEmail || 'admin@airvix.com', action, targetResource || 'system', details);
+  } catch (e) {
+    console.error('[AuditLog] Error logging event:', e.message);
+  }
+}
+
 // ── 100% REAL DATABASE TIME-SERIES AGGREGATION HELPER ─────────────────
 async function buildPlatformGrowthTimeline() {
   try {
@@ -370,6 +383,15 @@ router.patch('/users/:id', async (req, res) => {
       updates.push('updated_at = to_char(NOW(), \'YYYY-MM-DD HH24:MI:SS\')');
       params.push(id);
       await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+
+      // Record live audit log in PostgreSQL
+      await logAuditEvent(
+        req.user?.id,
+        req.user?.email,
+        'Updated User Account Settings',
+        user.email,
+        `Fields modified: ${Object.keys(req.body).join(', ')}`
+      );
     }
 
     const updatedUser = await db.prepare('SELECT id, email, name, plan, role, status, dm_usage_this_period, created_at, updated_at FROM users WHERE id = ?').get(id);
@@ -428,6 +450,7 @@ router.put('/settings', async (req, res) => {
       }
     }
 
+    await logAuditEvent(req.user?.id, req.user?.email, 'Updated Website Customization', 'Site Settings');
     res.json({ message: 'Website customization settings saved successfully' });
   } catch (err) {
     console.error('[Admin] Save settings error:', err);
@@ -462,6 +485,15 @@ router.delete('/users/:id', async (req, res) => {
     }
 
     await db.prepare('DELETE FROM users WHERE id = ?').run(id);
+
+    // Record live audit log in PostgreSQL
+    await logAuditEvent(
+      req.user?.id,
+      req.user?.email,
+      'Deleted User Account & Data Purged',
+      user.email,
+      `User ${id} and all connected account data permanently removed`
+    );
 
     res.json({ success: true, message: `User ${user.email} and all associated data permanently deleted` });
   } catch (err) {
