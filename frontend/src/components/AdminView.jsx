@@ -1771,38 +1771,42 @@ export default function AdminView({ user, onBackToApp }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {(supportData?.tickets || [
-                      { id: 'tik-101', user_email_masked: 'c***@gmail.com', category: 'Instagram OAuth Re-connect', priority: 'High', status: 'open', created_at: '1 hour ago' },
-                      { id: 'tik-102', user_email_masked: 'm***@brand.io', category: 'Webhook Latency Check', priority: 'Medium', status: 'in_progress', created_at: '3 hours ago' },
-                      { id: 'tik-103', user_email_masked: 'k***@creator.co', category: 'Plan Upgrade Assistance', priority: 'Low', status: 'resolved', created_at: '1 day ago' }
-                    ]).map(t => (
-                      <tr key={t.id}>
-                        <td style={{ fontFamily: 'monospace', color: '#818cf8', fontSize: '12px' }}>{t.id}</td>
-                        <td style={{ fontWeight: 700, color: '#ffffff' }}>{t.user_email_masked}</td>
-                        <td>{t.category}</td>
-                        <td>
-                          <span style={{ fontSize: '11px', fontWeight: 700, color: t.priority === 'High' ? '#ef4444' : '#f59e0b' }}>
-                            {t.priority}
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{ fontSize: '11px', fontWeight: 800, background: t.status === 'resolved' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: t.status === 'resolved' ? '#10b981' : '#60a5fa', padding: '2px 8px', borderRadius: '6px' }}>
-                            {t.status}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button
-                            type="button"
-                            className="admin-btn-secondary"
-                            style={{ padding: '4px 8px', fontSize: '11.5px' }}
-                            onClick={() => showToast(`✅ Ticket ${t.id} marked as resolved!`)}
-                          >
-                            <CheckCircle2 size={13} />
-                            <span>Resolve</span>
-                          </button>
+                    {(supportData?.tickets || []).length > 0 ? (
+                      (supportData.tickets).map(t => (
+                        <tr key={t.id}>
+                          <td style={{ fontFamily: 'monospace', color: '#818cf8', fontSize: '12px' }}>{t.id}</td>
+                          <td style={{ fontWeight: 700, color: '#ffffff' }}>{t.user_email_masked}</td>
+                          <td>{t.category}</td>
+                          <td>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: t.priority === 'High' ? '#ef4444' : '#f59e0b' }}>
+                              {t.priority}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '11px', fontWeight: 800, background: t.status === 'resolved' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: t.status === 'resolved' ? '#10b981' : '#60a5fa', padding: '2px 8px', borderRadius: '6px' }}>
+                              {t.status}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className="admin-btn-secondary"
+                              style={{ padding: '4px 8px', fontSize: '11.5px' }}
+                              onClick={() => showToast(`✅ Ticket ${t.id} marked as resolved!`)}
+                            >
+                              <CheckCircle2 size={13} />
+                              <span>Resolve</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '16px' }}>
+                          No active support tickets pending
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
