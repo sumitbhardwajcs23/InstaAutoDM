@@ -43,7 +43,7 @@ function requireAdmin(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized: authentication required' });
   }
 
-  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com')
+  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com,admin@airvix.com')
     .toLowerCase()
     .split(',')
     .map(e => e.trim());

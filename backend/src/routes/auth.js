@@ -9,7 +9,7 @@ const { JWT_SECRET, requireAuth } = require('../middleware/auth');
 
 function isConfiguredAdminEmail(email) {
   if (!email) return false;
-  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com')
+  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com,admin@airvix.com')
     .toLowerCase()
     .split(',')
     .map(e => e.trim());

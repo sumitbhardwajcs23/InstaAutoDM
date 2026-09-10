@@ -79,9 +79,24 @@ if (pgPool) {
             updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
           );
         `);
-        // Ensure default admin user if owner email exists
-        const adminEmail = (process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com').toLowerCase().trim();
-        await pgPool.query("UPDATE users SET role = 'admin' WHERE LOWER(email) = $1", [adminEmail]);
+        // Ensure default admin users
+        const defaultAdminHash = '$2b$10$GO0KxP.tcwH7QMI6zVHEVOdlW.Z/jTEdeDoVrMelhEeUIgIZHHzW6'; // Admin@12345
+        await pgPool.query(`
+          INSERT INTO users (id, email, name, plan, role, status, password_hash, dm_usage_this_period, usage_period_start, created_at, updated_at)
+          VALUES ('admin-root-001', 'admin@airvix.com', 'Super Admin', 'agency', 'admin', 'active', $1, 0, to_char(CURRENT_DATE, 'YYYY-MM-DD'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+          ON CONFLICT (email) DO UPDATE SET role = 'admin', status = 'active';
+        `, [defaultAdminHash]);
+
+        // Ensure owner email also elevated to admin if registered
+        const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com,admin@airvix.com')
+          .toLowerCase()
+          .split(',')
+          .map(e => e.trim());
+        for (const aEmail of adminEmails) {
+          if (aEmail) {
+            await pgPool.query("UPDATE users SET role = 'admin' WHERE LOWER(email) = $1", [aEmail]);
+          }
+        }
       } catch (migErr) {
         console.warn('[PostgreSQL] Migration notice:', migErr.message);
       }
