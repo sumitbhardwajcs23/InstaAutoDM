@@ -31,6 +31,7 @@ import {
   Layers,
   Trash2,
   KeyRound,
+  Key,
   Plus,
   ArrowRight,
   ExternalLink,
@@ -1092,7 +1093,8 @@ export default function AdminView({ user, onBackToApp }) {
                           <button
                             type="button"
                             className="admin-btn-secondary"
-                            style={{ padding: '4px 8px', fontSize: '11.5px' }}
+                            style={{ padding: '5px 10px', fontSize: '11.5px' }}
+                            title="Inspect User Details"
                             onClick={() => loadUserDetail(u.id)}
                           >
                             <Info size={13} />
@@ -1102,20 +1104,35 @@ export default function AdminView({ user, onBackToApp }) {
                           <button
                             type="button"
                             className="admin-btn-secondary"
-                            style={{ padding: '4px 8px', fontSize: '11.5px' }}
+                            style={{ padding: '5px 10px', fontSize: '11.5px' }}
+                            title="Edit Tier & Access"
                             onClick={() => setEditingUser(u)}
                           >
                             <Edit3 size={13} />
+                            <span>Edit</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="admin-btn-secondary"
+                            style={{ padding: '5px 10px', fontSize: '11.5px', color: '#f59e0b' }}
+                            title="Reset Password"
+                            onClick={() => { setResetPasswordUser(u); setNewAdminPassword(''); }}
+                          >
+                            <Key size={13} />
+                            <span>Pass</span>
                           </button>
 
                           {u.id !== user?.id && (
                             <button
                               type="button"
-                              className="admin-btn-secondary"
-                              style={{ padding: '4px 8px', fontSize: '11.5px', color: '#f87171' }}
+                              className="admin-btn-danger"
+                              style={{ padding: '5px 10px', fontSize: '11.5px' }}
+                              title="Delete User Account"
                               onClick={() => setDeletingUser(u)}
                             >
                               <Trash2 size={13} />
+                              <span>Delete</span>
                             </button>
                           )}
                         </div>
@@ -1542,6 +1559,244 @@ export default function AdminView({ user, onBackToApp }) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: EDIT USER ACCESS & TIER
+      ========================================================================= */}
+      {editingUser && (
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setEditingUser(null); }}>
+          <div className="admin-modal-box" style={{ maxWidth: '520px' }}>
+            <div className="admin-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Edit3 size={20} color="#3b82f6" />
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ffffff' }}>Edit User Access &amp; Tier</h3>
+              </div>
+              <button type="button" onClick={() => setEditingUser(null)} className="admin-modal-close-btn"><X size={18} /></button>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              handleUpdateUser(editingUser.id, {
+                name: formData.get('name'),
+                plan: formData.get('plan'),
+                role: formData.get('role'),
+                status: formData.get('status'),
+                reset_dm_usage: formData.get('reset_dm_usage') === 'on'
+              });
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '16px 0' }}>
+                <div className="admin-form-group">
+                  <label className="admin-form-label">Full Name</label>
+                  <input type="text" name="name" defaultValue={editingUser.name || 'Creator'} className="admin-form-input" required />
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">User Email (Read-Only ID)</label>
+                  <input type="email" value={editingUser.email} className="admin-form-input" disabled style={{ opacity: 0.6 }} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Plan Tier</label>
+                    <select name="plan" defaultValue={editingUser.plan || 'free'} className="admin-form-select">
+                      <option value="free">Free Starter</option>
+                      <option value="pro">Pro Creator</option>
+                      <option value="agency">Agency &amp; Brand</option>
+                      <option value="enterprise">Enterprise VIP</option>
+                    </select>
+                  </div>
+
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Role</label>
+                    <select name="role" defaultValue={editingUser.role || 'user'} className="admin-form-select">
+                      <option value="user">👤 Creator User</option>
+                      <option value="admin">🛡️ Super Admin</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">Account Status</label>
+                  <select name="status" defaultValue={editingUser.status || 'active'} className="admin-form-select">
+                    <option value="active">🟢 Active</option>
+                    <option value="suspended">🔴 Suspended / Blocked</option>
+                  </select>
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#cbd5e1', cursor: 'pointer', marginTop: '4px' }}>
+                  <input type="checkbox" name="reset_dm_usage" />
+                  <span>Reset current DM usage tokens to 0</span>
+                </label>
+              </div>
+
+              <div className="admin-modal-footer">
+                <button type="button" className="admin-btn-secondary" onClick={() => setEditingUser(null)}>Cancel</button>
+                <button type="submit" className="admin-btn-primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: RESET USER PASSWORD
+      ========================================================================= */}
+      {resetPasswordUser && (
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setResetPasswordUser(null); }}>
+          <div className="admin-modal-box" style={{ maxWidth: '460px' }}>
+            <div className="admin-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Key size={20} color="#f59e0b" />
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ffffff' }}>Reset User Password</h3>
+              </div>
+              <button type="button" onClick={() => setResetPasswordUser(null)} className="admin-modal-close-btn"><X size={18} /></button>
+            </div>
+
+            <form onSubmit={handleResetUserPassword}>
+              <div style={{ margin: '16px 0' }}>
+                <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 14px 0' }}>
+                  Set a new master password for <strong style={{ color: '#ffffff' }}>{resetPasswordUser.email}</strong>.
+                </p>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">New Password (Min 6 characters)</label>
+                  <input
+                    type="password"
+                    value={newAdminPassword}
+                    onChange={(e) => setNewAdminPassword(e.target.value)}
+                    placeholder="Enter new password..."
+                    className="admin-form-input"
+                    required
+                    minLength={6}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-footer">
+                <button type="button" className="admin-btn-secondary" onClick={() => setResetPasswordUser(null)}>Cancel</button>
+                <button type="submit" className="admin-btn-primary" style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)' }}>
+                  Update Password
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: DELETE USER CONFIRMATION
+      ========================================================================= */}
+      {deletingUser && (
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setDeletingUser(null); }}>
+          <div className="admin-modal-box" style={{ maxWidth: '460px' }}>
+            <div className="admin-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <AlertCircle size={22} color="#ef4444" />
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ef4444' }}>Delete User Account</h3>
+              </div>
+              <button type="button" onClick={() => setDeletingUser(null)} className="admin-modal-close-btn"><X size={18} /></button>
+            </div>
+
+            <div style={{ margin: '16px 0' }}>
+              <p style={{ fontSize: '13.5px', color: '#f8fafc', lineHeight: 1.5, margin: '0 0 10px 0' }}>
+                Are you sure you want to permanently delete user <strong style={{ color: '#ffffff' }}>{deletingUser.name || deletingUser.email}</strong>?
+              </p>
+              <p style={{ fontSize: '12px', color: '#94a3b8', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '10px 12px', borderRadius: '8px' }}>
+                ⚠️ Warning: This action cannot be undone. All connected Instagram accounts, automation rules, activity logs, and workspace data will be purged.
+              </p>
+            </div>
+
+            <div className="admin-modal-footer">
+              <button type="button" className="admin-btn-secondary" onClick={() => setDeletingUser(null)}>Cancel</button>
+              <button type="button" className="admin-btn-danger" onClick={handleDeleteUser}>
+                Permanently Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: CREATE / EDIT PRICING PLAN
+      ========================================================================= */}
+      {isCreatingPlan && (
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsCreatingPlan(false); }}>
+          <div className="admin-modal-box" style={{ maxWidth: '600px' }}>
+            <div className="admin-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <CreditCard size={20} color="#3b82f6" />
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ffffff' }}>
+                  {editingPlan ? 'Edit Pricing Plan' : 'Create Custom Pricing Plan'}
+                </h3>
+              </div>
+              <button type="button" onClick={() => setIsCreatingPlan(false)} className="admin-modal-close-btn"><X size={18} /></button>
+            </div>
+
+            <form onSubmit={handleSavePlan}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', margin: '16px 0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Plan Name</label>
+                    <input type="text" value={planFormData.name} onChange={(e) => setPlanFormData({ ...planFormData, name: e.target.value })} className="admin-form-input" required />
+                  </div>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Badge Label (e.g. 🔥 POPULAR)</label>
+                    <input type="text" value={planFormData.badge || ''} onChange={(e) => setPlanFormData({ ...planFormData, badge: e.target.value })} className="admin-form-input" />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Monthly Price ($)</label>
+                    <input type="number" value={planFormData.monthlyPrice} onChange={(e) => setPlanFormData({ ...planFormData, monthlyPrice: e.target.value })} className="admin-form-input" required />
+                  </div>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Annual Monthly Price ($)</label>
+                    <input type="number" value={planFormData.annualPrice} onChange={(e) => setPlanFormData({ ...planFormData, annualPrice: e.target.value })} className="admin-form-input" />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">DM Limit / Mo</label>
+                    <input type="number" value={planFormData.dmLimit} onChange={(e) => setPlanFormData({ ...planFormData, dmLimit: e.target.value })} className="admin-form-input" required />
+                  </div>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">IG Accounts Limit</label>
+                    <input type="number" value={planFormData.igLimit} onChange={(e) => setPlanFormData({ ...planFormData, igLimit: e.target.value })} className="admin-form-input" required />
+                  </div>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Active Rules Limit</label>
+                    <input type="number" value={planFormData.rulesLimit} onChange={(e) => setPlanFormData({ ...planFormData, rulesLimit: e.target.value })} className="admin-form-input" required />
+                  </div>
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">Description</label>
+                  <input type="text" value={planFormData.description} onChange={(e) => setPlanFormData({ ...planFormData, description: e.target.value })} className="admin-form-input" />
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">Features List (One per line)</label>
+                  <textarea
+                    rows={4}
+                    value={planFeaturesText}
+                    onChange={(e) => setPlanFeaturesText(e.target.value)}
+                    className="admin-form-input"
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-footer">
+                <button type="button" className="admin-btn-secondary" onClick={() => setIsCreatingPlan(false)}>Cancel</button>
+                <button type="submit" className="admin-btn-primary">Save Plan</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
