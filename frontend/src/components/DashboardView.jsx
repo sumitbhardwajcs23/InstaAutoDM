@@ -369,7 +369,7 @@ export default function DashboardView({
             {isConnected && account?.followers_count !== undefined && account.followers_count > 0 && (
               <div style={{ fontSize: '11.5px', color: 'var(--text-light)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span>👥</span>
-                <span>{account.followers_count.toLocaleString()} followers</span>
+                <span>{(account?.followers_count || 0).toLocaleString()} followers</span>
               </div>
             )}
             {accounts && accounts.length > 1 && (
