@@ -92,6 +92,19 @@ app.get('/data-deletion-status', (req, res) => {
 // 404 handler for API routes
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
+// Stale chunk/asset handler (prevents MIME type errors when browser requests old JS hashes after deployment)
+app.use(['/assets/*', '/*.js', '/*.css'], (req, res, next) => {
+  if (req.path.endsWith('.js')) {
+    res.type('application/javascript');
+    return res.send('/* Stale JS chunk requested */ console.warn("[Airvix] Stale JS chunk requested. Reloading..."); if (typeof window !== "undefined") { window.location.reload(); }');
+  }
+  if (req.path.endsWith('.css')) {
+    res.type('text/css');
+    return res.send('/* Stale CSS chunk requested */');
+  }
+  next();
+});
+
 // SPA fallback for frontend
 app.use((_req, res) => {
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
