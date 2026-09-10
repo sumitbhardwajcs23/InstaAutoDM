@@ -94,6 +94,7 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // SPA fallback for frontend
 app.use((_req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   if (fs.existsSync(path.join(distDir, 'index.html'))) {
     res.sendFile(path.join(distDir, 'index.html'));
   } else {
