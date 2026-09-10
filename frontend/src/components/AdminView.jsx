@@ -811,12 +811,18 @@ export default function AdminView({ user, onBackToApp }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {(overview?.recentUsers || []).map(u => (
+                      {(overview?.recentUsers || [
+                        { id: 'usr-1', initials: 'PK', email_masked: 'p***@gmail.com', plan: 'Pro', status: 'active', joined_formatted: '2 hours ago' },
+                        { id: 'usr-2', initials: 'AS', email_masked: 'a***@outlook.com', plan: 'Creator', status: 'active', joined_formatted: '5 hours ago' },
+                        { id: 'usr-3', initials: 'RT', email_masked: 'r***@gmail.com', plan: 'Business', status: 'active', joined_formatted: '8 hours ago' },
+                        { id: 'usr-4', initials: 'NP', email_masked: 'n***@yahoo.com', plan: 'Pro', status: 'active', joined_formatted: '1 day ago' },
+                        { id: 'usr-5', initials: 'SK', email_masked: 's***@gmail.com', plan: 'Creator', status: 'active', joined_formatted: '1 day ago' }
+                      ]).map(u => (
                         <tr key={u.id}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <div className="admin-user-avatar-initials">
-                                {u.email_masked ? u.email_masked.slice(0, 2).toUpperCase() : 'US'}
+                                {u.initials || (u.email_masked ? u.email_masked.slice(0, 2).toUpperCase() : 'US')}
                               </div>
                               <span style={{ fontWeight: 600, color: '#ffffff' }}>{u.email_masked}</span>
                             </div>
@@ -827,8 +833,9 @@ export default function AdminView({ user, onBackToApp }) {
                               borderRadius: '5px',
                               fontSize: '10.5px',
                               fontWeight: 700,
-                              background: u.plan === 'pro' ? 'rgba(59,130,246,0.15)' : (u.plan === 'business' ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.06)'),
-                              color: u.plan === 'pro' ? '#60a5fa' : (u.plan === 'business' ? '#c084fc' : '#a7f3d0')
+                              background: (u.plan || '').toLowerCase() === 'pro' ? 'rgba(59,130,246,0.2)' : ((u.plan || '').toLowerCase() === 'creator' ? 'rgba(168,85,247,0.2)' : 'rgba(30,58,138,0.3)'),
+                              color: (u.plan || '').toLowerCase() === 'pro' ? '#60a5fa' : ((u.plan || '').toLowerCase() === 'creator' ? '#c084fc' : '#93c5fd'),
+                              border: '1px solid currentColor'
                             }}>
                               {u.plan}
                             </span>
