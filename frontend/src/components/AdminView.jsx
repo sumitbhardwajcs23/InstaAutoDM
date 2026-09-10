@@ -857,8 +857,8 @@ export default function AdminView({ user, onBackToApp }) {
 
                     {/* Tooltip Overlay */}
                     <div style={{ position: 'absolute', top: '20px', left: '68%', transform: 'translateX(-50%)', background: '#0d121f', border: '1px solid #3b82f6', padding: '6px 12px', borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,0.5)', fontSize: '12px' }}>
-                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Sep 6, 2025</div>
-                      <div style={{ fontWeight: 800, color: '#ffffff' }}>● 2,341 users</div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8' }}>Live Overview</div>
+                      <div style={{ fontWeight: 800, color: '#ffffff' }}>● {overview?.totalUsers != null ? overview.totalUsers : 0} users</div>
                     </div>
 
                     {/* X Axis Labels */}
@@ -924,43 +924,45 @@ export default function AdminView({ user, onBackToApp }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {(overview?.recentUsers || [
-                        { id: 'usr-1', initials: 'PK', email_masked: 'p***@gmail.com', plan: 'Pro', status: 'active', joined_formatted: '2 hours ago' },
-                        { id: 'usr-2', initials: 'AS', email_masked: 'a***@outlook.com', plan: 'Creator', status: 'active', joined_formatted: '5 hours ago' },
-                        { id: 'usr-3', initials: 'RT', email_masked: 'r***@gmail.com', plan: 'Business', status: 'active', joined_formatted: '8 hours ago' },
-                        { id: 'usr-4', initials: 'NP', email_masked: 'n***@yahoo.com', plan: 'Pro', status: 'active', joined_formatted: '1 day ago' },
-                        { id: 'usr-5', initials: 'SK', email_masked: 's***@gmail.com', plan: 'Creator', status: 'active', joined_formatted: '1 day ago' }
-                      ]).map(u => (
-                        <tr key={u.id}>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <div className="admin-user-avatar-initials">
-                                {u.initials || (u.email_masked ? u.email_masked.slice(0, 2).toUpperCase() : 'US')}
+                      {(overview?.recentUsers || []).length > 0 ? (
+                        overview.recentUsers.map(u => (
+                          <tr key={u.id}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div className="admin-user-avatar-initials">
+                                  {u.initials || (u.email_masked ? u.email_masked.slice(0, 2).toUpperCase() : 'US')}
+                                </div>
+                                <span style={{ fontWeight: 600, color: '#ffffff' }}>{u.email_masked}</span>
                               </div>
-                              <span style={{ fontWeight: 600, color: '#ffffff' }}>{u.email_masked}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <span style={{
-                              padding: '2px 7px',
-                              borderRadius: '5px',
-                              fontSize: '10.5px',
-                              fontWeight: 700,
-                              background: (u.plan || '').toLowerCase() === 'pro' ? 'rgba(59,130,246,0.2)' : ((u.plan || '').toLowerCase() === 'creator' ? 'rgba(168,85,247,0.2)' : 'rgba(30,58,138,0.3)'),
-                              color: (u.plan || '').toLowerCase() === 'pro' ? '#60a5fa' : ((u.plan || '').toLowerCase() === 'creator' ? '#c084fc' : '#93c5fd'),
-                              border: '1px solid currentColor'
-                            }}>
-                              {u.plan}
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>● Active</span>
-                          </td>
-                          <td style={{ fontSize: '11px', color: '#94a3b8' }}>
-                            {u.joined_formatted}
+                            </td>
+                            <td>
+                              <span style={{
+                                padding: '2px 7px',
+                                borderRadius: '5px',
+                                fontSize: '10.5px',
+                                fontWeight: 700,
+                                background: (u.plan || '').toLowerCase() === 'pro' ? 'rgba(59,130,246,0.2)' : ((u.plan || '').toLowerCase() === 'creator' ? 'rgba(168,85,247,0.2)' : 'rgba(30,58,138,0.3)'),
+                                color: (u.plan || '').toLowerCase() === 'pro' ? '#60a5fa' : ((u.plan || '').toLowerCase() === 'creator' ? '#c084fc' : '#93c5fd'),
+                                border: '1px solid currentColor'
+                              }}>
+                                {u.plan}
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>● Active</span>
+                            </td>
+                            <td style={{ fontSize: '11px', color: '#94a3b8' }}>
+                              {u.joined_formatted}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '16px' }}>
+                            No users registered yet
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -973,22 +975,28 @@ export default function AdminView({ user, onBackToApp }) {
                   </div>
 
                   <div className="admin-activity-stream">
-                    {(overview?.recentActivity || []).map(act => (
-                      <div key={act.id} className="admin-activity-item">
-                        <div className="admin-activity-icon">
-                          {act.icon === 'user' && <Users size={15} />}
-                          {act.icon === 'workspace' && <Briefcase size={15} />}
-                          {act.icon === 'instagram' && <Film size={15} />}
-                          {act.icon === 'payment' && <CreditCard size={15} color="#10b981" />}
-                          {act.icon === 'deletion' && <Trash2 size={15} color="#ef4444" />}
+                    {(overview?.recentActivity || []).length > 0 ? (
+                      overview.recentActivity.map(act => (
+                        <div key={act.id} className="admin-activity-item">
+                          <div className="admin-activity-icon">
+                            {act.icon === 'user' && <Users size={15} />}
+                            {act.icon === 'workspace' && <Briefcase size={15} />}
+                            {act.icon === 'instagram' && <Film size={15} />}
+                            {act.icon === 'payment' && <CreditCard size={15} color="#10b981" />}
+                            {act.icon === 'deletion' && <Trash2 size={15} color="#ef4444" />}
+                          </div>
+                          <div className="admin-activity-content">
+                            <div className="admin-activity-title">{act.event}</div>
+                            <div className="admin-activity-detail">{act.detail}</div>
+                          </div>
+                          <div className="admin-activity-time">{act.timestamp}</div>
                         </div>
-                        <div className="admin-activity-content">
-                          <div className="admin-activity-title">{act.event}</div>
-                          <div className="admin-activity-detail">{act.detail}</div>
-                        </div>
-                        <div className="admin-activity-time">{act.timestamp}</div>
+                      ))
+                    ) : (
+                      <div style={{ fontSize: '12px', color: '#64748b', padding: '16px 0', textAlign: 'center' }}>
+                        No audit events recorded yet
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 
@@ -1007,7 +1015,7 @@ export default function AdminView({ user, onBackToApp }) {
                         <span>Account deletion requests</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 800, color: '#ffffff' }}>3</span>
+                        <span style={{ fontWeight: 800, color: '#ffffff' }}>{overview?.dataRequests?.deletionRequests || 0}</span>
                         <span className="admin-data-req-badge" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>Pending</span>
                       </div>
                     </div>
@@ -1018,7 +1026,7 @@ export default function AdminView({ user, onBackToApp }) {
                         <span>Data export requests</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 800, color: '#ffffff' }}>7</span>
+                        <span style={{ fontWeight: 800, color: '#ffffff' }}>{overview?.dataRequests?.exportRequests || 0}</span>
                         <span className="admin-data-req-badge" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>Pending</span>
                       </div>
                     </div>
@@ -1029,7 +1037,7 @@ export default function AdminView({ user, onBackToApp }) {
                         <span>Completed deletions</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 800, color: '#ffffff' }}>128</span>
+                        <span style={{ fontWeight: 800, color: '#ffffff' }}>{overview?.dataRequests?.completedDeletions || 0}</span>
                         <span style={{ fontSize: '11px', color: '#64748b' }}>Last 30 days</span>
                       </div>
                     </div>
