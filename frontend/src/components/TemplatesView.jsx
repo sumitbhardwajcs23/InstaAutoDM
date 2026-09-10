@@ -629,10 +629,6 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
         const data = await res.json();
         if (data && Array.isArray(data.media)) {
           setReels(data.media);
-          // Default: If there are reels, select the first one for rich visual demonstration
-          if (data.media.length > 0 && !selectedReel) {
-            setSelectedReel(data.media[0]);
-          }
         }
       } catch (err) {
         console.warn('Could not fetch reels for templates:', err.message);
@@ -727,7 +723,7 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
       card_enabled: 1,
       card_title: pendingTemplate.card_title || pendingTemplate.name,
       card_subtitle: pendingTemplate.card_subtitle || '',
-      card_image_url: chosenReel ? (chosenReel.thumbnail_url || chosenReel.media_url) : pendingTemplate.card_image_url,
+      card_image_url: pendingTemplate.card_image_url,
       card_button_text: pendingTemplate.card_button_text || 'Open Link',
       card_button_url: pendingTemplate.card_button_url || 'https://',
       // Target Media specifics:
@@ -894,6 +890,10 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
               <img
                 src={selectedReel.thumbnail_url || selectedReel.media_url}
                 alt="Reel Thumb"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
                 style={{ width: '30px', height: '38px', borderRadius: '4px', objectFit: 'cover' }}
               />
               <button
@@ -1068,6 +1068,10 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
                           <img
                             src={reel.thumbnail_url || reel.media_url}
                             alt="Reel"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
                           <div style={{
@@ -1251,7 +1255,7 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
         gap: '24px',
       }}>
         {filteredTemplates.map((template) => {
-          const cardImg = selectedReel ? (selectedReel.thumbnail_url || selectedReel.media_url) : template.card_image_url;
+          const cardImg = template.card_image_url;
 
           return (
             <div
@@ -1289,6 +1293,11 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
                   <img
                     src={cardImg}
                     alt={template.card_title}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
+                    }}
                     style={{
                       width: '100%',
                       height: '100%',
@@ -1739,8 +1748,13 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
                 }}>
                   <div style={{ height: '140px', background: '#0f172a', position: 'relative' }}>
                     <img
-                      src={selectedReel ? (selectedReel.thumbnail_url || selectedReel.media_url) : previewTemplate.card_image_url}
+                      src={previewTemplate.card_image_url}
                       alt="Card"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
+                      }}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                     <div style={{
@@ -2046,7 +2060,15 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
                               >
                                 <div style={{ height: '70px', background: '#0f172a', position: 'relative' }}>
                                   {thumb ? (
-                                    <img src={thumb} alt="Reel" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <img 
+                                      src={thumb} 
+                                      alt="Reel" 
+                                      referrerPolicy="no-referrer"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                    />
                                   ) : (
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
                                       <Film size={20} />

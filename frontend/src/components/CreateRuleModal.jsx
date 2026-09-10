@@ -72,13 +72,18 @@ export default function CreateRuleModal({
       setFollowPromptMessage(ruleToEdit.follow_prompt_message || "Hey {username}! Please follow @ourpage first to get your access link! Tap \"✅ I've Followed\" below once done 🚀");
       setFollowCommentReply(ruleToEdit.follow_comment_reply || "Almost there! Follow @ourpage and check your DMs to unlock 🚀");
 
-      if (ruleToEdit.target_media_id || ruleToEdit.target_media_type === 'next_upload') {
+      const hasTarget = Boolean(ruleToEdit.target_media_id || ruleToEdit.target_media_type === 'next_upload' || (ruleToEdit.target_media_type && ruleToEdit.target_media_type !== 'all'));
+      if (hasTarget) {
         setTargetMedia({
           id: ruleToEdit.target_media_id || null,
           type: ruleToEdit.target_media_type || 'reel',
           thumbnail: ruleToEdit.target_media_thumbnail || null,
           caption: ruleToEdit.target_media_caption || (ruleToEdit.target_media_type === 'next_upload' ? '🚀 Next Uploaded Reel/Post' : null),
         });
+        // Targeted media cannot have a Direct Message (DM) inbox trigger
+        if (!isStory) {
+          setActionType('comment');
+        }
       } else {
         setTargetMedia(null);
       }
@@ -142,6 +147,13 @@ export default function CreateRuleModal({
     }
     setError(null);
   }, [ruleToEdit, preselectedMedia, isOpen]);
+
+  // When targeting a specific media / next upload, trigger cannot be Direct Message (DM)
+  useEffect(() => {
+    if (targetMedia && actionType === 'dm') {
+      setActionType(targetMedia.type === 'story' ? 'story' : 'comment');
+    }
+  }, [targetMedia, actionType]);
 
   if (!isOpen) return null;
 
@@ -362,6 +374,8 @@ export default function CreateRuleModal({
                 <img 
                   src={targetMedia.thumbnail} 
                   alt="Target preview" 
+                  referrerPolicy="no-referrer"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
                 />
               ) : targetMedia.type === 'next_upload' ? (
@@ -442,7 +456,7 @@ export default function CreateRuleModal({
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>
               Select Trigger Type:
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: targetMedia ? '1fr 1fr' : '1fr 1fr 1fr', gap: '8px' }}>
               <button
                 type="button"
                 onClick={() => setActionType('comment')}
@@ -493,30 +507,33 @@ export default function CreateRuleModal({
                 <span>Story Reply / Mention</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setActionType('dm')}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  padding: '10px 8px',
-                  borderRadius: '10px',
-                  border: '1.5px solid',
-                  borderColor: actionType === 'dm' ? '#06b6d4' : 'var(--border-subtle)',
-                  background: actionType === 'dm' ? 'rgba(6, 182, 212, 0.12)' : 'transparent',
-                  color: actionType === 'dm' ? '#06b6d4' : 'var(--text-muted)',
-                  fontWeight: 600,
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  textAlign: 'center'
-                }}
-              >
-                <Send size={18} />
-                <span>Direct Message (DM)</span>
-              </button>
+              {/* Direct Message (DM) is only for global inbox rules, NOT when targeting a specific Reel/Post or Next Upload */}
+              {!targetMedia && (
+                <button
+                  type="button"
+                  onClick={() => setActionType('dm')}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    padding: '10px 8px',
+                    borderRadius: '10px',
+                    border: '1.5px solid',
+                    borderColor: actionType === 'dm' ? '#06b6d4' : 'var(--border-subtle)',
+                    background: actionType === 'dm' ? 'rgba(6, 182, 212, 0.12)' : 'transparent',
+                    color: actionType === 'dm' ? '#06b6d4' : 'var(--text-muted)',
+                    fontWeight: 600,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    textAlign: 'center'
+                  }}
+                >
+                  <Send size={18} />
+                  <span>Direct Message (DM)</span>
+                </button>
+              )}
             </div>
           </div>
 

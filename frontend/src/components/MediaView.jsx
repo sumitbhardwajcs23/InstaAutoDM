@@ -734,6 +734,11 @@ export default function MediaView({
                     <img 
                       src={item.thumbnail_url || item.media_url || `https://picsum.photos/seed/${item.id}/400/500`}
                       alt={item.caption || 'Instagram media'}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = `https://picsum.photos/seed/${item.id}/400/500`;
+                      }}
                       style={{
                         width: '100%',
                         height: '100%',
