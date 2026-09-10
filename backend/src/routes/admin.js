@@ -88,9 +88,9 @@ async function buildPlatformGrowthTimeline() {
       let revenue = 0;
       activeUsers.forEach(u => {
         const p = (u.plan || 'free').toLowerCase();
-        if (p === 'pro') revenue += 29;
-        else if (p === 'agency') revenue += 79;
-        else if (p === 'enterprise') revenue += 199;
+        if (p === 'pro') revenue += 1499;
+        else if (p === 'agency') revenue += 3999;
+        else if (p === 'enterprise') revenue += 7999;
       });
 
       return {
@@ -149,7 +149,7 @@ router.get('/overview', async (req, res) => {
       const p = (row.plan || 'free').toLowerCase();
       if (planBreakdown[p] !== undefined) planBreakdown[p] = parseInt(row.count, 10);
     });
-    const estimatedMrr = (planBreakdown.pro * 29) + (planBreakdown.agency * 79) + ((planBreakdown.enterprise || 0) * 199);
+    const estimatedMrr = (planBreakdown.pro * 1499) + (planBreakdown.agency * 3999) + ((planBreakdown.enterprise || 0) * 7999);
 
     // 6. Privacy-masked Recent Signups (100% REAL DB DATA)
     const rawRecent = await db.prepare(`
@@ -195,7 +195,7 @@ router.get('/overview', async (req, res) => {
       totalDmsSent,
       messagesProcessedFormatted: totalDmsSent >= 1000 ? `${(totalDmsSent / 1000).toFixed(1)}K` : `${totalDmsSent}`,
       estimatedMrr,
-      monthlyRevenueFormatted: estimatedMrr >= 1000 ? `$${(estimatedMrr / 1000).toFixed(1)}K` : `$${estimatedMrr}`,
+      monthlyRevenueFormatted: estimatedMrr >= 100000 ? `₹${(estimatedMrr / 100000).toFixed(1)}L` : (estimatedMrr >= 1000 ? `₹${(estimatedMrr / 1000).toFixed(1)}K` : `₹${estimatedMrr}`),
       planBreakdown,
       recentUsers,
       recentActivity,
@@ -607,8 +607,8 @@ const DEFAULT_PLANS = [
     id: 'plan-pro',
     slug: 'pro',
     name: 'Pro Creator',
-    monthlyPrice: 29,
-    annualPrice: 24,
+    monthlyPrice: 1499,
+    annualPrice: 1199,
     dmLimit: 25000,
     igLimit: 3,
     rulesLimit: 25,
@@ -629,8 +629,8 @@ const DEFAULT_PLANS = [
     id: 'plan-agency',
     slug: 'agency',
     name: 'Agency & Brand',
-    monthlyPrice: 79,
-    annualPrice: 65,
+    monthlyPrice: 3999,
+    annualPrice: 3199,
     dmLimit: 100000,
     igLimit: 10,
     rulesLimit: 100,
@@ -651,8 +651,8 @@ const DEFAULT_PLANS = [
     id: 'plan-enterprise',
     slug: 'enterprise',
     name: 'Enterprise VIP',
-    monthlyPrice: 199,
-    annualPrice: 169,
+    monthlyPrice: 7999,
+    annualPrice: 6499,
     dmLimit: 500000,
     igLimit: 25,
     rulesLimit: 500,
@@ -797,41 +797,50 @@ router.post('/plans/reset', async (_req, res) => {
 });
 
 // ── GET /api/admin/payments ──────────────────────────────────────────
-router.get('/payments', async (_req, res) => {
+// ── GET /api/admin/settings (CMS Settings for Landing Page) ───────────
+router.get('/settings', async (_req, res) => {
   try {
-    // Generate payments list from paid tier users + system log
-    const paidUsers = await db.prepare(`
-      SELECT id, email, name, plan, created_at, updated_at
-      FROM users
-      WHERE plan IN ('pro', 'agency', 'enterprise')
-      ORDER BY updated_at DESC
-    `).all();
-
-    const priceMap = { pro: 29, agency: 79, enterprise: 199 };
-    const transactions = (paidUsers || []).map((u, idx) => ({
-      id: `tx-${Date.now()}-${idx}`,
-      user_id: u.id,
-      user_name: u.name || 'Creator',
-      user_email: u.email,
-      plan: u.plan,
-      amount: priceMap[u.plan] || 29,
-      currency: 'USD',
-      status: 'succeeded',
-      gateway: 'Stripe Auto-Billing',
-      payment_date: u.updated_at || u.created_at || new Date().toISOString()
-    }));
-
-    res.json({
-      transactions,
-      summary: {
-        total_revenue: transactions.reduce((acc, curr) => acc + curr.amount, 0),
-        active_subscriptions: transactions.length,
-        gateway_status: 'Connected (Stripe API Live)'
+    const rows = await db.prepare('SELECT key, value FROM site_settings').all();
+    const settingsMap = {};
+    (rows || []).forEach(r => {
+      try {
+        settingsMap[r.key] = JSON.parse(r.value);
+      } catch (e) {
+        settingsMap[r.key] = r.value;
       }
     });
+    const finalSettings = { ...DEFAULT_SITE_SETTINGS, ...settingsMap };
+    res.json({ settings: finalSettings });
   } catch (err) {
-    console.error('[Admin] Get payments error:', err);
-    res.status(500).json({ error: 'Failed to fetch payments log' });
+    console.error('[Admin] Get site settings error:', err);
+    res.status(500).json({ error: 'Failed to fetch site settings', settings: DEFAULT_SITE_SETTINGS });
+  }
+});
+
+// ── PUT /api/admin/settings (Update Landing Page CMS Settings) ─────────
+router.put('/settings', async (req, res) => {
+  try {
+    const updates = req.body;
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({ error: 'Invalid settings payload' });
+    }
+
+    for (const [key, val] of Object.entries(updates)) {
+      const serialized = typeof val === 'object' ? JSON.stringify(val) : String(val);
+      const existing = await db.prepare('SELECT key FROM site_settings WHERE key = ?').get(key);
+      if (existing) {
+        await db.prepare("UPDATE site_settings SET value = ?, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE key = ?").run(serialized, key);
+      } else {
+        await db.prepare("INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))").run(key, serialized);
+      }
+    }
+
+    await logAuditEvent(req.user?.id, req.user?.email, 'Landing Page CMS Updated', 'site_settings', 'Visual CMS content updated & published live');
+
+    res.json({ success: true, message: 'Landing page CMS updated and published live!' });
+  } catch (err) {
+    console.error('[Admin] Update site settings error:', err);
+    res.status(500).json({ error: 'Failed to save site settings' });
   }
 });
 
@@ -1152,7 +1161,7 @@ router.get('/payments', async (_req, res) => {
       ORDER BY created_at DESC
     `).all() || [];
 
-    const priceMap = { free: 0, pro: 29, agency: 79, enterprise: 199 };
+    const priceMap = { free: 0, pro: 1499, agency: 3999, enterprise: 7999 };
     
     const transactions = allUsers.map((u) => ({
       id: `tx-${u.id.slice(0, 8)}`,
@@ -1161,9 +1170,9 @@ router.get('/payments', async (_req, res) => {
       user_email: maskEmail(u.email),
       plan: u.plan || 'free',
       amount: priceMap[(u.plan || 'free').toLowerCase()] || 0,
-      currency: 'USD',
+      currency: 'INR',
       status: 'active',
-      gateway: (u.plan || 'free').toLowerCase() === 'free' ? 'Community Tier' : 'Stripe Auto-Billing',
+      gateway: (u.plan || 'free').toLowerCase() === 'free' ? 'Community Tier' : 'Razorpay / UPI AutoPay',
       payment_date: u.created_at ? new Date(u.created_at).toLocaleDateString() : 'Active'
     }));
 
@@ -1174,7 +1183,7 @@ router.get('/payments', async (_req, res) => {
       summary: {
         total_revenue: totalRevenue,
         active_subscriptions: transactions.filter(t => t.amount > 0).length,
-        gateway_status: 'Connected (Stripe API Live)'
+        gateway_status: 'Connected (UPI / Razorpay API Live)'
       }
     });
   } catch (err) {
@@ -1273,29 +1282,6 @@ router.get('/analytics', async (_req, res) => {
   } catch (err) {
     console.error('[Admin] Get analytics error:', err);
     res.status(500).json({ error: 'Failed to fetch admin analytics' });
-  }
-});
-
-// ── GET /api/admin/support ────────────────────────────────────────────
-router.get('/support', async (_req, res) => {
-  try {
-    res.json({
-      tickets: [
-        { id: 'tik-101', user_email_masked: 'c***@gmail.com', category: 'Instagram OAuth Re-connect', priority: 'High', status: 'open', created_at: '1 hour ago' },
-        { id: 'tik-102', user_email_masked: 'm***@brand.io', category: 'Webhook Latency Check', priority: 'Medium', status: 'in_progress', created_at: '3 hours ago' },
-        { id: 'tik-103', user_email_masked: 'k***@creator.co', category: 'Plan Upgrade Assistance', priority: 'Low', status: 'resolved', created_at: '1 day ago' }
-      ],
-      deletionRequests: [
-        { id: 'del-201', user_email_masked: 'p***@yahoo.com', requested_at: '2026-09-08', status: 'Pending Approval' },
-        { id: 'del-202', user_email_masked: 'x***@gmail.com', requested_at: '2026-09-07', status: 'Pending Approval' }
-      ],
-      exportRequests: [
-        { id: 'exp-301', user_email_masked: 's***@outlook.com', requested_at: '2026-09-09', status: 'Ready for Download' }
-      ]
-    });
-  } catch (err) {
-    console.error('[Admin] Get support error:', err);
-    res.status(500).json({ error: 'Failed to fetch admin support tickets' });
   }
 });
 

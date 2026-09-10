@@ -420,24 +420,28 @@ const CONTENT_DOCS = {
   }
 };
 
-export default function LandingView({ onNavigate, user }) {
+export default function LandingView({ onNavigate = () => {}, user, siteSettingsOverride = null, isPreview = false, onSectionClick = null }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState('monthly'); // 'monthly' | 'yearly'
-  const [siteSettings, setSiteSettings] = useState(null);
+  const [internalSettings, setInternalSettings] = useState(null);
   const [activeDocKey, setActiveDocKey] = useState(null); // string key into CONTENT_DOCS | null
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [testimonialIndex, setTestimonialIndex] = useState(0);
 
+  const siteSettings = siteSettingsOverride || internalSettings;
+
   useEffect(() => {
-    fetch('/api/site/settings')
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.settings) {
-          setSiteSettings(data.settings);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (!siteSettingsOverride) {
+      fetch('/api/site/settings')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.settings) {
+            setInternalSettings(data.settings);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [siteSettingsOverride]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -449,21 +453,21 @@ export default function LandingView({ onNavigate, user }) {
 
   const testimonials = [
     {
-      quote: "Airvix has completely changed how I manage my Instagram. I save hours every week!",
-      name: "Aditi Sharma",
-      role: "Content Creator",
+      quote: siteSettings?.test_1_quote || "Airvix has completely changed how I manage my Instagram. I save hours every week!",
+      name: siteSettings?.test_1_name || "Aditi Sharma",
+      role: siteSettings?.test_1_role || "Content Creator",
       avatar: "/avatar-aditi.jpg"
     },
     {
-      quote: "Super easy to set up and it actually feels personal. My engagement has doubled.",
-      name: "Rohit Mehta",
-      role: "D2C Brand Owner",
+      quote: siteSettings?.test_2_quote || "Super easy to set up and it actually feels personal. My engagement has doubled.",
+      name: siteSettings?.test_2_name || "Rohit Mehta",
+      role: siteSettings?.test_2_role || "D2C Brand Owner",
       avatar: "/avatar-rohit.jpg"
     },
     {
-      quote: "The best investment for our social media team. It just works — reliable and smoothly.",
-      name: "Sneha Kapoor",
-      role: "Social Media Agency",
+      quote: siteSettings?.test_3_quote || "The best investment for our social media team. It just works — reliable and smoothly.",
+      name: siteSettings?.test_3_name || "Sneha Kapoor",
+      role: siteSettings?.test_3_role || "Social Media Agency",
       avatar: "/avatar-sneha.jpg"
     }
   ];
@@ -476,8 +480,14 @@ export default function LandingView({ onNavigate, user }) {
     setTestimonialIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length);
   };
 
+  const handleSectionClick = (sectionName) => {
+    if (isPreview && onSectionClick) {
+      onSectionClick(sectionName);
+    }
+  };
+
   return (
-    <div className="airvix-page-wrapper">
+    <div className={`airvix-page-wrapper ${isPreview ? 'is-cms-preview' : ''}`}>
       {/* HEADER NAVBAR */}
       <header className={`airvix-navbar ${isScrolled ? 'scrolled' : ''}`}>
         <div className="airvix-nav-container">
@@ -524,18 +534,32 @@ export default function LandingView({ onNavigate, user }) {
       </header>
 
       {/* 3. HERO SECTION (Dark Obsidian Atmosphere with Ambient Background Video) */}
-      <section className="airvix-hero-section">
-        {/* Ambient Looping Video Background */}
+      <section 
+        className="airvix-hero-section"
+        onClick={() => handleSectionClick('hero')}
+        style={{ cursor: isPreview ? 'pointer' : 'default' }}
+      >
+        {/* Ambient Looping Video Background or Custom Image */}
         <div className="airvix-hero-video-bg">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="airvix-bg-video"
-          >
-            <source src="/Mere_ko_apne_business_air_airv.mp4" type="video/mp4" />
-          </video>
+          {siteSettings?.hero_media_type === 'image' && siteSettings?.hero_image_url ? (
+            <img 
+              src={siteSettings.hero_image_url} 
+              alt="Hero Media" 
+              className="airvix-bg-video" 
+              style={{ objectFit: 'cover' }} 
+            />
+          ) : (
+            <video
+              key={siteSettings?.hero_video_url || 'default-video'}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="airvix-bg-video"
+            >
+              <source src={siteSettings?.hero_video_url || '/Mere_ko_apne_business_air_airv.mp4'} type="video/mp4" />
+            </video>
+          )}
           <div className="airvix-hero-video-overlay"></div>
         </div>
 
@@ -550,7 +574,16 @@ export default function LandingView({ onNavigate, user }) {
 
             <h1 className="airvix-hero-heading">
               {siteSettings?.hero_headline || 'Turn Instagram Conversations'} <br />
-              Into <span className="airvix-gradient-highlight">{siteSettings?.hero_headline_highlight || 'Real Growth'}</span>
+              Into <span 
+                className="airvix-gradient-highlight"
+                style={siteSettings?.hero_highlight_color ? {
+                  color: siteSettings.hero_highlight_color,
+                  WebkitTextFillColor: 'initial',
+                  background: 'none'
+                } : undefined}
+              >
+                {siteSettings?.hero_headline_highlight || 'Real Growth'}
+              </span>
             </h1>
 
             <p className="airvix-hero-sub">
@@ -559,10 +592,28 @@ export default function LandingView({ onNavigate, user }) {
             </p>
 
             <div className="airvix-hero-buttons">
-              <button className="airvix-btn-primary airvix-btn-lg" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+              <button 
+                className="airvix-btn-primary airvix-btn-lg" 
+                onClick={() => {
+                  if (isPreview) return;
+                  if (siteSettings?.primary_cta_url?.startsWith('#')) {
+                    onNavigate(user ? 'app' : 'auth-signup');
+                  } else if (siteSettings?.primary_cta_url) {
+                    window.location.href = siteSettings.primary_cta_url;
+                  } else {
+                    onNavigate(user ? 'app' : 'auth-signup');
+                  }
+                }}
+              >
                 {siteSettings?.primary_cta_text || 'Get started free'} <ArrowRight size={16} />
               </button>
-              <button className="airvix-btn-dark airvix-btn-lg" onClick={() => setIsVideoModalOpen(true)}>
+              <button 
+                className="airvix-btn-dark airvix-btn-lg" 
+                onClick={() => {
+                  if (isPreview) return;
+                  setIsVideoModalOpen(true);
+                }}
+              >
                 <Play size={16} className="airvix-play-icon" />
                 <span>{siteSettings?.secondary_cta_text || 'Watch demo'}</span>
               </button>
@@ -636,23 +687,40 @@ export default function LandingView({ onNavigate, user }) {
       </section>
 
       {/* 4. WHY AIRVIX / VALUE PROPOSITION (Clean White Aesthetic) */}
-      <section id="features" className="airvix-features-section">
+      <section 
+        id="features" 
+        className="airvix-features-section"
+        onClick={() => handleSectionClick('features')}
+        style={{ cursor: isPreview ? 'pointer' : 'default' }}
+      >
         <div className="airvix-container">
           
           <div className="airvix-features-header-row">
             <div>
-              <div className="airvix-section-badge">WHY AIRVIX</div>
+              <div className="airvix-section-badge">{siteSettings?.features_badge || 'WHY AIRVIX'}</div>
               <h2 className="airvix-section-heading">
-                More than automation.<br />
-                It's a growth system.
+                {siteSettings?.features_heading ? (
+                  siteSettings.features_heading.split('\n').map((line, i) => (
+                    <React.Fragment key={i}>
+                      {line}
+                      {i < siteSettings.features_heading.split('\n').length - 1 && <br />}
+                    </React.Fragment>
+                  ))
+                ) : (
+                  <>
+                    More than automation.<br />
+                    It's a growth system.
+                  </>
+                )}
               </h2>
               <p className="airvix-section-sub">
-                Everything you need to attract, engage, and convert your audience on Instagram — in one simple platform.
+                {siteSettings?.features_subtitle || 
+                  'Everything you need to attract, engage, and convert your audience on Instagram — in one simple platform.'}
               </p>
             </div>
 
             <div className="airvix-handwritten-note airvix-features-note">
-              <span>Built for creators, brands and businesses</span>
+              <span>{siteSettings?.features_note || 'Built for creators, brands and businesses'}</span>
               <svg className="airvix-curved-arrow" width="46" height="40" viewBox="0 0 46 40" fill="none">
                 <path d="M6 8 C20 18, 30 28, 36 34 M36 34 L28 32 M36 34 L32 24" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -719,42 +787,59 @@ export default function LandingView({ onNavigate, user }) {
       </section>
 
       {/* 6. HOW IT WORKS (Dark Themed Section with Laptop Workspace Photo) */}
-      <section id="how-it-works" className="airvix-how-section">
+      <section 
+        id="how-it-works" 
+        className="airvix-how-section"
+        onClick={() => handleSectionClick('how-it-works')}
+        style={{ cursor: isPreview ? 'pointer' : 'default' }}
+      >
         <div className="airvix-container airvix-how-grid">
           
           {/* Left Column: 3 Steps */}
           <div className="airvix-how-left">
-            <div className="airvix-badge-pill">HOW IT WORKS</div>
+            <div className="airvix-badge-pill">{siteSettings?.how_badge || 'HOW IT WORKS'}</div>
             <h2 className="airvix-how-heading">
-              Set it up once.<br />
-              Let Airvix do the rest.
+              {siteSettings?.how_heading ? (
+                siteSettings.how_heading.split('\n').map((line, i) => (
+                  <React.Fragment key={i}>
+                    {line}
+                    {i < siteSettings.how_heading.split('\n').length - 1 && <br />}
+                  </React.Fragment>
+                ))
+              ) : (
+                <>
+                  Set it up once.<br />
+                  Let Airvix do the rest.
+                </>
+              )}
             </h2>
             <p className="airvix-how-sub">
-              From new comments to automated replies — watch how Airvix helps you engage and grow, in real time.
+              {siteSettings?.how_subtitle || 
+                'From new comments to automated replies — watch how Airvix helps you engage and grow, in real time.'}
             </p>
 
             <div className="airvix-steps-list">
               <div className="airvix-step-item">
                 <div className="airvix-step-num">1</div>
                 <div>
-                  <h4 className="airvix-step-title">Connect your Instagram</h4>
-                  <p className="airvix-step-desc">Securely connect your Instagram account with a few clicks.</p>
+                  <h4 className="airvix-step-title">{siteSettings?.step_1_title || 'Connect your Instagram'}</h4>
+                  <p className="airvix-step-desc">{siteSettings?.step_1_desc || 'Securely connect your Instagram account with a few clicks.'}</p>
                 </div>
               </div>
 
               <div className="airvix-step-item">
                 <div className="airvix-step-num">2</div>
                 <div>
-                  <h4 className="airvix-step-title">Set up your automation</h4>
-                  <p className="airvix-step-desc">Choose triggers, customize replies, and use ready-to-edit templates.</p>
+                  <h4 className="airvix-step-title">{siteSettings?.step_2_title || 'Set up your automation'}</h4>
+                  <p className="airvix-step-desc">{siteSettings?.step_2_desc || 'Choose triggers, customize replies, and use ready-to-edit templates.'}</p>
                 </div>
               </div>
 
               <div className="airvix-step-item">
                 <div className="airvix-step-num">3</div>
                 <div>
-                  <h4 className="airvix-step-title">Sit back and grow</h4>
-                  <p className="airvix-step-desc">Let Airvix handle the conversations while you focus on what matters.</p>
+                  <h4 className="airvix-step-title">{siteSettings?.step_3_title || 'Sit back and grow'}</h4>
+                  <p className="airvix-step-desc">{siteSettings?.step_3_desc || 'Let Airvix handle the conversations while you focus on what matters.'}</p>
                 </div>
               </div>
             </div>
@@ -782,7 +867,12 @@ export default function LandingView({ onNavigate, user }) {
       </section>
 
       {/* 7. SUCCESS STORIES / TESTIMONIALS (Clean White Background) */}
-      <section id="stories" className="airvix-stories-section">
+      <section 
+        id="stories" 
+        className="airvix-stories-section"
+        onClick={() => handleSectionClick('testimonials')}
+        style={{ cursor: isPreview ? 'pointer' : 'default' }}
+      >
         <div className="airvix-container">
           
           <div className="airvix-stories-header">
@@ -822,14 +912,19 @@ export default function LandingView({ onNavigate, user }) {
       </section>
 
       {/* 8. PLANS & BILLING PRICING SECTION (STRICTLY IN INDIAN RUPEES) */}
-      <section id="pricing" className="airvix-pricing-section">
+      <section 
+        id="pricing" 
+        className="airvix-pricing-section"
+        onClick={() => handleSectionClick('pricing')}
+        style={{ cursor: isPreview ? 'pointer' : 'default' }}
+      >
         <div className="airvix-container">
           
           <div className="airvix-pricing-intro">
-            <div className="airvix-section-badge">SIMPLE PRICING</div>
-            <h2 className="airvix-section-heading">Plans for every stage of growth.</h2>
+            <div className="airvix-section-badge">{siteSettings?.pricing_badge || 'SIMPLE PRICING'}</div>
+            <h2 className="airvix-section-heading">{siteSettings?.pricing_heading || 'Plans for every stage of growth.'}</h2>
             <p className="airvix-section-sub">
-              Scale your Instagram engagement in Rupees • Instant activation with UPI, Cards &amp; Net Banking with GST.
+              {siteSettings?.pricing_subtitle || 'Scale your Instagram engagement in Rupees • Instant activation with UPI, Cards & Net Banking with GST.'}
             </p>
 
             {/* Monthly / Yearly Billing Switch */}
@@ -864,13 +959,13 @@ export default function LandingView({ onNavigate, user }) {
               
               <div className="airvix-tier-price">
                 <span className="airvix-currency-symbol">₹</span>
-                <span className="airvix-price-num">0</span>
+                <span className="airvix-price-num">{siteSettings?.price_starter !== undefined ? siteSettings.price_starter : 0}</span>
                 <span className="airvix-price-freq">/month</span>
               </div>
 
               <ul className="airvix-tier-features">
                 <li><Check size={16} color="#059669" /> 1 Instagram account</li>
-                <li><Check size={16} color="#059669" /> 1,000 automated replies/month</li>
+                <li><Check size={16} color="#059669" /> {siteSettings?.limit_starter || '1,000'} automated replies/month</li>
                 <li><Check size={16} color="#059669" /> Basic templates</li>
                 <li><Check size={16} color="#059669" /> Email support</li>
               </ul>
@@ -890,14 +985,16 @@ export default function LandingView({ onNavigate, user }) {
               <div className="airvix-tier-price">
                 <span className="airvix-currency-symbol">₹</span>
                 <span className="airvix-price-num">
-                  {billingPeriod === 'monthly' ? '1,499' : '1,199'}
+                  {billingPeriod === 'monthly' 
+                    ? (siteSettings?.price_creator ? Number(siteSettings.price_creator).toLocaleString() : '1,499')
+                    : Math.round((Number(siteSettings?.price_creator) || 1499) * 0.8).toLocaleString()}
                 </span>
                 <span className="airvix-price-freq">/month</span>
               </div>
 
               <ul className="airvix-tier-features">
-                <li><Check size={16} color="#059669" /> 5 Instagram accounts</li>
-                <li><Check size={16} color="#059669" /> 5,000 automated replies/month</li>
+                <li><Check size={16} color="#059669" /> 3 Instagram accounts</li>
+                <li><Check size={16} color="#059669" /> {siteSettings?.limit_creator || '25,000'} automated replies/month</li>
                 <li><Check size={16} color="#059669" /> Advanced templates &amp; spinning</li>
                 <li><Check size={16} color="#059669" /> Analytics &amp; insights</li>
                 <li><Check size={16} color="#059669" /> Priority support &amp; GST invoice</li>
@@ -910,91 +1007,134 @@ export default function LandingView({ onNavigate, user }) {
 
             {/* Card 3: Business */}
             <div className="airvix-price-card">
-              <div className="airvix-tier-name">Business</div>
+              <div className="airvix-tier-name">Agency</div>
               <div className="airvix-tier-desc">For teams &amp; agencies</div>
               
               <div className="airvix-tier-price">
                 <span className="airvix-currency-symbol">₹</span>
                 <span className="airvix-price-num">
-                  {billingPeriod === 'monthly' ? '3,999' : '3,199'}
+                  {billingPeriod === 'monthly' 
+                    ? (siteSettings?.price_agency ? Number(siteSettings.price_agency).toLocaleString() : '3,999')
+                    : Math.round((Number(siteSettings?.price_agency) || 3999) * 0.8).toLocaleString()}
                 </span>
                 <span className="airvix-price-freq">/month</span>
               </div>
 
               <ul className="airvix-tier-features">
-                <li><Check size={16} color="#059669" /> Unlimited accounts</li>
-                <li><Check size={16} color="#059669" /> 50,000 replies/month</li>
-                <li><Check size={16} color="#059669" /> Custom templates &amp; webhooks</li>
-                <li><Check size={16} color="#059669" /> Team collaboration</li>
-                <li><Check size={16} color="#059669" /> Dedicated support &amp; GST vendor contract</li>
+                <li><Check size={16} color="#059669" /> 10 Instagram accounts</li>
+                <li><Check size={16} color="#059669" /> {siteSettings?.limit_agency || '100,000'} automated replies/month</li>
+                <li><Check size={16} color="#059669" /> Multi-user team workspace</li>
+                <li><Check size={16} color="#059669" /> Custom webhooks &amp; API access</li>
+                <li><Check size={16} color="#059669" /> Dedicated account manager</li>
               </ul>
 
               <button className="airvix-btn-outline airvix-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
-                Contact sales
+                Get started
               </button>
             </div>
 
           </div>
 
+          <div className="airvix-pricing-guarantee">
+            <Shield size={18} color="#2563eb" />
+            <span>7-day money-back guarantee • No questions asked • Cancel anytime with 1 click</span>
+          </div>
+
         </div>
       </section>
 
-      {/* 9. READY TO GROW CTA BANNER (Curved Obsidian Section) */}
+      {/* 9. FAQ SECTION (Accordion Style with Plus/Minus) */}
+      <section 
+        id="faq" 
+        className="airvix-faq-section"
+        onClick={() => handleSectionClick('faq')}
+        style={{ cursor: isPreview ? 'pointer' : 'default' }}
+      >
+        <div className="airvix-container airvix-faq-wrap">
+          
+          <div className="airvix-faq-header">
+            <div className="airvix-section-badge">FAQ</div>
+            <h2 className="airvix-section-heading">Frequently asked questions.</h2>
+            <p className="airvix-section-sub">Everything you need to know about getting started with Airvix.</p>
+          </div>
+
+          <div className="airvix-faq-list">
+            {(siteSettings?.faqs || [
+              { q: 'Will using Airvix put my Instagram account at risk?', a: 'Never. Airvix is built exclusively on official Meta Graph API Webhooks. 100% compliant with Meta Terms.' },
+              { q: 'How fast are the automatic replies sent?', a: 'Average response time is between 0.8s to 2.4s. Airvix responds while the user is actively watching your reel.' },
+              { q: 'Can I send interactive visual cards and buttons in DMs?', a: 'Yes! You can configure rich visual cards with cover images, headlines, subtext, and custom button links.' },
+              { q: 'Can I require users to follow me before getting the DM?', a: 'Yes! With our Follow-to-Unlock feature, non-followers receive a prompt asking them to follow first.' }
+            ]).map((faq, idx) => (
+              <details key={idx} className="airvix-faq-item" open={idx === 0}>
+                <summary className="airvix-faq-question">
+                  <span>{faq.q}</span>
+                  <ChevronDown size={18} className="airvix-faq-arrow" />
+                </summary>
+                <div className="airvix-faq-answer">
+                  <p>{faq.a}</p>
+                </div>
+              </details>
+            ))}
+          </div>
+
+        </div>
+      </section>
+
+      {/* 10. FINAL CTA BANNER (Vibrant Blue Card) */}
       <section className="airvix-cta-section">
-        <div className="airvix-container airvix-cta-box">
-          <div className="airvix-cta-content">
-            <h2 className="airvix-cta-heading">Ready to grow with Airvix?</h2>
+        <div className="airvix-container">
+          <div className="airvix-cta-banner">
+            <div className="airvix-cta-glow"></div>
+            
+            <h2 className="airvix-cta-heading">Ready to turn engagement into growth?</h2>
             <p className="airvix-cta-sub">
-              Join thousands of creators and businesses already using Airvix to turn conversations into customers.
+              Join thousands of creators and businesses using Airvix to automate their Instagram.
             </p>
 
-            <div className="airvix-cta-buttons">
-              <button className="airvix-btn-primary airvix-btn-lg" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
-                Get started free <ArrowRight size={16} />
-              </button>
-              <button className="airvix-btn-dark airvix-btn-lg" onClick={() => setIsVideoModalOpen(true)}>
-                <Play size={16} className="airvix-play-icon" />
-                <span>Watch demo</span>
+            <div className="airvix-cta-action-row">
+              <button className="airvix-btn-white" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+                Get started free →
               </button>
             </div>
-          </div>
 
-          <div className="airvix-handwritten-note airvix-cta-note">
-            <span>Smarter Conversations • A Brighter Tomorrow</span>
+            <div className="airvix-cta-badges">
+              <span>✓ Free 14-day trial</span>
+              <span>✓ No credit card required</span>
+              <span>✓ Instant setup in 3 mins</span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 10. COMPREHENSIVE SAAS FOOTER (Dark Obsidian Multi-Column Theme) */}
-      <footer className="airvix-footer">
+      {/* 11. REFINED SAAS FOOTER (5-Column Layout) */}
+      <footer 
+        id="legal" 
+        className="airvix-footer"
+        onClick={() => handleSectionClick('footer')}
+        style={{ cursor: isPreview ? 'pointer' : 'default' }}
+      >
         <div className="airvix-container">
-          {/* Main Footer Grid */}
-          <div className="airvix-footer-grid">
+          
+          <div className="airvix-footer-grid-5col">
             
-            {/* Column 1: Brand & Bio */}
-            <div className="airvix-footer-col airvix-col-brand">
-              <a href="#" className="airvix-logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                <img src="/airvix-mark.png" alt="Airvix" className="airvix-logo-img" />
-                <span className="airvix-logo-text" style={{ color: '#ffffff' }}>Airvix</span>
-              </a>
-
-              <p className="airvix-footer-tagline">
-                The high-speed Instagram comment-to-DM conversion engine. Turn post comments, reels, and stories into automated customer conversations in under 1.4 seconds.
-              </p>
-
-              <div className="airvix-footer-badges">
-                <div className="airvix-footer-badge">
-                  <span className="airvix-badge-flag">🇮🇳</span>
-                  <span>Made in India for creators worldwide</span>
-                </div>
-                <div className="airvix-footer-badge">
-                  <Shield size={13} color="#60a5fa" />
-                  <span>100% Official Meta Graph API v22.0</span>
-                </div>
+            {/* Column 1: Brand & Tagline */}
+            <div className="airvix-footer-col airvix-footer-brand-col">
+              <div className="airvix-footer-brand-row">
+                <img src="/airvix-mark.png" alt="Airvix Logo" className="airvix-footer-brand-logo" />
+                <span className="airvix-footer-brand-name">Airvix</span>
               </div>
 
-              <div className="airvix-uptime-status">
-                <span className="airvix-uptime-dot"></span>
+              <p className="airvix-footer-brand-desc">
+                {siteSettings?.footer_tagline || 'The high-speed Instagram comment-to-DM conversion engine. Turn post comments, reels, and stories into automated customer conversations in under 1.4 seconds.'}
+              </p>
+
+              <div className="airvix-footer-compliance-pills">
+                <span className="airvix-footer-compliance-pill">🇮🇳 Made in India for creators worldwide</span>
+                <span className="airvix-footer-compliance-pill">🔒 100% Official Meta Graph API v22.0</span>
+              </div>
+
+              <div className="airvix-footer-system-status">
+                <span className="airvix-system-status-dot"></span>
                 <span>All Systems Operational • 99.98% Uptime</span>
               </div>
             </div>
@@ -1049,9 +1189,19 @@ export default function LandingView({ onNavigate, user }) {
                 <li><a href="#terms" onClick={(e) => { e.preventDefault(); setActiveDocKey('terms'); }}>Terms of Service</a></li>
                 <li><a href="#refund" onClick={(e) => { e.preventDefault(); setActiveDocKey('refund'); }}>7-Day Money-Back Guarantee</a></li>
                 <li><a href="#dpdp" onClick={(e) => { e.preventDefault(); setActiveDocKey('dpdp'); }}>DPDP Act &amp; GDPR Compliance</a></li>
-                <li><a href="mailto:support@airvix.com">Email Support: support@airvix.com</a></li>
-                <li><a href="https://wa.me/919876543210" target="_blank" rel="noreferrer">WhatsApp Creator Desk</a></li>
-                <li><a href="#signup" onClick={(e) => { e.preventDefault(); onNavigate(user ? 'app' : 'auth-signup'); }}>Sign Up / Get Started →</a></li>
+                <li><a href={`mailto:${siteSettings?.support_email || 'support@airvix.com'}`}>Email: {siteSettings?.support_email || 'support@airvix.com'}</a></li>
+                <li><a href={`tel:${siteSettings?.support_phone || '+919876543210'}`}>Phone: {siteSettings?.support_phone || '+91 98765 43210'}</a></li>
+                {siteSettings?.whatsapp_number && (
+                  <li><a href={`https://wa.me/${siteSettings.whatsapp_number.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer">WhatsApp Creator Desk</a></li>
+                )}
+                {siteSettings?.business_address && (
+                  <li style={{ fontSize: '11px', color: '#94a3b8', lineHeight: 1.4, marginTop: '4px' }}>
+                    HQ: {siteSettings.business_address}
+                  </li>
+                )}
+                {siteSettings?.gst_number && (
+                  <li style={{ fontSize: '11px', color: '#60a5fa' }}>GSTIN: {siteSettings.gst_number}</li>
+                )}
               </ul>
             </div>
 
@@ -1060,7 +1210,7 @@ export default function LandingView({ onNavigate, user }) {
           {/* Footer Bottom Divider Bar */}
           <div className="airvix-footer-bottom-bar">
             <div className="airvix-footer-copyright">
-              © {new Date().getFullYear()} Airvix Technologies Inc. All rights reserved. Empowering creators across India and globally.
+              {siteSettings?.copyright_text || `© ${new Date().getFullYear()} Airvix Technologies Inc. All rights reserved. Empowering creators across India and globally.`}
             </div>
 
             <div className="airvix-footer-payments">
@@ -1098,7 +1248,7 @@ export default function LandingView({ onNavigate, user }) {
                 controls
                 autoPlay
                 className="airvix-video-tag"
-                src="/Mere_ko_apne_business_air_airv.mp4"
+                src={siteSettings?.hero_video_url || "/Mere_ko_apne_business_air_airv.mp4"}
                 poster="/demo-poster.jpg"
               >
                 Your browser does not support HTML5 video.

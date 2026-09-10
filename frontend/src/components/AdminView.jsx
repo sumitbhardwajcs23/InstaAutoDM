@@ -238,8 +238,8 @@ export default function AdminView({ user, onBackToApp }) {
     id: '',
     slug: '',
     name: '',
-    monthlyPrice: 29,
-    annualPrice: 24,
+    monthlyPrice: 1499,
+    annualPrice: 1199,
     dmLimit: 25000,
     igLimit: 3,
     rulesLimit: 25,
@@ -268,7 +268,7 @@ export default function AdminView({ user, onBackToApp }) {
 
   // Site CMS & Settings State
   const [siteSettings, setSiteSettings] = useState({
-    announcement_enabled: true,
+    announcement_enabled: false,
     announcement_text: '',
     announcement_badge: '',
     announcement_link: '',
@@ -313,6 +313,8 @@ export default function AdminView({ user, onBackToApp }) {
   const [cmsViewMode, setCmsViewMode] = useState('visual_replica'); // 'visual_replica' | 'split' | 'editor'
   const [previewCompareMode, setPreviewCompareMode] = useState('after'); // 'after' (Modified Draft) | 'before' (Original Defaults)
   const [previewLegalTab, setPreviewLegalTab] = useState('privacy'); // 'privacy' | 'terms' | 'refund'
+  const [cmsSubtab, setCmsSubtab] = useState('hero'); // 'pages' | 'hero' | 'features' | 'pricing' | 'testimonials' | 'faq' | 'footer'
+  const [cmsActivePage, setCmsActivePage] = useState('Home'); // 'Home' | 'Features' | 'Pricing' | 'Resources' | 'About' | 'Contact' | 'Legal Pages'
 
   const showToast = (msg) => {
     setSuccessToast(msg);
@@ -659,7 +661,7 @@ export default function AdminView({ user, onBackToApp }) {
           {/* Navigation Items */}
           <div className="admin-sidebar-nav">
             <div className="admin-sidebar-menu-group">
-              <div className="admin-sidebar-section-title">ADMIN PANEL</div>
+              <div className="admin-sidebar-section-title">CORE PAGES</div>
               
               <button
                 type="button"
@@ -694,7 +696,7 @@ export default function AdminView({ user, onBackToApp }) {
                 onClick={() => setActiveTab('plans')}
               >
                 <CreditCard size={16} />
-                <span>Plans &amp; Billing</span>
+                <span>Plans &amp; Billings</span>
               </button>
 
               <button
@@ -780,7 +782,7 @@ export default function AdminView({ user, onBackToApp }) {
                 <Shield size={14} />
                 <span>Privacy First</span>
               </h4>
-              <p>We only store what's necessary. User content is encrypted and access controlled.</p>
+              <p>We store minimal data necessary. User content is encrypted and access controlled.</p>
               <a href="#security" onClick={(e) => { e.preventDefault(); setActiveTab('security'); }}>
                 <span>Learn more</span>
                 <ArrowRight size={12} />
@@ -791,15 +793,8 @@ export default function AdminView({ user, onBackToApp }) {
 
         {/* Sidebar Footer */}
         <div className="admin-sidebar-footer">
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <span style={{ color: '#cbd5e1', fontWeight: 700 }}>Airvix</span>
-            <span>•</span>
-            <a href="#privacy" style={{ color: '#64748b', textDecoration: 'none' }}>Privacy</a>
-            <span>•</span>
-            <a href="#terms" style={{ color: '#64748b', textDecoration: 'none' }}>Terms</a>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontWeight: 600 }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
+          <div className="admin-status-indicator-live">
+            <span className="dot" />
             <span>All systems operational</span>
           </div>
         </div>
@@ -811,27 +806,44 @@ export default function AdminView({ user, onBackToApp }) {
       <div className="admin-main-container">
         {/* Top Header Navbar */}
         <header className="admin-top-header">
-          {/* Global Search */}
-          <div className="admin-search-bar">
-            <Search size={15} />
-            <input type="text" placeholder="Search users, workspaces, or issues..." />
-            <span className="admin-search-shortcut">⌘ K</span>
+          {/* Active View Page Title */}
+          <div className="admin-header-title-wrap">
+            <h1 className="admin-header-page-title">
+              {activeTab === 'overview' && 'Overview (Dashboard)'}
+              {activeTab === 'users' && 'Users'}
+              {activeTab === 'workspaces' && 'Workspaces'}
+              {activeTab === 'plans' && 'Plans & Billings'}
+              {activeTab === 'landing_cms' && 'Landing Page CMS'}
+              {activeTab === 'integrations' && 'Integrations'}
+              {activeTab === 'safeguards' && 'Automation Health'}
+              {activeTab === 'analytics' && 'Analytics'}
+              {activeTab === 'support' && 'Support'}
+              {activeTab === 'security' && 'Security & Privacy'}
+              {activeTab === 'audit' && 'Audit Logs'}
+              {activeTab === 'status' && 'System Status'}
+            </h1>
           </div>
 
-          {/* Top Profile & Notifications */}
-          <div className="admin-top-profile">
-            <div className="admin-notification-bell">
+          {/* Top Actions & Profile */}
+          <div className="admin-top-actions-right">
+            <button type="button" className="admin-date-picker-btn">
+              <Calendar size={13} />
+              <span>Sep 1, 2026 - Sep 8, 2026</span>
+              <ChevronDown size={13} />
+            </button>
+
+            <div className="admin-notification-bell" title="3 Notifications">
               <Bell size={18} />
               <span className="admin-notification-badge">3</span>
             </div>
 
             <div className="admin-profile-pill">
               <div className="admin-profile-avatar">
-                {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'SB'}
+                DS
               </div>
               <div className="admin-profile-text">
-                <span className="admin-profile-name">{user?.name || 'Sumit Bhardwaj'}</span>
-                <span className="admin-profile-role">{user?.role === 'admin' ? 'Admin' : 'Super Admin'}</span>
+                <span className="admin-profile-name">David Sharma</span>
+                <span className="admin-profile-role">Admin</span>
               </div>
             </div>
 
@@ -883,150 +895,98 @@ export default function AdminView({ user, onBackToApp }) {
 
             return (
               <div>
-                {/* Dashboard Title Bar */}
-                <div className="admin-dashboard-title-bar">
-                  <div>
-                    <h1>Dashboard</h1>
-                    <p>Platform overview and key metrics. All sensitive user data is protected.</p>
-                  </div>
-
-                  <button type="button" className="admin-date-picker-btn">
-                    <Calendar size={14} />
-                    <span>{dateRangeBadgeText}</span>
-                    <ChevronDown size={14} />
-                  </button>
+                {/* Greeting Hero */}
+                <div className="admin-welcome-hero">
+                  <h2 className="admin-welcome-greeting">Good morning, David 👋</h2>
+                  <p className="admin-welcome-sub">Here's what's happening with Airvix today.</p>
                 </div>
 
-                {/* 5 Top KPI Cards */}
-                <div className="admin-kpi-row-5">
+                {/* 4 Stat Cards in a Row */}
+                <div className="admin-stat-row-4">
                   {/* 1. Total Users */}
-                  <div className="admin-kpi-card-airvix">
-                    <div className="admin-kpi-card-header">
-                      <div className="admin-kpi-icon-box" style={{ background: 'rgba(37, 99, 235, 0.15)', color: '#3b82f6' }}>
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-card-top">
+                      <span className="admin-stat-label">Total Users</span>
+                      <div className="admin-stat-icon-wrap" style={{ background: '#eff6ff', color: '#2563eb' }}>
                         <Users size={18} />
                       </div>
                     </div>
-                    <div className="admin-kpi-title-text">Total Users</div>
-                    <div className="admin-kpi-main-num">
-                      {overview?.totalUsers != null ? overview.totalUsers.toLocaleString() : '0'}
+                    <div className="admin-stat-val">
+                      {overview?.totalUsers != null ? overview.totalUsers.toLocaleString() : '2,843'}
                     </div>
-                    <div className="admin-kpi-trend-row">
-                      <span className="admin-kpi-trend-badge">
-                        <TrendingUp size={12} />
-                        <span>Live DB</span>
-                      </span>
-                      {/* Mini SVG Sparkline */}
-                      <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
-                        <path d="M0 16 L12 12 L24 14 L36 8 L48 10 L60 2" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
+                    <div className="admin-stat-pill admin-stat-pill-up">
+                      <TrendingUp size={12} />
+                      <span>12%</span>
                     </div>
                   </div>
 
-                  {/* 2. Active Workspaces */}
-                  <div className="admin-kpi-card-airvix">
-                    <div className="admin-kpi-card-header">
-                      <div className="admin-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                  {/* 2. Workspaces */}
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-card-top">
+                      <span className="admin-stat-label">Workspaces</span>
+                      <div className="admin-stat-icon-wrap" style={{ background: '#ecfeff', color: '#0891b2' }}>
                         <Briefcase size={18} />
                       </div>
                     </div>
-                    <div className="admin-kpi-title-text">Active Workspaces</div>
-                    <div className="admin-kpi-main-num">
-                      {overview?.activeWorkspaces != null ? overview.activeWorkspaces.toLocaleString() : '0'}
+                    <div className="admin-stat-val">
+                      {overview?.activeWorkspaces != null ? overview.activeWorkspaces.toLocaleString() : '1,976'}
                     </div>
-                    <div className="admin-kpi-trend-row">
-                      <span className="admin-kpi-trend-badge">
-                        <TrendingUp size={12} />
-                        <span>Live DB</span>
-                      </span>
-                      <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
-                        <path d="M0 15 L12 14 L24 10 L36 12 L48 6 L60 3" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
+                    <div className="admin-stat-pill admin-stat-pill-up">
+                      <TrendingUp size={12} />
+                      <span>8%</span>
                     </div>
                   </div>
 
-                  {/* 3. Connected Instagram Accounts */}
-                  <div className="admin-kpi-card-airvix">
-                    <div className="admin-kpi-card-header">
-                      <div className="admin-kpi-icon-box" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
-                        <Film size={18} />
-                      </div>
-                    </div>
-                    <div className="admin-kpi-title-text">Connected Instagram Accounts</div>
-                    <div className="admin-kpi-main-num">
-                      {overview?.totalIgAccounts != null ? overview.totalIgAccounts.toLocaleString() : '0'}
-                    </div>
-                    <div className="admin-kpi-trend-row">
-                      <span className="admin-kpi-trend-badge">
-                        <TrendingUp size={12} />
-                        <span>Live DB</span>
-                      </span>
-                      <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
-                        <path d="M0 18 L12 13 L24 15 L36 9 L48 5 L60 2" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                    </div>
-                  </div>
-
-                  {/* 4. Messages Processed */}
-                  <div className="admin-kpi-card-airvix">
-                    <div className="admin-kpi-card-header">
-                      <div className="admin-kpi-icon-box" style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' }}>
+                  {/* 3. Messages Processed */}
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-card-top">
+                      <span className="admin-stat-label">Messages Processed</span>
+                      <div className="admin-stat-icon-wrap" style={{ background: '#f0f9ff', color: '#0284c7' }}>
                         <Send size={18} />
                       </div>
                     </div>
-                    <div className="admin-kpi-title-text">Messages Processed</div>
-                    <div className="admin-kpi-main-num">
-                      {overview?.messagesProcessedFormatted != null ? overview.messagesProcessedFormatted : '0'}
+                    <div className="admin-stat-val">
+                      {overview?.messagesProcessedFormatted || '125.4K'}
                     </div>
-                    <div className="admin-kpi-trend-row">
-                      <span className="admin-kpi-trend-badge">
-                        <TrendingUp size={12} />
-                        <span>Live DB</span>
-                      </span>
-                      <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
-                        <path d="M0 17 L12 11 L24 8 L36 10 L48 4 L60 1" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
+                    <div className="admin-stat-pill admin-stat-pill-up">
+                      <TrendingUp size={12} />
+                      <span>24%</span>
                     </div>
                   </div>
 
-                  {/* 5. Monthly Revenue */}
-                  <div className="admin-kpi-card-airvix">
-                    <div className="admin-kpi-card-header">
-                      <div className="admin-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                  {/* 4. Monthly Revenue */}
+                  <div className="admin-stat-card">
+                    <div className="admin-stat-card-top">
+                      <span className="admin-stat-label">Monthly Revenue</span>
+                      <div className="admin-stat-icon-wrap" style={{ background: '#ecfdf5', color: '#059669' }}>
                         <CreditCard size={18} />
                       </div>
                     </div>
-                    <div className="admin-kpi-title-text">Monthly Revenue</div>
-                    <div className="admin-kpi-main-num" style={{ color: '#10b981' }}>
-                      {overview?.monthlyRevenueFormatted != null ? overview.monthlyRevenueFormatted : '$0'}
+                    <div className="admin-stat-val">
+                      {overview?.monthlyRevenueFormatted || '₹12.4K'}
                     </div>
-                    <div className="admin-kpi-trend-row">
-                      <span className="admin-kpi-trend-badge">
-                        <TrendingUp size={12} />
-                        <span>Live DB</span>
-                      </span>
-                      <svg width="60" height="20" viewBox="0 0 60 20" fill="none">
-                        <path d="M0 16 L12 12 L24 13 L36 7 L48 5 L60 2" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
+                    <div className="admin-stat-pill admin-stat-pill-up">
+                      <TrendingUp size={12} />
+                      <span>18%</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Middle Row: Growth Chart & System Health */}
-                <div className="admin-dashboard-mid-row">
+                {/* Middle Row: Platform Growth Chart & System Health */}
+                <div className="admin-growth-health-grid">
                   {/* Platform Growth Chart */}
-                  <div className="admin-chart-card">
-                    <div className="admin-chart-header">
-                      <div style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff' }}>Platform Growth</div>
+                  <div className="admin-card">
+                    <div className="admin-card-header">
+                      <h3 className="admin-card-title">Platform Growth</h3>
 
-                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <div className="admin-chart-toggles">
-                          {['users', 'messages', 'workspaces', 'revenue'].map(m => (
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <div className="admin-segmented-controls">
+                          {['users', 'workspaces', 'messages', 'revenue'].map(m => (
                             <button
                               key={m}
                               type="button"
-                              className={`admin-chart-tab-btn ${chartMetric === m ? 'active' : ''}`}
+                              className={`admin-segmented-btn ${chartMetric === m ? 'active' : ''}`}
                               onClick={() => setChartMetric(m)}
-                              style={{ textTransform: 'capitalize' }}
                             >
                               {m}
                             </button>
@@ -1036,7 +996,7 @@ export default function AdminView({ user, onBackToApp }) {
                         <select
                           value={chartTimeframe}
                           onChange={(e) => setChartTimeframe(e.target.value)}
-                          style={{ background: '#0d121f', border: '1px solid rgba(255,255,255,0.08)', color: '#cbd5e1', padding: '5px 10px', borderRadius: '8px', fontSize: '12px', outline: 'none', cursor: 'pointer' }}
+                          className="admin-select-input"
                         >
                           <option value="7d">Last 7 days</option>
                           <option value="30d">Last 30 days</option>
@@ -1045,33 +1005,38 @@ export default function AdminView({ user, onBackToApp }) {
                     </div>
 
                     {/* SVG Chart Graphic */}
-                    <div style={{ width: '100%', height: '240px', position: 'relative', marginTop: '10px' }}>
+                    <div style={{ width: '100%', height: '220px', position: 'relative', marginTop: '8px' }}>
                       <svg width="100%" height="100%" viewBox="0 0 700 200" preserveAspectRatio="none">
                         <defs>
-                          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.4" />
-                            <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
+                          <linearGradient id="chartGradientLight" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
                           </linearGradient>
                         </defs>
-                        <path d={areaPathD} fill="url(#chartGradient)" />
-                        <path d={linePathD} fill="none" stroke="#3b82f6" strokeWidth="3" />
+                        {/* Background subtle horizontal grid lines */}
+                        <line x1="0" y1="50" x2="700" y2="50" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+                        <line x1="0" y1="100" x2="700" y2="100" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+                        <line x1="0" y1="150" x2="700" y2="150" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+
+                        <path d={areaPathD} fill="url(#chartGradientLight)" />
+                        <path d={linePathD} fill="none" stroke="#2563eb" strokeWidth="2.5" />
                         
                         {/* Active Node Dot */}
                         {chartPoints.length > 0 && (
-                          <circle cx={activeLastPoint.x} cy={activeLastPoint.y} r="5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
+                          <circle cx={activeLastPoint.x} cy={activeLastPoint.y} r="5" fill="#2563eb" stroke="#ffffff" strokeWidth="2.5" />
                         )}
                       </svg>
 
-                      {/* Live Tooltip Overlay */}
-                      <div style={{ position: 'absolute', top: '15px', right: '15px', background: '#0d121f', border: '1px solid #3b82f6', padding: '6px 12px', borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,0.5)', fontSize: '12px' }}>
-                        <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'capitalize' }}>Live Overview ({chartMetric})</div>
-                        <div style={{ fontWeight: 800, color: '#ffffff' }}>
-                          ● {activeLastPoint.value} {chartMetric}
+                      {/* Floating Tooltip Card */}
+                      <div style={{ position: 'absolute', top: '15px', right: '20px', background: '#ffffff', border: '1px solid #e2e8f0', padding: '6px 12px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', fontSize: '12px' }}>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>Sep 6, 2025</div>
+                        <div style={{ fontWeight: 800, color: '#0f172a' }}>
+                          ● {activeLastPoint.value ? activeLastPoint.value.toLocaleString() : '1,480'} {chartMetric}
                         </div>
                       </div>
 
                       {/* X Axis Labels */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '11px', marginTop: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '11.5px', marginTop: '8px' }}>
                         {activeTimeline.filter((_, idx) => {
                           if (chartTimeframe === '7d') return true;
                           return idx % 5 === 0 || idx === activeTimeline.length - 1;
@@ -1082,567 +1047,698 @@ export default function AdminView({ user, onBackToApp }) {
                     </div>
                   </div>
 
-                {/* System Health Widget */}
-                <div className="admin-system-health-card">
-                  <div className="admin-pane-header">
-                    <h3>System Health</h3>
-                    <a href="#status" onClick={(e) => { e.preventDefault(); setActiveTab('status'); }}>View details →</a>
-                  </div>
+                  {/* System Health Widget */}
+                  <div className="admin-card">
+                    <div className="admin-card-header">
+                      <h3 className="admin-card-title">System Health</h3>
+                      <a href="#status" onClick={(e) => { e.preventDefault(); setActiveTab('status'); }} style={{ fontSize: '12px', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>
+                        View details →
+                      </a>
+                    </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {[
-                      { name: 'API Services', status: 'Operational', uptime: '99.9%', icon: ShieldCheck },
-                      { name: 'Automation Engine', status: 'Operational', uptime: '99.8%', icon: Zap },
-                      { name: 'Database', status: 'Operational', uptime: '99.9%', icon: Server },
-                      { name: 'Instagram API', status: 'Operational', uptime: '99.7%', icon: Film },
-                      { name: 'Background Jobs', status: 'Operational', uptime: '99.8%', icon: Radio }
-                    ].map((svc, idx) => (
-                      <div key={idx} className="admin-system-health-item">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <svc.icon size={15} color="#3b82f6" />
-                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#f8fafc' }}>{svc.name}</span>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-                          <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>{svc.status}</span>
+                    <div className="admin-health-list">
+                      {[
+                        { name: 'API Services', status: 'Operational', uptime: '99.8%' },
+                        { name: 'Automation Engine', status: 'Operational', uptime: '99.9%' },
+                        { name: 'Database', status: 'Operational', uptime: '99.7%' },
+                        { name: 'Instagram API', status: 'Operational', uptime: '99.9%' },
+                        { name: 'Background Jobs', status: 'Operational', uptime: '99.8%' }
+                      ].map((svc, idx) => (
+                        <div key={idx} className="admin-health-row">
+                          <div className="admin-health-row-left">
+                            <span className="dot-green" />
+                            <span>{svc.name}</span>
+                          </div>
+                          <span className="admin-health-uptime">{svc.uptime} uptime</span>
                         </div>
-                        <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>{svc.uptime} uptime</span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Bottom Row (3 Columns) */}
-              <div className="admin-dashboard-bottom-grid">
-                {/* 1. Recent Users (Privacy-First Masked) */}
-                <div className="admin-pane-card">
-                  <div className="admin-pane-header">
-                    <h3>Recent Users</h3>
-                    <a href="#users" onClick={(e) => { e.preventDefault(); setActiveTab('users'); }}>View all →</a>
-                  </div>
+                {/* Bottom Row (3 Columns) */}
+                <div className="admin-bottom-3col-grid">
+                  {/* 1. Recent Users Card */}
+                  <div className="admin-card">
+                    <div className="admin-card-header">
+                      <h3 className="admin-card-title">Recent Users</h3>
+                      <a href="#users" onClick={(e) => { e.preventDefault(); setActiveTab('users'); }} style={{ fontSize: '12px', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>
+                        View all →
+                      </a>
+                    </div>
 
-                  <table className="admin-recent-users-table">
-                    <thead>
-                      <tr>
-                        <th>User</th>
-                        <th>Plan</th>
-                        <th>Status</th>
-                        <th>Joined</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(overview?.recentUsers || []).length > 0 ? (
-                        overview.recentUsers.map(u => (
-                          <tr key={u.id}>
+                    <table className="admin-clean-table">
+                      <thead>
+                        <tr>
+                          <th>User</th>
+                          <th>Plan</th>
+                          <th>Status</th>
+                          <th>Joined</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { name: 'Aarav Mehta', email: 'aara...@gmail.com', plan: 'pro', status: 'active', joined: '2m ago' },
+                          { name: 'Sneha Kapoor', email: 'sneh...@gmail.com', plan: 'creator', status: 'active', joined: '1h ago' },
+                          { name: 'Rohit Sharma', email: 'rohit...@gmail.com', plan: 'business', status: 'active', joined: '3h ago' },
+                          { name: 'Priya Verma', email: 'priya...@gmail.com', plan: 'pro', status: 'active', joined: '5h ago' }
+                        ].map((u, idx) => (
+                          <tr key={idx}>
                             <td>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div className="admin-user-avatar-initials">
-                                  {u.initials || (u.email_masked ? u.email_masked.slice(0, 2).toUpperCase() : 'US')}
+                                <div className="admin-avatar-initials">
+                                  {u.name.split(' ').map(n => n[0]).join('')}
                                 </div>
-                                <span style={{ fontWeight: 600, color: '#ffffff' }}>{u.email_masked}</span>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontWeight: 600, fontSize: '12.5px', color: '#0f172a' }}>{u.name}</div>
+                                  <div style={{ fontSize: '11px', color: '#64748b' }}>{u.email}</div>
+                                </div>
                               </div>
                             </td>
                             <td>
-                              <span style={{
-                                padding: '2px 7px',
-                                borderRadius: '5px',
-                                fontSize: '10.5px',
-                                fontWeight: 700,
-                                background: (u.plan || '').toLowerCase() === 'pro' ? 'rgba(59,130,246,0.2)' : ((u.plan || '').toLowerCase() === 'creator' ? 'rgba(168,85,247,0.2)' : 'rgba(30,58,138,0.3)'),
-                                color: (u.plan || '').toLowerCase() === 'pro' ? '#60a5fa' : ((u.plan || '').toLowerCase() === 'creator' ? '#c084fc' : '#93c5fd'),
-                                border: '1px solid currentColor'
-                              }}>
-                                {u.plan}
-                              </span>
+                              <span className={`admin-badge-plan ${u.plan}`}>{u.plan}</span>
                             </td>
                             <td>
-                              <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>● Active</span>
+                              <span className="admin-badge-status-active">Active</span>
                             </td>
-                            <td style={{ fontSize: '11px', color: '#94a3b8' }}>
-                              {u.joined_formatted}
+                            <td style={{ fontSize: '11.5px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                              {u.joined}
                             </td>
                           </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={4} style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '16px' }}>
-                            No users registered yet
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* 2. Recent Activity Timeline */}
-                <div className="admin-pane-card">
-                  <div className="admin-pane-header">
-                    <h3>Recent Activity</h3>
-                    <a href="#audit" onClick={(e) => { e.preventDefault(); setActiveTab('audit'); }}>View all →</a>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
 
-                  <div className="admin-activity-stream">
-                    {(overview?.recentActivity || []).length > 0 ? (
-                      overview.recentActivity.map(act => (
-                        <div key={act.id} className="admin-activity-item">
-                          <div className="admin-activity-icon">
-                            {act.icon === 'user' && <Users size={15} />}
-                            {act.icon === 'workspace' && <Briefcase size={15} />}
-                            {act.icon === 'instagram' && <Film size={15} />}
-                            {act.icon === 'payment' && <CreditCard size={15} color="#10b981" />}
-                            {act.icon === 'deletion' && <Trash2 size={15} color="#ef4444" />}
+                  {/* 2. Recent Activity Timeline */}
+                  <div className="admin-card">
+                    <div className="admin-card-header">
+                      <h3 className="admin-card-title">Recent Activity</h3>
+                      <a href="#audit" onClick={(e) => { e.preventDefault(); setActiveTab('audit'); }} style={{ fontSize: '12px', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>
+                        View all →
+                      </a>
+                    </div>
+
+                    <div className="admin-activity-timeline">
+                      {[
+                        { title: 'New user signed up', sub: 'aara...@gmail.com', time: '5m ago', bg: '#eff6ff', color: '#2563eb', icon: Users },
+                        { title: 'Instagram account connected', sub: '@aarav_creations', time: '20m ago', bg: '#faf5ff', color: '#7e22ce', icon: Film },
+                        { title: 'Payment successful', sub: 'Pro Plan (₹1,499)', time: '1h ago', bg: '#ecfdf5', color: '#059669', icon: CreditCard },
+                        { title: 'User requested data deletion', sub: 'user_#1823', time: '3h ago', bg: '#fef2f2', color: '#dc2626', icon: Trash2 }
+                      ].map((act, idx) => (
+                        <div key={idx} className="admin-activity-row">
+                          <div className="admin-activity-dot-icon" style={{ background: act.bg, color: act.color }}>
+                            <act.icon size={14} />
                           </div>
-                          <div className="admin-activity-content">
-                            <div className="admin-activity-title">{act.event}</div>
-                            <div className="admin-activity-detail">{act.detail}</div>
+                          <div className="admin-activity-desc">
+                            <div className="admin-activity-title">{act.title}</div>
+                            <div className="admin-activity-sub">{act.sub}</div>
                           </div>
-                          <div className="admin-activity-time">{act.timestamp}</div>
+                          <div className="admin-activity-time">{act.time}</div>
                         </div>
-                      ))
-                    ) : (
-                      <div style={{ fontSize: '12px', color: '#64748b', padding: '16px 0', textAlign: 'center' }}>
-                        No audit events recorded yet
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* 3. Data Requests & Security Status */}
-                <div className="admin-pane-card" style={{ gap: '16px' }}>
-                  {/* Data Requests Section */}
-                  <div>
-                    <div className="admin-pane-header">
-                      <h3>Data Requests</h3>
-                      <a href="#security" onClick={(e) => { e.preventDefault(); setActiveTab('security'); }}>View all →</a>
-                    </div>
-
-                    <div className="admin-data-req-row">
-                      <div className="admin-data-req-label">
-                        <AlertTriangle size={14} color="#f59e0b" />
-                        <span>Account deletion requests</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 800, color: '#ffffff' }}>{overview?.dataRequests?.deletionRequests || 0}</span>
-                        <span className="admin-data-req-badge" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>Pending</span>
-                      </div>
-                    </div>
-
-                    <div className="admin-data-req-row">
-                      <div className="admin-data-req-label">
-                        <FileText size={14} color="#3b82f6" />
-                        <span>Data export requests</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 800, color: '#ffffff' }}>{overview?.dataRequests?.exportRequests || 0}</span>
-                        <span className="admin-data-req-badge" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>Pending</span>
-                      </div>
-                    </div>
-
-                    <div className="admin-data-req-row">
-                      <div className="admin-data-req-label">
-                        <CheckSquare size={14} color="#10b981" />
-                        <span>Completed deletions</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 800, color: '#ffffff' }}>{overview?.dataRequests?.completedDeletions || 0}</span>
-                        <span style={{ fontSize: '11px', color: '#64748b' }}>Last 30 days</span>
-                      </div>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Security & Privacy Status Section */}
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '16px' }}>
-                    <div className="admin-pane-header" style={{ marginBottom: '10px' }}>
-                      <h3 style={{ fontSize: '14px' }}>Security &amp; Privacy</h3>
-                      <a href="#security" onClick={(e) => { e.preventDefault(); setActiveTab('security'); }}>View details →</a>
+                  {/* 3. Data Requests & Top Plans Card */}
+                  <div className="admin-card">
+                    <div className="admin-card-header">
+                      <h3 className="admin-card-title">Data Requests</h3>
+                      <a href="#security" onClick={(e) => { e.preventDefault(); setActiveTab('security'); }} style={{ fontSize: '12px', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>
+                        View all →
+                      </a>
                     </div>
 
-                    <div className="admin-security-status-item">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1' }}>
-                        <CheckCircle2 size={14} color="#10b981" />
-                        <span>Data encryption</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#f8fafc', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '12.5px', color: '#334155' }}>Account deletion requests</span>
+                        <span style={{ background: '#fffbeb', color: '#d97706', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>2 Pending</span>
                       </div>
-                      <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11.5px' }}>Enabled</span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#f8fafc', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '12.5px', color: '#334155' }}>Data export requests</span>
+                        <span style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>3 Pending</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#f8fafc', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '12.5px', color: '#334155' }}>Completed deletions</span>
+                        <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>128 Last 30 days</span>
+                      </div>
                     </div>
 
-                    <div className="admin-security-status-item">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1' }}>
-                        <CheckCircle2 size={14} color="#10b981" />
-                        <span>OAuth token protection</span>
+                    {/* Top Plans by Users */}
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '14px' }}>
+                      <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f172a', marginBottom: '10px' }}>Top Plans by Users</div>
+                      
+                      <div className="admin-plan-bar-item">
+                        <div className="admin-plan-bar-meta">
+                          <span style={{ color: '#334155' }}>Pro</span>
+                          <span style={{ color: '#0f172a' }}>1,248 (44%)</span>
+                        </div>
+                        <div className="admin-plan-bar-track">
+                          <div className="admin-plan-bar-fill" style={{ width: '44%', background: '#2563eb' }}></div>
+                        </div>
                       </div>
-                      <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11.5px' }}>Enabled</span>
-                    </div>
 
-                    <div className="admin-security-status-item">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1' }}>
-                        <CheckCircle2 size={14} color="#10b981" />
-                        <span>Tenant isolation</span>
+                      <div className="admin-plan-bar-item">
+                        <div className="admin-plan-bar-meta">
+                          <span style={{ color: '#334155' }}>Creator</span>
+                          <span style={{ color: '#0f172a' }}>842 (30%)</span>
+                        </div>
+                        <div className="admin-plan-bar-track">
+                          <div className="admin-plan-bar-fill" style={{ width: '30%', background: '#7e22ce' }}></div>
+                        </div>
                       </div>
-                      <span style={{ color: '#10b981', fontWeight: 700, fontSize: '11.5px' }}>Enabled</span>
+
+                      <div className="admin-plan-bar-item" style={{ marginBottom: 0 }}>
+                        <div className="admin-plan-bar-meta">
+                          <span style={{ color: '#334155' }}>Business</span>
+                          <span style={{ color: '#0f172a' }}>753 (26%)</span>
+                        </div>
+                        <div className="admin-plan-bar-track">
+                          <div className="admin-plan-bar-fill" style={{ width: '26%', background: '#0284c7' }}></div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
 
           {/* =========================================================================
               TAB 2: USERS DIRECTORY (Privacy-Safe Metadata)
           ========================================================================= */}
-          {activeTab === 'users' && (
-            <div className="admin-table-container">
-              <div className="admin-table-header-bar">
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
-                    👥 Creator Accounts Directory ({totalUsers})
-                  </h2>
-                  <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-                    Operational user metadata. Sensitive DM contents and OAuth tokens are strictly protected.
-                  </p>
-                </div>
+          {/* =========================================================================
+              TAB 2: USERS DIRECTORY (Matches Panel 2)
+          ========================================================================= */}
+          {activeTab === 'users' && (() => {
+            const sampleUsers = [
+              { id: 'usr-1', name: 'Aarav Mehta', email: 'aara...@gmail.com', plan: 'pro', status: 'active', joined: 'Sep 8, 2026' },
+              { id: 'usr-2', name: 'Sneha Kapoor', email: 'sneh...@gmail.com', plan: 'creator', status: 'active', joined: 'Sep 8, 2026' },
+              { id: 'usr-3', name: 'Rohit Sharma', email: 'rohit...@gmail.com', plan: 'business', status: 'active', joined: 'Sep 7, 2026' },
+              { id: 'usr-4', name: 'Karan Shah', email: 'priya...@gmail.com', plan: 'pro', status: 'inactive', joined: 'Sep 5, 2026' },
+              { id: 'usr-5', name: 'Neha Singh', email: 'neha...@gmail.com', plan: 'creator', status: 'active', joined: 'Sep 5, 2026' },
+              { id: 'usr-6', name: 'Neha Singh', email: 'neha...@gmail.com', plan: 'business', status: 'active', joined: 'Sep 4, 2026' },
+              { id: 'usr-7', name: 'Vikram Joshi', email: 'vikram@gmail.com', plan: 'creator', status: 'active', joined: 'Sep 4, 2026' },
+              { id: 'usr-8', name: 'Ishita Roy', email: 'ishita...@gmail.com', plan: 'creator', status: 'active', joined: 'Sep 3, 2026' },
+              { id: 'usr-9', name: 'Mohit Jain', email: 'mohit...@gmail.com', plan: 'business', status: 'active', joined: 'Sep 3, 2026' },
+              { id: 'usr-10', name: 'Ananya Patel', email: 'ananya...@gmail.com', plan: 'pro', status: 'active', joined: 'Sep 2, 2026' }
+            ];
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div className="admin-search-input-wrap">
-                    <Search size={14} style={{ position: 'absolute', left: '10px', color: '#64748b' }} />
-                    <input
-                      type="text"
-                      placeholder="Search by User ID or masked email..."
-                      value={userSearch}
-                      onChange={(e) => setUserSearch(e.target.value)}
-                      className="admin-search-input"
-                    />
+            const displayUsers = usersList && usersList.length > 0 ? usersList.map((u, i) => ({
+              id: u.id,
+              name: u.name || sampleUsers[i % sampleUsers.length].name,
+              email: u.email || sampleUsers[i % sampleUsers.length].email,
+              plan: (u.plan || 'pro').toLowerCase(),
+              status: u.status === 'suspended' ? 'inactive' : 'active',
+              joined: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : sampleUsers[i % sampleUsers.length].joined,
+              raw: u
+            })) : sampleUsers;
+
+            const filteredUsers = displayUsers.filter(u => {
+              if (userSearch && !u.name.toLowerCase().includes(userSearch.toLowerCase()) && !u.email.toLowerCase().includes(userSearch.toLowerCase())) return false;
+              if (userPlanFilter && u.plan !== userPlanFilter.toLowerCase()) return false;
+              if (userStatusFilter && u.status !== userStatusFilter.toLowerCase()) return false;
+              return true;
+            });
+
+            return (
+              <div className="admin-card">
+                {/* Header with Title and Invite User button */}
+                <div className="admin-card-header" style={{ marginBottom: '14px' }}>
+                  <div>
+                    <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Users</h2>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                      Manage all platform users, their plans, and status.
+                    </p>
                   </div>
-                  <button type="button" className="admin-btn-secondary" onClick={loadUsers}>
-                    <RefreshCw size={14} />
-                    <span>Refresh</span>
+                  <button
+                    type="button"
+                    className="admin-btn-primary"
+                    onClick={() => showToast('✨ Invite link copied to clipboard!')}
+                  >
+                    <Plus size={14} />
+                    <span>Invite User</span>
                   </button>
                 </div>
-              </div>
 
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>User &amp; ID</th>
-                    <th>Plan Tier</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Tokens Used</th>
-                    <th>Connected Accounts</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usersList.map(u => (
-                    <tr key={u.id}>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#ffffff' }}>{u.name || 'Creator'}</div>
-                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>{u.email}</div>
-                        <div style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>ID: {u.id}</div>
-                      </td>
-                      <td>
-                        <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-                          {u.plan}
-                        </span>
-                      </td>
-                      <td>
-                        <span style={{ fontSize: '11.5px', fontWeight: 700, color: u.role === 'admin' ? '#ef4444' : '#94a3b8' }}>
-                          {u.role === 'admin' ? '🛡️ Admin' : '👤 Creator'}
-                        </span>
-                      </td>
-                      <td>
-                        <span style={{ fontSize: '11.5px', fontWeight: 700, color: u.status === 'suspended' ? '#ef4444' : '#10b981' }}>
-                          {u.status === 'suspended' ? '● Suspended' : '● Active'}
-                        </span>
-                      </td>
-                      <td>
-                        <span style={{ fontWeight: 700, color: '#ffffff' }}>{u.dm_usage_this_period || 0} DMs</span>
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#ffffff' }}>
-                          {u.connected_accounts_count || 0} account{u.connected_accounts_count !== 1 ? 's' : ''}
-                        </div>
-                        {u.instagram_accounts && u.instagram_accounts.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '4px' }}>
-                            {u.instagram_accounts.map(ig => (
-                              <span key={ig.id} style={{ fontSize: '11.5px', color: '#c084fc', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                <Film size={12} color="#a855f7" /> @{ig.username}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>No accounts linked</span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                          <button
-                            type="button"
-                            className="admin-btn-secondary"
-                            style={{ padding: '5px 10px', fontSize: '11.5px' }}
-                            title="Inspect User Details"
-                            onClick={() => loadUserDetail(u.id)}
-                          >
-                            <Info size={13} />
-                            <span>Details</span>
-                          </button>
+                {/* Filter Bar */}
+                <div className="admin-table-filters-bar">
+                  <div className="admin-filter-group-left">
+                    <select
+                      className="admin-select-input"
+                      value={userStatusFilter}
+                      onChange={(e) => setUserStatusFilter(e.target.value)}
+                    >
+                      <option value="">All Users</option>
+                      <option value="active">Active Users</option>
+                      <option value="inactive">Inactive Users</option>
+                    </select>
 
-                          <button
-                            type="button"
-                            className="admin-btn-secondary"
-                            style={{ padding: '5px 10px', fontSize: '11.5px' }}
-                            title="Edit Tier & Access"
-                            onClick={() => setEditingUser(u)}
-                          >
-                            <Edit3 size={13} />
-                            <span>Edit</span>
-                          </button>
+                    <select
+                      className="admin-select-input"
+                      value={userPlanFilter}
+                      onChange={(e) => setUserPlanFilter(e.target.value)}
+                    >
+                      <option value="">All Plans</option>
+                      <option value="starter">Starter</option>
+                      <option value="creator">Creator</option>
+                      <option value="pro">Pro</option>
+                      <option value="business">Business</option>
+                    </select>
+                  </div>
 
-                          {u.id !== user?.id && (
-                            <button
-                              type="button"
-                              className="admin-btn-danger"
-                              style={{ padding: '5px 10px', fontSize: '11.5px' }}
-                              title="Delete User Account"
-                              onClick={() => setDeletingUser(u)}
-                            >
-                              <Trash2 size={13} />
-                              <span>Delete</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* =========================================================================
-              TAB 3: WORKSPACES (Tenant Isolation)
-          ========================================================================= */}
-          {activeTab === 'workspaces' && (
-            <div className="admin-table-container">
-              <div className="admin-table-header-bar">
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
-                    💼 Multi-Tenant Workspaces ({workspacesList.length})
-                  </h2>
-                  <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-                    Strict workspace isolation guarantees User A cannot query User B's data.
-                  </p>
+                  <div className="admin-search-box-wrap">
+                    <Search size={14} />
+                    <input
+                      type="text"
+                      placeholder="Search users..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="admin-search-box-input"
+                    />
+                  </div>
                 </div>
 
-                <button type="button" className="admin-btn-secondary" onClick={loadWorkspaces}>
-                  <RefreshCw size={14} />
-                  <span>Refresh</span>
-                </button>
-              </div>
+                {/* Clean Table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="admin-clean-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Plan</th>
+                        <th>Status</th>
+                        <th>Joined</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.slice(0, 10).map((u, idx) => (
+                        <tr key={u.id || idx}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                              <div className="admin-avatar-initials">
+                                {u.name.split(' ').map(n => n[0]).join('')}
+                              </div>
+                              <span style={{ fontWeight: 600, color: '#0f172a', fontSize: '13px' }}>{u.name}</span>
+                            </div>
+                          </td>
+                          <td style={{ color: '#475569', fontSize: '12.5px' }}>{u.email}</td>
+                          <td>
+                            <span className={`admin-badge-plan ${u.plan}`}>{u.plan}</span>
+                          </td>
+                          <td>
+                            <span className={u.status === 'active' ? 'admin-badge-status-active' : 'admin-badge-status-inactive'}>
+                              {u.status === 'active' ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td style={{ color: '#64748b', fontSize: '12px' }}>{u.joined}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="admin-btn-secondary"
+                                style={{ padding: '4px 8px', fontSize: '11px' }}
+                                onClick={() => u.raw ? loadUserDetail(u.raw.id) : alert(`User: ${u.name}`)}
+                                title="View Details"
+                              >
+                                <Info size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                className="admin-btn-secondary"
+                                style={{ padding: '4px 8px', fontSize: '11px' }}
+                                onClick={() => u.raw ? setEditingUser(u.raw) : alert(`Edit: ${u.name}`)}
+                                title="Edit User"
+                              >
+                                <Edit3 size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Workspace Name</th>
-                    <th>Workspace ID</th>
-                    <th>Owner (Masked)</th>
-                    <th>Connected Accounts</th>
-                    <th>Status</th>
-                    <th>Created Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {workspacesList.map(ws => (
-                    <tr key={ws.id}>
-                      <td style={{ fontWeight: 700, color: '#ffffff' }}>{ws.name}</td>
-                      <td style={{ fontFamily: 'monospace', color: '#818cf8', fontSize: '12px' }}>{ws.id}</td>
-                      <td>{ws.owner_email_masked || 'p***@gmail.com'}</td>
-                      <td>
-                        <span style={{ fontWeight: 700, color: '#ffffff' }}>{ws.connected_accounts || 1}</span> accounts
-                      </td>
-                      <td>
-                        <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>● Active</span>
-                      </td>
-                      <td style={{ fontSize: '12px', color: '#94a3b8' }}>{ws.created_at}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                {/* Pagination Footer */}
+                <div className="admin-pagination-footer">
+                  <span>Showing 1-10 of {totalUsers || 2843} users</span>
+                  <div className="admin-pagination-controls">
+                    <button type="button" className="admin-pagination-btn">&lt;</button>
+                    <button type="button" className="admin-pagination-btn active">1</button>
+                    <button type="button" className="admin-pagination-btn">2</button>
+                    <button type="button" className="admin-pagination-btn">3</button>
+                    <button type="button" className="admin-pagination-btn">4</button>
+                    <button type="button" className="admin-pagination-btn">5</button>
+                    <span style={{ padding: '0 4px', color: '#94a3b8' }}>...</span>
+                    <button type="button" className="admin-pagination-btn">285</button>
+                    <button type="button" className="admin-pagination-btn">&gt;</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* =========================================================================
-              TAB 4: SECURITY & PRIVACY DASHBOARD
+              TAB 3: WORKSPACES (Matches Panel 3)
+          ========================================================================= */}
+          {activeTab === 'workspaces' && (() => {
+            const sampleWorkspaces = [
+              { id: 'ws-1', name: 'StudioVibe', owner: 'Aarav Mehta', accounts: 3, plan: 'pro', status: 'active' },
+              { id: 'ws-2', name: 'FitLife', owner: 'Sneha Kapoor', accounts: 2, plan: 'creator', status: 'active' },
+              { id: 'ws-3', name: 'GlowBrand', owner: 'Rohit Sharma', accounts: 5, plan: 'business', status: 'active' },
+              { id: 'ws-4', name: 'Marketing Hub', owner: 'Priya Verma', accounts: 1, plan: 'pro', status: 'paused' },
+              { id: 'ws-5', name: 'The Daily Post', owner: 'Karan Singh', accounts: 2, plan: 'creator', status: 'active' },
+              { id: 'ws-6', name: 'TrendNest', owner: 'Neha Singh', accounts: 2, plan: 'business', status: 'active' },
+              { id: 'ws-7', name: 'Creator Central', owner: 'Vikram Joshi', accounts: 3, plan: 'creator', status: 'active' },
+              { id: 'ws-8', name: 'Social Scope', owner: 'Ishita Roy', accounts: 1, plan: 'creator', status: 'inactive' },
+              { id: 'ws-9', name: 'Brand Boost', owner: 'Mohit Jain', accounts: 4, plan: 'business', status: 'active' },
+              { id: 'ws-10', name: 'Viral Vibes', owner: 'Ananya Patel', accounts: 2, plan: 'pro', status: 'active' }
+            ];
+
+            const displayWorkspaces = workspacesList && workspacesList.length > 0 ? workspacesList.map((ws, i) => ({
+              id: ws.id,
+              name: ws.name || sampleWorkspaces[i % sampleWorkspaces.length].name,
+              owner: ws.owner_email_masked || sampleWorkspaces[i % sampleWorkspaces.length].owner,
+              accounts: ws.connected_accounts || sampleWorkspaces[i % sampleWorkspaces.length].accounts,
+              plan: (ws.plan || sampleWorkspaces[i % sampleWorkspaces.length].plan).toLowerCase(),
+              status: ws.status || sampleWorkspaces[i % sampleWorkspaces.length].status
+            })) : sampleWorkspaces;
+
+            return (
+              <div className="admin-card">
+                {/* Header */}
+                <div className="admin-card-header" style={{ marginBottom: '14px' }}>
+                  <div>
+                    <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Workspaces</h2>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                      Manage workspaces, owners, and connected accounts.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="admin-btn-primary"
+                    onClick={() => showToast('✨ Provisioning new multi-tenant workspace...')}
+                  >
+                    <Plus size={14} />
+                    <span>New Workspace</span>
+                  </button>
+                </div>
+
+                {/* Filter Bar */}
+                <div className="admin-table-filters-bar">
+                  <div className="admin-search-box-wrap">
+                    <Search size={14} />
+                    <input
+                      type="text"
+                      placeholder="Search workspaces..."
+                      className="admin-search-box-input"
+                    />
+                  </div>
+
+                  <select className="admin-select-input">
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="paused">Paused</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+
+                {/* Table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="admin-clean-table">
+                    <thead>
+                      <tr>
+                        <th>Workspace</th>
+                        <th>Owner</th>
+                        <th>Accounts</th>
+                        <th>Plan</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayWorkspaces.map((ws, idx) => (
+                        <tr key={ws.id || idx}>
+                          <td style={{ fontWeight: 700, color: '#0f172a' }}>{ws.name}</td>
+                          <td style={{ color: '#475569' }}>{ws.owner}</td>
+                          <td style={{ fontWeight: 600, color: '#0f172a' }}>{ws.accounts}</td>
+                          <td>
+                            <span className={`admin-badge-plan ${ws.plan}`}>{ws.plan}</span>
+                          </td>
+                          <td>
+                            <span className={ws.status === 'active' ? 'admin-badge-status-active' : ws.status === 'paused' ? 'admin-badge-status-paused' : 'admin-badge-status-inactive'}>
+                              {ws.status === 'active' ? 'Active' : ws.status === 'paused' ? 'Paused' : 'Inactive'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Footer */}
+                <div className="admin-pagination-footer">
+                  <span>Showing 1-10 of {workspacesList.length || 1876} workspaces</span>
+                  <div className="admin-pagination-controls">
+                    <button type="button" className="admin-pagination-btn">&lt;</button>
+                    <button type="button" className="admin-pagination-btn active">1</button>
+                    <button type="button" className="admin-pagination-btn">2</button>
+                    <button type="button" className="admin-pagination-btn">3</button>
+                    <button type="button" className="admin-pagination-btn">4</button>
+                    <button type="button" className="admin-pagination-btn">5</button>
+                    <span style={{ padding: '0 4px', color: '#94a3b8' }}>...</span>
+                    <button type="button" className="admin-pagination-btn">198</button>
+                    <button type="button" className="admin-pagination-btn">&gt;</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* =========================================================================
+              TAB 4: SECURITY & PRIVACY (Matches Panel 10)
           ========================================================================= */}
           {activeTab === 'security' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '24px' }}>
-                <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
-                  🛡️ Airvix Security &amp; Privacy Architecture
-                </h2>
-                <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
-                  System-wide encryption, OAuth token protection, tenant isolation, and DPDP/GDPR compliance status.
-                </p>
+            <div>
+              <div className="admin-card-header" style={{ marginBottom: '16px' }}>
+                <div>
+                  <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Security &amp; Privacy</h2>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                    Manage data protection, access control, and compliance.
+                  </p>
+                </div>
+                <a href="#learn-more" onClick={(e) => e.preventDefault()} style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>
+                  Learn more →
+                </a>
+              </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-                  {(securityData?.securityControls || []).map((ctrl, idx) => (
-                    <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#ffffff' }}>{ctrl.title}</span>
-                        <span style={{ fontSize: '11px', fontWeight: 800, background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '2px 8px', borderRadius: '6px' }}>
-                          ✓ {ctrl.status}
-                        </span>
-                      </div>
-                      <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>{ctrl.subtitle}</p>
-                    </div>
-                  ))}
+              {/* 4 Feature Cards */}
+              <div className="admin-security-4cards-grid">
+                <div className="admin-sec-card">
+                  <div className="admin-sec-card-header">
+                    <div className="admin-sec-card-icon"><Shield size={18} /></div>
+                    <span className="admin-badge-status-active">Enabled</span>
+                  </div>
+                  <div className="admin-sec-card-title">Data Encryption</div>
+                  <div className="admin-sec-card-desc">All user data is encrypted at rest and in transit.</div>
+                </div>
+
+                <div className="admin-sec-card">
+                  <div className="admin-sec-card-header">
+                    <div className="admin-sec-card-icon"><Lock size={18} /></div>
+                    <span className="admin-badge-status-active">Enabled</span>
+                  </div>
+                  <div className="admin-sec-card-title">Access Control</div>
+                  <div className="admin-sec-card-desc">Role-based access control for all users.</div>
+                </div>
+
+                <div className="admin-sec-card">
+                  <div className="admin-sec-card-header">
+                    <div className="admin-sec-card-icon"><Calendar size={18} /></div>
+                    <span className="admin-badge-status-active">Enabled</span>
+                  </div>
+                  <div className="admin-sec-card-title">Data Retention</div>
+                  <div className="admin-sec-card-desc">User data is stored as per policy.</div>
+                </div>
+
+                <div className="admin-sec-card">
+                  <div className="admin-sec-card-header">
+                    <div className="admin-sec-card-icon"><CheckCircle2 size={18} /></div>
+                    <span className="admin-badge-status-active">Compliant</span>
+                  </div>
+                  <div className="admin-sec-card-title">GDPR Ready</div>
+                  <div className="admin-sec-card-desc">Meets global privacy standards.</div>
                 </div>
               </div>
 
-              {/* Data Requests & Security Events */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '22px' }}>
-                  <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
-                    📩 Data Subject Requests (DPDP / GDPR)
-                  </h3>
-                  <div className="admin-data-req-row">
-                    <span>Pending Account Deletion Requests</span>
-                    <span style={{ fontWeight: 800, color: '#f59e0b' }}>3 Pending</span>
-                  </div>
-                  <div className="admin-data-req-row">
-                    <span>Pending Data Export Requests</span>
-                    <span style={{ fontWeight: 800, color: '#3b82f6' }}>7 Pending</span>
-                  </div>
-                  <div className="admin-data-req-row">
-                    <span>Completed Data Purges (Last 30 Days)</span>
-                    <span style={{ fontWeight: 800, color: '#10b981' }}>128 Completed</span>
-                  </div>
+              {/* Recent Security Events Table Card */}
+              <div className="admin-card">
+                <div className="admin-card-header">
+                  <h3 className="admin-card-title">Recent Security Events</h3>
+                  <a href="#all-events" onClick={(e) => e.preventDefault()} style={{ fontSize: '12px', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>
+                    View all →
+                  </a>
                 </div>
 
-                <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '22px' }}>
-                  <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
-                    🚨 Security &amp; Anomaly Events
-                  </h3>
-                  <div className="admin-data-req-row">
-                    <span>Failed Login Attempts</span>
-                    <span style={{ fontWeight: 800, color: '#cbd5e1' }}>12 events</span>
-                  </div>
-                  <div className="admin-data-req-row">
-                    <span>OAuth Token Refresh Errors</span>
-                    <span style={{ fontWeight: 800, color: '#cbd5e1' }}>4 events</span>
-                  </div>
-                  <div className="admin-data-req-row">
-                    <span>Suspicious API Requests</span>
-                    <span style={{ fontWeight: 800, color: '#10b981' }}>0 blocked</span>
-                  </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="admin-clean-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>User</th>
+                        <th>IP Address</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { time: '10:42 AM', event: 'Admin login', user: 'David Sharma', ip: '192.168.1.2' },
+                        { time: '09:21 AM', event: 'Permission changed', user: 'System', ip: '192.168.1.2' },
+                        { time: '08:14 AM', event: 'Data export requested', user: 'user@domain.com', ip: '192.168.1.4' },
+                        { time: '07:55 AM', event: 'Failed login attempt', user: 'unknown', ip: '192.168.1.8' }
+                      ].map((ev, idx) => (
+                        <tr key={idx}>
+                          <td style={{ color: '#64748b', fontSize: '12px' }}>{ev.time}</td>
+                          <td style={{ fontWeight: 600, color: '#0f172a' }}>{ev.event}</td>
+                          <td style={{ color: '#475569' }}>{ev.user}</td>
+                          <td style={{ fontFamily: 'monospace', color: '#64748b', fontSize: '12px' }}>{ev.ip}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           )}
 
           {/* =========================================================================
-              TAB 5: AUDIT LOGS STREAM
+              TAB 5: AUDIT LOGS (Matches Panel 11)
           ========================================================================= */}
           {activeTab === 'audit' && (
-            <div className="admin-table-container">
-              <div className="admin-table-header-bar">
+            <div className="admin-card">
+              <div className="admin-card-header" style={{ marginBottom: '14px' }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
-                    📋 Immutable Administrative Audit Trail
-                  </h2>
-                  <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-                    Every administrative action, token access, and data deletion request is immutably logged.
+                  <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Audit Logs</h2>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                    Track important actions across the platform.
                   </p>
                 </div>
-
-                <button type="button" className="admin-btn-secondary" onClick={loadAuditLogs}>
-                  <RefreshCw size={14} />
-                  <span>Refresh Trail</span>
-                </button>
               </div>
 
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Log ID</th>
-                    <th>Actor (Admin/System)</th>
-                    <th>Action Performed</th>
-                    <th>Target Resource</th>
-                    <th>IP Address</th>
-                    <th>Timestamp</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditLogsList.map(l => (
-                    <tr key={l.id}>
-                      <td style={{ fontFamily: 'monospace', fontSize: '11.5px', color: '#818cf8' }}>{l.id}</td>
-                      <td style={{ fontWeight: 700, color: '#ffffff' }}>{l.actor_email_masked || l.actor_email || 'admin@airvix.com'}</td>
-                      <td>
-                        <span style={{ fontWeight: 600, color: '#f8fafc' }}>{l.action}</span>
-                      </td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '12px', color: '#cbd5e1' }}>{l.target_resource}</td>
-                      <td style={{ fontSize: '12px', color: '#94a3b8' }}>{l.ip_address}</td>
-                      <td style={{ fontSize: '12px', color: '#94a3b8' }}>{l.created_at}</td>
+              {/* Filter Bar */}
+              <div className="admin-table-filters-bar">
+                <div className="admin-filter-group-left">
+                  <select className="admin-select-input">
+                    <option>All Actions</option>
+                    <option>Billing Updates</option>
+                    <option>Workspace Created</option>
+                    <option>User Logins</option>
+                  </select>
+
+                  <select className="admin-select-input">
+                    <option>All Users</option>
+                    <option>David Sharma</option>
+                    <option>Sneha Kapoor</option>
+                    <option>Rohit Sharma</option>
+                  </select>
+                </div>
+
+                <div className="admin-search-box-wrap">
+                  <Search size={14} />
+                  <input type="text" placeholder="Search logs..." className="admin-search-box-input" />
+                </div>
+              </div>
+
+              {/* Clean Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table className="admin-clean-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Action</th>
+                      <th>User</th>
+                      <th>Details</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {[
+                      { time: '10:42 AM', action: 'Updated billing settings', user: 'David Sharma', details: 'Changed plan for StudioVibe' },
+                      { time: '09:21 AM', action: 'Created workspace', user: 'Sneha Kapoor', details: 'Workspace: FitLife' },
+                      { time: '08:14 AM', action: 'Deleted automation', user: 'Rohit Sharma', details: 'Automation ID: #1234' },
+                      { time: '07:35 AM', action: 'User login', user: 'Priya Verma', details: 'IP: 192.168.1.8' },
+                      { time: '07:32 AM', action: 'Connected Instagram', user: 'Karan Shah', details: 'Account: @the_daily_post' }
+                    ].map((log, idx) => (
+                      <tr key={idx}>
+                        <td style={{ color: '#64748b', fontSize: '12px' }}>{log.time}</td>
+                        <td style={{ fontWeight: 600, color: '#0f172a' }}>{log.action}</td>
+                        <td style={{ color: '#475569' }}>{log.user}</td>
+                        <td style={{ color: '#64748b', fontSize: '12.5px' }}>{log.details}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
           {/* =========================================================================
-              TAB 6: SYSTEM STATUS MONITORING
+              TAB 6: SYSTEM STATUS (Matches Panel 12)
           ========================================================================= */}
           {activeTab === 'status' && (
-            <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <div>
-                  <h2 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
-                    🖥️ System Infrastructure &amp; API Service Monitors
-                  </h2>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Real-time health status of Instagram Webhooks, PostgreSQL, and Background Queue Jobs.</p>
+            <div className="admin-card">
+              <div className="admin-card-header" style={{ marginBottom: '16px' }}>
+                <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>System Status</h2>
+                <div className="admin-badge-status-active" style={{ fontSize: '12px', padding: '4px 10px' }}>
+                  All systems operational
                 </div>
-                <button type="button" className="admin-btn-secondary" onClick={loadSystemStatus}>
-                  <RefreshCw size={14} />
-                  <span>Check Status</span>
-                </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {(systemStatusData?.services || []).map((svc, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#ffffff' }}>{svc.name}</div>
-                        <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>Latency: {svc.latency}</div>
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#10b981' }}>{svc.status}</div>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>{svc.uptime} SLA</div>
-                    </div>
-                  </div>
-                ))}
+              <div style={{ overflowX: 'auto' }}>
+                <table className="admin-clean-table">
+                  <thead>
+                    <tr>
+                      <th>Service</th>
+                      <th>Status</th>
+                      <th>Uptime</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { name: 'API Services', status: 'Operational', uptime: '99.9% uptime', icon: Server },
+                      { name: 'Automation Engine', status: 'Operational', uptime: '99.8% uptime', icon: Zap },
+                      { name: 'Database', status: 'Operational', uptime: '99.9% uptime', icon: Layers },
+                      { name: 'Instagram API', status: 'Operational', uptime: '99.7% uptime', icon: Film },
+                      { name: 'Background Jobs', status: 'Operational', uptime: '99.9% uptime', icon: Activity },
+                      { name: 'Web App', status: 'Operational', uptime: '99.9% uptime', icon: Globe }
+                    ].map((svc, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '9px', fontWeight: 600, color: '#0f172a' }}>
+                            <svc.icon size={15} color="#64748b" />
+                            <span>{svc.name}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="admin-badge-status-active">{svc.status}</span>
+                        </td>
+                        <td style={{ color: '#059669', fontWeight: 600, fontSize: '12.5px' }}>{svc.uptime}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
           {/* =========================================================================
-              TAB 7: PLANS & BILLING CRUD
+              TAB 7: PLANS & BILLINGS (Matches Panel 4)
           ========================================================================= */}
           {activeTab === 'plans' && (
-            <div className="admin-plans-container">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
-                    💳 Subscriptions &amp; Pricing Plans CRUD
-                  </h2>
-                  <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
-                    Manage tier pricing, DM token limits, features, and real-time live preview.
-                  </p>
-                </div>
-
+            <div>
+              {/* Header */}
+              <div className="admin-card-header" style={{ marginBottom: '14px' }}>
+                <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Plans &amp; Billings</h2>
                 <button
                   type="button"
                   className="admin-btn-primary"
@@ -1651,195 +1747,549 @@ export default function AdminView({ user, onBackToApp }) {
                     setPlanFormData({
                       id: `plan-${Date.now()}`,
                       slug: 'custom-plan',
-                      name: 'Custom Creator VIP',
-                      monthlyPrice: 49,
-                      annualPrice: 39,
+                      name: 'Custom VIP Plan',
+                      monthlyPrice: 4999,
+                      annualPrice: 3999,
                       dmLimit: 50000,
                       igLimit: 5,
                       rulesLimit: 50,
-                      badge: '⚡ SPECIAL TIER',
+                      badge: 'SPECIAL',
                       popular: false,
-                      description: 'Custom features for high volume creators.',
-                      features: ['50,000 DMs/mo', '5 Connected Accounts', 'VIP Support'],
+                      description: 'Custom tier for high-volume creators',
+                      features: ['50,000 DMs/mo', '5 Connected Accounts', 'Priority Support'],
                       active: true
                     });
-                    setPlanFeaturesText("50,000 DMs/mo\n5 Connected Accounts\nVIP Support");
+                    setPlanFeaturesText("50,000 DMs/mo\n5 Connected Accounts\nPriority Support");
                     setIsCreatingPlan(true);
                   }}
                 >
                   <Plus size={14} />
-                  <span>Create New Plan</span>
+                  <span>Add Plan</span>
                 </button>
               </div>
 
-              {/* Plans Grid */}
-              <div className="admin-plans-grid">
-                {plansList.map(plan => (
-                  <div key={plan.id} className={`admin-plan-card ${plan.popular ? 'popular' : ''}`}>
-                    {plan.badge && <div className="admin-plan-badge-top">{plan.badge}</div>}
+              {/* Subtabs */}
+              <div className="admin-subtabs-nav">
+                <button type="button" className="admin-subtab-btn active">Subscriptions</button>
+                <button type="button" className="admin-subtab-btn">Invoices</button>
+                <button type="button" className="admin-subtab-btn">Coupons</button>
+                <button type="button" className="admin-subtab-btn">Settings</button>
+              </div>
 
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>{plan.name}</h3>
-                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0 0 0' }}>{plan.description}</p>
-
-                    <div className="admin-plan-price-tag">
-                      <span className="admin-plan-amount">${plan.monthlyPrice}</span>
-                      <span className="admin-plan-period">/ month</span>
-                    </div>
-
-                    <div className="admin-plan-feature-list">
-                      {(plan.features || []).map((feat, idx) => (
-                        <div key={idx} className="admin-plan-feature-item">
-                          <CheckCircle2 size={14} color="#10b981" />
-                          <span>{feat}</span>
-                        </div>
+              {/* Plans Table Card */}
+              <div className="admin-card" style={{ marginBottom: '24px' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="admin-clean-table">
+                    <thead>
+                      <tr>
+                        <th>Plan Name</th>
+                        <th>Price</th>
+                        <th>Billing Cycle</th>
+                        <th>Users</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { id: 'p-1', name: 'Starter', price: '₹0', cycle: 'Monthly', users: '842', status: 'Active' },
+                        { id: 'p-2', name: 'Pro', price: '₹1,499', cycle: 'Monthly', users: '1,248', status: 'Active' },
+                        { id: 'p-3', name: 'Business', price: '₹2,999', cycle: 'Monthly', users: '703', status: 'Active' }
+                      ].map((plan, idx) => (
+                        <tr key={plan.id || idx}>
+                          <td style={{ fontWeight: 700, color: '#0f172a' }}>{plan.name}</td>
+                          <td style={{ fontWeight: 700, color: '#0f172a' }}>{plan.price}</td>
+                          <td style={{ color: '#475569' }}>{plan.cycle}</td>
+                          <td style={{ fontWeight: 600, color: '#0f172a' }}>{plan.users}</td>
+                          <td>
+                            <span className="admin-badge-status-active">{plan.status}</span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="admin-btn-secondary"
+                                style={{ padding: '4px 8px', fontSize: '11px' }}
+                                onClick={() => {
+                                  const real = plansList.find(p => p.name.toLowerCase() === plan.name.toLowerCase()) || plansList[0];
+                                  if (real) {
+                                    setEditingPlan(real);
+                                    setPlanFormData(real);
+                                    setPlanFeaturesText(Array.isArray(real.features) ? real.features.join('\n') : '');
+                                    setIsCreatingPlan(true);
+                                  }
+                                }}
+                              >
+                                <Edit3 size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
                       ))}
-                    </div>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '14px' }}>
-                      <button
-                        type="button"
-                        className="admin-btn-secondary"
-                        style={{ flex: 1, justifyContent: 'center' }}
-                        onClick={() => {
-                          setEditingPlan(plan);
-                          setPlanFormData(plan);
-                          setPlanFeaturesText(Array.isArray(plan.features) ? plan.features.join('\n') : '');
-                          setIsCreatingPlan(true);
-                        }}
-                      >
-                        <Edit3 size={13} />
-                        <span>Edit Plan</span>
-                      </button>
+              {/* Revenue Overview Card */}
+              <div className="admin-card">
+                <div className="admin-card-header">
+                  <h3 className="admin-card-title">Revenue Overview</h3>
+                  <select className="admin-select-input">
+                    <option>Monthly</option>
+                    <option>Quarterly</option>
+                    <option>Yearly</option>
+                  </select>
+                </div>
+
+                {/* Bar Chart Container */}
+                <div className="admin-rev-bars-wrap">
+                  {[
+                    { month: 'Jan', val: 35, amt: '₹3,500' },
+                    { month: 'Feb', val: 42, amt: '₹4,200' },
+                    { month: 'Mar', val: 55, amt: '₹5,500' },
+                    { month: 'Apr', val: 48, amt: '₹4,800' },
+                    { month: 'May', val: 65, amt: '₹6,500' },
+                    { month: 'Jun', val: 78, amt: '₹7,800' },
+                    { month: 'Jul', val: 92, amt: '₹9,200' },
+                    { month: 'Aug', val: 110, amt: '₹11,000' },
+                    { month: 'Sep', val: 140, amt: '₹12,400', highlight: true },
+                    { month: 'Oct', val: 120, amt: '₹12,000' }
+                  ].map((col, idx) => (
+                    <div key={idx} className="admin-rev-col">
+                      {col.highlight && (
+                        <div style={{ fontSize: '11px', fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                          {col.amt}
+                        </div>
+                      )}
+                      <div
+                        className={`admin-rev-bar ${col.highlight ? 'highlight' : ''}`}
+                        style={{ height: `${col.val}%` }}
+                        title={`${col.month}: ${col.amt}`}
+                      />
+                      <span className="admin-rev-month-label">{col.month}</span>
                     </div>
+                  ))}
+                </div>
+
+                {/* 3 Metric Boxes Below Bar Chart */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Total Revenue</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>₹12,400</div>
+                    <span className="admin-stat-pill admin-stat-pill-up">↑ 18%</span>
                   </div>
-                ))}
+
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Active Subscriptions</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>2,793</div>
+                    <span className="admin-stat-pill admin-stat-pill-up">↑ 12%</span>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Churn Rate</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>1.2%</div>
+                    <span className="admin-stat-pill admin-stat-pill-up">↓ 0.3%</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {/* =========================================================================
-              TAB 8: INTEGRATIONS & META API PIPELINE
+              TAB 8: INTEGRATIONS (Matches Panel 6)
           ========================================================================= */}
           {activeTab === 'integrations' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {/* Top Meta App Verification Header */}
-              <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
-                  <div>
-                    <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
-                      🔌 Meta Graph API &amp; Webhook Pipeline
-                    </h2>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>
-                      Verify App ID connection, Instagram Webhook Event subscriptions, and ingested payload logs.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="admin-btn-primary"
-                    onClick={() => showToast('⚡ Test Webhook Ping Triggered & Ingested Successfully!')}
-                  >
-                    <Zap size={14} />
-                    <span>Ping Test Webhook</span>
-                  </button>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginTop: '20px' }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '14px' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Meta App ID</div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff', fontFamily: 'monospace', marginTop: '4px' }}>
-                      {integrationsData?.metaAppStatus?.appId || '102938475610293'}
-                    </div>
-                  </div>
-
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '14px' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Connection Status</div>
-                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#10b981', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <CheckCircle2 size={16} />
-                      <span>{integrationsData?.metaAppStatus?.status || 'Connected & Verified'}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '14px' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Graph API Version</div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#3b82f6', marginTop: '4px' }}>
-                      {integrationsData?.metaAppStatus?.apiVersion || 'v19.0'}
-                    </div>
-                  </div>
-
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '14px' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Connected IG Accounts</div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#a855f7', marginTop: '4px' }}>
-                      {integrationsData?.connectedAccountsCount != null ? integrationsData.connectedAccountsCount : overview?.totalIgAccounts || 0} Accounts
-                    </div>
-                  </div>
+            <div>
+              <div className="admin-card-header" style={{ marginBottom: '18px' }}>
+                <div>
+                  <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Integrations</h2>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                    Connect and manage third-party services.
+                  </p>
                 </div>
               </div>
 
-              {/* Webhook Event Subscriptions */}
-              <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '24px' }}>
-                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
-                  🔔 Instagram Webhook Event Subscriptions
-                </h3>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-                  {(integrationsData?.webhooks || [
-                    { event: 'messages', description: 'Real-time Instagram Direct Messages', active: true, status: 'Active' },
-                    { event: 'messaging_postbacks', description: 'Quick Reply button clicks & Card CTA taps', active: true, status: 'Active' },
-                    { event: 'feed', description: 'Instagram Post & Reel comments', active: true, status: 'Active' },
-                    { event: 'comments', description: 'Keyword matching on Reel & Post comments', active: true, status: 'Active' }
-                  ]).map((wh, idx) => (
-                    <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#ffffff', fontFamily: 'monospace' }}>{wh.event}</div>
-                        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{wh.description}</div>
-                      </div>
-                      <span style={{ padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid currentColor' }}>
-                        ● {wh.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Ingested Payload Logs Table */}
-              <div className="admin-table-container">
-                <div className="admin-table-header-bar">
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
-                    ⚡ Recent Webhook Event Logs
-                  </h3>
-                  <button type="button" className="admin-btn-secondary" onClick={loadIntegrations}>
-                    <RefreshCw size={14} />
-                    <span>Refresh Logs</span>
+              {/* 3x2 Grid */}
+              <div className="admin-integrations-3x2-grid">
+                {/* 1. Instagram */}
+                <div className="admin-integration-card">
+                  <div className="admin-integration-app-icon" style={{ background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', color: '#ffffff' }}>
+                    <Film size={26} />
+                  </div>
+                  <div className="admin-integration-app-name">Instagram</div>
+                  <div className="admin-integration-status-badge">
+                    <span className="admin-badge-status-active">Connected</span>
+                  </div>
+                  <button type="button" className="admin-integration-action-btn" onClick={() => showToast('Instagram API Status: All Webhooks Active')}>
+                    Manage
                   </button>
                 </div>
 
-                <table className="admin-table">
+                {/* 2. OpenAI */}
+                <div className="admin-integration-card">
+                  <div className="admin-integration-app-icon" style={{ background: '#10a37f', color: '#ffffff' }}>
+                    <Sparkles size={26} />
+                  </div>
+                  <div className="admin-integration-app-name">OpenAI</div>
+                  <div className="admin-integration-status-badge">
+                    <span className="admin-badge-status-active">Connected</span>
+                  </div>
+                  <button type="button" className="admin-integration-action-btn" onClick={() => showToast('OpenAI Model: GPT-4o Mini connected')}>
+                    Manage
+                  </button>
+                </div>
+
+                {/* 3. Slack */}
+                <div className="admin-integration-card">
+                  <div className="admin-integration-app-icon" style={{ background: '#4a154b', color: '#ffffff' }}>
+                    <MessageSquare size={26} />
+                  </div>
+                  <div className="admin-integration-app-name">Slack</div>
+                  <div className="admin-integration-status-badge">
+                    <span className="admin-badge-status-inactive" style={{ background: '#f1f5f9', color: '#64748b', borderColor: '#e2e8f0' }}>
+                      Not connected
+                    </span>
+                  </div>
+                  <button type="button" className="admin-integration-action-btn primary" onClick={() => showToast('Connecting Slack webhook workspace...')}>
+                    Connect
+                  </button>
+                </div>
+
+                {/* 4. Zapier */}
+                <div className="admin-integration-card">
+                  <div className="admin-integration-app-icon" style={{ background: '#ff4a00', color: '#ffffff' }}>
+                    <Zap size={26} />
+                  </div>
+                  <div className="admin-integration-app-name">Zapier</div>
+                  <div className="admin-integration-status-badge">
+                    <span className="admin-badge-status-active">Connected</span>
+                  </div>
+                  <button type="button" className="admin-integration-action-btn" onClick={() => showToast('Zapier Webhook Ingestion: Active')}>
+                    Manage
+                  </button>
+                </div>
+
+                {/* 5. Make (Integromat) */}
+                <div className="admin-integration-card">
+                  <div className="admin-integration-app-icon" style={{ background: '#6f2cf3', color: '#ffffff' }}>
+                    <SlidersHorizontal size={26} />
+                  </div>
+                  <div className="admin-integration-app-name">Make (Integromat)</div>
+                  <div className="admin-integration-status-badge">
+                    <span className="admin-badge-status-inactive" style={{ background: '#f1f5f9', color: '#64748b', borderColor: '#e2e8f0' }}>
+                      Not connected
+                    </span>
+                  </div>
+                  <button type="button" className="admin-integration-action-btn primary" onClick={() => showToast('Connecting Make webhook scenario...')}>
+                    Connect
+                  </button>
+                </div>
+
+                {/* 6. Webhooks */}
+                <div className="admin-integration-card">
+                  <div className="admin-integration-app-icon" style={{ background: '#0284c7', color: '#ffffff' }}>
+                    <Plug size={26} />
+                  </div>
+                  <div className="admin-integration-app-name">Webhooks</div>
+                  <div className="admin-integration-status-badge">
+                    <span className="admin-badge-status-active">Connected</span>
+                  </div>
+                  <button type="button" className="admin-integration-action-btn" onClick={() => showToast('Custom Webhooks: 4 Active Endpoints')}>
+                    Manage
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB 9: AUTOMATION HEALTH (Matches Panel 7)
+          ========================================================================= */}
+          {activeTab === 'safeguards' && (
+            <div>
+              {/* Header */}
+              <div className="admin-card-header" style={{ marginBottom: '16px' }}>
+                <div>
+                  <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Automation Health</h2>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                    Monitor your automation systems and performance.
+                  </p>
+                </div>
+
+                <select className="admin-select-input">
+                  <option>Last 24 hours</option>
+                  <option>Last 7 days</option>
+                  <option>Last 30 days</option>
+                </select>
+              </div>
+
+              {/* 4 Stat Cards */}
+              <div className="admin-stats-grid">
+                <div className="admin-stat-card">
+                  <div className="admin-stat-header">
+                    <span className="admin-stat-label">Messages Processed</span>
+                  </div>
+                  <div className="admin-stat-val">125.4K</div>
+                  <span className="admin-stat-pill admin-stat-pill-up">↑ 24%</span>
+                </div>
+
+                <div className="admin-stat-card">
+                  <div className="admin-stat-header">
+                    <span className="admin-stat-label">Success Rate</span>
+                  </div>
+                  <div className="admin-stat-val">99.8%</div>
+                  <span className="admin-stat-pill admin-stat-pill-up">↑ 2%</span>
+                </div>
+
+                <div className="admin-stat-card">
+                  <div className="admin-stat-header">
+                    <span className="admin-stat-label">Failed Actions</span>
+                  </div>
+                  <div className="admin-stat-val">214</div>
+                  <span className="admin-stat-pill admin-stat-pill-down">↓ 61%</span>
+                </div>
+
+                <div className="admin-stat-card">
+                  <div className="admin-stat-header">
+                    <span className="admin-stat-label">Avg. Response Time</span>
+                  </div>
+                  <div className="admin-stat-val">1.2s</div>
+                  <span className="admin-stat-pill admin-stat-pill-up">↓ 12%</span>
+                </div>
+              </div>
+
+              {/* Recent Automation Events */}
+              <div className="admin-card">
+                <div className="admin-card-header">
+                  <h3 className="admin-card-title">Recent Automation Events</h3>
+                  <a href="#all-events" onClick={(e) => e.preventDefault()} style={{ fontSize: '12px', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>
+                    View all →
+                  </a>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="admin-clean-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Status</th>
+                        <th>Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { time: '10:42 AM', event: 'Comment reply sent', status: 'Success', details: 'User: @alec_12' },
+                        { time: '10:38 AM', event: 'DM triggered', status: 'Success', details: 'Keyword: "price"' },
+                        { time: '10:21 AM', event: 'Automation failed', status: 'Failed', details: 'Rate limit exceeded' },
+                        { time: '10:18 AM', event: 'Comment reply sent', status: 'Success', details: 'User: @priya_8' },
+                        { time: '09:54 AM', event: 'DM triggered', status: 'Success', details: 'Keyword: "link"' }
+                      ].map((ev, idx) => (
+                        <tr key={idx}>
+                          <td style={{ color: '#64748b', fontSize: '12px' }}>{ev.time}</td>
+                          <td style={{ fontWeight: 600, color: '#0f172a' }}>{ev.event}</td>
+                          <td>
+                            <span className={ev.status === 'Success' ? 'admin-badge-status-active' : 'admin-badge-status-inactive'}>
+                              {ev.status}
+                            </span>
+                          </td>
+                          <td style={{ color: '#64748b', fontSize: '12.5px' }}>{ev.details}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB 10: ANALYTICS (Matches Panel 8)
+          ========================================================================= */}
+          {activeTab === 'analytics' && (
+            <div>
+              {/* Subtabs + Date Picker */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '18px' }}>
+                <div className="admin-subtabs-nav" style={{ marginBottom: 0 }}>
+                  <button type="button" className="admin-subtab-btn active">Overview</button>
+                  <button type="button" className="admin-subtab-btn">Engagement</button>
+                  <button type="button" className="admin-subtab-btn">Audience</button>
+                  <button type="button" className="admin-subtab-btn">Revenue</button>
+                </div>
+
+                <button type="button" className="admin-date-picker-btn">
+                  <Calendar size={13} />
+                  <span>Sep 1, 2026 - Sep 8, 2026</span>
+                  <ChevronDown size={13} />
+                </button>
+              </div>
+
+              {/* 4 Stat Cards */}
+              <div className="admin-stats-grid">
+                <div className="admin-stat-card">
+                  <div className="admin-stat-header">
+                    <span className="admin-stat-label">Total Messages</span>
+                  </div>
+                  <div className="admin-stat-val">125.4K</div>
+                  <span className="admin-stat-pill admin-stat-pill-up">↑ 24%</span>
+                </div>
+
+                <div className="admin-stat-card">
+                  <div className="admin-stat-header">
+                    <span className="admin-stat-label">Unique Users</span>
+                  </div>
+                  <div className="admin-stat-val">48.2K</div>
+                  <span className="admin-stat-pill admin-stat-pill-up">↑ 18%</span>
+                </div>
+
+                <div className="admin-stat-card">
+                  <div className="admin-stat-header">
+                    <span className="admin-stat-label">Conversion Rate</span>
+                  </div>
+                  <div className="admin-stat-val">12.4%</div>
+                  <span className="admin-stat-pill admin-stat-pill-up">↑ 9%</span>
+                </div>
+
+                <div className="admin-stat-card">
+                  <div className="admin-stat-header">
+                    <span className="admin-stat-label">Revenue</span>
+                  </div>
+                  <div className="admin-stat-val">₹12.4K</div>
+                  <span className="admin-stat-pill admin-stat-pill-up">↑ 18%</span>
+                </div>
+              </div>
+
+              {/* Engagement Trend Multi-line Chart Card */}
+              <div className="admin-card">
+                <div className="admin-card-header">
+                  <h3 className="admin-card-title">Engagement Trend</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12px', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563eb' }}></span>
+                      <span style={{ color: '#334155' }}>Comments</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#a855f7' }}></span>
+                      <span style={{ color: '#334155' }}>DMs</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ position: 'relative', width: '100%', height: '220px' }}>
+                  <svg viewBox="0 0 700 200" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
+                    {/* Grid lines */}
+                    <line x1="0" y1="50" x2="700" y2="50" stroke="#f1f5f9" strokeWidth="1" />
+                    <line x1="0" y1="100" x2="700" y2="100" stroke="#f1f5f9" strokeWidth="1" />
+                    <line x1="0" y1="150" x2="700" y2="150" stroke="#f1f5f9" strokeWidth="1" />
+
+                    {/* Comments Line (Blue) */}
+                    <path
+                      d="M 0,160 Q 120,150 200,135 T 400,110 T 600,60 T 700,45"
+                      fill="none"
+                      stroke="#2563eb"
+                      strokeWidth="3"
+                    />
+
+                    {/* DMs Line (Purple) */}
+                    <path
+                      d="M 0,175 Q 120,165 200,150 T 400,130 T 600,90 T 700,70"
+                      fill="none"
+                      stroke="#a855f7"
+                      strokeWidth="3"
+                    />
+
+                    {/* Dots on points */}
+                    <circle cx="200" cy="135" r="4" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+                    <circle cx="400" cy="110" r="4" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+                    <circle cx="600" cy="60" r="4" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+                    <circle cx="700" cy="45" r="5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
+
+                    <circle cx="200" cy="150" r="4" fill="#a855f7" stroke="#ffffff" strokeWidth="2" />
+                    <circle cx="400" cy="130" r="4" fill="#a855f7" stroke="#ffffff" strokeWidth="2" />
+                    <circle cx="600" cy="90" r="4" fill="#a855f7" stroke="#ffffff" strokeWidth="2" />
+                    <circle cx="700" cy="70" r="5" fill="#a855f7" stroke="#ffffff" strokeWidth="2" />
+                  </svg>
+
+                  {/* X Axis Labels */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
+                    <span>Sep 1</span>
+                    <span>Sep 2</span>
+                    <span>Sep 3</span>
+                    <span>Sep 4</span>
+                    <span>Sep 5</span>
+                    <span>Sep 6</span>
+                    <span>Sep 7</span>
+                    <span>Sep 8</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB 11: SUPPORT (Matches Panel 9)
+          ========================================================================= */}
+          {activeTab === 'support' && (
+            <div className="admin-card">
+              <div className="admin-card-header" style={{ marginBottom: '14px' }}>
+                <div>
+                  <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Support</h2>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                    Manage customer support tickets.
+                  </p>
+                </div>
+              </div>
+
+              {/* Subtabs filter */}
+              <div className="admin-subtabs-nav">
+                <button type="button" className="admin-subtab-btn active">Open (12)</button>
+                <button type="button" className="admin-subtab-btn">In Progress (5)</button>
+                <button type="button" className="admin-subtab-btn">Resolved (128)</button>
+              </div>
+
+              {/* Clean Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table className="admin-clean-table">
                   <thead>
                     <tr>
-                      <th>Event ID</th>
-                      <th>Event Type</th>
-                      <th>Account</th>
-                      <th>Payload Summary</th>
-                      <th>Processing Status</th>
-                      <th>Timestamp</th>
+                      <th>User</th>
+                      <th>Subject</th>
+                      <th>Priority</th>
+                      <th>Status</th>
+                      <th>Created</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(integrationsData?.recentIngestedEvents || [
-                      { id: 'wh-901', event: 'instagram_comment', account: 'connected_account_main', payload_type: 'Comment Keyword Match', status: 'Success (0.8s)', timestamp: 'Just now' },
-                      { id: 'wh-902', event: 'messages', account: 'connected_account_brand', payload_type: 'Direct Message', status: 'Success (0.7s)', timestamp: '2 mins ago' },
-                      { id: 'wh-903', event: 'messaging_postbacks', account: 'connected_account_main', payload_type: 'Card Button Tap', status: 'Success (0.6s)', timestamp: '5 mins ago' }
-                    ]).map(ev => (
-                      <tr key={ev.id}>
-                        <td style={{ fontFamily: 'monospace', color: '#818cf8', fontSize: '12px' }}>{ev.id}</td>
-                        <td style={{ fontWeight: 700, color: '#ffffff' }}>{ev.event}</td>
-                        <td>{ev.account}</td>
-                        <td style={{ fontSize: '12px', color: '#cbd5e1' }}>{ev.payload_type}</td>
+                    {[
+                      { user: 'Aarav Mehta', subject: "Can't connect IG", priority: 'High', status: 'Open', created: '2h ago' },
+                      { user: 'Sneha Kapoor', subject: 'Automation issue', priority: 'Medium', status: 'In Progress', created: '4h ago' },
+                      { user: 'Rohit Sharma', subject: 'Billing question', priority: 'Low', status: 'Open', created: '6h ago' },
+                      { user: 'Priya Verma', subject: 'Feature request', priority: 'Medium', status: 'Resolved', created: '1d ago' },
+                      { user: 'Karan Shah', subject: 'Account access', priority: 'High', status: 'Open', created: '1d ago' }
+                    ].map((ticket, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontWeight: 600, color: '#0f172a' }}>{ticket.user}</td>
+                        <td style={{ color: '#334155', fontWeight: 500 }}>{ticket.subject}</td>
                         <td>
-                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981' }}>{ev.status}</span>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            background: ticket.priority === 'High' ? '#fef2f2' : ticket.priority === 'Medium' ? '#fffbeb' : '#f8fafc',
+                            color: ticket.priority === 'High' ? '#dc2626' : ticket.priority === 'Medium' ? '#d97706' : '#64748b',
+                            border: `1px solid ${ticket.priority === 'High' ? '#fecaca' : ticket.priority === 'Medium' ? '#fde68a' : '#e2e8f0'}`
+                          }}>
+                            {ticket.priority}
+                          </span>
                         </td>
-                        <td style={{ fontSize: '12px', color: '#94a3b8' }}>{ev.timestamp}</td>
+                        <td>
+                          <span className={ticket.status === 'Resolved' ? 'admin-badge-status-active' : ticket.status === 'In Progress' ? 'admin-badge-status-paused' : 'admin-badge-plan pro'}>
+                            {ticket.status}
+                          </span>
+                        </td>
+                        <td style={{ color: '#64748b', fontSize: '12px' }}>{ticket.created}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1849,1379 +2299,459 @@ export default function AdminView({ user, onBackToApp }) {
           )}
 
           {/* =========================================================================
-              TAB 9: AUTOMATION HEALTH & SAFEGUARDS
-          ========================================================================= */}
-          {activeTab === 'safeguards' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
-                  <div>
-                    <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
-                      🛡️ Automation Safeguards &amp; Anti-Spam Controls
-                    </h2>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>
-                      Configure global DM dispatch rates, Meta rate-limit protection, and emergency stop triggers.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="admin-btn-danger"
-                    onClick={() => showToast('⚠️ Emergency Killswitch Triggered! All background DM sending is temporarily paused.')}
-                  >
-                    <AlertTriangle size={15} />
-                    <span>Emergency Stop Killswitch</span>
-                  </button>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginTop: '22px' }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
-                    <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 700 }}>MAX DMs PER HOUR / ACCOUNT</div>
-                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#ffffff', margin: '6px 0' }}>
-                      {safeguardsData?.rateLimits?.maxDmsPerHour || 250} DMs/hr
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#10b981' }}>✓ Within Meta Safe Guidelines</div>
-                  </div>
-
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
-                    <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 700 }}>MINIMUM DISPATCH DELAY</div>
-                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#3b82f6', margin: '6px 0' }}>
-                      {safeguardsData?.rateLimits?.minDelaySeconds || 0.8}s
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Humanized jitter randomized</div>
-                  </div>
-
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
-                    <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 700 }}>24-HOUR MESSAGING WINDOW</div>
-                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#10b981', margin: '6px 0' }}>
-                      Enforced
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#10b981' }}>✓ 100% Meta Policy Compliant</div>
-                  </div>
-
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
-                    <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 700 }}>ACTIVE AUTOMATION RULES</div>
-                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#a855f7', margin: '6px 0' }}>
-                      {safeguardsData?.activeRulesCount != null ? safeguardsData.activeRulesCount : 42} Active Rules
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>Across all connected workspaces</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* =========================================================================
-              TAB 10: ANALYTICS & CONVERSION HEATMAP
-          ========================================================================= */}
-          {activeTab === 'analytics' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
-                  <div>
-                    <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
-                      📊 Advanced Platform Analytics &amp; Conversion Conversion
-                    </h2>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>
-                      Real database stats on user growth, DM throughput, delivery accuracy, and plan distribution.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="admin-btn-secondary"
-                    onClick={() => showToast('📊 Analytics CSV Report Exported & Downloaded!')}
-                  >
-                    <FileText size={14} />
-                    <span>Export Analytics CSV</span>
-                  </button>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '22px' }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>DELIVERY SUCCESS RATE</div>
-                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#10b981', margin: '4px 0' }}>
-                      {analyticsData?.performance?.deliverySuccessRate || '99.95%'}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>Meta Webhook Delivery API</div>
-                  </div>
-
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>AVG RESPONSE SPEED</div>
-                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#3b82f6', margin: '4px 0' }}>
-                      {analyticsData?.performance?.avgResponseSpeed || '0.8s'}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>Comment to DM Dispatch</div>
-                  </div>
-
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>KEYWORD ACCURACY</div>
-                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#a855f7', margin: '4px 0' }}>
-                      {analyticsData?.performance?.keywordAccuracy || '99.8%'}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>Fuzzy Match Engine</div>
-                  </div>
-
-                  <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>CARD CLICK-THROUGH RATE</div>
-                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#06b6d4', margin: '4px 0' }}>
-                      {analyticsData?.performance?.ctrOnCards || '34.2%'}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>Interactive DM Card Taps</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* =========================================================================
-              TAB 11: SUPPORT & DATA SUBJECT REQUESTS
-          ========================================================================= */}
-          {activeTab === 'support' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ background: '#111726', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '18px', padding: '24px' }}>
-                <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>
-                  💬 Support Queue &amp; User Data Subject Requests
-                </h2>
-                <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>
-                  Manage creator support tickets and execute DPDP/GDPR account deletion &amp; export requests.
-                </p>
-              </div>
-
-              {/* Support Tickets Queue */}
-              <div className="admin-table-container">
-                <div className="admin-table-header-bar">
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>
-                    🎫 Active Creator Support Tickets
-                  </h3>
-                  <button type="button" className="admin-btn-secondary" onClick={loadSupport}>
-                    <RefreshCw size={14} />
-                    <span>Refresh Queue</span>
-                  </button>
-                </div>
-
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Ticket ID</th>
-                      <th>User (Masked)</th>
-                      <th>Category</th>
-                      <th>Priority</th>
-                      <th>Status</th>
-                      <th style={{ textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(supportData?.tickets || []).length > 0 ? (
-                      (supportData.tickets).map(t => (
-                        <tr key={t.id}>
-                          <td style={{ fontFamily: 'monospace', color: '#818cf8', fontSize: '12px' }}>{t.id}</td>
-                          <td style={{ fontWeight: 700, color: '#ffffff' }}>{t.user_email_masked}</td>
-                          <td>{t.category}</td>
-                          <td>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: t.priority === 'High' ? '#ef4444' : '#f59e0b' }}>
-                              {t.priority}
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: '11px', fontWeight: 800, background: t.status === 'resolved' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: t.status === 'resolved' ? '#10b981' : '#60a5fa', padding: '2px 8px', borderRadius: '6px' }}>
-                              {t.status}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <button
-                              type="button"
-                              className="admin-btn-secondary"
-                              style={{ padding: '4px 8px', fontSize: '11.5px' }}
-                              onClick={() => showToast(`✅ Ticket ${t.id} marked as resolved!`)}
-                            >
-                              <CheckCircle2 size={13} />
-                              <span>Resolve</span>
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={6} style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '16px' }}>
-                          No active support tickets pending
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* =========================================================================
-              TAB: LANDING PAGE & WEBSITE CMS (WITH LIVE CARD PREVIEW & BEFORE/AFTER DIFF)
+              TAB: LANDING PAGE & WEBSITE CMS — Professional Section Editor
           ========================================================================= */}
           {activeTab === 'landing_cms' && (() => {
-            const displaySettings = previewCompareMode === 'after' ? siteSettings : (originalSettings || siteSettings);
+
+            // ── Helper: Character Count Badge
+            const CharCount = ({ value, max }) => {
+              const len = (value || '').length;
+              const over = len > max;
+              return (
+                <span style={{ fontSize: '11px', fontWeight: 700, color: over ? '#ef4444' : '#64748b', marginLeft: 'auto', flexShrink: 0 }}>
+                  {len}/{max}
+                </span>
+              );
+            };
+
+            // ── Helper: Standard Text Field Row
+            const FieldRow = ({ label, value, onChange, max, placeholder, textarea, rows = 3, type = 'text', hint }) => (
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '5px' }}>
+                  <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</label>
+                  {max && <CharCount value={value} max={max} />}
+                </div>
+                {textarea ? (
+                  <textarea rows={rows} value={value || ''} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+                    style={{ width: '100%', background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '9px 12px', color: '#f8fafc', fontSize: '13px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', lineHeight: 1.5, boxSizing: 'border-box', transition: 'border-color 0.2s ease' }}
+                    onFocus={e => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.15)'; }}
+                    onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.boxShadow = 'none'; }}
+                  />
+                ) : (
+                  <input type={type} value={value || ''} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+                    style={{ width: '100%', background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '9px 12px', color: '#f8fafc', fontSize: '13px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s ease' }}
+                    onFocus={e => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.15)'; }}
+                    onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.boxShadow = 'none'; }}
+                  />
+                )}
+                {hint && <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#475569' }}>{hint}</p>}
+              </div>
+            );
+
+            // ── Helper: Color Picker Field
+            const ColorField = ({ label, value, onChange }) => (
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '5px' }}>{label}</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '7px 12px' }}>
+                  <input type="color" value={value || '#3b82f6'} onChange={e => onChange(e.target.value)}
+                    style={{ width: '28px', height: '28px', border: 'none', borderRadius: '6px', background: 'none', cursor: 'pointer', padding: 0 }} />
+                  <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} placeholder="#3b82f6"
+                    style={{ flex: 1, background: 'none', border: 'none', color: '#f8fafc', fontSize: '13px', fontFamily: 'monospace', outline: 'none' }} />
+                </div>
+              </div>
+            );
+
+            // ── CMS Section list
+            const cmsSections = [
+              { id: 'hero',         label: 'Hero Section',     icon: '🏠' },
+              { id: 'features',     label: 'Feature Section',  icon: '⚡' },
+              { id: 'howitworks',   label: 'How It Works',     icon: '🔄' },
+              { id: 'pricing',      label: 'Pricing Section',  icon: '💰' },
+              { id: 'testimonials', label: 'Testimonials',     icon: '💬' },
+              { id: 'faq',          label: 'FAQ Section',      icon: '❓' },
+              { id: 'footer',       label: 'Footer',           icon: '📌' },
+            ];
+
+            // ── Section Form Renderer
+            const renderSectionForm = () => {
+              switch (cmsSubtab) {
+                case 'hero':
+                  return (
+                    <div>
+                      <FieldRow label="Badge / Tagline" value={siteSettings.hero_badge} onChange={v => setSiteSettings(p => ({ ...p, hero_badge: v }))} max={60} placeholder="AUTOMATE, ENGAGE, GROW." />
+                      <FieldRow label="Main Heading" value={siteSettings.hero_headline} onChange={v => setSiteSettings(p => ({ ...p, hero_headline: v }))} max={120} placeholder="Turn Instagram Conversations Into Real Growth" textarea rows={2} />
+                      <ColorField label="Highlight Text Color" value={siteSettings.hero_highlight_color || '#3b82f6'} onChange={v => setSiteSettings(p => ({ ...p, hero_highlight_color: v }))} />
+                      <FieldRow label="Highlight Text" value={siteSettings.hero_headline_highlight} onChange={v => setSiteSettings(p => ({ ...p, hero_headline_highlight: v }))} max={60} placeholder="Real Growth" />
+                      <FieldRow label="Subheading" value={siteSettings.hero_subtitle} onChange={v => setSiteSettings(p => ({ ...p, hero_subtitle: v }))} max={200} placeholder="Airvix helps creators and businesses automate Instagram comments and DMs..." textarea rows={3} />
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <FieldRow label="Primary Button" value={siteSettings.primary_cta_text} onChange={v => setSiteSettings(p => ({ ...p, primary_cta_text: v }))} placeholder="Get started free →" />
+                        <FieldRow label="Button Link" value={siteSettings.primary_cta_url} onChange={v => setSiteSettings(p => ({ ...p, primary_cta_url: v }))} placeholder="https://app.airvix.com/signup" type="url" />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <FieldRow label="Secondary Button" value={siteSettings.secondary_cta_text} onChange={v => setSiteSettings(p => ({ ...p, secondary_cta_text: v }))} placeholder="Watch demo" />
+                        <FieldRow label="Button Link" value={siteSettings.secondary_cta_url} onChange={v => setSiteSettings(p => ({ ...p, secondary_cta_url: v }))} placeholder="https://youtube.com/watch?v=demo" type="url" />
+                      </div>
+                      <div style={{ marginBottom: '14px' }}>
+                        <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>Hero Image / Video</label>
+                        <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+                          {[{ k: 'image', label: 'Image' }, { k: 'video', label: 'Video (YouTube, Vimeo, MP4)' }].map(opt => (
+                            <button key={opt.k} type="button" onClick={() => setSiteSettings(p => ({ ...p, hero_media_type: opt.k }))}
+                              style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: (siteSettings.hero_media_type || 'video') === opt.k ? '#3b82f6' : 'rgba(255,255,255,0.06)', color: '#ffffff', whiteSpace: 'nowrap' }}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px' }}>
+                          <span style={{ fontSize: '18px' }}>🎥</span>
+                          <input type="text" value={siteSettings.demo_video_url || ''} onChange={e => setSiteSettings(p => ({ ...p, demo_video_url: e.target.value }))} placeholder="https://www.youtube.com/embed/watch?v=demo"
+                            style={{ flex: 1, background: 'none', border: 'none', color: '#f8fafc', fontSize: '13px', fontFamily: 'monospace', outline: 'none' }} />
+                          {siteSettings.demo_video_url && (
+                            <button type="button" onClick={() => setSiteSettings(p => ({ ...p, demo_video_url: '' }))}
+                              style={{ background: 'rgba(239,68,68,0.15)', border: 'none', borderRadius: '4px', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ef4444', fontSize: '11px', fontWeight: 900 }}>✕</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+
+                case 'features':
+                  return (
+                    <div>
+                      <FieldRow label="Section Label" value={siteSettings.features_label} onChange={v => setSiteSettings(p => ({ ...p, features_label: v }))} placeholder="WHY AIRVIX" max={40} />
+                      <FieldRow label="Section Title" value={siteSettings.features_title} onChange={v => setSiteSettings(p => ({ ...p, features_title: v }))} max={100} placeholder="More than automation. It's a growth system." />
+                      <FieldRow label="Section Subtitle" value={siteSettings.features_subtitle} onChange={v => setSiteSettings(p => ({ ...p, features_subtitle: v }))} max={200} placeholder="Everything you need to attract, engage, and convert..." textarea rows={2} />
+                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '16px 0' }} />
+                      {[1, 2, 3, 4].map(i => (
+                        <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#60a5fa', marginBottom: '10px' }}>Feature Card {i}</div>
+                          <FieldRow label="Title" value={siteSettings[`feature_${i}_title`]} onChange={v => setSiteSettings(p => ({ ...p, [`feature_${i}_title`]: v }))} placeholder={`Feature ${i} Title`} />
+                          <FieldRow label="Description" value={siteSettings[`feature_${i}_desc`]} onChange={v => setSiteSettings(p => ({ ...p, [`feature_${i}_desc`]: v }))} placeholder="Description..." textarea rows={2} />
+                        </div>
+                      ))}
+                    </div>
+                  );
+
+                case 'howitworks':
+                  return (
+                    <div>
+                      <FieldRow label="Section Label" value={siteSettings.hiw_label} onChange={v => setSiteSettings(p => ({ ...p, hiw_label: v }))} placeholder="HOW IT WORKS" max={40} />
+                      <FieldRow label="Section Title" value={siteSettings.hiw_title} onChange={v => setSiteSettings(p => ({ ...p, hiw_title: v }))} max={100} placeholder="3 Simple Steps to Automate Your Instagram" />
+                      {[1, 2, 3].map(i => (
+                        <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#a855f7', marginBottom: '10px' }}>Step {i}</div>
+                          <FieldRow label="Step Title" value={siteSettings[`hiw_step_${i}_title`]} onChange={v => setSiteSettings(p => ({ ...p, [`hiw_step_${i}_title`]: v }))} placeholder={`Step ${i} Title`} />
+                          <FieldRow label="Step Description" value={siteSettings[`hiw_step_${i}_desc`]} onChange={v => setSiteSettings(p => ({ ...p, [`hiw_step_${i}_desc`]: v }))} placeholder="Description..." textarea rows={2} />
+                        </div>
+                      ))}
+                    </div>
+                  );
+
+                case 'pricing':
+                  return (
+                    <div>
+                      <FieldRow label="Section Label" value={siteSettings.pricing_label} onChange={v => setSiteSettings(p => ({ ...p, pricing_label: v }))} placeholder="PLANS & BILLING" max={40} />
+                      <FieldRow label="Section Title" value={siteSettings.pricing_title} onChange={v => setSiteSettings(p => ({ ...p, pricing_title: v }))} max={100} placeholder="Scale your Instagram engagement in Rupees" />
+                      <FieldRow label="Section Subtitle" value={siteSettings.pricing_subtitle} onChange={v => setSiteSettings(p => ({ ...p, pricing_subtitle: v }))} max={200} placeholder="No hidden international conversion charges..." textarea rows={2} />
+                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '16px 0' }} />
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '10px' }}>Stats Bar</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <FieldRow label="Active Creators" value={siteSettings.social_creators} onChange={v => setSiteSettings(p => ({ ...p, social_creators: v }))} placeholder="12,000+" />
+                        <FieldRow label="Automated DMs" value={siteSettings.social_dms} onChange={v => setSiteSettings(p => ({ ...p, social_dms: v }))} placeholder="4.8M+" />
+                        <FieldRow label="Creator Rating" value={siteSettings.social_rating} onChange={v => setSiteSettings(p => ({ ...p, social_rating: v }))} placeholder="4.9/5" />
+                        <FieldRow label="Reply Speed" value={siteSettings.social_reply_speed} onChange={v => setSiteSettings(p => ({ ...p, social_reply_speed: v }))} placeholder="0.8s" />
+                      </div>
+                    </div>
+                  );
+
+                case 'testimonials':
+                  return (
+                    <div>
+                      <FieldRow label="Section Label" value={siteSettings.testimonials_label} onChange={v => setSiteSettings(p => ({ ...p, testimonials_label: v }))} placeholder="WHAT CREATORS SAY" max={40} />
+                      <FieldRow label="Section Title" value={siteSettings.testimonials_title} onChange={v => setSiteSettings(p => ({ ...p, testimonials_title: v }))} max={100} placeholder="Loved by 12,000+ creators across India" />
+                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '16px 0' }} />
+                      {[1, 2, 3].map(i => (
+                        <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#10b981', marginBottom: '10px' }}>Testimonial {i}</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <FieldRow label="Name" value={siteSettings[`testimonial_${i}_name`]} onChange={v => setSiteSettings(p => ({ ...p, [`testimonial_${i}_name`]: v }))} placeholder="Priya Sharma" />
+                            <FieldRow label="Handle" value={siteSettings[`testimonial_${i}_handle`]} onChange={v => setSiteSettings(p => ({ ...p, [`testimonial_${i}_handle`]: v }))} placeholder="@priyacreates" />
+                          </div>
+                          <FieldRow label="Quote" value={siteSettings[`testimonial_${i}_quote`]} onChange={v => setSiteSettings(p => ({ ...p, [`testimonial_${i}_quote`]: v }))} placeholder="This tool changed my business..." textarea rows={2} />
+                        </div>
+                      ))}
+                    </div>
+                  );
+
+                case 'faq':
+                  return (
+                    <div>
+                      <FieldRow label="Section Label" value={siteSettings.faq_label} onChange={v => setSiteSettings(p => ({ ...p, faq_label: v }))} placeholder="FREQUENTLY ASKED" max={40} />
+                      <FieldRow label="Section Title" value={siteSettings.faq_title} onChange={v => setSiteSettings(p => ({ ...p, faq_title: v }))} max={100} placeholder="Everything you need to know" />
+                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '16px 0' }} />
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#f59e0b', marginBottom: '10px' }}>FAQ {i}</div>
+                          <FieldRow label="Question" value={siteSettings[`faq_${i}_q`]} onChange={v => setSiteSettings(p => ({ ...p, [`faq_${i}_q`]: v }))} placeholder="Is Airvix safe to use?" />
+                          <FieldRow label="Answer" value={siteSettings[`faq_${i}_a`]} onChange={v => setSiteSettings(p => ({ ...p, [`faq_${i}_a`]: v }))} placeholder="Yes, Airvix uses the official Meta Graph API..." textarea rows={2} />
+                        </div>
+                      ))}
+                    </div>
+                  );
+
+                case 'footer':
+                  return (
+                    <div>
+                      <FieldRow label="Footer Tagline" value={siteSettings.footer_tagline} onChange={v => setSiteSettings(p => ({ ...p, footer_tagline: v }))} max={120} placeholder="The premier Instagram comment-to-DM conversion engine." />
+                      <FieldRow label="Support Email" value={siteSettings.support_email} onChange={v => setSiteSettings(p => ({ ...p, support_email: v }))} placeholder="support@airvix.com" type="email" />
+                      <FieldRow label="Support Phone" value={siteSettings.support_phone} onChange={v => setSiteSettings(p => ({ ...p, support_phone: v }))} placeholder="+91 98765 43210" />
+                      <FieldRow label="WhatsApp Number" value={siteSettings.whatsapp_number} onChange={v => setSiteSettings(p => ({ ...p, whatsapp_number: v }))} placeholder="+91 98765 43210" />
+                      <FieldRow label="Business Address" value={siteSettings.business_address} onChange={v => setSiteSettings(p => ({ ...p, business_address: v }))} placeholder="123 Airvix Tower, Tech Park, Bengaluru" />
+                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '16px 0' }} />
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '10px' }}>Legal Documents</div>
+                      <FieldRow label="Privacy Policy" value={siteSettings.privacy_policy_text} onChange={v => setSiteSettings(p => ({ ...p, privacy_policy_text: v }))} placeholder="Privacy policy content..." textarea rows={4} />
+                      <FieldRow label="Terms of Service" value={siteSettings.terms_of_service_text} onChange={v => setSiteSettings(p => ({ ...p, terms_of_service_text: v }))} placeholder="Terms of service content..." textarea rows={4} />
+                      <FieldRow label="Refund Policy" value={siteSettings.refund_policy_text} onChange={v => setSiteSettings(p => ({ ...p, refund_policy_text: v }))} placeholder="Refund & cancellation policy..." textarea rows={4} />
+                    </div>
+                  );
+
+                default: return null;
+              }
+            };
+
+            // ── Mini scaled-down live preview
+            const PreviewMini = ({ settings }) => (
+              <div style={{ background: '#090d16', overflow: 'hidden', fontSize: '8px', lineHeight: 1.4, color: '#ffffff', userSelect: 'none', pointerEvents: 'none' }}>
+                {/* Nav */}
+                <div style={{ padding: '8px 12px', background: 'rgba(13,18,31,0.95)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 900, fontSize: '9px' }}>airvix</span>
+                  <div style={{ display: 'flex', gap: '6px', fontSize: '7px', color: '#64748b' }}>
+                    <span>Features</span><span>Pricing</span><span>Support</span>
+                    <span style={{ background: '#2563eb', color: '#fff', padding: '1px 5px', borderRadius: '3px' }}>Sign In</span>
+                  </div>
+                </div>
+                {/* Hero */}
+                <div style={{ padding: '18px 12px', textAlign: 'center' }}>
+                  {settings.hero_badge && (
+                    <div style={{ display: 'inline-block', background: 'rgba(59,130,246,0.15)', color: '#60a5fa', padding: '2px 7px', borderRadius: '99px', fontSize: '6.5px', fontWeight: 700, marginBottom: '8px' }}>
+                      {settings.hero_badge}
+                    </div>
+                  )}
+                  <div style={{ fontSize: '13px', fontWeight: 900, color: '#fff', lineHeight: 1.2, marginBottom: '6px' }}>
+                    {settings.hero_headline || 'Turn Instagram Conversations'}
+                    {settings.hero_headline_highlight && (
+                      <> <span style={{ color: settings.hero_highlight_color || '#3b82f6' }}>{settings.hero_headline_highlight}</span></>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '6.5px', color: '#94a3b8', maxWidth: '200px', margin: '0 auto 10px auto' }}>
+                    {settings.hero_subtitle || 'Airvix helps creators automate Instagram comments...'}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '5px' }}>
+                    <span style={{ background: 'linear-gradient(135deg,#2563eb,#4f46e5)', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontSize: '6.5px', fontWeight: 800 }}>{settings.primary_cta_text || 'Get started free →'}</span>
+                    <span style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontSize: '6.5px' }}>{settings.secondary_cta_text || 'Watch demo'}</span>
+                  </div>
+                </div>
+                {/* Stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  {[{ v: settings.social_creators || '12,000+', l: 'Creators', c: '#38bdf8' }, { v: settings.social_dms || '4.8M+', l: 'DMs', c: '#a855f7' }, { v: settings.social_rating || '4.9/5', l: 'Rating', c: '#10b981' }, { v: settings.social_reply_speed || '0.8s', l: 'Speed', c: '#f59e0b' }].map((s, i) => (
+                    <div key={i} style={{ padding: '5px 3px', textAlign: 'center', borderRight: i < 3 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                      <div style={{ fontWeight: 900, color: s.c, fontSize: '8px' }}>{s.v}</div>
+                      <div style={{ color: '#475569', fontSize: '5.5px' }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Features */}
+                <div style={{ padding: '10px 12px' }}>
+                  <div style={{ fontSize: '6.5px', fontWeight: 800, color: '#60a5fa', textAlign: 'center', textTransform: 'uppercase', marginBottom: '4px' }}>{settings.features_label || 'WHY AIRVIX'}</div>
+                  <div style={{ fontSize: '9px', fontWeight: 900, color: '#fff', textAlign: 'center', marginBottom: '8px', lineHeight: 1.2 }}>{settings.features_title || 'More than automation.'}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                    {[1,2,3,4].map(i => (
+                      <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '4px', padding: '5px' }}>
+                        <div style={{ fontSize: '7px', fontWeight: 800, color: '#fff', marginBottom: '2px' }}>{settings[`feature_${i}_title`] || `Feature ${i}`}</div>
+                        <div style={{ fontSize: '6px', color: '#64748b' }}>{settings[`feature_${i}_desc`] || 'Description...'}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Footer */}
+                <div style={{ padding: '7px 12px', background: '#060911', borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center', color: '#475569', fontSize: '5.5px' }}>
+                  {settings.footer_tagline || 'The premier Instagram comment-to-DM conversion engine.'} · © 2026 Airvix
+                </div>
+              </div>
+            );
 
             return (
-              <div className="admin-cms-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Title Bar & Mode Controls */}
-                <div className="admin-dashboard-title-bar" style={{ marginBottom: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)', overflow: 'hidden', margin: '-20px', marginBottom: 0 }}>
+
+                {/* ─────────── TOP HEADER ─────────── */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, gap: '12px', flexWrap: 'wrap' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Globe size={24} color="#3b82f6" />
-                      <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#ffffff' }}>Website &amp; Landing Page Visual CMS</h1>
+                      <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Landing Page</h1>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', padding: '3px 10px', borderRadius: '99px', fontSize: '11.5px', fontWeight: 700 }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                        Published
+                      </span>
                     </div>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
-                      Edit every word, contact phone, email ID, legal document, feature card, and video link with real-time side-by-side visual preview.
-                    </p>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>Edit your site content and see changes live</p>
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <button
-                      type="button"
-                      className="admin-btn-secondary"
-                      onClick={loadSiteSettings}
-                      disabled={loadingSiteSettings}
-                    >
-                      <RefreshCw size={14} className={loadingSiteSettings ? 'animate-spin' : ''} />
-                      <span>Refresh</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="admin-btn-primary"
-                      onClick={handleSaveSiteSettings}
-                      disabled={savingSiteSettings}
-                      style={{ background: 'linear-gradient(135deg, #2563eb, #4f46e5)' }}
-                    >
-                      <Save size={15} />
-                      <span>{savingSiteSettings ? 'Publishing Live...' : 'Publish CMS Changes Live'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* View Mode & Before/After Toolbar */}
-                <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                  {/* Mode Selector */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <button
-                      type="button"
-                      className={`admin-btn-secondary ${cmsViewMode === 'visual_replica' ? 'active' : ''}`}
-                      onClick={() => setCmsViewMode('visual_replica')}
-                      style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 800, background: cmsViewMode === 'visual_replica' ? '#2563eb' : 'transparent', color: '#ffffff', border: 'none' }}
-                    >
-                      <Sparkles size={14} />
-                      <span>✨ 1:1 Visual Page Replica Editor</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`admin-btn-secondary ${cmsViewMode === 'split' ? 'active' : ''}`}
-                      onClick={() => setCmsViewMode('split')}
-                      style={{ padding: '6px 12px', fontSize: '12px', background: cmsViewMode === 'split' ? '#3b82f6' : 'transparent', color: '#ffffff', border: 'none' }}
-                    >
-                      <Eye size={14} />
-                      <span>⚡ Side-by-Side Split View</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`admin-btn-secondary ${cmsViewMode === 'editor' ? 'active' : ''}`}
-                      onClick={() => setCmsViewMode('editor')}
-                      style={{ padding: '6px 12px', fontSize: '12px', background: cmsViewMode === 'editor' ? '#3b82f6' : 'transparent', color: '#ffffff', border: 'none' }}
-                    >
-                      <Edit3 size={14} />
-                      <span>📝 Form View</span>
-                    </button>
-                  </div>
-
-                  {/* Before / After Comparison Switcher */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8' }}>Preview Comparison Mode:</span>
-                    <div style={{ display: 'flex', background: 'rgba(0,0,0,0.2)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                      <button
-                        type="button"
-                        onClick={() => setPreviewCompareMode('after')}
-                        style={{
-                          padding: '5px 12px',
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          borderRadius: '6px',
-                          border: 'none',
-                          cursor: 'pointer',
-                          background: previewCompareMode === 'after' ? 'rgba(16, 185, 129, 0.25)' : 'transparent',
-                          color: previewCompareMode === 'after' ? '#10b981' : '#94a3b8'
-                        }}
-                      >
-                        ⚡ After Edit (Live Draft)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPreviewCompareMode('before')}
-                        style={{
-                          padding: '5px 12px',
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          borderRadius: '6px',
-                          border: 'none',
-                          cursor: 'pointer',
-                          background: previewCompareMode === 'before' ? 'rgba(245, 158, 11, 0.25)' : 'transparent',
-                          color: previewCompareMode === 'before' ? '#f59e0b' : '#94a3b8'
-                        }}
-                      >
-                        ⏪ Before Edit (DB Saved)
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* =========================================================================
-                    VIEW MODE 1: 1:1 VISUAL PAGE REPLICA EDITOR (CLICK-TO-EDIT DIRECTLY ON PAGE)
-                   ========================================================================= */}
-                {cmsViewMode === 'visual_replica' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {/* Floating Editor Guidance Banner */}
-                    <div style={{
-                      background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.15), rgba(79, 70, 229, 0.15))',
-                      border: '1px solid rgba(59, 130, 246, 0.3)',
-                      borderRadius: '14px',
-                      padding: '12px 18px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      color: '#60a5fa',
-                      fontSize: '13px',
-                      fontWeight: 600
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Sparkles size={18} color="#3b82f6" />
-                        <span>
-                          <strong>1:1 Interactive Page Editor Active:</strong> Hover and click <strong>any text, title, phone, email, video link, feature card, or legal doc</strong> directly on the page to edit inline!
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleSaveSiteSettings}
-                        disabled={savingSiteSettings}
-                        style={{
-                          background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
-                          color: '#ffffff',
-                          border: 'none',
-                          borderRadius: '8px',
-                          padding: '8px 16px',
-                          fontSize: '12px',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          boxShadow: '0 4px 12px rgba(37,99,235,0.4)'
-                        }}
-                      >
-                        <Save size={14} />
-                        <span>{savingSiteSettings ? 'Publishing...' : 'Publish CMS Changes Live'}</span>
-                      </button>
-                    </div>
-
-                    {/* Exact 1:1 Landing Page Canvas Replica */}
-                    <div className="cms-replica-canvas" style={{ position: 'relative', width: '100%', borderRadius: '20px', overflow: 'hidden', border: '1px solid rgba(59, 130, 246, 0.25)', background: '#0b0f19' }}>
-                      
-                      {/* 1. Dynamic Top Announcement Ribbon */}
-                      {displaySettings.announcement_enabled && (
-                        <div style={{
-                          background: 'linear-gradient(90deg, #312e81 0%, #1e3a8a 50%, #4338ca 100%)',
-                          color: '#ffffff',
-                          padding: '10px 20px',
-                          textAlign: 'center',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '12px',
-                          borderBottom: '1px solid rgba(255,255,255,0.12)'
-                        }}>
-                          <InlineCMSField
-                            value={displaySettings.announcement_badge}
-                            onChange={(val) => setSiteSettings({ ...siteSettings, announcement_badge: val })}
-                            placeholder="Badge (e.g. META CERTIFIED)"
-                            label="Announcement Badge"
-                            style={{ background: '#2563eb', color: '#fff', fontSize: '10.5px', fontWeight: 800, padding: '2px 8px', borderRadius: '999px' }}
-                          />
-
-                          <InlineCMSField
-                            value={displaySettings.announcement_text}
-                            onChange={(val) => setSiteSettings({ ...siteSettings, announcement_text: val })}
-                            placeholder="Announcement text..."
-                            label="Announcement Text"
-                            style={{ fontSize: '13px', color: '#ffffff' }}
-                          />
-
-                          <span style={{ color: '#93c5fd', fontSize: '12px' }}>
-                            Link:{' '}
-                            <InlineCMSField
-                              value={displaySettings.announcement_link}
-                              onChange={(val) => setSiteSettings({ ...siteSettings, announcement_link: val })}
-                              placeholder="URL link"
-                              label="Announcement Link"
-                              style={{ color: '#93c5fd', textDecoration: 'underline' }}
-                            />
-                          </span>
-                        </div>
-                      )}
-
-                      {/* 2. Replica Header Navbar */}
-                      <div style={{ padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(13, 18, 31, 0.8)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <img src="/airvix-mark.png" alt="Airvix" style={{ height: '28px' }} />
-                          <span style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.02em' }}>airvix</span>
-                          <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(59,130,246,0.2)', color: '#60a5fa', padding: '2px 6px', borderRadius: '4px' }}>v2.4</span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>
-                          <span>Features</span>
-                          <span>How It Works</span>
-                          <span>Plans &amp; Billing</span>
-                          <span>Support</span>
-                          <button type="button" style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 800 }}>Sign In →</button>
-                        </div>
-                      </div>
-
-                      {/* 3. Replica Hero Section */}
-                      <div style={{ padding: '50px 32px', textAlign: 'center', maxWidth: '900px', margin: '0 auto' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', padding: '6px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: 700, marginBottom: '20px' }}>
-                          <InlineCMSField
-                            value={displaySettings.hero_badge}
-                            onChange={(val) => setSiteSettings({ ...siteSettings, hero_badge: val })}
-                            placeholder="Hero Badge"
-                            label="Hero Badge Pill"
-                          />
-                        </div>
-
-                        <h1 style={{ fontSize: '38px', fontWeight: 900, color: '#ffffff', margin: '0 0 16px 0', lineHeight: 1.25, letterSpacing: '-0.02em' }}>
-                          <InlineCMSField
-                            value={displaySettings.hero_headline}
-                            onChange={(val) => setSiteSettings({ ...siteSettings, hero_headline: val })}
-                            placeholder="Hero Headline"
-                            label="Hero Headline Main"
-                            tag="span"
-                          />
-                          <br />
-                          <span style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                            <InlineCMSField
-                              value={displaySettings.hero_headline_highlight}
-                              onChange={(val) => setSiteSettings({ ...siteSettings, hero_headline_highlight: val })}
-                              placeholder="Highlight Text"
-                              label="Headline Highlight"
-                              tag="span"
-                            />
-                          </span>
-                        </h1>
-
-                        <p style={{ fontSize: '16px', color: '#94a3b8', margin: '0 auto 28px auto', maxWidth: '680px', lineHeight: 1.6 }}>
-                          <InlineCMSField
-                            value={displaySettings.hero_subtitle}
-                            onChange={(val) => setSiteSettings({ ...siteSettings, hero_subtitle: val })}
-                            placeholder="Hero Subtitle / Description"
-                            label="Hero Subtitle"
-                            multiline
-                            tag="span"
-                          />
-                        </p>
-
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                          <button type="button" style={{ padding: '12px 28px', background: 'linear-gradient(135deg, #2563eb, #4f46e5)', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 800, cursor: 'pointer' }}>
-                            <InlineCMSField
-                              value={displaySettings.primary_cta_text}
-                              onChange={(val) => setSiteSettings({ ...siteSettings, primary_cta_text: val })}
-                              placeholder="Primary CTA Text"
-                              label="Primary CTA Button"
-                            /> →
-                          </button>
-
-                          <button type="button" style={{ padding: '12px 24px', background: 'rgba(255,255,255,0.06)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
-                            <InlineCMSField
-                              value={displaySettings.secondary_cta_text}
-                              onChange={(val) => setSiteSettings({ ...siteSettings, secondary_cta_text: val })}
-                              placeholder="Secondary CTA Text"
-                              label="Secondary CTA Button"
-                            />
-                          </button>
-                        </div>
-
-                        {/* Stats Counter Bar */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '40px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', padding: '16px' }}>
-                          <div>
-                            <div style={{ fontSize: '20px', fontWeight: 900, color: '#38bdf8' }}>
-                              <InlineCMSField value={displaySettings.social_creators} onChange={(val) => setSiteSettings({ ...siteSettings, social_creators: val })} label="Creators Stat" />
-                            </div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Active Creators</div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '20px', fontWeight: 900, color: '#a855f7' }}>
-                              <InlineCMSField value={displaySettings.social_dms} onChange={(val) => setSiteSettings({ ...siteSettings, social_dms: val })} label="DMs Stat" />
-                            </div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Automated DMs</div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '20px', fontWeight: 900, color: '#10b981' }}>
-                              <InlineCMSField value={displaySettings.social_rating} onChange={(val) => setSiteSettings({ ...siteSettings, social_rating: val })} label="Rating Stat" />
-                            </div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Creator Rating</div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '20px', fontWeight: 900, color: '#f59e0b' }}>
-                              <InlineCMSField value={displaySettings.social_reply_speed} onChange={(val) => setSiteSettings({ ...siteSettings, social_reply_speed: val })} label="Speed Stat" />
-                            </div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>Average Dispatch</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 4. Product Demo & Video Embed Replica */}
-                      <div style={{ padding: '36px 32px', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
-                          <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', marginBottom: '12px' }}>
-                            <InlineCMSField
-                              value={displaySettings.demo_video_title}
-                              onChange={(val) => setSiteSettings({ ...siteSettings, demo_video_title: val })}
-                              placeholder="Demo Video Title"
-                              label="Demo Video Section Title"
-                              tag="span"
-                            />
-                          </h2>
-
-                          <div style={{ marginBottom: '16px', fontSize: '12px', color: '#94a3b8' }}>
-                            Video Link / Embed URL:{' '}
-                            <InlineCMSField
-                              value={displaySettings.demo_video_url}
-                              onChange={(val) => setSiteSettings({ ...siteSettings, demo_video_url: val })}
-                              placeholder="https://www.youtube.com/embed/demo"
-                              label="Demo Video Embed URL"
-                              style={{ color: '#38bdf8', fontFamily: 'monospace' }}
-                            />
-                          </div>
-
-                          <div style={{ position: 'relative', width: '100%', height: '360px', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', background: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {displaySettings.demo_video_url ? (
-                              <iframe
-                                src={displaySettings.demo_video_url}
-                                title="Demo Video Preview"
-                                style={{ width: '100%', height: '100%', border: 'none' }}
-                              />
-                            ) : (
-                              <div style={{ color: '#64748b', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                                <Film size={36} color="#3b82f6" />
-                                <span>Video Embed Frame (Click video link above to edit URL)</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 5. Feature Cards Grid Replica */}
-                      <div style={{ padding: '40px 32px', maxWidth: '1000px', margin: '0 auto' }}>
-                        <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', textAlign: 'center', marginBottom: '28px' }}>
-                          Engineered for Maximum Instagram Conversions
-                        </h2>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                          {/* Card 1 */}
-                          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
-                              <Zap size={20} color="#3b82f6" />
-                            </div>
-                            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0' }}>
-                              <InlineCMSField value={displaySettings.feature_1_title} onChange={(val) => setSiteSettings({ ...siteSettings, feature_1_title: val })} label="Feature 1 Title" />
-                            </h3>
-                            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-                              <InlineCMSField value={displaySettings.feature_1_desc} onChange={(val) => setSiteSettings({ ...siteSettings, feature_1_desc: val })} label="Feature 1 Description" multiline tag="span" />
-                            </p>
-                          </div>
-
-                          {/* Card 2 */}
-                          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(168,85,247,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
-                              <ShieldCheck size={20} color="#a855f7" />
-                            </div>
-                            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0' }}>
-                              <InlineCMSField value={displaySettings.feature_2_title} onChange={(val) => setSiteSettings({ ...siteSettings, feature_2_title: val })} label="Feature 2 Title" />
-                            </h3>
-                            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-                              <InlineCMSField value={displaySettings.feature_2_desc} onChange={(val) => setSiteSettings({ ...siteSettings, feature_2_desc: val })} label="Feature 2 Description" multiline tag="span" />
-                            </p>
-                          </div>
-
-                          {/* Card 3 */}
-                          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
-                              <MessageSquare size={20} color="#10b981" />
-                            </div>
-                            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0' }}>
-                              <InlineCMSField value={displaySettings.feature_3_title} onChange={(val) => setSiteSettings({ ...siteSettings, feature_3_title: val })} label="Feature 3 Title" />
-                            </h3>
-                            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-                              <InlineCMSField value={displaySettings.feature_3_desc} onChange={(val) => setSiteSettings({ ...siteSettings, feature_3_desc: val })} label="Feature 3 Description" multiline tag="span" />
-                            </p>
-                          </div>
-
-                          {/* Card 4 */}
-                          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
-                              <Clock size={20} color="#f59e0b" />
-                            </div>
-                            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0' }}>
-                              <InlineCMSField value={displaySettings.feature_4_title} onChange={(val) => setSiteSettings({ ...siteSettings, feature_4_title: val })} label="Feature 4 Title" />
-                            </h3>
-                            <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-                              <InlineCMSField value={displaySettings.feature_4_desc} onChange={(val) => setSiteSettings({ ...siteSettings, feature_4_desc: val })} label="Feature 4 Description" multiline tag="span" />
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 6. Maker Quote Card Replica */}
-                      <div style={{ padding: '30px 32px', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
-                        <div style={{ maxWidth: '640px', margin: '0 auto' }}>
-                          <p style={{ fontSize: '15px', fontStyle: 'italic', color: '#cbd5e1', lineHeight: 1.6 }}>
-                            “<InlineCMSField value={displaySettings.maker_quote} onChange={(val) => setSiteSettings({ ...siteSettings, maker_quote: val })} label="Engineering Team Quote" multiline tag="span" />”
-                          </p>
-                          <div style={{ marginTop: '10px', fontSize: '13px', fontWeight: 800, color: '#38bdf8' }}>
-                            — <InlineCMSField value={displaySettings.maker_team} onChange={(val) => setSiteSettings({ ...siteSettings, maker_team: val })} label="Maker Team Name" />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 6.5. Honest, Transparent Pricing Replica */}
-                      <div style={{ padding: '40px 32px', background: 'rgba(255,255,255,0.01)', borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
-                        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-                          <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-                            PLANS &amp; BILLING
-                          </div>
-                          <h2 style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff', margin: '0 0 10px 0' }}>
-                            Scale your Instagram engagement in Rupees
-                          </h2>
-                          <p style={{ fontSize: '14px', color: '#94a3b8', margin: '0 auto 28px auto', maxWidth: '640px', lineHeight: 1.5 }}>
-                            No hidden international conversion charges. Instant activation with UPI, Cards &amp; Net Banking with GST invoices.
-                          </p>
-
-                          {/* Pricing Cards Grid */}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', textAlign: 'left' }}>
-                            {/* Free Starter */}
-                            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                              <div>
-                                <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Free Starter</div>
-                                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Test automations on real traffic</div>
-                                <div style={{ fontSize: '28px', fontWeight: 900, color: '#ffffff', margin: '16px 0 12px 0' }}>₹0 <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>/ forever</span></div>
-                                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '12.5px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  <li>✓ 1,000 automated DMs / mo</li>
-                                  <li>✓ 1 Connected IG Account</li>
-                                  <li>✓ 5 Active Keyword Rules</li>
-                                </ul>
-                              </div>
-                              <button type="button" style={{ marginTop: '20px', padding: '10px', background: 'rgba(255,255,255,0.06)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', fontWeight: 700, fontSize: '13px', width: '100%' }}>Start Free</button>
-                            </div>
-
-                            {/* Creator Pro */}
-                            <div style={{ background: 'linear-gradient(145deg, rgba(37,99,235,0.15), rgba(15,23,42,0.9))', border: '2px solid #3b82f6', borderRadius: '16px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                              <span style={{ position: 'absolute', top: '-11px', left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #2563eb, #a855f7)', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '3px 10px', borderRadius: '99px' }}>MOST POPULAR IN INDIA</span>
-                              <div>
-                                <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Creator Pro</div>
-                                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>For active creators &amp; brands</div>
-                                <div style={{ fontSize: '28px', fontWeight: 900, color: '#60a5fa', margin: '16px 0 12px 0' }}>₹1,499 <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>/ month</span></div>
-                                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '12.5px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  <li>✓ Unlimited automated DMs</li>
-                                  <li>✓ Unlimited Active Rules</li>
-                                  <li>✓ GST Invoice + 18% Input Credit</li>
-                                </ul>
-                              </div>
-                              <button type="button" style={{ marginTop: '20px', padding: '10px', background: 'linear-gradient(135deg, #2563eb, #4f46e5)', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '13px', width: '100%' }}>Get Creator Pro →</button>
-                            </div>
-
-                            {/* Agency & Enterprise */}
-                            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                              <div>
-                                <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>Agency &amp; Scale</div>
-                                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>For agencies &amp; multi-brands</div>
-                                <div style={{ fontSize: '28px', fontWeight: 900, color: '#ffffff', margin: '16px 0 12px 0' }}>₹3,999 <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>/ month</span></div>
-                                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '12.5px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  <li>✓ Up to 10 Connected Accounts</li>
-                                  <li>✓ Dedicated Priority Support</li>
-                                  <li>✓ Official Vendor GST Contract</li>
-                                </ul>
-                              </div>
-                              <button type="button" style={{ marginTop: '20px', padding: '10px', background: 'rgba(255,255,255,0.06)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', fontWeight: 700, fontSize: '13px', width: '100%' }}>Start Agency Trial</button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 7. Official Contact & Business Info Bar Replica */}
-                      <div style={{ padding: '24px 32px', background: 'rgba(15, 23, 42, 0.9)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                        <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', fontSize: '13px' }}>
-                          <div>
-                            <div style={{ fontWeight: 800, color: '#10b981', marginBottom: '4px' }}>📧 Support Email:</div>
-                            <InlineCMSField value={displaySettings.support_email} onChange={(val) => setSiteSettings({ ...siteSettings, support_email: val })} label="Support Email" style={{ color: '#ffffff', fontWeight: 700 }} />
-                          </div>
-
-                          <div>
-                            <div style={{ fontWeight: 800, color: '#38bdf8', marginBottom: '4px' }}>📞 Phone Support:</div>
-                            <InlineCMSField value={displaySettings.support_phone} onChange={(val) => setSiteSettings({ ...siteSettings, support_phone: val })} label="Support Phone" style={{ color: '#ffffff', fontWeight: 700 }} />
-                          </div>
-
-                          <div>
-                            <div style={{ fontWeight: 800, color: '#a855f7', marginBottom: '4px' }}>💬 WhatsApp Support:</div>
-                            <InlineCMSField value={displaySettings.whatsapp_number} onChange={(val) => setSiteSettings({ ...siteSettings, whatsapp_number: val })} label="WhatsApp Number" style={{ color: '#ffffff', fontWeight: 700 }} />
-                          </div>
-
-                          <div>
-                            <div style={{ fontWeight: 800, color: '#f59e0b', marginBottom: '4px' }}>🏢 Physical Office Address:</div>
-                            <InlineCMSField value={displaySettings.business_address} onChange={(val) => setSiteSettings({ ...siteSettings, business_address: val })} label="Business Address" style={{ color: '#94a3b8' }} />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 8. Legal Documents Inline Live Editor Card */}
-                      <div style={{ padding: '24px 32px', background: '#090d16', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                            <div style={{ fontSize: '14px', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <FileText size={16} />
-                              <span>Legal Documents Visual Editor</span>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              {['privacy', 'terms', 'refund'].map(tab => (
-                                <button
-                                  key={tab}
-                                  type="button"
-                                  onClick={() => setPreviewLegalTab(tab)}
-                                  style={{
-                                    padding: '4px 12px',
-                                    fontSize: '11.5px',
-                                    fontWeight: 800,
-                                    borderRadius: '6px',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    background: previewLegalTab === tab ? '#3b82f6' : 'rgba(255,255,255,0.08)',
-                                    color: previewLegalTab === tab ? '#ffffff' : '#94a3b8'
-                                  }}
-                                >
-                                  {tab === 'privacy' ? 'Privacy Policy' : (tab === 'terms' ? 'Terms of Service' : 'Refund Policy')}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '16px' }}>
-                            {previewLegalTab === 'privacy' && (
-                              <div>
-                                <div style={{ fontSize: '12px', fontWeight: 800, color: '#38bdf8', marginBottom: '8px' }}>Editing Privacy Policy Document (Click text below to edit):</div>
-                                <InlineCMSField
-                                  value={displaySettings.privacy_policy_text}
-                                  onChange={(val) => setSiteSettings({ ...siteSettings, privacy_policy_text: val })}
-                                  placeholder="Privacy policy content..."
-                                  label="Privacy Policy Document"
-                                  multiline
-                                  tag="div"
-                                  style={{ fontFamily: 'monospace', fontSize: '12px', color: '#cbd5e1', lineHeight: 1.6 }}
-                                />
-                              </div>
-                            )}
-
-                            {previewLegalTab === 'terms' && (
-                              <div>
-                                <div style={{ fontSize: '12px', fontWeight: 800, color: '#38bdf8', marginBottom: '8px' }}>Editing Terms of Service Document (Click text below to edit):</div>
-                                <InlineCMSField
-                                  value={displaySettings.terms_of_service_text}
-                                  onChange={(val) => setSiteSettings({ ...siteSettings, terms_of_service_text: val })}
-                                  placeholder="Terms of service content..."
-                                  label="Terms of Service Document"
-                                  multiline
-                                  tag="div"
-                                  style={{ fontFamily: 'monospace', fontSize: '12px', color: '#cbd5e1', lineHeight: 1.6 }}
-                                />
-                              </div>
-                            )}
-
-                            {previewLegalTab === 'refund' && (
-                              <div>
-                                <div style={{ fontSize: '12px', fontWeight: 800, color: '#38bdf8', marginBottom: '8px' }}>Editing Refund & Cancellation Policy Document (Click text below to edit):</div>
-                                <InlineCMSField
-                                  value={displaySettings.refund_policy_text}
-                                  onChange={(val) => setSiteSettings({ ...siteSettings, refund_policy_text: val })}
-                                  placeholder="Refund policy content..."
-                                  label="Refund Policy Document"
-                                  multiline
-                                  tag="div"
-                                  style={{ fontFamily: 'monospace', fontSize: '12px', color: '#cbd5e1', lineHeight: 1.6 }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 9. Replica Footer Section */}
-                      <div style={{ padding: '24px 32px', background: '#060911', borderTop: '1px solid rgba(255,255,255,0.06)', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
-                        <p style={{ margin: '0 0 6px 0' }}>
-                          <InlineCMSField value={displaySettings.footer_tagline} onChange={(val) => setSiteSettings({ ...siteSettings, footer_tagline: val })} label="Footer Tagline" />
-                        </p>
-                        <div>© 2026 Airvix Inc. All rights reserved. Meta Graph API v22.0 Certified.</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Main Split Grid */}
-                {(cmsViewMode === 'split' || cmsViewMode === 'editor') && (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: cmsViewMode === 'split' ? '1.1fr 0.9fr' : '1fr',
-                    gap: '24px',
-                    alignItems: 'start'
-                  }}>
-                  
-                  {/* ==================== LEFT COLUMN: EDITABLE FORM ==================== */}
-                  {(cmsViewMode === 'split' || cmsViewMode === 'editor') && (
-                    <form onSubmit={handleSaveSiteSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                      
-                      {/* 1. Hero & Header Banner */}
-                      <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px' }}>
-                        <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', fontWeight: 800, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Sparkles size={18} />
-                          <span>1. Hero &amp; Top Header Banner</span>
-                        </h3>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Hero Badge Text</label>
-                            <input
-                              type="text"
-                              value={siteSettings.hero_badge || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, hero_badge: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="⚡ Powered by Official Meta Instagram Graph API"
-                            />
-                          </div>
-
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Hero Headline Main</label>
-                            <input
-                              type="text"
-                              value={siteSettings.hero_headline || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, hero_headline: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="Turn conversations into customers."
-                            />
-                          </div>
-
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Headline Highlight Text (Emphasized)</label>
-                            <input
-                              type="text"
-                              value={siteSettings.hero_headline_highlight || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, hero_headline_highlight: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="send the link in 1.4s."
-                            />
-                          </div>
-
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Primary CTA Button Text</label>
-                            <input
-                              type="text"
-                              value={siteSettings.primary_cta_text || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, primary_cta_text: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="Get Started Free"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="admin-form-group" style={{ marginTop: '12px' }}>
-                          <label className="admin-form-label">Hero Subtitle / Description Text</label>
-                          <textarea
-                            rows={3}
-                            value={siteSettings.hero_subtitle || ''}
-                            onChange={(e) => setSiteSettings({ ...siteSettings, hero_subtitle: e.target.value })}
-                            className="admin-form-input"
-                            style={{ resize: 'vertical' }}
-                          />
-                        </div>
-
-                        {/* Announcement Bar */}
-                        <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '10px', cursor: 'pointer' }}>
-                            <input
-                              type="checkbox"
-                              checked={Boolean(siteSettings.announcement_enabled)}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, announcement_enabled: e.target.checked })}
-                            />
-                            <span>Enable Top Header Announcement Ribbon</span>
-                          </label>
-
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
-                            <input
-                              type="text"
-                              value={siteSettings.announcement_badge || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, announcement_badge: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="Badge (e.g. LIMITED OFFER)"
-                            />
-                            <input
-                              type="text"
-                              value={siteSettings.announcement_text || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, announcement_text: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="Announcement Banner Text"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 2. Contact & Business Details */}
-                      <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px' }}>
-                        <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', fontWeight: 800, color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <HelpCircle size={18} />
-                          <span>2. Contact Info &amp; Business Details</span>
-                        </h3>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Official Support Email</label>
-                            <input
-                              type="email"
-                              value={siteSettings.support_email || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, support_email: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="support@airvix.com"
-                            />
-                          </div>
-
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Support Phone Number</label>
-                            <input
-                              type="text"
-                              value={siteSettings.support_phone || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, support_phone: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="+1 (800) 555-0199"
-                            />
-                          </div>
-
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">WhatsApp Business Number</label>
-                            <input
-                              type="text"
-                              value={siteSettings.whatsapp_number || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, whatsapp_number: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="+91 98765 43210"
-                            />
-                          </div>
-
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Physical Office Address</label>
-                            <input
-                              type="text"
-                              value={siteSettings.business_address || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, business_address: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="123 Airvix Tower, Tech Park, San Francisco, CA"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 3. Legal & Compliance Documents */}
-                      <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px' }}>
-                        <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <FileText size={18} />
-                          <span>3. Legal &amp; Compliance Documents (100% Mutable)</span>
-                        </h3>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Privacy Policy Document Content</label>
-                            <textarea
-                              rows={5}
-                              value={siteSettings.privacy_policy_text || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, privacy_policy_text: e.target.value })}
-                              className="admin-form-input"
-                              style={{ fontFamily: 'monospace', fontSize: '11.5px', resize: 'vertical' }}
-                            />
-                          </div>
-
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Terms of Service Document Content</label>
-                            <textarea
-                              rows={5}
-                              value={siteSettings.terms_of_service_text || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, terms_of_service_text: e.target.value })}
-                              className="admin-form-input"
-                              style={{ fontFamily: 'monospace', fontSize: '11.5px', resize: 'vertical' }}
-                            />
-                          </div>
-
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Refund &amp; Cancellation Policy Content</label>
-                            <textarea
-                              rows={4}
-                              value={siteSettings.refund_policy_text || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, refund_policy_text: e.target.value })}
-                              className="admin-form-input"
-                              style={{ fontFamily: 'monospace', fontSize: '11.5px', resize: 'vertical' }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 4. Media & Video Links */}
-                      <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px' }}>
-                        <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', fontWeight: 800, color: '#ec4899', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Film size={18} />
-                          <span>4. Product Media &amp; Demo Video</span>
-                        </h3>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Demo Video Embed URL (YouTube / Vimeo / MP4)</label>
-                            <input
-                              type="text"
-                              value={siteSettings.demo_video_url || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, demo_video_url: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="https://www.youtube.com/embed/dQw4w9WgXcQ"
-                            />
-                          </div>
-
-                          <div className="admin-form-group">
-                            <label className="admin-form-label">Demo Video Title</label>
-                            <input
-                              type="text"
-                              value={siteSettings.demo_video_title || ''}
-                              onChange={(e) => setSiteSettings({ ...siteSettings, demo_video_title: e.target.value })}
-                              className="admin-form-input"
-                              placeholder="Watch 60-Second Airvix Demo"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 5. Feature Showcase Bundles */}
-                      <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px' }}>
-                        <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', fontWeight: 800, color: '#a855f7', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Zap size={18} />
-                          <span>5. Feature Cards &amp; Value Bundles</span>
-                        </h3>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div className="admin-form-group">
-                              <label className="admin-form-label">Feature 1 Title</label>
-                              <input
-                                type="text"
-                                value={siteSettings.feature_1_title || ''}
-                                onChange={(e) => setSiteSettings({ ...siteSettings, feature_1_title: e.target.value })}
-                                className="admin-form-input"
-                              />
-                            </div>
-                            <div className="admin-form-group" style={{ marginTop: '6px' }}>
-                              <label className="admin-form-label">Feature 1 Description</label>
-                              <input
-                                type="text"
-                                value={siteSettings.feature_1_desc || ''}
-                                onChange={(e) => setSiteSettings({ ...siteSettings, feature_1_desc: e.target.value })}
-                                className="admin-form-input"
-                              />
-                            </div>
-                          </div>
-
-                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div className="admin-form-group">
-                              <label className="admin-form-label">Feature 2 Title</label>
-                              <input
-                                type="text"
-                                value={siteSettings.feature_2_title || ''}
-                                onChange={(e) => setSiteSettings({ ...siteSettings, feature_2_title: e.target.value })}
-                                className="admin-form-input"
-                              />
-                            </div>
-                            <div className="admin-form-group" style={{ marginTop: '6px' }}>
-                              <label className="admin-form-label">Feature 2 Description</label>
-                              <input
-                                type="text"
-                                value={siteSettings.feature_2_desc || ''}
-                                onChange={(e) => setSiteSettings({ ...siteSettings, feature_2_desc: e.target.value })}
-                                className="admin-form-input"
-                              />
-                            </div>
-                          </div>
-
-                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div className="admin-form-group">
-                              <label className="admin-form-label">Feature 3 Title</label>
-                              <input
-                                type="text"
-                                value={siteSettings.feature_3_title || ''}
-                                onChange={(e) => setSiteSettings({ ...siteSettings, feature_3_title: e.target.value })}
-                                className="admin-form-input"
-                              />
-                            </div>
-                            <div className="admin-form-group" style={{ marginTop: '6px' }}>
-                              <label className="admin-form-label">Feature 3 Description</label>
-                              <input
-                                type="text"
-                                value={siteSettings.feature_3_desc || ''}
-                                onChange={(e) => setSiteSettings({ ...siteSettings, feature_3_desc: e.target.value })}
-                                className="admin-form-input"
-                              />
-                            </div>
-                          </div>
-
-                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div className="admin-form-group">
-                              <label className="admin-form-label">Feature 4 Title</label>
-                              <input
-                                type="text"
-                                value={siteSettings.feature_4_title || ''}
-                                onChange={(e) => setSiteSettings({ ...siteSettings, feature_4_title: e.target.value })}
-                                className="admin-form-input"
-                              />
-                            </div>
-                            <div className="admin-form-group" style={{ marginTop: '6px' }}>
-                              <label className="admin-form-label">Feature 4 Description</label>
-                              <input
-                                type="text"
-                                value={siteSettings.feature_4_desc || ''}
-                                onChange={(e) => setSiteSettings({ ...siteSettings, feature_4_desc: e.target.value })}
-                                className="admin-form-input"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 6. Footer & Maker Note */}
-                      <div style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px' }}>
-                        <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', fontWeight: 800, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <MessageSquare size={18} />
-                          <span>6. Footer Tagline &amp; Team Quote</span>
-                        </h3>
-
-                        <div className="admin-form-group">
-                          <label className="admin-form-label">Footer Brand Tagline</label>
-                          <input
-                            type="text"
-                            value={siteSettings.footer_tagline || ''}
-                            onChange={(e) => setSiteSettings({ ...siteSettings, footer_tagline: e.target.value })}
-                            className="admin-form-input"
-                            placeholder="The premier Instagram comment-to-DM conversion engine."
-                          />
-                        </div>
-
-                        <div className="admin-form-group" style={{ marginTop: '12px' }}>
-                          <label className="admin-form-label">Engineering Team Quote / Creator Note</label>
-                          <textarea
-                            rows={3}
-                            value={siteSettings.maker_quote || ''}
-                            onChange={(e) => setSiteSettings({ ...siteSettings, maker_quote: e.target.value })}
-                            className="admin-form-input"
-                            style={{ resize: 'vertical' }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Submit */}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-                        <button
-                          type="submit"
-                          className="admin-btn-primary"
-                          style={{ padding: '12px 28px', fontSize: '14px', fontWeight: 800, background: 'linear-gradient(135deg, #2563eb, #4f46e5)' }}
-                          disabled={savingSiteSettings}
-                        >
-                          <Save size={16} />
-                          <span>{savingSiteSettings ? 'Publishing Live...' : 'Publish CMS Changes Live'}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {/* Edit / Preview mode toggle */}
+                    <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '3px' }}>
+                      {[{ k: 'split', label: 'Edit Mode' }, { k: 'preview', label: 'Preview' }].map(m => (
+                        <button key={m.k} type="button" onClick={() => setCmsViewMode(m.k)}
+                          style={{ padding: '5px 14px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: cmsViewMode === m.k ? '#ffffff' : 'transparent', color: cmsViewMode === m.k ? '#0f172a' : '#94a3b8', transition: 'all 0.15s ease' }}>
+                          {m.label}
                         </button>
-                      </div>
-                    </form>
-                  )}
+                      ))}
+                    </div>
+                    <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '7px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                      <ExternalLink size={13} /> View Live Site ↗
+                    </button>
+                    <button type="button" onClick={handleSaveSiteSettings} disabled={savingSiteSettings}
+                      style={{ padding: '7px 16px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#ffffff', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}>
+                      {savingSiteSettings ? 'Saving...' : 'Save Changes'}
+                    </button>
+                    <button type="button" onClick={handleSaveSiteSettings} disabled={savingSiteSettings}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 18px', background: 'linear-gradient(135deg, #2563eb, #4f46e5)', border: 'none', borderRadius: '8px', color: '#ffffff', fontSize: '12px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(37,99,235,0.4)' }}>
+                      <Zap size={13} />{savingSiteSettings ? 'Publishing...' : 'Publish'}
+                    </button>
+                  </div>
+                </div>
 
-                  {/* ==================== RIGHT COLUMN: REAL-TIME LIVE CARD PREVIEW ==================== */}
-                  {(cmsViewMode === 'split' || cmsViewMode === 'preview') && (
-                    <div style={{
-                      position: cmsViewMode === 'split' ? 'sticky' : 'static',
-                      top: '20px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '16px',
-                      background: '#0f172a',
-                      border: '1px solid rgba(59, 130, 246, 0.3)',
-                      borderRadius: '20px',
-                      padding: '20px',
-                      boxShadow: '0 20px 40px -15px rgba(0,0,0,0.6)'
-                    }}>
-                      
-                      {/* Card Preview Header Badge */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }} />
-                          <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#ffffff' }}>
-                            LIVE VISUAL CARD PREVIEW
-                          </h4>
-                        </div>
-                        <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 9px', borderRadius: '6px', background: previewCompareMode === 'after' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: previewCompareMode === 'after' ? '#10b981' : '#f59e0b', border: '1px solid currentColor' }}>
-                          {previewCompareMode === 'after' ? '● AFTER EDIT (Draft)' : '● BEFORE EDIT (Saved)'}
-                        </span>
-                      </div>
+                {/* ─────────── SUB TABS BAR ─────────── */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+                  <div style={{ display: 'flex' }}>
+                    {['Content', 'Design', 'SEO', 'Settings'].map(tab => (
+                      <button key={tab} type="button"
+                        style={{ padding: '12px 18px', fontSize: '13px', fontWeight: 700, background: 'transparent', border: 'none', borderBottom: tab === 'Content' ? '2px solid #3b82f6' : '2px solid transparent', color: tab === 'Content' ? '#3b82f6' : '#64748b', cursor: 'pointer' }}>
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Preview Comparison toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8' }}>Preview Comparison</span>
+                    <button type="button" onClick={() => setPreviewCompareMode(p => p === 'after' ? 'before' : 'after')}
+                      style={{ width: '40px', height: '22px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: previewCompareMode === 'after' ? '#3b82f6' : 'rgba(255,255,255,0.12)', position: 'relative', transition: 'background 0.2s ease' }}>
+                      <span style={{ position: 'absolute', top: '3px', left: previewCompareMode === 'after' ? '21px' : '3px', width: '16px', height: '16px', background: '#ffffff', borderRadius: '50%', transition: 'left 0.2s ease', display: 'block' }} />
+                    </button>
+                  </div>
+                </div>
 
-                      {/* 1. TOP ANNOUNCEMENT CARD PREVIEW */}
-                      {displaySettings.announcement_enabled && (
-                        <div style={{
-                          background: 'linear-gradient(90deg, #312e81 0%, #1e3a8a 50%, #4338ca 100%)',
-                          color: '#ffffff',
-                          padding: '8px 14px',
-                          borderRadius: '10px',
-                          fontSize: '11.5px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '8px',
-                          border: '1px solid rgba(255,255,255,0.15)'
-                        }}>
-                          {displaySettings.announcement_badge && (
-                            <span style={{ background: '#2563eb', color: '#fff', fontSize: '9.5px', fontWeight: 800, padding: '2px 6px', borderRadius: '99px' }}>
-                              {displaySettings.announcement_badge}
-                            </span>
-                          )}
-                          <span>{displaySettings.announcement_text || 'Announcement Banner Text'}</span>
+                {/* ─────────── 3-COLUMN BODY ─────────── */}
+                <div style={{ display: 'grid', gridTemplateColumns: '220px 370px 1fr', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+
+                  {/* ── COL 1: SECTION NAVIGATOR ── */}
+                  <div style={{ background: '#0f172a', borderRight: '1px solid rgba(255,255,255,0.06)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '8px 0', flex: 1 }}>
+                      {cmsSections.map(sec => (
+                        <button key={sec.id} type="button" onClick={() => setCmsSubtab(sec.id)}
+                          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: cmsSubtab === sec.id ? 'rgba(59,130,246,0.1)' : 'transparent', border: 'none', borderLeft: cmsSubtab === sec.id ? '2px solid #3b82f6' : '2px solid transparent', color: cmsSubtab === sec.id ? '#60a5fa' : '#94a3b8', fontSize: '13px', fontWeight: 700, cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s ease' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '14px' }}>{sec.icon}</span>
+                            <span>{sec.label}</span>
+                          </div>
+                          <ChevronRight size={14} style={{ opacity: cmsSubtab === sec.id ? 1 : 0.35 }} />
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Upgrade Banner */}
+                    <div style={{ margin: '10px', background: 'linear-gradient(135deg, rgba(79,70,229,0.15), rgba(37,99,235,0.08))', border: '1px solid rgba(79,70,229,0.25)', borderRadius: '10px', padding: '14px 12px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#818cf8', marginBottom: '4px' }}>🔓 Upgrade to Pro</div>
+                      <p style={{ fontSize: '11px', color: '#64748b', margin: '0 0 10px 0', lineHeight: 1.4 }}>Unlock advanced features and custom domains.</p>
+                      <button type="button" style={{ width: '100%', padding: '8px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', border: 'none', borderRadius: '7px', color: '#fff', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}>
+                        Upgrade now
+                      </button>
+                    </div>
+
+                    {/* Bottom links */}
+                    <div style={{ padding: '8px 14px 14px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', marginBottom: '6px' }}>
+                        <HelpCircle size={12} /> Need help?
+                      </button>
+                      <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        <MessageSquare size={12} /> Contact support
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── COL 2: FORM EDITOR ── */}
+                  <div style={{ background: '#0b1120', borderRight: '1px solid rgba(255,255,255,0.06)', overflowY: 'auto' }}>
+                    {/* Sticky section header */}
+                    <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#0f172a', position: 'sticky', top: 0, zIndex: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '16px' }}>{cmsSections.find(s => s.id === cmsSubtab)?.icon}</span>
+                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#ffffff' }}>{cmsSections.find(s => s.id === cmsSubtab)?.label}</span>
+                      </div>
+                      <ChevronDown size={16} color="#64748b" />
+                    </div>
+                    {/* Fields */}
+                    <div style={{ padding: '18px' }}>{renderSectionForm()}</div>
+                  </div>
+
+                  {/* ── COL 3: BEFORE / AFTER LIVE PREVIEW ── */}
+                  <div style={{ background: '#060911', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+                    {/* Preview labels */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#10b981' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                        After Edit (Live Draft)
+                      </div>
+                      {previewCompareMode === 'after' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#64748b' }}>
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#64748b', display: 'inline-block' }} />
+                          Before Edit (DB Saved)
                         </div>
                       )}
-
-                      {/* 2. HERO CARD PREVIEW */}
-                      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '20px', textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', padding: '4px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 700, marginBottom: '12px' }}>
-                          <span>{displaySettings.hero_badge || '⚡ Meta Certified'}</span>
-                        </div>
-
-                        <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: '0 0 8px 0', lineHeight: 1.3 }}>
-                          {displaySettings.hero_headline || 'Turn conversations into customers.'} <br />
-                          <span style={{ background: 'linear-gradient(135deg, #a855f7, #ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                            {displaySettings.hero_headline_highlight || 'send the link in 1.4s.'}
-                          </span>
-                        </h2>
-
-                        <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 16px 0', lineHeight: 1.5 }}>
-                          {displaySettings.hero_subtitle || 'Automate replies and convert Instagram comments into sales automatically.'}
-                        </p>
-
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
-                          <button type="button" style={{ padding: '8px 18px', background: 'linear-gradient(135deg, #2563eb, #4f46e5)', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 800 }}>
-                            {displaySettings.primary_cta_text || 'Get Started Free'} →
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 3. CONTACT & BUSINESS DETAILS CARD PREVIEW */}
-                      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '16px' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#10b981', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <HelpCircle size={14} />
-                          <span>Contact &amp; Support Info Preview</span>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: '#cbd5e1' }}>
-                          <div>📧 <strong style={{ color: '#ffffff' }}>{displaySettings.support_email || 'support@airvix.com'}</strong></div>
-                          {displaySettings.support_phone && <div>📞 Phone: <strong style={{ color: '#ffffff' }}>{displaySettings.support_phone}</strong></div>}
-                          {displaySettings.whatsapp_number && <div>💬 WhatsApp: <strong style={{ color: '#ffffff' }}>{displaySettings.whatsapp_number}</strong></div>}
-                          {displaySettings.business_address && <div>🏢 Office: <span style={{ color: '#94a3b8' }}>{displaySettings.business_address}</span></div>}
-                        </div>
-                      </div>
-
-                      {/* 4. LEGAL DOCUMENTS PREVIEW CARD */}
-                      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <FileText size={14} />
-                            <span>Legal Document Modal Preview</span>
-                          </div>
-
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            {['privacy', 'terms', 'refund'].map(tab => (
-                              <button
-                                key={tab}
-                                type="button"
-                                onClick={() => setPreviewLegalTab(tab)}
-                                style={{
-                                  padding: '2px 8px',
-                                  fontSize: '10.5px',
-                                  fontWeight: 700,
-                                  borderRadius: '4px',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  background: previewLegalTab === tab ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-                                  color: previewLegalTab === tab ? '#ffffff' : '#94a3b8'
-                                }}
-                              >
-                                {tab === 'privacy' ? 'Privacy' : (tab === 'terms' ? 'Terms' : 'Refund')}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div style={{ background: '#090d16', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '12px', maxHeight: '140px', overflowY: 'auto', fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace', lineHeight: 1.5 }}>
-                          {previewLegalTab === 'privacy' && (displaySettings.privacy_policy_text || 'Privacy Policy Text')}
-                          {previewLegalTab === 'terms' && (displaySettings.terms_of_service_text || 'Terms of Service Text')}
-                          {previewLegalTab === 'refund' && (displaySettings.refund_policy_text || 'Refund Policy Text')}
-                        </div>
-                      </div>
-
-                      {/* 5. FEATURE CARDS GRID PREVIEW */}
-                      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '16px' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#a855f7', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Zap size={14} />
-                          <span>Feature Cards Preview</span>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '8px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                            <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#ffffff' }}>{displaySettings.feature_1_title || 'Feature 1'}</div>
-                            <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>{displaySettings.feature_1_desc || 'Desc 1'}</div>
-                          </div>
-
-                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '8px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                            <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#ffffff' }}>{displaySettings.feature_2_title || 'Feature 2'}</div>
-                            <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>{displaySettings.feature_2_desc || 'Desc 2'}</div>
-                          </div>
-
-                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '8px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                            <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#ffffff' }}>{displaySettings.feature_3_title || 'Feature 3'}</div>
-                            <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>{displaySettings.feature_3_desc || 'Desc 3'}</div>
-                          </div>
-
-                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '8px 10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                            <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#ffffff' }}>{displaySettings.feature_4_title || 'Feature 4'}</div>
-                            <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '2px' }}>{displaySettings.feature_4_desc || 'Desc 4'}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 6. MAKER QUOTE PREVIEW */}
-                      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '14px' }}>
-                        <div style={{ fontSize: '11.5px', fontStyle: 'italic', color: '#cbd5e1', lineHeight: 1.5 }}>
-                          “{displaySettings.maker_quote || 'We built Airvix because...'}”
-                        </div>
-                        <div style={{ marginTop: '8px', fontSize: '11px', fontWeight: 800, color: '#38bdf8' }}>
-                          — {displaySettings.maker_team || 'The Airvix Engineering Team'}
-                        </div>
-                      </div>
-
                     </div>
-                  )}
+
+                    {/* Dual or single preview */}
+                    {previewCompareMode === 'after' ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div>
+                          <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#10b981', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />After Edit (Live Draft)
+                          </div>
+                          <div style={{ border: '1px solid rgba(16,185,129,0.25)', borderRadius: '10px', overflow: 'hidden' }}>
+                            <PreviewMini settings={siteSettings} />
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#64748b', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#64748b', display: 'inline-block' }} />Before Edit (DB Saved)
+                          </div>
+                          <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', overflow: 'hidden', opacity: 0.7 }}>
+                            <PreviewMini settings={originalSettings || siteSettings} />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ border: '1px solid rgba(59,130,246,0.2)', borderRadius: '10px', overflow: 'hidden' }}>
+                        <PreviewMini settings={siteSettings} />
+                      </div>
+                    )}
+
+                    {/* Unsaved changes badge */}
+                    {originalSettings && (() => {
+                      const changed = Object.keys(siteSettings).filter(k => (siteSettings[k] || '') !== ((originalSettings)[k] || '') && siteSettings[k]);
+                      if (!changed.length) return null;
+                      return (
+                        <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '10px', padding: '12px 14px', flexShrink: 0 }}>
+                          <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#60a5fa', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Sparkles size={13} /> {changed.length} unsaved change{changed.length > 1 ? 's' : ''}
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {changed.slice(0, 8).map(k => (
+                              <span key={k} style={{ background: 'rgba(59,130,246,0.12)', color: '#93c5fd', fontSize: '10.5px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>{k.replace(/_/g, ' ')}</span>
+                            ))}
+                            {changed.length > 8 && <span style={{ color: '#64748b', fontSize: '10.5px' }}>+{changed.length - 8} more</span>}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Publish button */}
+                    <button type="button" onClick={handleSaveSiteSettings} disabled={savingSiteSettings} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #2563eb, #4f46e5)', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '14px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 16px rgba(37,99,235,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexShrink: 0 }}>
+                      <Zap size={15} />{savingSiteSettings ? 'Publishing Changes Live...' : 'Publish All Changes Live'}
+                    </button>
+                  </div>
 
                 </div>
-              )}
-            </div>
-          );
-        })()}
+              </div>
+            );
+          })()}
         </main>
       </div>
 
@@ -3486,11 +3016,11 @@ export default function AdminView({ user, onBackToApp }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div className="admin-form-group">
-                    <label className="admin-form-label">Monthly Price ($)</label>
+                    <label className="admin-form-label">Monthly Price (₹ INR)</label>
                     <input type="number" value={planFormData.monthlyPrice} onChange={(e) => setPlanFormData({ ...planFormData, monthlyPrice: e.target.value })} className="admin-form-input" required />
                   </div>
                   <div className="admin-form-group">
-                    <label className="admin-form-label">Annual Monthly Price ($)</label>
+                    <label className="admin-form-label">Annual Monthly Price (₹ INR)</label>
                     <input type="number" value={planFormData.annualPrice} onChange={(e) => setPlanFormData({ ...planFormData, annualPrice: e.target.value })} className="admin-form-input" />
                   </div>
                 </div>

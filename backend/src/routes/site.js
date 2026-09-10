@@ -12,24 +12,65 @@ const DEFAULT_SITE_SETTINGS = {
   announcement_link: '',
 
   // Hero Section
-  hero_badge: '⚡ Powered by Official Meta Instagram Graph API',
-  hero_headline: 'Turn conversations into customers.',
-  hero_headline_highlight: 'send the link in 1.4s.',
-  hero_subtitle: 'Stop losing sales because you couldn’t manually copy-paste links to 400 commenters. Airvix automatically delivers your download links into their DMs while they’re still watching your Reel.',
-  primary_cta_text: 'Get Started Free',
+  hero_badge: 'AUTOMATE, ENGAGE, GROW',
+  hero_headline: 'Turn Instagram Conversations',
+  hero_headline_highlight: 'Real Growth',
+  hero_highlight_color: '#3b82f6',
+  hero_subtitle: 'Airvix helps creators and businesses automate Instagram comments and DMs, engage their audience, and convert conversations into customers — effortlessly.',
+  primary_cta_text: 'Get started free',
   primary_cta_url: '#signup',
-  secondary_cta_text: 'See Live Simulation',
-  secondary_cta_url: '#live-studio',
+  secondary_cta_text: 'Watch demo',
+  secondary_cta_url: '/Mere_ko_apne_business_air_airv.mp4',
+  hero_media_type: 'video',
+  hero_video_url: '/Mere_ko_apne_business_air_airv.mp4',
+  hero_image_url: '',
   demo_keyword: 'WORKBOOK',
+
+  // Feature Section (Why Airvix)
+  features_badge: 'WHY AIRVIX',
+  features_heading: "More than automation.\nIt's a growth system.",
+  features_subtitle: 'Everything you need to attract, engage, and convert your audience on Instagram — in one simple platform.',
+  features_note: 'Built for creators, brands and businesses',
+  feature_1_title: 'Automate Replies',
+  feature_1_desc: 'Instant, intelligent responses to comments and DMs.',
+  feature_2_title: 'Increase Engagement',
+  feature_2_desc: 'Turn casual followers into loyal customers.',
+  feature_3_title: 'Save Hours',
+  feature_3_desc: 'Let AI handle repetitive conversations.',
+  feature_4_title: 'Stay in Control',
+  feature_4_desc: 'Customize responses and manage everything easily.',
+
+  // How It Works Section
+  how_badge: 'HOW IT WORKS',
+  how_heading: 'Simple setup. Powerful results.',
+  how_subtitle: 'Get your automated Instagram sales engine running in 3 minutes.',
+  step_1_title: 'Connect Instagram Account',
+  step_1_desc: 'Connect your professional or creator Instagram account in seconds with 1-click official Meta OAuth 2.0.',
+  step_2_title: 'Set Keywords & Custom DMs',
+  step_2_desc: 'Define your trigger keywords (e.g. LINK, PRICE, WORKBOOK) and customize your DM with interactive links.',
+  step_3_title: 'Watch Leads & Sales Convert',
+  step_3_desc: 'When followers comment, Airvix delivers your link in under 1.4s while they are still engaged on your Reel.',
+
+  // Pricing Section (INR ₹)
+  pricing_badge: 'TRANSPARENT PRICING',
+  pricing_heading: 'Scale your Instagram engagement in Rupees',
+  pricing_subtitle: 'No hidden international conversion charges. Instant activation with UPI, Cards & Net Banking with GST.',
+  price_starter: 0,
+  price_creator: 1499,
+  price_agency: 3999,
+  limit_starter: '1,000',
+  limit_creator: '25,000',
+  limit_agency: '100,000',
 
   // Contact & Business Details
   support_email: 'support@airvix.com',
-  support_phone: '+1 (800) 555-0199',
+  support_phone: '+91 98765 43210',
   whatsapp_number: '+91 98765 43210',
-  business_address: '123 Airvix Tower, Tech Park, Suite 400, San Francisco, CA',
+  business_address: 'Airvix Technologies Pvt Ltd, 100 Feet Road, Indiranagar, Bengaluru, Karnataka 560038, India',
   business_hours: '24/7 Global Automated Support',
+  gst_number: '29ABCDE1234F1Z5',
 
-  // Legal & Compliance Documents (Full Text Content)
+  // Legal & Compliance Documents
   privacy_policy_text: `AIRVIX PRIVACY POLICY
 Effective Date: September 2026
 
@@ -63,8 +104,13 @@ If you upgrade to a paid Airvix plan and are not completely satisfied, you may r
 2. CANCEL ANYTIME
 You can cancel your active subscription at any time with 1 click from your Billing panel. Your access will remain active until the end of your paid billing period.`,
 
+  dpdp_compliance_text: `DIGITAL PERSONAL DATA PROTECTION (DPDP) COMPLIANCE
+Effective Date: September 2026
+
+Airvix strictly adheres to the Digital Personal Data Protection Act 2023 (India) and global data processing standards. We process data strictly with explicit user consent and provide instant data export and account erasure tools.`,
+
   // Media & Video
-  demo_video_url: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+  demo_video_url: '/Mere_ko_apne_business_air_airv.mp4',
   demo_video_title: 'Watch 60-Second Airvix Product Demo',
 
   // Social Proof & Metrics
@@ -73,20 +119,16 @@ You can cancel your active subscription at any time with 1 click from your Billi
   social_rating: '4.9/5',
   social_reply_speed: '0.8s',
 
-  // Feature Showcase Bundles
-  feature_1_title: 'Specific Reel Automations',
-  feature_1_desc: 'Target individual viral Reels with unique keywords without affecting your standard posts.',
-  feature_2_title: '24h Story Auto-Replies',
-  feature_2_desc: 'Catch followers while they watch your stories with instant automated DM responses.',
-  feature_3_title: 'Anti-Spam Human Jitter',
-  feature_3_desc: 'Randomized 1.4s to 4s response delays ensure 100% Meta API compliance & account safety.',
-  feature_4_title: 'Follow-to-Unlock Protection',
-  feature_4_desc: 'Require users to follow your account before revealing private links or promo codes.',
-
-  // Pricing Tiers (Monthly USD)
-  pro_price_monthly: 29,
-  agency_price_monthly: 79,
-  enterprise_price_monthly: 199,
+  // Testimonials
+  test_1_name: 'Aditi Sharma',
+  test_1_role: 'Content Creator',
+  test_1_quote: 'Airvix has completely changed how I manage my Instagram. I save hours every week!',
+  test_2_name: 'Rohit Mehta',
+  test_2_role: 'D2C Brand Owner',
+  test_2_quote: 'Super easy to set up and it actually feels personal. My engagement has doubled.',
+  test_3_name: 'Sneha Kapoor',
+  test_3_role: 'Social Media Agency',
+  test_3_quote: 'The best investment for our social media team. It just works — reliable and smoothly.',
 
   // FAQs
   faqs: [
@@ -113,6 +155,12 @@ You can cancel your active subscription at any time with 1 click from your Billi
   footer_tagline: 'The premier Instagram comment-to-DM conversion engine for creators, brands, and agencies.',
   maker_quote: 'We built Airvix because we were genuinely tired of waking up to 200 unread comments, spending all morning copy-pasting links into DMs, and losing sales while our Reels were going viral. You don’t need an enterprise sales CRM with 40 sub-menus. You just need your links delivered immediately without getting banned.',
   maker_team: 'The Airvix Engineering Team',
+  copyright_text: '© 2026 Airvix Technologies Pvt Ltd. All rights reserved. Made in India for creators worldwide.',
+
+  // Design & SEO
+  meta_title: 'Airvix - Instagram Comment-to-DM Conversion Engine',
+  meta_description: 'Turn post comments, reels, and stories into automated customer conversations in under 1.4 seconds. Official Meta Graph API v22.0.',
+  accent_color: '#3b82f6',
 
   // Safeguards
   maintenance_mode: false,
