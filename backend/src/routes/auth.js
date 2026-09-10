@@ -107,6 +107,78 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// POST /api/auth/admin-login (Strict Super Admin Gateway)
+router.post('/admin-login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Admin email and master password are required' });
+
+    const normalizedEmail = email.toLowerCase().trim();
+    let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(normalizedEmail);
+
+    // If database is brand new (no user exists yet with this email) AND the email is a configured admin email:
+    // Automatically register the owner as Super Admin on first login!
+    if (!user && isConfiguredAdminEmail(normalizedEmail)) {
+      if (password.length < 6) {
+        return res.status(400).json({ error: 'Admin password must be at least 6 characters long' });
+      }
+      const password_hash = await bcrypt.hash(password, 12);
+      const userId = uuidv4();
+      const now = new Date().toISOString();
+      await db.prepare(`
+        INSERT INTO users (id, email, name, plan, role, status, password_hash, dm_usage_this_period, usage_period_start, created_at, updated_at)
+        VALUES (?, ?, 'Super Admin', 'agency', 'admin', 'active', ?, 0, ?, ?, ?)
+      `).run(userId, normalizedEmail, password_hash, now.slice(0, 10), now, now);
+      user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    }
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid admin credentials or unauthorized account' });
+    }
+
+    if (user.status === 'suspended') {
+      return res.status(403).json({ error: 'This admin account has been suspended' });
+    }
+
+    if (!user.password_hash) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+
+    // Auto-grant admin role if email is configured admin
+    let role = user.role || 'user';
+    if (isConfiguredAdminEmail(normalizedEmail) && role !== 'admin') {
+      role = 'admin';
+      await db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
+    }
+
+    // Strict Admin Verification: Must be admin role or configured admin email
+    if (role !== 'admin' && !isConfiguredAdminEmail(normalizedEmail)) {
+      return res.status(403).json({ 
+        error: 'Access Denied: This portal is strictly reserved for Super Administrators.' 
+      });
+    }
+
+    const userData = { 
+      id: user.id, 
+      email: user.email, 
+      name: user.name, 
+      plan: user.plan, 
+      role: 'admin', 
+      status: user.status || 'active' 
+    };
+    const token = makeToken(userData);
+    res.json({ token, user: userData });
+  } catch (err) {
+    console.error('[Auth] Admin Login error:', err.message);
+    res.status(500).json({ error: 'Admin authentication failed. Please try again.' });
+  }
+});
+
 // POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
   try {

@@ -17,6 +17,7 @@ import ConnectIgModal from './components/ConnectIgModal';
 import UpgradeModal from './components/UpgradeModal';
 import TemplatesView from './components/TemplatesView';
 import AdminView from './components/AdminView';
+import AdminLoginView from './components/AdminLoginView';
 import { getCurrentUser, clearAuthSession, apiFetch } from './api/client';
 
 export default function App() {
@@ -24,10 +25,15 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(false);
 
-  // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'app'
+  // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'admin-login' | 'app'
   const [currentView, setCurrentView] = useState(() => {
     const hash = window.location.hash.toLowerCase();
     const path = window.location.pathname.toLowerCase();
+    if (path === '/admin-login' || hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') return 'admin-login';
+    if (path === '/admin' || hash === '#admin') {
+      const u = getCurrentUser();
+      return u?.role === 'admin' ? 'app' : 'admin-login';
+    }
     if (path === '/login' || hash === '#login') return 'auth-login';
     if (path === '/signup' || path === '/register' || hash === '#signup' || hash === '#register') return 'auth-signup';
     if (path === '/app' || hash === '#app') {
@@ -57,14 +63,17 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.toLowerCase();
-      if (hash === '#login') setCurrentView('auth-login');
+      if (hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') {
+        setCurrentView('admin-login');
+      }
+      else if (hash === '#login') setCurrentView('auth-login');
       else if (hash === '#signup' || hash === '#register') setCurrentView('auth-signup');
       else if (hash === '#admin') {
         if (user?.role === 'admin') {
           setCurrentView('app');
           setActiveTab('admin');
         } else {
-          setCurrentView('auth-login');
+          setCurrentView('admin-login');
         }
       }
       else if (hash === '#app') setCurrentView(user ? 'app' : 'auth-login');
@@ -287,6 +296,19 @@ export default function App() {
   // 1. Landing View (Default for first-time visitors)
   if (currentView === 'landing') {
     return <LandingView onNavigate={handleNavigate} user={user} />;
+  }
+
+  // 1.5 Dedicated Super Admin Gateway
+  if (currentView === 'admin-login') {
+    return (
+      <AdminLoginView
+        onAuthSuccess={(adminUser) => {
+          handleAuthSuccess(adminUser);
+          setActiveTab('admin');
+        }}
+        onBackToUserLogin={() => handleNavigate('auth-login')}
+      />
+    );
   }
 
   // 2. Auth View (Login / Signup)

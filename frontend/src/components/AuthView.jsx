@@ -341,11 +341,34 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
 
       {/* Page Footer */}
       <footer className="auth-page-footer">
-        <span>By signing in, you agree to our </span>
-        <a href="/terms" target="_blank" rel="noreferrer">Terms of Service</a>
-        <span> and </span>
-        <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>
-        <span>.</span>
+        <div>
+          <span>By signing in, you agree to our </span>
+          <a href="/terms" target="_blank" rel="noreferrer">Terms of Service</a>
+          <span> and </span>
+          <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>
+          <span>.</span>
+        </div>
+        <div style={{ marginTop: '12px' }}>
+          <a 
+            href="#admin-login" 
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: '#818cf8',
+              fontSize: '12px',
+              fontWeight: 600,
+              textDecoration: 'none',
+              padding: '5px 12px',
+              borderRadius: '8px',
+              background: 'rgba(99, 102, 241, 0.08)',
+              border: '1px solid rgba(99, 102, 241, 0.2)'
+            }}
+          >
+            <ShieldCheck size={13} />
+            <span>Super Admin & Staff Portal →</span>
+          </a>
+        </div>
       </footer>
 
       {/* Quick Reset Password Modal */}
