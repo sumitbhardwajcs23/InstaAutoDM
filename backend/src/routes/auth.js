@@ -107,6 +107,28 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) return res.status(400).json({ error: 'Email and new password are required' });
+    if (newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await db.prepare('SELECT id, email, name, role FROM users WHERE email = ?').get(normalizedEmail);
+    if (!user) return res.status(404).json({ error: 'No account found with this email address' });
+
+    const password_hash = await bcrypt.hash(newPassword, 12);
+    const now = new Date().toISOString();
+    await db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(password_hash, now, user.id);
+
+    res.json({ success: true, message: 'Password updated successfully! You can now log in.' });
+  } catch (err) {
+    console.error('[Auth] Reset password error:', err.message);
+    res.status(500).json({ error: 'Password reset failed. Please try again.' });
+  }
+});
+
 // GET /api/auth/me  (requires auth)
 router.get('/me', requireAuth, async (req, res) => {
   const user = await db.prepare('SELECT id, email, name, plan, role, status, dm_usage_this_period, usage_period_start, created_at FROM users WHERE id = ?').get(req.user.id);

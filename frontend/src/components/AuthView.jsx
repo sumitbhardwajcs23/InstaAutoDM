@@ -12,7 +12,9 @@ import {
   Sparkles, 
   AlertCircle,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  X,
+  KeyRound
 } from 'lucide-react';
 import { setAuthSession } from '../api/client';
 import '../styles/auth.css';
@@ -47,6 +49,14 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
+
+  // Reset Password Dialog State
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState(null);
+  const [resetSuccess, setResetSuccess] = useState(null);
 
   useEffect(() => {
     if (initialMode) setMode(initialMode);
@@ -87,7 +97,44 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
   };
 
   const handleForgotPassword = () => {
-    setNotice('If your email is registered, password recovery instructions have been sent.');
+    setResetEmail(email || '');
+    setNewPassword('');
+    setResetError(null);
+    setResetSuccess(null);
+    setShowResetModal(true);
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setResetError(null);
+    setResetSuccess(null);
+
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail, newPassword }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetSuccess(data.message || 'Password updated successfully!');
+        setEmail(resetEmail);
+        setPassword(newPassword);
+        setTimeout(() => {
+          setShowResetModal(false);
+          setMode('login');
+          setError(null);
+          setNotice('Password updated! You can now click "Sign In to Workspace".');
+        }, 1200);
+      } else {
+        throw new Error(data.error || 'Failed to update password');
+      }
+    } catch (err) {
+      setResetError(err.message);
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   return (
@@ -144,9 +191,30 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
 
         {/* Feedback Alerts */}
         {error && (
-          <div className="auth-alert-box error">
+          <div className="auth-alert-box error" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
             <AlertCircle size={17} style={{ flexShrink: 0, marginTop: '2px' }} />
-            <span>{error}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+              <span>{error}</span>
+              {error.toLowerCase().includes('already exists') && (
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setError(null); }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    color: '#dc2626',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    textAlign: 'left'
+                  }}
+                >
+                  👉 Click here to switch to Sign In tab
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -279,6 +347,128 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
         <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>
         <span>.</span>
       </footer>
+
+      {/* Quick Reset Password Modal */}
+      {showResetModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(5, 7, 13, 0.82)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowResetModal(false);
+          }}
+        >
+          <div 
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              backgroundColor: '#0f172a',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '16px',
+              padding: '28px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.65)',
+              position: 'relative'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setShowResetModal(false)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: 'none',
+                borderRadius: '8px',
+                color: '#94a3b8',
+                padding: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8' }}>
+                <KeyRound size={18} />
+              </div>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#f8fafc' }}>
+                Reset Your Password
+              </h2>
+            </div>
+            <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>
+              Enter your email and choose a new password. You will be able to log in right away.
+            </p>
+
+            {resetError && (
+              <div className="auth-alert-box error" style={{ marginBottom: '16px' }}>
+                <AlertCircle size={16} />
+                <span>{resetError}</span>
+              </div>
+            )}
+
+            {resetSuccess && (
+              <div className="auth-alert-box info" style={{ marginBottom: '16px', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)', background: 'rgba(16, 185, 129, 0.1)' }}>
+                <CheckCircle2 size={16} />
+                <span>{resetSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="auth-input-group">
+                <label className="auth-input-label">Account Email</label>
+                <div className="auth-input-box">
+                  <Mail size={16} className="auth-input-icon" />
+                  <input
+                    type="email"
+                    required
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="auth-text-input"
+                  />
+                </div>
+              </div>
+
+              <div className="auth-input-group">
+                <label className="auth-input-label">New Password</label>
+                <div className="auth-input-box">
+                  <Lock size={16} className="auth-input-icon" />
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    className="auth-text-input"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={resetLoading}
+                className="auth-submit-btn"
+                style={{ marginTop: '8px' }}
+              >
+                {resetLoading ? 'Updating Password...' : 'Save New Password & Sign In'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

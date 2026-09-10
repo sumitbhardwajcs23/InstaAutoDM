@@ -24,7 +24,7 @@ const pgPool = PG_URL ? new Pool({
   ssl: isRenderInternal ? false : { rejectUnauthorized: false },
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  connectionTimeoutMillis: 30000,
 }) : null;
 
 // Initialize tables and columns on startup
