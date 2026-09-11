@@ -1021,8 +1021,8 @@ export default function LandingView({
             
             {/* Card 1: Starter */}
             <div className="airvix-price-card">
-              <div className="airvix-tier-name">Starter</div>
-              <div className="airvix-tier-desc">Perfect for individuals</div>
+              <div className="airvix-tier-name">{siteSettings?.plan_1_name || 'Starter'}</div>
+              <div className="airvix-tier-desc">{siteSettings?.plan_1_desc || 'Perfect for individuals'}</div>
               
               <div className="airvix-tier-price">
                 <span className="airvix-currency-symbol">₹</span>
@@ -1031,23 +1031,23 @@ export default function LandingView({
               </div>
 
               <ul className="airvix-tier-features">
-                <li><Check size={16} color="#059669" /> 1 Instagram account</li>
-                <li><Check size={16} color="#059669" /> {siteSettings?.limit_starter || '1,000'} automated replies/month</li>
-                <li><Check size={16} color="#059669" /> Basic templates</li>
-                <li><Check size={16} color="#059669" /> Email support</li>
+                {(siteSettings?.plan_1_features || '1 Instagram account\n{limit_starter} automated replies/month\nBasic templates\nEmail support')
+                  .split('\n').filter(f => f.trim()).map((feat, i) => (
+                    <li key={i}><Check size={16} color="#059669" /> {feat.replace('{limit_starter}', siteSettings?.limit_starter || '1,000')}</li>
+                  ))}
               </ul>
 
               <button className="airvix-btn-outline airvix-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
-                Get started
+                {siteSettings?.plan_1_btn || 'Get started'}
               </button>
             </div>
 
             {/* Card 2: Pro (Most Popular) */}
             <div className="airvix-price-card airvix-card-popular">
-              <div className="airvix-popular-pill">Most popular</div>
+              <div className="airvix-popular-pill">{siteSettings?.plan_2_badge || 'Most popular'}</div>
               
-              <div className="airvix-tier-name">Pro</div>
-              <div className="airvix-tier-desc">For growing creators &amp; brands</div>
+              <div className="airvix-tier-name">{siteSettings?.plan_2_name || 'Pro'}</div>
+              <div className="airvix-tier-desc">{siteSettings?.plan_2_desc || 'For growing creators & brands'}</div>
               
               <div className="airvix-tier-price">
                 <span className="airvix-currency-symbol">₹</span>
@@ -1060,22 +1060,21 @@ export default function LandingView({
               </div>
 
               <ul className="airvix-tier-features">
-                <li><Check size={16} color="#059669" /> 3 Instagram accounts</li>
-                <li><Check size={16} color="#059669" /> {siteSettings?.limit_creator || '25,000'} automated replies/month</li>
-                <li><Check size={16} color="#059669" /> Advanced templates &amp; spinning</li>
-                <li><Check size={16} color="#059669" /> Analytics &amp; insights</li>
-                <li><Check size={16} color="#059669" /> Priority support &amp; GST invoice</li>
+                {(siteSettings?.plan_2_features || '3 Instagram accounts\n{limit_creator} automated replies/month\nAdvanced templates & spinning\nAnalytics & insights\nPriority support & GST invoice')
+                  .split('\n').filter(f => f.trim()).map((feat, i) => (
+                    <li key={i}><Check size={16} color="#059669" /> {feat.replace('{limit_creator}', siteSettings?.limit_creator || '25,000')}</li>
+                  ))}
               </ul>
 
               <button className="airvix-btn-primary airvix-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
-                Start 14-day free trial
+                {siteSettings?.plan_2_btn || 'Start 14-day free trial'}
               </button>
             </div>
 
-            {/* Card 3: Business */}
+            {/* Card 3: Agency */}
             <div className="airvix-price-card">
-              <div className="airvix-tier-name">Agency</div>
-              <div className="airvix-tier-desc">For teams &amp; agencies</div>
+              <div className="airvix-tier-name">{siteSettings?.plan_3_name || 'Agency'}</div>
+              <div className="airvix-tier-desc">{siteSettings?.plan_3_desc || 'For teams & agencies'}</div>
               
               <div className="airvix-tier-price">
                 <span className="airvix-currency-symbol">₹</span>
@@ -1088,15 +1087,14 @@ export default function LandingView({
               </div>
 
               <ul className="airvix-tier-features">
-                <li><Check size={16} color="#059669" /> 10 Instagram accounts</li>
-                <li><Check size={16} color="#059669" /> {siteSettings?.limit_agency || '100,000'} automated replies/month</li>
-                <li><Check size={16} color="#059669" /> Multi-user team workspace</li>
-                <li><Check size={16} color="#059669" /> Custom webhooks &amp; API access</li>
-                <li><Check size={16} color="#059669" /> Dedicated account manager</li>
+                {(siteSettings?.plan_3_features || '10 Instagram accounts\n{limit_agency} automated replies/month\nMulti-user team workspace\nCustom webhooks & API access\nDedicated account manager')
+                  .split('\n').filter(f => f.trim()).map((feat, i) => (
+                    <li key={i}><Check size={16} color="#059669" /> {feat.replace('{limit_agency}', siteSettings?.limit_agency || '100,000')}</li>
+                  ))}
               </ul>
 
               <button className="airvix-btn-outline airvix-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
-                Get started
+                {siteSettings?.plan_3_btn || 'Get started'}
               </button>
             </div>
 
@@ -1104,7 +1102,7 @@ export default function LandingView({
 
           <div className="airvix-pricing-guarantee">
             <Shield size={18} color="#2563eb" />
-            <span>7-day money-back guarantee • No questions asked • Cancel anytime with 1 click</span>
+            <span>{siteSettings?.pricing_guarantee || '7-day money-back guarantee • No questions asked • Cancel anytime with 1 click'}</span>
           </div>
 
         </div>

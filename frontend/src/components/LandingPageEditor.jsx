@@ -96,6 +96,31 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
     pricing_subtitle: 'No hidden international conversion charges. Instant activation with UPI, Cards & Net Banking.',
     pricing_discount_badge: 'Save 20%',
     pricing_guarantee: '7-day money-back guarantee • Cancel anytime with 1 click',
+    // Plan 1: Starter
+    plan_1_name: 'Starter',
+    plan_1_desc: 'Perfect for individuals',
+    price_starter: 0,
+    limit_starter: '1,000',
+    plan_1_features: '1 Instagram account\n{limit_starter} automated replies/month\nBasic templates\nEmail support',
+    plan_1_btn: 'Get started',
+    plan_1_url: '#signup',
+    // Plan 2: Pro
+    plan_2_name: 'Pro',
+    plan_2_desc: 'For growing creators & brands',
+    plan_2_badge: 'Most popular',
+    price_creator: 1499,
+    limit_creator: '25,000',
+    plan_2_features: '3 Instagram accounts\n{limit_creator} automated replies/month\nAdvanced templates & spinning\nAnalytics & insights\nPriority support & GST invoice',
+    plan_2_btn: 'Start 14-day free trial',
+    plan_2_url: '#signup',
+    // Plan 3: Agency
+    plan_3_name: 'Agency',
+    plan_3_desc: 'For teams & agencies',
+    price_agency: 3999,
+    limit_agency: '100,000',
+    plan_3_features: '10 Instagram accounts\n{limit_agency} automated replies/month\nMulti-user team workspace\nCustom webhooks & API access\nDedicated account manager',
+    plan_3_btn: 'Get started',
+    plan_3_url: '#signup',
 
     // Testimonials
     test_1_name: 'Aditi Sharma',
@@ -480,6 +505,7 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
       case 'pricing':
         return (
           <div>
+            {/* Section Header */}
             <FieldRow
               label="Section Badge"
               value={siteSettings.pricing_badge}
@@ -499,18 +525,196 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
               textarea
               rows={2}
             />
-            <FieldRow
-              label="Discount Badge"
-              value={siteSettings.pricing_discount_badge}
-              onChange={v => setSiteSettings(p => ({ ...p, pricing_discount_badge: v }))}
-              placeholder="Save 20%"
-            />
-            <FieldRow
-              label="Guarantee Text"
-              value={siteSettings.pricing_guarantee}
-              onChange={v => setSiteSettings(p => ({ ...p, pricing_guarantee: v }))}
-              placeholder="7-day money-back guarantee..."
-            />
+            <div className="lpe-grid-2">
+              <FieldRow
+                label="Discount Badge"
+                value={siteSettings.pricing_discount_badge}
+                onChange={v => setSiteSettings(p => ({ ...p, pricing_discount_badge: v }))}
+                placeholder="Save 20%"
+              />
+              <FieldRow
+                label="Guarantee Text"
+                value={siteSettings.pricing_guarantee}
+                onChange={v => setSiteSettings(p => ({ ...p, pricing_guarantee: v }))}
+                placeholder="7-day money-back guarantee..."
+              />
+            </div>
+
+            <div className="lpe-divider" />
+
+            {/* Plan 1: Starter */}
+            <div className="lpe-card-box">
+              <div className="lpe-card-box-title">🆓 Plan 1 — Starter</div>
+              <div className="lpe-grid-2">
+                <FieldRow
+                  label="Plan Name"
+                  value={siteSettings.plan_1_name}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_1_name: v }))}
+                  placeholder="Starter"
+                />
+                <FieldRow
+                  label="Tagline"
+                  value={siteSettings.plan_1_desc}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_1_desc: v }))}
+                  placeholder="Perfect for individuals"
+                />
+              </div>
+              <div className="lpe-grid-2">
+                <FieldRow
+                  label="Price (₹/month)"
+                  value={String(siteSettings.price_starter ?? 0)}
+                  onChange={v => setSiteSettings(p => ({ ...p, price_starter: Number(v) || 0 }))}
+                  type="number"
+                  placeholder="0"
+                />
+                <FieldRow
+                  label="Monthly Reply Limit"
+                  value={siteSettings.limit_starter}
+                  onChange={v => setSiteSettings(p => ({ ...p, limit_starter: v }))}
+                  placeholder="1,000"
+                />
+              </div>
+              <FieldRow
+                label="Feature Bullets (one per line; use {limit_starter} for the limit)"
+                value={siteSettings.plan_1_features}
+                onChange={v => setSiteSettings(p => ({ ...p, plan_1_features: v }))}
+                textarea
+                rows={4}
+                placeholder={`1 Instagram account\n{limit_starter} automated replies/month\nBasic templates\nEmail support`}
+              />
+              <div className="lpe-grid-2">
+                <FieldRow
+                  label="Button Text"
+                  value={siteSettings.plan_1_btn}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_1_btn: v }))}
+                  placeholder="Get started"
+                />
+                <FieldRow
+                  label="Button URL"
+                  value={siteSettings.plan_1_url}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_1_url: v }))}
+                  placeholder="#signup"
+                />
+              </div>
+            </div>
+
+            {/* Plan 2: Pro */}
+            <div className="lpe-card-box">
+              <div className="lpe-card-box-title">⭐ Plan 2 — Pro (Featured)</div>
+              <div className="lpe-grid-2">
+                <FieldRow
+                  label="Plan Name"
+                  value={siteSettings.plan_2_name}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_2_name: v }))}
+                  placeholder="Pro"
+                />
+                <FieldRow
+                  label="Tagline"
+                  value={siteSettings.plan_2_desc}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_2_desc: v }))}
+                  placeholder="For growing creators & brands"
+                />
+              </div>
+              <div className="lpe-grid-2">
+                <FieldRow
+                  label="Price (₹/month)"
+                  value={String(siteSettings.price_creator ?? 1499)}
+                  onChange={v => setSiteSettings(p => ({ ...p, price_creator: Number(v) || 1499 }))}
+                  type="number"
+                  placeholder="1499"
+                />
+                <FieldRow
+                  label="Monthly Reply Limit"
+                  value={siteSettings.limit_creator}
+                  onChange={v => setSiteSettings(p => ({ ...p, limit_creator: v }))}
+                  placeholder="25,000"
+                />
+              </div>
+              <FieldRow
+                label="Popular Badge Text"
+                value={siteSettings.plan_2_badge}
+                onChange={v => setSiteSettings(p => ({ ...p, plan_2_badge: v }))}
+                placeholder="Most popular"
+              />
+              <FieldRow
+                label="Feature Bullets (one per line; use {limit_creator} for the limit)"
+                value={siteSettings.plan_2_features}
+                onChange={v => setSiteSettings(p => ({ ...p, plan_2_features: v }))}
+                textarea
+                rows={5}
+                placeholder={`3 Instagram accounts\n{limit_creator} automated replies/month\nAdvanced templates & spinning\nAnalytics & insights\nPriority support & GST invoice`}
+              />
+              <div className="lpe-grid-2">
+                <FieldRow
+                  label="Button Text"
+                  value={siteSettings.plan_2_btn}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_2_btn: v }))}
+                  placeholder="Start 14-day free trial"
+                />
+                <FieldRow
+                  label="Button URL"
+                  value={siteSettings.plan_2_url}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_2_url: v }))}
+                  placeholder="#signup"
+                />
+              </div>
+            </div>
+
+            {/* Plan 3: Agency */}
+            <div className="lpe-card-box">
+              <div className="lpe-card-box-title">🏢 Plan 3 — Agency</div>
+              <div className="lpe-grid-2">
+                <FieldRow
+                  label="Plan Name"
+                  value={siteSettings.plan_3_name}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_3_name: v }))}
+                  placeholder="Agency"
+                />
+                <FieldRow
+                  label="Tagline"
+                  value={siteSettings.plan_3_desc}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_3_desc: v }))}
+                  placeholder="For teams & agencies"
+                />
+              </div>
+              <div className="lpe-grid-2">
+                <FieldRow
+                  label="Price (₹/month)"
+                  value={String(siteSettings.price_agency ?? 3999)}
+                  onChange={v => setSiteSettings(p => ({ ...p, price_agency: Number(v) || 3999 }))}
+                  type="number"
+                  placeholder="3999"
+                />
+                <FieldRow
+                  label="Monthly Reply Limit"
+                  value={siteSettings.limit_agency}
+                  onChange={v => setSiteSettings(p => ({ ...p, limit_agency: v }))}
+                  placeholder="100,000"
+                />
+              </div>
+              <FieldRow
+                label="Feature Bullets (one per line; use {limit_agency} for the limit)"
+                value={siteSettings.plan_3_features}
+                onChange={v => setSiteSettings(p => ({ ...p, plan_3_features: v }))}
+                textarea
+                rows={5}
+                placeholder={`10 Instagram accounts\n{limit_agency} automated replies/month\nMulti-user team workspace\nCustom webhooks & API access\nDedicated account manager`}
+              />
+              <div className="lpe-grid-2">
+                <FieldRow
+                  label="Button Text"
+                  value={siteSettings.plan_3_btn}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_3_btn: v }))}
+                  placeholder="Get started"
+                />
+                <FieldRow
+                  label="Button URL"
+                  value={siteSettings.plan_3_url}
+                  onChange={v => setSiteSettings(p => ({ ...p, plan_3_url: v }))}
+                  placeholder="#signup"
+                />
+              </div>
+            </div>
           </div>
         );
 
