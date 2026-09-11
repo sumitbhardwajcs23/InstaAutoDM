@@ -1,28 +1,26 @@
 /* ==========================================================================
-   AIRVIX MODERN SAAS LANDING PAGE - ULTRA-CLEAN LIGHT SAAS THEME
-   With Indian Rupees (₹) Pricing, Vibrant Blue Accents, and Pixel-Perfect Layout
+   AIRVIX MODERN SAAS LANDING PAGE - ALTERNATING RHYTHM THEME (DARK / LIGHT)
+   Hero (Dark) -> Features (Light) -> How It Works (Dark) -> Testimonials (Light) -> Pricing (Light) -> FAQ (Light) -> CTA (Blue Gradient) -> Footer (Dark)
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --airvix-bg-dark: #f8fafc;
-  --airvix-bg-dark-card: #ffffff;
-  --airvix-bg-dark-border: #e2e8f0;
+  --airvix-bg-dark: #080b14;
+  --airvix-bg-dark-card: #0b1120;
+  --airvix-bg-dark-border: rgba(255, 255, 255, 0.08);
   --airvix-bg-white: #ffffff;
-  --airvix-bg-light-surface: #f1f5f9;
+  --airvix-bg-light-surface: #f8fafc;
   --airvix-bg-subtle-border: #e2e8f0;
   
-  --airvix-primary-blue: #2563eb;
-  --airvix-primary-blue-hover: #1d4ed8;
-  --airvix-primary-gradient: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
-  --airvix-glow-blue: rgba(37, 99, 235, 0.15);
+  --airvix-primary-blue: #3b82f6;
+  --airvix-primary-blue-hover: #2563eb;
+  --airvix-primary-gradient: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  --airvix-glow-blue: rgba(59, 130, 246, 0.35);
 
   --airvix-text-main: #0f172a;
-  --airvix-text-muted: #475569;
-  --airvix-text-white: #0f172a;
-  --airvix-text-light-gray: #64748b;
-  --airvix-text-dim-gray: #334155;
+  --airvix-text-muted: #64748b;
+  --airvix-text-white: #ffffff;
 
   --airvix-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --airvix-font-script: 'Caveat', cursive, sans-serif;
@@ -30,7 +28,7 @@
 
 /* Base Wrapper */
 .airvix-page-wrapper {
-  background-color: #f8fafc;
+  background-color: var(--airvix-bg-dark);
   color: #0f172a;
   font-family: var(--airvix-font-sans);
   line-height: 1.5;
@@ -54,11 +52,11 @@
 }
 
 /* ==========================================================================
-   1. ANNOUNCEMENT BAR
+   1. ANNOUNCEMENT BAR (Dark Obsidian Accent)
    ========================================================================== */
 .airvix-announcement-bar {
-  background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 50%, #1d4ed8 100%);
-  color: #ffffff;
+  background: linear-gradient(90deg, #1e1b4b 0%, #1e3a8a 50%, #1e1b4b 100%);
+  color: #e0e7ff;
   font-size: 13px;
   font-weight: 500;
   padding: 8px 16px;
@@ -73,10 +71,10 @@
 }
 
 .airvix-announcement-badge {
-  background: #ffffff;
-  color: #1e3a8a;
+  background: #3b82f6;
+  color: #ffffff;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   padding: 2px 8px;
   border-radius: 9999px;
   text-transform: uppercase;
@@ -84,7 +82,7 @@
 }
 
 .airvix-announcement-link {
-  color: #dbeafe;
+  color: #93c5fd;
   text-decoration: none;
   font-weight: 600;
   transition: color 0.15s ease;
@@ -96,7 +94,7 @@
 }
 
 /* ==========================================================================
-   2. NAVBAR (Crisp Light Translucent)
+   2. NAVBAR (Translucent Dark Translucent Navbar for Hero)
    ========================================================================== */
 .airvix-navbar {
   position: fixed;
@@ -105,18 +103,18 @@
   right: 0;
   z-index: 100;
   padding: 18px 0;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(8, 11, 20, 0.78);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 0.25s ease;
 }
 
 .airvix-navbar.scrolled {
   padding: 12px 0;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  border-bottom: 1px solid #cbd5e1;
+  background: rgba(8, 11, 20, 0.95);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .airvix-nav-container {
@@ -147,7 +145,7 @@
 .airvix-logo-text {
   font-size: 20px;
   font-weight: 800;
-  color: #0f172a;
+  color: #ffffff;
   letter-spacing: -0.02em;
 }
 
@@ -158,15 +156,15 @@
 }
 
 .airvix-nav-links a {
-  color: #475569;
+  color: #cbd5e1;
   text-decoration: none;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   transition: color 0.15s ease;
 }
 
 .airvix-nav-links a:hover {
-  color: #2563eb;
+  color: #ffffff;
 }
 
 /* Nav Dropdown */
@@ -175,9 +173,9 @@
 }
 
 .airvix-dropdown-label {
-  color: #475569;
+  color: #cbd5e1;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -186,7 +184,7 @@
 }
 
 .airvix-dropdown-label:hover {
-  color: #2563eb;
+  color: #ffffff;
 }
 
 .airvix-dropdown-menu {
@@ -197,10 +195,10 @@
   min-width: 190px;
   display: none;
   flex-direction: column;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
   overflow: hidden;
 }
 
@@ -211,14 +209,14 @@
 .airvix-dropdown-menu a {
   padding: 10px 16px;
   font-size: 13px;
-  color: #475569;
+  color: #94a3b8;
   text-decoration: none;
   transition: all 0.15s ease;
 }
 
 .airvix-dropdown-menu a:hover {
-  background: #f1f5f9;
-  color: #2563eb;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
 }
 
 .airvix-nav-actions {
@@ -231,22 +229,22 @@
 .airvix-btn-ghost {
   background: transparent;
   border: none;
-  color: #475569;
+  color: #cbd5e1;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   padding: 8px 14px;
   transition: color 0.15s ease;
 }
 
 .airvix-btn-ghost:hover {
-  color: #0f172a;
+  color: #ffffff;
 }
 
 .airvix-btn-primary {
-  background: #2563eb;
+  background: #3b82f6;
   color: #ffffff;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 9px;
   padding: 10px 20px;
   font-size: 14px;
@@ -257,13 +255,13 @@
   justify-content: center;
   gap: 8px;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35);
   text-decoration: none;
 }
 
 .airvix-btn-primary:hover {
-  background: #1d4ed8;
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+  background: #2563eb;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.55);
   transform: translateY(-1px);
 }
 
@@ -280,8 +278,8 @@
 }
 
 .airvix-btn-outline:hover {
-  border-color: #2563eb;
-  color: #2563eb;
+  border-color: #3b82f6;
+  color: #3b82f6;
   background: #f8fafc;
 }
 
@@ -296,10 +294,10 @@
 }
 
 /* ==========================================================================
-   3. HERO SECTION (Light Premium SaaS Atmosphere)
+   3. SECTION 1: HERO SECTION (DARK OBSIDIAN ATMOSPHERE)
    ========================================================================== */
 .airvix-hero-section {
-  background-color: #f8fafc;
+  background-color: #080b14;
   position: relative;
   overflow: hidden;
   min-height: 100vh;
@@ -330,15 +328,15 @@
   height: 100%;
   object-fit: cover;
   object-position: right center;
-  filter: brightness(1.02) contrast(1.02);
+  filter: brightness(0.88) contrast(1.08);
 }
 
 .airvix-hero-video-overlay {
   position: absolute;
   inset: 0;
   background: 
-    linear-gradient(90deg, rgba(248, 250, 252, 0.96) 0%, rgba(248, 250, 252, 0.92) 40%, rgba(248, 250, 252, 0.65) 75%, rgba(248, 250, 252, 0.88) 100%),
-    linear-gradient(180deg, rgba(248, 250, 252, 0.8) 0%, transparent 30%, rgba(248, 250, 252, 0.98) 100%);
+    linear-gradient(90deg, rgba(8, 11, 20, 0.96) 0%, rgba(8, 11, 20, 0.9) 38%, rgba(8, 11, 20, 0.42) 72%, rgba(8, 11, 20, 0.65) 100%),
+    linear-gradient(180deg, rgba(8, 11, 20, 0.75) 0%, transparent 25%, rgba(8, 11, 20, 0.98) 100%);
   pointer-events: none;
 }
 
@@ -349,7 +347,7 @@
   right: 15%;
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(37, 99, 235, 0.12) 0%, rgba(99, 102, 241, 0.05) 45%, transparent 70%);
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.18) 0%, rgba(99, 102, 241, 0.08) 45%, transparent 70%);
   filter: blur(80px);
   pointer-events: none;
   z-index: 1;
@@ -377,9 +375,9 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #2563eb;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
   padding: 6px 14px;
   border-radius: 9999px;
   margin-bottom: 24px;
@@ -390,12 +388,12 @@
   line-height: 1.12;
   font-weight: 800;
   letter-spacing: -0.03em;
-  color: #0f172a;
+  color: #ffffff;
   margin: 0 0 20px 0;
 }
 
 .airvix-gradient-highlight {
-  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  background: linear-gradient(135deg, #c084fc 0%, #818cf8 50%, #60a5fa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -403,7 +401,7 @@
 .airvix-hero-sub {
   font-size: 17px;
   line-height: 1.6;
-  color: #475569;
+  color: #94a3b8;
   margin: 0 0 32px 0;
   max-width: 520px;
 }
@@ -427,7 +425,7 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #475569;
+  color: #94a3b8;
   font-weight: 500;
 }
 
@@ -444,7 +442,7 @@
   font-size: 26px;
   font-weight: 600;
   line-height: 1.1;
-  color: #2563eb;
+  color: #93c5fd;
   position: absolute;
   z-index: 10;
   display: flex;
@@ -495,12 +493,14 @@
   gap: 8px;
   font-size: 12px;
   font-weight: 600;
-  color: #0f172a;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   padding: 8px 16px;
   border-radius: 9999px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
 }
 
 .airvix-live-dot {
@@ -525,14 +525,16 @@
 /* Floating Toasts */
 .airvix-floating-toast {
   position: absolute;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 16px;
   padding: 12px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
-  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
   z-index: 5;
   transition: transform 0.3s ease;
 }
@@ -557,7 +559,7 @@
 }
 
 .airvix-toast-ai {
-  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
 }
 
 .airvix-toast-content { flex: 1; }
@@ -572,7 +574,7 @@
 .airvix-toast-title {
   font-size: 11px;
   font-weight: 700;
-  color: #0f172a;
+  color: #f8fafc;
 }
 
 .airvix-toast-time {
@@ -582,7 +584,7 @@
 
 .airvix-toast-body {
   font-size: 12px;
-  color: #475569;
+  color: #cbd5e1;
   font-weight: 500;
 }
 
@@ -595,7 +597,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #475569;
+  color: #94a3b8;
   text-decoration: none;
   font-size: 11.5px;
   font-weight: 700;
@@ -604,18 +606,18 @@
   z-index: 10;
   padding: 8px 18px;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   transition: all 0.2s ease;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
 }
 
 .airvix-hero-scroll-hint:hover {
-  color: #2563eb;
-  background: #ffffff;
-  border-color: #bfdbfe;
+  color: #ffffff;
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(255, 255, 255, 0.25);
   transform: translateX(-50%) translateY(-2px);
 }
 
@@ -630,13 +632,13 @@
 }
 
 /* ==========================================================================
-   5. WHY AIRVIX / VALUE PROPOSITION (Clean White Aesthetic)
+   4. SECTION 2: WHY AIRVIX / VALUE PROPOSITION (LIGHT CLEAN WHITE SECTION)
    ========================================================================== */
 .airvix-features-section {
-  background-color: #ffffff;
-  padding: 100px 0 90px 0;
+  background-color: #ffffff !important;
+  padding: 100px 0 90px 0 !important;
   position: relative;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0 !important;
 }
 
 .airvix-features-header-row {
@@ -647,7 +649,7 @@
   position: relative;
 }
 
-.airvix-section-badge {
+.airvix-features-section .airvix-section-badge {
   display: inline-block;
   font-size: 11px;
   font-weight: 700;
@@ -661,7 +663,7 @@
   margin-bottom: 16px;
 }
 
-.airvix-section-heading {
+.airvix-features-section .airvix-section-heading {
   font-size: 40px;
   font-weight: 800;
   line-height: 1.15;
@@ -670,7 +672,7 @@
   margin: 0 0 16px 0;
 }
 
-.airvix-section-sub {
+.airvix-features-section .airvix-section-sub {
   font-size: 17px;
   color: #475569 !important;
   max-width: 560px;
@@ -696,7 +698,7 @@
 
 .airvix-feature-card {
   background: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
+  border: 1px solid #f1f5f9 !important;
   border-radius: 18px !important;
   padding: 32px 24px !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03) !important;
@@ -707,7 +709,7 @@
 }
 
 .airvix-feature-card:hover {
-  border-color: #bfdbfe !important;
+  border-color: #cbd5e1 !important;
   box-shadow: 0 12px 30px rgba(37, 99, 235, 0.08) !important;
   transform: translateY(-4px) !important;
 }
@@ -742,14 +744,14 @@
 }
 
 /* ==========================================================================
-   6. HOW IT WORKS (Light Themed Section)
+   5. SECTION 3: HOW IT WORKS (DARK OBSIDIAN / DEEP NAVY SECTION)
    ========================================================================== */
 .airvix-how-section {
-  background-color: #f8fafc !important;
+  background-color: #080b14 !important;
   padding: 100px 0 !important;
-  color: #0f172a !important;
+  color: #ffffff !important;
   position: relative !important;
-  border-bottom: 1px solid #e2e8f0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 
 .airvix-how-grid {
@@ -765,18 +767,24 @@
   align-items: flex-start;
 }
 
+.airvix-how-section .airvix-badge-pill {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
 .airvix-how-heading {
   font-size: 40px;
   font-weight: 800;
   line-height: 1.18;
-  color: #0f172a !important;
+  color: #ffffff !important;
   letter-spacing: -0.03em;
   margin: 0 0 16px 0;
 }
 
 .airvix-how-sub {
   font-size: 16px;
-  color: #475569 !important;
+  color: #94a3b8 !important;
   line-height: 1.6;
   margin: 0 0 36px 0;
 }
@@ -810,24 +818,24 @@
 .airvix-step-title {
   font-size: 17px;
   font-weight: 700;
-  color: #0f172a !important;
+  color: #ffffff !important;
   margin: 0 0 4px 0;
 }
 
 .airvix-step-desc {
   font-size: 14px;
-  color: #475569 !important;
+  color: #94a3b8 !important;
   margin: 0;
   line-height: 1.5;
 }
 
 .airvix-workspace-card {
   position: relative;
-  background: #ffffff;
+  background: #0b1120;
   border-radius: 20px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   padding: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
 
@@ -839,12 +847,20 @@
 }
 
 /* ==========================================================================
-   7. SUCCESS STORIES / TESTIMONIALS (Clean White Theme)
+   6. SECTION 4: SUCCESS STORIES / TESTIMONIALS (LIGHT CLEAN WHITE SECTION)
    ========================================================================== */
 .airvix-stories-section {
   background-color: #ffffff !important;
   padding: 100px 0 !important;
   border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.airvix-stories-section .airvix-section-heading {
+  color: #0f172a !important;
+}
+
+.airvix-stories-section .airvix-section-sub {
+  color: #475569 !important;
 }
 
 .airvix-stories-header {
@@ -944,12 +960,20 @@
 }
 
 /* ==========================================================================
-   8. PRICING (Clean Light Theme strictly in ₹)
+   7. SECTION 5: PRICING (LIGHT SLATE SURFACE)
    ========================================================================== */
 .airvix-pricing-section {
   background-color: #f8fafc !important;
   padding: 100px 0 110px 0 !important;
   border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.airvix-pricing-section .airvix-section-heading {
+  color: #0f172a !important;
+}
+
+.airvix-pricing-section .airvix-section-sub {
+  color: #475569 !important;
 }
 
 .airvix-pricing-intro {
@@ -1122,12 +1146,20 @@
 }
 
 /* ==========================================================================
-   9. FAQ SECTION (Clean Light Theme Accordion)
+   8. SECTION 6: FAQ SECTION (LIGHT ACCORDION SECTION)
    ========================================================================== */
 .airvix-faq-section {
   background-color: #ffffff !important;
   padding: 100px 0 !important;
   border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.airvix-faq-section .airvix-section-heading {
+  color: #0f172a !important;
+}
+
+.airvix-faq-section .airvix-section-sub {
+  color: #475569 !important;
 }
 
 .airvix-faq-intro {
@@ -1212,7 +1244,7 @@
 }
 
 /* ==========================================================================
-   FINAL CTA BANNER (Vibrant Blue Card)
+   9. SECTION 7: FINAL CTA BANNER (VIBRANT BLUE GRADIENT CARD)
    ========================================================================== */
 .airvix-cta-section {
   background-color: #ffffff;
@@ -1220,13 +1252,13 @@
 }
 
 .airvix-cta-banner {
-  background: linear-gradient(135deg, #1d4ed8, #2563eb, #3b82f6) !important;
+  background: linear-gradient(135deg, #1e40af, #2563eb, #3b82f6) !important;
   border-radius: 24px !important;
   padding: 60px 40px !important;
   text-align: center !important;
   position: relative !important;
   overflow: hidden !important;
-  box-shadow: 0 20px 60px rgba(37, 99, 235, 0.25) !important;
+  box-shadow: 0 20px 60px rgba(37, 99, 235, 0.35) !important;
   margin: 0 auto !important;
   max-width: 1080px !important;
 }
@@ -1267,14 +1299,14 @@
 
 .airvix-btn-white {
   background: #ffffff !important;
-  color: #1d4ed8 !important;
+  color: #1e40af !important;
   font-weight: 800 !important;
   font-size: 15.5px !important;
   padding: 14px 32px !important;
   border-radius: 12px !important;
   border: none !important;
   cursor: pointer !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
   transition: all 0.2s ease !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -1284,7 +1316,7 @@
 .airvix-btn-white:hover {
   background: #f8fafc !important;
   transform: translateY(-2px) !important;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.18) !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2) !important;
 }
 
 .airvix-cta-badges {
@@ -1299,13 +1331,13 @@
 }
 
 /* ==========================================================================
-   FOOTER 5-COLUMN GRID & BRAND ALIGNMENT (Light Clean Theme)
+   10. SECTION 8: FOOTER (DARK OBSIDIAN FOOTER FOR SOLID GROUNDING)
    ========================================================================== */
 .airvix-footer {
-  background: #f8fafc !important;
+  background: #04060c !important;
   padding: 80px 0 36px 0 !important;
-  border-top: 1px solid #e2e8f0 !important;
-  color: #475569 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #cbd5e1 !important;
 }
 
 .airvix-footer-grid-5col {
@@ -1340,14 +1372,14 @@
 .airvix-footer-brand-name {
   font-size: 22px !important;
   font-weight: 900 !important;
-  color: #0f172a !important;
+  color: #ffffff !important;
   letter-spacing: -0.02em !important;
 }
 
 .airvix-footer-brand-desc {
   font-size: 13px !important;
   line-height: 1.6 !important;
-  color: #64748b !important;
+  color: #94a3b8 !important;
   margin: 0 0 18px 0 !important;
   max-width: 320px !important;
 }
@@ -1357,7 +1389,7 @@
   font-weight: 800 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.1em !important;
-  color: #0f172a !important;
+  color: #ffffff !important;
   margin: 0 0 18px 0 !important;
 }
 
@@ -1371,7 +1403,7 @@
 }
 
 .airvix-footer-nav-list a {
-  color: #475569 !important;
+  color: #94a3b8 !important;
   text-decoration: none !important;
   font-size: 13.5px !important;
   transition: all 0.15s ease !important;
@@ -1379,7 +1411,7 @@
 }
 
 .airvix-footer-nav-list a:hover {
-  color: #2563eb !important;
+  color: #60a5fa !important;
   transform: translateX(3px) !important;
 }
 
@@ -1396,9 +1428,9 @@
   gap: 8px !important;
   font-size: 12px !important;
   font-weight: 500 !important;
-  color: #475569 !important;
-  background: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
+  color: #cbd5e1 !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
   padding: 6px 12px !important;
   border-radius: 6px !important;
   width: fit-content !important;
@@ -1410,9 +1442,9 @@
   gap: 8px !important;
   font-size: 11.5px !important;
   font-weight: 600 !important;
-  color: #059669 !important;
-  background: #ecfdf5 !important;
-  border: 1px solid #a7f3d0 !important;
+  color: #94a3b8 !important;
+  background: rgba(16, 185, 129, 0.08) !important;
+  border: 1px solid rgba(16, 185, 129, 0.2) !important;
   padding: 5px 12px !important;
   border-radius: 9999px !important;
   width: fit-content !important;
@@ -1428,7 +1460,7 @@
 
 .airvix-footer-bottom-bar {
   padding-top: 32px !important;
-  border-top: 1px solid #e2e8f0 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
@@ -1452,9 +1484,9 @@
 .airvix-pay-pill {
   font-size: 11px !important;
   font-weight: 700 !important;
-  color: #475569 !important;
-  background: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
+  color: #94a3b8 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
   padding: 4px 10px !important;
   border-radius: 6px !important;
   letter-spacing: 0.02em !important;
@@ -1467,7 +1499,7 @@
 }
 
 .airvix-footer-social-links a {
-  color: #64748b !important;
+  color: #94a3b8 !important;
   transition: all 0.15s ease !important;
   display: flex !important;
   align-items: center !important;
@@ -1475,16 +1507,16 @@
 }
 
 .airvix-footer-social-links a:hover {
-  color: #2563eb !important;
+  color: #3b82f6 !important;
   transform: translateY(-2px) !important;
 }
 
-/* Modal Backdrops & Cards in Light Mode */
+/* Modal Backdrops & Cards */
 .airvix-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(10px);
   z-index: 999;
   display: flex;
   align-items: center;
@@ -1494,13 +1526,13 @@
 
 .airvix-legal-modal-card,
 .airvix-video-modal-card {
-  background: #ffffff !important;
-  border: 1px solid #cbd5e1 !important;
+  background: #0b1120 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-radius: 20px !important;
   width: 100%;
   max-width: 760px;
-  color: #0f172a !important;
-  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.25) !important;
+  color: #ffffff !important;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.85) !important;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1509,32 +1541,32 @@
 
 .airvix-modal-header {
   padding: 20px 24px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #f8fafc;
+  background: rgba(15, 23, 42, 0.6);
 }
 
 .airvix-modal-header h3 {
-  color: #0f172a !important;
+  color: #ffffff !important;
 }
 
 .airvix-doc-section-title {
-  color: #0f172a !important;
+  color: #ffffff !important;
 }
 
 .airvix-doc-section-text {
-  color: #475569 !important;
+  color: #94a3b8 !important;
 }
 
 .airvix-doc-list li {
-  color: #334155 !important;
+  color: #e2e8f0 !important;
 }
 
 .airvix-legal-footer {
-  background: #f8fafc !important;
-  border-top: 1px solid #e2e8f0 !important;
+  background: rgba(15, 23, 42, 0.5) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 @media (max-width: 992px) {
