@@ -755,90 +755,10 @@ class MetaClient {
     return data;
   }
 
-  getMockMediaList(limit = 30, after = null) {
-    const mockCaptions = [
-      { caption: "5 Automation Hacks that saved me 20 hours a week! 🚀 Comment 'HACK' for the blueprint. #creator #automation #growth", type: 'REELS', likes: 1420, comments: 384, mediaType: 'VIDEO' },
-      { caption: "Want this exact DM funnel setup? Comment 'SEND' and I'll send it directly to your inbox 📩 #marketing #scaling", type: 'REELS', likes: 2890, comments: 842, mediaType: 'VIDEO' },
-      { caption: "New collection is officially live! 🔥 Comment 'PRICE' for exclusive VIP access & discount. #ecommerce #fashion", type: 'FEED', likes: 950, comments: 210, mediaType: 'IMAGE' },
-      { caption: "Steal my 7-figure Instagram DM script. Comment 'SCRIPT' below! 🤖 #instagramgrowth #saas", type: 'REELS', likes: 3120, comments: 950, mediaType: 'VIDEO' },
-      { caption: "Behind the scenes of our latest product shoot 📸 What do you think? Drop a comment below!", type: 'FEED', likes: 620, comments: 88, mediaType: 'CAROUSEL_ALBUM' },
-      { caption: "Stop losing leads in your DMs! Here is the 2-minute fix. Comment 'FIX' 👇 #creatoreconomy", type: 'REELS', likes: 4100, comments: 1250, mediaType: 'VIDEO' },
-      { caption: "Client case study: from 50 DMs/day to $18k in revenue. Comment 'CASE' for the breakdown 📈", type: 'FEED', likes: 830, comments: 145, mediaType: 'IMAGE' },
-      { caption: "Top 3 tools every digital creator needs in 2026. Comment 'TOOLS' to get the full list! ✨", type: 'REELS', likes: 1980, comments: 530, mediaType: 'VIDEO' },
-      { caption: "Weekend Q&A drop your questions below and I'll reply to everyone! 💬", type: 'FEED', likes: 450, comments: 92, mediaType: 'IMAGE' },
-      { caption: "The secret to 90%+ DM open rates revealed. Comment 'SECRET' 🗝️ #growthmindset", type: 'REELS', likes: 3410, comments: 760, mediaType: 'VIDEO' },
-    ];
-
-    const startIndex = after ? parseInt(after, 10) || 0 : 0;
-    const totalMocks = 60; // Allows testing pagination up to 60 items
-    const count = Math.min(limit, Math.max(0, totalMocks - startIndex));
-    
-    const items = [];
-    for (let i = 0; i < count; i++) {
-      const idx = (startIndex + i) % mockCaptions.length;
-      const base = mockCaptions[idx];
-      const itemNum = startIndex + i + 1;
-      const id = `mock_media_${18000000000000000n + BigInt(itemNum)}`;
-      const timestamp = new Date(Date.now() - (startIndex + i) * 3600 * 1000 * 14).toISOString();
-      
-      items.push({
-        id: id.toString(),
-        caption: base.caption,
-        media_type: base.mediaType,
-        media_product_type: base.type,
-        media_url: `https://picsum.photos/seed/ig_media_${itemNum}/640/800`,
-        thumbnail_url: `https://picsum.photos/seed/ig_thumb_${itemNum}/400/500`,
-        permalink: `https://www.instagram.com/p/mock_${itemNum}/`,
-        timestamp,
-        like_count: base.likes + (itemNum * 12),
-        comments_count: base.comments + (itemNum * 7),
-      });
-    }
-
-    const nextCursor = (startIndex + count < totalMocks) ? String(startIndex + count) : null;
-
-    return {
-      data: items,
-      paging: {
-        cursors: {
-          after: nextCursor,
-          before: startIndex > 0 ? String(Math.max(0, startIndex - limit)) : null,
-        },
-        has_next: Boolean(nextCursor),
-      }
-    };
-  }
-
-  getMockStoriesList() {
-    return [
-      {
-        id: `mock_story_1`,
-        caption: "Quick poll! Reply 'HI' for free gift link 🎁 (Expires in 6 hrs)",
-        media_type: 'IMAGE',
-        media_product_type: 'STORY',
-        media_url: 'https://picsum.photos/seed/story_1/640/1136',
-        thumbnail_url: 'https://picsum.photos/seed/story_1/400/700',
-        permalink: 'https://www.instagram.com/stories/mock_user/1/',
-        timestamp: new Date(Date.now() - 3600 * 1000 * 4).toISOString(),
-        expires_in_hours: 20
-      },
-      {
-        id: `mock_story_2`,
-        caption: "Swipe up or reply 'READY' to join tomorrow's masterclass! 🚀",
-        media_type: 'VIDEO',
-        media_product_type: 'STORY',
-        media_url: 'https://picsum.photos/seed/story_2/640/1136',
-        thumbnail_url: 'https://picsum.photos/seed/story_2/400/700',
-        permalink: 'https://www.instagram.com/stories/mock_user/2/',
-        timestamp: new Date(Date.now() - 3600 * 1000 * 9).toISOString(),
-        expires_in_hours: 15
-      }
-    ];
-  }
 
   async getAccountMedia({ igUserId, accessToken, limit = 30, after = null }) {
-    if (this.mockMode || !accessToken) {
-      return this.getMockMediaList(limit, after);
+    if (!accessToken) {
+      return { data: [], paging: { cursors: {}, has_next: false } };
     }
 
     const fields = 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count';
@@ -876,14 +796,13 @@ class MetaClient {
       }
     }
 
-    // Graceful fallback to mock media if live token is missing permissions or in sandbox
-    console.log('[MetaClient] Fallback to mock media for rich experience');
-    return this.getMockMediaList(limit, after);
+    // Return empty genuine list when no media exists on user account
+    return { data: [], paging: { cursors: {}, has_next: false } };
   }
 
   async getAccountStories({ igUserId, accessToken }) {
-    if (this.mockMode || !accessToken) {
-      return this.getMockStoriesList();
+    if (!accessToken) {
+      return [];
     }
 
     const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp';
@@ -910,10 +829,10 @@ class MetaClient {
       }
     }
 
-    // If account has no active 24h stories, return sample stories so user can test story triggers
-    return this.getMockStoriesList();
-  }
+    // Return empty list when account has no active 24h stories
+    return [];
 }
 
 module.exports = new MetaClient();
+
 

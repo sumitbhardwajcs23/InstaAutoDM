@@ -50,6 +50,7 @@ export default function App() {
   const [preselectedMedia, setPreselectedMedia] = useState(null);
   const [isConnectIgOpen, setIsConnectIgOpen] = useState(false);
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+  const [upgradePlan, setUpgradePlan] = useState('pro');
 
   // Data states
   const [stats, setStats] = useState(null);
@@ -508,7 +509,13 @@ export default function App() {
           )}
 
           {activeTab === 'billing' && (
-            <BillingView user={user} onUpgrade={() => setIsUpgradeOpen(true)} />
+            <BillingView
+              user={user}
+              onUpgrade={(plan) => {
+                setUpgradePlan(plan || 'pro');
+                setIsUpgradeOpen(true);
+              }}
+            />
           )}
 
           {activeTab === 'settings' && (
@@ -551,6 +558,7 @@ export default function App() {
 
       <UpgradeModal
         isOpen={isUpgradeOpen}
+        initialPlan={upgradePlan}
         onClose={() => setIsUpgradeOpen(false)}
         onUpgraded={(plan) => {
           setUser((prev) => ({ ...prev, plan }));

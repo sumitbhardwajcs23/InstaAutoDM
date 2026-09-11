@@ -731,21 +731,42 @@ export default function MediaView({
                     background: '#111827',
                     overflow: 'hidden'
                   }}>
-                    <img 
-                      src={item.thumbnail_url || item.media_url || `https://picsum.photos/seed/${item.id}/400/500`}
-                      alt={item.caption || 'Instagram media'}
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = `https://picsum.photos/seed/${item.id}/400/500`;
-                      }}
+                    {(item.thumbnail_url || item.media_url) ? (
+                      <img 
+                        src={item.thumbnail_url || item.media_url}
+                        alt={item.caption || 'Instagram media'}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.style.display = 'none';
+                          if (e.currentTarget.nextSibling) {
+                            e.currentTarget.nextSibling.style.display = 'flex';
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                        loading="lazy"
+                      />
+                    ) : null}
+                    <div
                       style={{
+                        display: (item.thumbnail_url || item.media_url) ? 'none' : 'flex',
                         width: '100%',
                         height: '100%',
-                        objectFit: 'cover'
+                        background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        color: '#64748b'
                       }}
-                      loading="lazy"
-                    />
+                    >
+                      <Film size={32} opacity={0.6} />
+                      <span style={{ fontSize: '11px', fontWeight: 600 }}>Media Post</span>
+                    </div>
 
                     {/* Media Type Badge */}
                     <div style={{
