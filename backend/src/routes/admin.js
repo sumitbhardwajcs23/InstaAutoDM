@@ -7,7 +7,7 @@ const db = require('../db');
 const { requireAuth, requireAdmin, requireAdminRole } = require('../middleware/auth');
 const { DEFAULT_TEMPLATES } = require('../constants/defaultTemplates');
 const { DEFAULT_SITE_SETTINGS, mergeSettingsWithEnvDefaults } = require('./site');
-const { dmLimitFor, igLimitFor, rulesLimitFor } = require('../constants/planLimits');
+const { dmLimitFor, igLimitFor, rulesLimitFor, refreshPlanLimitsCache } = require('../constants/planLimits');
 const cryptoService = require('../services/crypto');
 const totp = require('../services/totp');
 const { abuseDetection } = require('../services/abuseDetection');
@@ -838,6 +838,7 @@ router.post('/plans', async (req, res) => {
 
     plans.push(newPlan);
     await saveStoredPlans(plans);
+    refreshPlanLimitsCache().catch(() => {});
 
     res.status(201).json({ success: true, message: 'Pricing plan created successfully', plan: newPlan });
   } catch (err) {
@@ -872,6 +873,7 @@ router.put('/plans/:id', async (req, res) => {
     };
 
     await saveStoredPlans(plans);
+    refreshPlanLimitsCache().catch(() => {});
     res.json({ success: true, message: 'Pricing plan updated successfully', plan: plans[idx] });
   } catch (err) {
     console.error('[Admin] Update plan error:', err);
@@ -891,6 +893,7 @@ router.delete('/plans/:id', async (req, res) => {
     }
 
     await saveStoredPlans(filtered);
+    refreshPlanLimitsCache().catch(() => {});
     res.json({ success: true, message: 'Pricing plan deleted successfully' });
   } catch (err) {
     console.error('[Admin] Delete plan error:', err);
@@ -902,6 +905,7 @@ router.delete('/plans/:id', async (req, res) => {
 router.post('/plans/reset', async (_req, res) => {
   try {
     await saveStoredPlans([...DEFAULT_PLANS]);
+    refreshPlanLimitsCache().catch(() => {});
     res.json({ success: true, message: 'Pricing plans reset to defaults', plans: DEFAULT_PLANS });
   } catch (err) {
     console.error('[Admin] Reset plans error:', err);

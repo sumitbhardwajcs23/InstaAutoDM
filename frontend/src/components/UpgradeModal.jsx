@@ -3,71 +3,79 @@ import React, { useState, useEffect } from 'react';
 import { X, Crown, Check, Sparkles, Zap, ShieldCheck, CreditCard, FileText, ChevronDown, Building } from 'lucide-react';
 import { apiFetch } from '../api/client';
 
-const PLAN_DETAILS = {
+// Static fallback plans used if API is unavailable
+const PLAN_DETAILS_FALLBACK = {
   pro: {
-    name: 'Pro Creator',
-    badge: '🔥 MOST POPULAR',
-    monthlyPrice: 1499,
-    yearlyPrice: 1099,
-    annualTotal: 13188,
-    features: [
-      'Unlimited automated DMs & comment replies',
-      'Unlimited keyword automation rules',
-      'Dynamic {username} personalization',
-      'Priority Meta Graph API queue delivery',
-      'Full conversation logs & thread analytics',
-      '18% GST Input Tax Credit (ITC) invoice'
-    ]
+    name: 'Pro Creator', badge: '🔥 MOST POPULAR',
+    monthlyPrice: 1499, yearlyPrice: 1099, annualTotal: 13188,
+    features: ['Unlimited automated DMs & comment replies', 'Unlimited keyword automation rules', 'Dynamic {username} personalization', 'Priority Meta Graph API queue delivery', 'Full conversation logs & thread analytics', '18% GST Input Tax Credit (ITC) invoice']
   },
   agency: {
-    name: 'Agency Scale',
-    badge: '⚡ MULTI-BRAND',
-    monthlyPrice: 3999,
-    yearlyPrice: 2999,
-    annualTotal: 35988,
-    features: [
-      'Everything in Pro Creator',
-      'Up to 10 connected Instagram accounts',
-      'Multi-team seat permissions',
-      'Dedicated high-throughput Meta queue',
-      'Webhooks for Shopify, CRM & Lead pipelines',
-      'Priority WhatsApp VIP support'
-    ]
+    name: 'Agency Scale', badge: '⚡ MULTI-BRAND',
+    monthlyPrice: 3999, yearlyPrice: 2999, annualTotal: 35988,
+    features: ['Everything in Pro Creator', 'Up to 10 connected Instagram accounts', 'Multi-team seat permissions', 'Dedicated high-throughput Meta queue', 'Webhooks for Shopify, CRM & Lead pipelines', 'Priority WhatsApp VIP support']
   },
   enterprise: {
-    name: 'Enterprise VIP',
-    badge: '👑 CUSTOM VOLUME',
-    monthlyPrice: 7999,
-    yearlyPrice: 5999,
-    annualTotal: 71988,
-    features: [
-      'Everything in Agency Scale',
-      'Unlimited connected Instagram accounts',
-      'Custom rate limit bypass & dedicated IP',
-      'Custom webhook triggers & private API',
-      'Dedicated account manager in India',
-      'SLA guarantee & custom billing contract'
-    ]
+    name: 'Enterprise VIP', badge: '👑 CUSTOM VOLUME',
+    monthlyPrice: 7999, yearlyPrice: 5999, annualTotal: 71988,
+    features: ['Everything in Agency Scale', 'Unlimited connected Instagram accounts', 'Custom rate limit bypass & dedicated IP', 'Custom webhook triggers & private API', 'Dedicated account manager in India', 'SLA guarantee & custom billing contract']
   }
 };
 
 export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan = 'pro' }) {
   const [selectedPlan, setSelectedPlan] = useState(initialPlan);
-  const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'yearly'
+  const [billingCycle, setBillingCycle] = useState('monthly');
   const [loading, setLoading] = useState(false);
   const [showGstForm, setShowGstForm] = useState(false);
   const [businessName, setBusinessName] = useState('');
   const [gstNumber, setGstNumber] = useState('');
+  // Dynamic plans from API
+  const [planDetails, setPlanDetails] = useState(PLAN_DETAILS_FALLBACK);
+  const [plansLoaded, setPlansLoaded] = useState(false);
+
+  // Fetch pricing plans from admin configuration whenever modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    apiFetch('/billing/plans')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.plans) && data.plans.length > 0) {
+          const mapped = {};
+          data.plans.forEach(p => {
+            const key = p.slug || p.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (key === 'free' || key === 'starter') return; // Skip free tiers from upgrade modal
+            mapped[key] = {
+              name: p.name,
+              badge: p.badge || '',
+              monthlyPrice: Number(p.monthlyPrice) || 0,
+              yearlyPrice: Number(p.annualPrice) || 0,
+              annualTotal: Number(p.annualTotal) || 0,
+              savingsPct: Number(p.savingsPct) || 0,
+              dmLimit: p.dmLimit,
+              igLimit: p.igLimit,
+              rulesLimit: p.rulesLimit,
+              features: Array.isArray(p.features) ? p.features : []
+            };
+          });
+          if (Object.keys(mapped).length > 0) {
+            setPlanDetails(mapped);
+          }
+        }
+        setPlansLoaded(true);
+      })
+      .catch(() => setPlansLoaded(true));
+  }, [isOpen]);
 
   useEffect(() => {
-    if (initialPlan && PLAN_DETAILS[initialPlan.toLowerCase()]) {
-      setSelectedPlan(initialPlan.toLowerCase());
+    if (isOpen && initialPlan) {
+      const lower = initialPlan.toLowerCase();
+      setSelectedPlan(Object.keys(planDetails).includes(lower) ? lower : Object.keys(planDetails)[0] || 'pro');
     }
-  }, [initialPlan, isOpen]);
+  }, [initialPlan, isOpen, planDetails]);
 
   if (!isOpen) return null;
 
-  const currentPlanMeta = PLAN_DETAILS[selectedPlan] || PLAN_DETAILS.pro;
+  const currentPlanMeta = planDetails[selectedPlan] || Object.values(planDetails)[0] || PLAN_DETAILS_FALLBACK.pro;
   const currentPrice = billingCycle === 'yearly' ? currentPlanMeta.yearlyPrice : currentPlanMeta.monthlyPrice;
   const formattedPrice = `₹${currentPrice.toLocaleString('en-IN')}`;
 
@@ -291,7 +299,7 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
             gap: '8px',
             marginTop: '18px',
           }}>
-            {Object.entries(PLAN_DETAILS).map(([key, p]) => (
+          {Object.entries(planDetails).map(([key, p]) => (
               <button
                 key={key}
                 type="button"

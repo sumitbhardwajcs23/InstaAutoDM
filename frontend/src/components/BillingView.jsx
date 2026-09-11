@@ -1,73 +1,53 @@
 // frontend/src/components/BillingView.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, Crown, Zap, Shield, Sparkles, HelpCircle, FileText, CreditCard, ArrowRight } from 'lucide-react';
+import { apiFetch } from '../api/client';
+
+const STATIC_PLANS = [
+  { id: 'free', slug: 'free', name: 'Starter / Free', monthlyPrice: 0, annualPrice: 0, period: '/month', description: 'Ideal for creators testing automated DM responses on real traffic.', features: ['Up to 1,000 automated DMs / month', 'Up to 5 active keyword rules', 'Comment-to-DM auto response', 'Instant keyword triggers', 'Standard Instagram delivery speed', 'Community support'], popular: false },
+  { id: 'pro', slug: 'pro', name: 'Pro Creator', monthlyPrice: 1499, annualPrice: 1099, period: '/month', badge: 'MOST POPULAR IN INDIA', description: 'Built for fast-growing Indian creators, coaches, and D2C brands.', features: ['Unlimited automated DMs & comments', 'Unlimited active automation rules', 'Dynamic {username} personalization', 'Lead capture & email collector sequences', 'Dedicated high-priority Meta queue', 'Full conversation logs & thread analytics', 'Priority WhatsApp & email support', 'GST invoice with 18% Input Credit'], popular: true },
+  { id: 'enterprise', slug: 'enterprise', name: 'Agency & Enterprise', monthlyPrice: 4999, annualPrice: 3749, period: '/month', description: 'For digital agencies & multi-brand growth teams in India.', features: ['Everything in Pro Creator', 'Manage up to 10 Instagram accounts', 'Multi-user team dashboard access', 'Webhook integrations (Shopify, Shiprocket, CRM)', 'Dedicated account manager in India', 'Custom onboarding & setup call', 'Official vendor GST contract'], popular: false },
+];
 
 export default function BillingView({ user, onUpgrade }) {
   const currentPlan = user?.plan || 'free';
-  const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' | 'yearly'
+  const [billingCycle, setBillingCycle] = useState('monthly');
+  const [plans, setPlans] = useState(STATIC_PLANS);
+  const [plansLoading, setPlansLoading] = useState(true);
 
-  const plans = [
-    {
-      id: 'free',
-      name: 'Starter / Free',
-      monthlyPrice: '₹0',
-      yearlyPrice: '₹0',
-      period: '/month',
-      description: 'Ideal for creators testing automated DM responses on real traffic.',
-      features: [
-        'Up to 1,000 automated DMs / month',
-        'Up to 5 active keyword rules',
-        'Comment-to-DM auto response',
-        'Instant keyword triggers',
-        'Standard Instagram delivery speed',
-        'Community support',
-      ],
-      current: currentPlan === 'free',
-      buttonText: currentPlan === 'free' ? 'Current Active Plan' : 'Downgrade to Free',
-    },
-    {
-      id: 'pro',
-      name: 'Pro Creator',
-      monthlyPrice: '₹1,499',
-      yearlyPrice: '₹1,099',
-      annualBilledText: '₹13,188 billed annually (Save 27%)',
-      period: '/month',
-      badge: 'MOST POPULAR IN INDIA',
-      description: 'Built for fast-growing Indian creators, coaches, and D2C brands.',
-      features: [
-        'Unlimited automated DMs & comments',
-        'Unlimited active automation rules',
-        'Dynamic {username} personalization',
-        'Lead capture & email collector sequences',
-        'Dedicated high-priority Meta queue',
-        'Full conversation logs & thread analytics',
-        'Priority WhatsApp & email support',
-        'GST invoice with 18% Input Credit',
-      ],
-      current: currentPlan === 'pro',
-      buttonText: currentPlan === 'pro' ? 'Current Active Plan' : 'Upgrade to Pro',
-    },
-    {
-      id: 'enterprise',
-      name: 'Agency & Enterprise',
-      monthlyPrice: '₹4,999',
-      yearlyPrice: '₹3,749',
-      annualBilledText: '₹44,988 billed annually (Save 25%)',
-      period: '/month',
-      description: 'For digital agencies & multi-brand growth teams in India.',
-      features: [
-        'Everything in Pro Creator',
-        'Manage up to 10 Instagram accounts',
-        'Multi-user team dashboard access',
-        'Webhook integrations (Shopify, Shiprocket, CRM)',
-        'Dedicated account manager in India',
-        'Custom onboarding & setup call',
-        'Official vendor GST contract',
-      ],
-      current: currentPlan === 'enterprise',
-      buttonText: 'Contact Sales / Custom Plan',
-    },
-  ];
+  useEffect(() => {
+    apiFetch('/billing/plans')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.plans) && data.plans.length > 0) {
+          // Merge API plans with current-plan state
+          const merged = data.plans.map(p => ({
+            ...p,
+            current: (p.slug || p.id || '').toLowerCase() === currentPlan,
+            buttonText: (p.slug || p.id || '').toLowerCase() === currentPlan
+              ? 'Current Active Plan'
+              : `Upgrade to ${p.name}`
+          }));
+          setPlans(merged);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setPlansLoading(false));
+  }, [currentPlan]);
+
+  // Augment with current-plan metadata
+  const displayPlans = plans.map(p => ({
+    ...p,
+    current: (p.slug || p.id || '').toLowerCase() === currentPlan,
+    buttonText: (p.slug || p.id || '').toLowerCase() === currentPlan
+      ? 'Current Active Plan'
+      : (p.monthlyPrice === 0 ? 'Downgrade to Free' : `Upgrade to ${p.name}`),
+    monthlyPriceLabel: `₹${(p.monthlyPrice || 0).toLocaleString('en-IN')}`,
+    yearlyPriceLabel: `₹${(p.annualPrice || p.monthlyPrice || 0).toLocaleString('en-IN')}`,
+    annualBilledText: p.savingsPct > 0
+      ? `₹${((p.annualPrice || 0) * 12).toLocaleString('en-IN')} billed annually (Save ${p.savingsPct}%)`
+      : undefined,
+  }));
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
@@ -157,8 +137,8 @@ export default function BillingView({ user, onUpgrade }) {
 
       {/* 3-Column Plan Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', alignItems: 'stretch' }}>
-        {plans.map((plan) => {
-          const displayPrice = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice;
+        {displayPlans.map((plan) => {
+          const displayPrice = billingCycle === 'yearly' ? plan.yearlyPriceLabel : plan.monthlyPriceLabel;
           return (
             <div
               key={plan.id}

@@ -7,12 +7,49 @@ const db = require('../db');
 const billingService = require('../services/billingService');
 const { dmLimitFor } = require('../constants/planLimits');
 
-// Plan pricing definitions (in INR)
-const PLAN_PRICES = {
-  pro: { monthly: 1499, yearly: 13188 },
-  agency: { monthly: 3999, yearly: 35988 },
+// Plan pricing definitions — static fallback (overridden by admin-configured plans from DB)
+const PLAN_PRICES_FALLBACK = {
+  free:     { monthly: 0,    yearly: 0 },
+  starter:  { monthly: 0,    yearly: 0 },
+  pro:      { monthly: 1499, yearly: 13188 },
+  agency:   { monthly: 3999, yearly: 35988 },
+  business: { monthly: 2999, yearly: 29988 },
   enterprise: { monthly: 7999, yearly: 71988 }
 };
+
+// Load admin-configured plans from site_settings.custom_pricing_plans
+async function getAdminStoredPlans() {
+  try {
+    const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
+    if (row && row.value) {
+      const plans = JSON.parse(row.value);
+      if (Array.isArray(plans) && plans.length > 0) return plans;
+    }
+  } catch (e) {}
+  return null;
+}
+
+// Resolve price (monthly or yearly) for a plan slug from admin settings, falling back to static
+async function resolvePlanPrice(planSlug, cycle) {
+  const isYearly = cycle === 'yearly';
+  const adminPlans = await getAdminStoredPlans();
+  if (adminPlans) {
+    const match = adminPlans.find(p =>
+      (p.slug || '').toLowerCase() === planSlug ||
+      (p.name || '').toLowerCase() === planSlug ||
+      (p.id || '').toLowerCase() === planSlug
+    );
+    if (match) {
+      const price = isYearly
+        ? (Number(match.annualPrice) || Number(match.monthlyPrice) * 12 || 0)
+        : (Number(match.monthlyPrice) || 0);
+      return { price, planName: match.name, plan: match };
+    }
+  }
+  // Fallback to static prices
+  const fallback = PLAN_PRICES_FALLBACK[planSlug] || PLAN_PRICES_FALLBACK.pro;
+  return { price: isYearly ? fallback.yearly : fallback.monthly, planName: planSlug, plan: null };
+}
 
 // GET /api/billing/subscription — Get current user's subscription details & usage
 router.get('/subscription', async (req, res) => {
@@ -55,6 +92,53 @@ router.get('/subscription', async (req, res) => {
   }
 });
 
+// GET /api/billing/plans — Returns all active pricing plans as configured by admin (for user-facing billing/upgrade views)
+router.get('/plans', async (_req, res) => {
+  try {
+    const adminPlans = await getAdminStoredPlans();
+    if (adminPlans && adminPlans.length > 0) {
+      // Compute savings %
+      const plans = adminPlans.map(p => {
+        const monthly = Number(p.monthlyPrice) || 0;
+        const annual = Number(p.annualPrice) || 0;
+        const savingsPct = (monthly > 0 && annual > 0 && annual < monthly)
+          ? Math.round(((monthly - annual) / monthly) * 100)
+          : 0;
+        return {
+          id: p.id,
+          slug: p.slug || (p.name || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+          name: p.name,
+          monthlyPrice: monthly,
+          annualPrice: annual,
+          annualTotal: annual * 12,
+          savingsPct,
+          dmLimit: Number(p.dmLimit) || 0,
+          igLimit: Number(p.igLimit) || 1,
+          rulesLimit: Number(p.rulesLimit) || 5,
+          badge: p.badge || '',
+          popular: Boolean(p.popular),
+          description: p.description || '',
+          features: p.features || [],
+          active: p.active !== false
+        };
+      }).filter(p => p.active);
+      return res.json({ plans });
+    }
+    // Fallback: return static defaults
+    res.json({
+      plans: [
+        { id: 'plan-free', slug: 'free', name: 'Free Starter', monthlyPrice: 0, annualPrice: 0, annualTotal: 0, savingsPct: 0, dmLimit: 1000, igLimit: 1, rulesLimit: 5, badge: 'COMMUNITY', popular: false, description: 'Perfect for creators starting out.', features: ['1,000 Automated DMs / Mo', '1 Connected Instagram Account', '5 Active Keyword Rules'], active: true },
+        { id: 'plan-pro', slug: 'pro', name: 'Pro Creator', monthlyPrice: 1499, annualPrice: 1199, annualTotal: 14388, savingsPct: 20, dmLimit: 25000, igLimit: 3, rulesLimit: 25, badge: '🔥 MOST POPULAR', popular: true, description: 'For growing creators who need high-speed DM automation.', features: ['25,000 Automated DMs / Mo', '3 Connected Instagram Accounts', '25 Active Keyword Rules', 'Priority Support'], active: true },
+        { id: 'plan-agency', slug: 'agency', name: 'Agency Scale', monthlyPrice: 3999, annualPrice: 2999, annualTotal: 35988, savingsPct: 25, dmLimit: 100000, igLimit: 10, rulesLimit: 100, badge: '⚡ MULTI-BRAND', popular: false, description: 'For digital agencies and multi-brand teams.', features: ['100,000 Automated DMs / Mo', '10 Connected Instagram Accounts', '100 Active Rules', 'Team Dashboard', 'Priority WhatsApp Support'], active: true },
+        { id: 'plan-enterprise', slug: 'enterprise', name: 'Enterprise VIP', monthlyPrice: 7999, annualPrice: 5999, annualTotal: 71988, savingsPct: 25, dmLimit: 500000, igLimit: 25, rulesLimit: 500, badge: '👑 CUSTOM VOLUME', popular: false, description: 'For enterprise teams requiring custom automation volume.', features: ['Unlimited Automated DMs', 'Unlimited Instagram Accounts', 'Custom API & SLA', 'Dedicated Account Manager'], active: true }
+      ]
+    });
+  } catch (err) {
+    console.error('[Billing] Get plans error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch plans' });
+  }
+});
+
 // POST /api/billing/create-checkout (and /create-order) — Initialize Razorpay Order
 const handleCreateOrder = async (req, res) => {
   try {
@@ -67,11 +151,11 @@ const handleCreateOrder = async (req, res) => {
     const { plan = 'pro', cycle = 'monthly' } = req.body;
     const planKey = plan.toLowerCase();
 
-    if (!PLAN_PRICES[planKey]) {
-      return res.status(400).json({ error: 'Invalid plan selected. Choose from: pro, agency, enterprise' });
+    // Resolve price dynamically from admin configuration
+    const { price: priceInr, planName } = await resolvePlanPrice(planKey, cycle);
+    if (priceInr === 0 && planKey !== 'free' && planKey !== 'starter') {
+      return res.status(400).json({ error: `Invalid plan selected: '${planKey}'. No pricing found.` });
     }
-
-    const priceInr = PLAN_PRICES[planKey][cycle === 'yearly' ? 'yearly' : 'monthly'];
     const amountInPaise = priceInr * 100;
 
     const rzpKeyId = process.env.RAZORPAY_KEY_ID || '';
@@ -159,11 +243,7 @@ router.post('/verify-payment', async (req, res) => {
     } = req.body;
 
     const planKey = plan.toLowerCase();
-    if (!PLAN_PRICES[planKey]) {
-      return res.status(400).json({ error: 'Invalid plan specified' });
-    }
-
-    const priceInr = PLAN_PRICES[planKey][cycle === 'yearly' ? 'yearly' : 'monthly'];
+    const { price: priceInr } = await resolvePlanPrice(planKey, cycle);
     const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
     const isLiveConfigured = rzpKeySecret && !rzpKeySecret.includes('placeholder');
 
