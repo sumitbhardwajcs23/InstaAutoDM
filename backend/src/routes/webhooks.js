@@ -69,19 +69,23 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
 
                 console.log(`[Webhook] ✉️ Direct DM event (isStoryReply: ${isStoryReply}, quickReply: ${quickReplyPayload || 'none'}) for accountId ${targetAccountId} from @${v.sender?.username || v.sender?.id}: "${v.message.text}"`);
                 try {
-                  await queue.processMessage(targetAccountId, {
-                    messageId: v.message.mid,
-                    senderId: v.sender?.id,
-                    senderUsername: v.sender?.username || null,
-                    text: v.message.text,
-                    timestamp: v.timestamp || entry.time || Date.now(),
-                    isStoryReply,
-                    replyToStoryId,
-                    quickReplyPayload
+                  queue.enqueue({
+                    type: 'messages',
+                    accountId: targetAccountId,
+                    data: {
+                      messageId: v.message.mid,
+                      senderId: v.sender?.id,
+                      senderUsername: v.sender?.username || null,
+                      text: v.message.text,
+                      timestamp: v.timestamp || entry.time || Date.now(),
+                      isStoryReply,
+                      replyToStoryId,
+                      quickReplyPayload
+                    }
                   });
-                  console.log(`[Webhook] ✅ Successfully processed DM ${v.message.mid}`);
+                  console.log(`[Webhook] 📥 Enqueued DM ${v.message.mid} to background worker`);
                 } catch (msgErr) {
-                  console.error(`[Webhook] ❌ Failed to process DM ${v.message.mid}:`, msgErr.message);
+                  console.error(`[Webhook] ❌ Failed to enqueue DM ${v.message.mid}:`, msgErr.message);
                 }
               }
             }
@@ -91,17 +95,21 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
               const v = change.value;
               console.log(`[Webhook] 💬 Direct Comment event for accountId ${accountId} (mediaId: ${v.media?.id || 'none'}) from @${v.from?.username || v.from?.id}: "${v.text}" (commentId: ${v.id})`);
               try {
-                await queue.processComment(accountId, {
-                  commentId: v.id,
-                  text: v.text,
-                  commenterId: v.from?.id,
-                  commenterUsername: v.from?.username || null,
-                  createdTime: v.created_time || entry.time || Date.now(),
-                  mediaId: v.media?.id
+                queue.enqueue({
+                  type: 'comments',
+                  accountId,
+                  data: {
+                    commentId: v.id,
+                    text: v.text,
+                    commenterId: v.from?.id,
+                    commenterUsername: v.from?.username || null,
+                    createdTime: v.created_time || entry.time || Date.now(),
+                    mediaId: v.media?.id
+                  }
                 });
-                console.log(`[Webhook] ✅ Successfully processed comment ${v.id}`);
+                console.log(`[Webhook] 📥 Enqueued comment ${v.id} to background worker`);
               } catch (commErr) {
-                console.error(`[Webhook] ❌ Failed to process comment ${v.id}:`, commErr.message);
+                console.error(`[Webhook] ❌ Failed to enqueue comment ${v.id}:`, commErr.message);
               }
             }
           }
@@ -122,19 +130,23 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
 
               console.log(`[Webhook] ✉️ Messaging DM event (isStoryReply: ${isStoryReply}, quickReply: ${quickReplyPayload || 'none'}) for accountId ${accountId} from @${msg.sender?.username || msg.sender?.id}: "${msg.message.text}"`);
               try {
-                await queue.processMessage(accountId, {
-                  messageId: msg.message.mid,
-                  senderId: msg.sender?.id,
-                  senderUsername: msg.sender?.username || null,
-                  text: msg.message.text,
-                  timestamp: msg.timestamp || entry.time || Date.now(),
-                  isStoryReply,
-                  replyToStoryId,
-                  quickReplyPayload
+                queue.enqueue({
+                  type: 'messages',
+                  accountId,
+                  data: {
+                    messageId: msg.message.mid,
+                    senderId: msg.sender?.id,
+                    senderUsername: msg.sender?.username || null,
+                    text: msg.message.text,
+                    timestamp: msg.timestamp || entry.time || Date.now(),
+                    isStoryReply,
+                    replyToStoryId,
+                    quickReplyPayload
+                  }
                 });
-                console.log(`[Webhook] ✅ Successfully processed messaging DM ${msg.message.mid}`);
+                console.log(`[Webhook] 📥 Enqueued messaging DM ${msg.message.mid} to background worker`);
               } catch (msgErr) {
-                console.error(`[Webhook] ❌ Failed to process messaging DM ${msg.message.mid}:`, msgErr.message);
+                console.error(`[Webhook] ❌ Failed to enqueue messaging DM ${msg.message.mid}:`, msgErr.message);
               }
             }
           }

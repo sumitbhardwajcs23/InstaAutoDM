@@ -88,7 +88,7 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
     step_2_title: 'Set Keywords & Custom DMs',
     step_2_desc: 'Define your trigger keywords and customize your DM with interactive links.',
     step_3_title: 'Watch Leads & Sales Convert',
-    step_3_desc: 'When followers comment, Airvix delivers your link in under 1.4s while they are still engaged on your Reel.',
+    step_3_desc: 'When followers comment, Airvix queues and delivers your automated link with natural response pacing while they are engaged on your Reel.',
 
     // Pricing
     pricing_badge: 'TRANSPARENT PRICING',
@@ -137,7 +137,7 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
     faq_1_q: 'Will using Airvix put my Instagram account at risk?',
     faq_1_a: 'Never. Airvix is built exclusively on official Meta Graph API Webhooks. 100% compliant with Meta Terms.',
     faq_2_q: 'How fast are the automatic replies sent?',
-    faq_2_a: 'Average response time is between 0.8s to 2.4s while the user is actively watching your reel.',
+    faq_2_a: 'Replies are dispatched via our background queue with a configurable natural delay (5-30s) to prevent traffic bursts and maintain strict API compliance.',
     faq_3_q: 'Can I send interactive visual cards and buttons in DMs?',
     faq_3_a: 'Yes! You can configure rich visual cards with cover images, headlines, and custom button links.',
 
@@ -158,7 +158,7 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
 
     // SEO
     meta_title: 'Airvix - Instagram Comment-to-DM Conversion Engine',
-    meta_description: 'Turn post comments, reels, and stories into automated customer conversations in under 1.4 seconds.',
+    meta_description: 'Turn post comments, reels, and stories into automated customer conversations with reliable queue-based dispatch.',
     meta_keywords: 'Instagram DM automation, Comment to DM, Instagram Reels automation',
     og_image_url: 'https://app.airvix.com/og-image.jpg',
     canonical_url: 'https://airvix.com',
@@ -883,7 +883,7 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
         max={160}
         textarea
         rows={3}
-        placeholder="Turn post comments, reels, and stories into automated customer conversations in under 1.4 seconds..."
+        placeholder="Turn post comments, reels, and stories into automated customer conversations with reliable queue-based dispatch..."
       />
       <FieldRow
         label="Meta Keywords"

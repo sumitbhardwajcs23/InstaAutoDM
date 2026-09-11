@@ -83,6 +83,8 @@ class MetaClient {
         lastError = new Error(data?.error?.message || 'Meta API error');
         lastError.statusCode = res.status;
         lastError.metaError = data?.error;
+        const retryHeader = res.headers ? res.headers.get('retry-after') : null;
+        if (retryHeader) lastError.retryAfter = parseInt(retryHeader, 10);
       } catch (err) {
         lastError = err;
       }
@@ -164,6 +166,8 @@ class MetaClient {
       const e = new Error(data?.error?.message || 'Meta API error');
       e.statusCode = res.status;
       e.metaError = data?.error;
+      const retryHeader = res.headers ? res.headers.get('retry-after') : null;
+      if (retryHeader) e.retryAfter = parseInt(retryHeader, 10);
       throw e;
     }
     console.log(`[MetaClient] DM sent successfully, message_id:`, data.message_id);

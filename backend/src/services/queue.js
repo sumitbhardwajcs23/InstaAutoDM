@@ -5,56 +5,331 @@ const metaClient = require('./metaClient');
 const { decrypt } = require('./crypto');
 const profileCache = require('./profileCache');
 const { dmLimitFor } = require('../constants/planLimits');
+const {
+  QUEUE_CONFIG,
+  calculateRandomDelayMs,
+  calculateBackoffWithJitter,
+  extractRetryAfterMs,
+} = require('../constants/queueConfig');
 
 const MAX_COMMENT_AGE_MS = 7 * 24 * 3600000;
 const MAX_DM_WINDOW_MS = 24 * 3600000;
-const rateLimitWindows = new Map();
 
 class EventQueueWorker {
-  constructor() { this.queue = []; this.activeWorkers = 0; this.concurrency = 3; }
-
-  enqueue(event) {
-    const job = { id: uuidv4(), event, attempts: 0, maxAttempts: 3 };
-    this.queue.push(job);
-    this.processNext();
-    return job.id;
+  constructor() {
+    this.queue = [];
+    this.activeWorkers = 0;
+    this.concurrency = QUEUE_CONFIG.CONCURRENCY;
+    this.activePerAccount = new Map();
+    this.rateLimitWindows = new Map();
+    this.accountBackoffs = new Map();
+    this.seenIdempotencyKeys = new Set();
+    this.timer = null;
+    this.isShuttingDown = false;
   }
 
-  checkRateLimit(accountId, type) {
-    const now = Date.now();
-    if (!rateLimitWindows.has(accountId)) rateLimitWindows.set(accountId, { pr: [], dm: [] });
-    const r = rateLimitWindows.get(accountId);
-    if (type === 'comment_to_dm') {
-      r.pr = r.pr.filter(t => t > now - 3600000);
-      if (r.pr.length >= 120) return false;
-      r.pr.push(now); return true;
-    } else {
-      r.dm = r.dm.filter(t => t > now - 60000);
-      if (r.dm.length >= 30) return false;
-      r.dm.push(now); return true;
+  getIdempotencyKey(event) {
+    const { type, data } = event || {};
+    if (type === 'comments' && data?.commentId) {
+      return `comm_${data.commentId}`;
     }
+    if (type === 'messages' && data?.messageId) {
+      return `msg_${data.messageId}`;
+    }
+    return `evt_${uuidv4()}`;
+  }
+
+  async persistJob(job) {
+    try {
+      const scheduledIso = new Date(job.scheduledAt).toISOString();
+      await db.prepare(`
+        INSERT INTO webhook_jobs (
+          id, idempotency_key, account_id, job_type, payload, state, attempts, max_attempts, scheduled_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 'QUEUED', 0, ?, ?, datetime('now'), datetime('now'))
+        ON CONFLICT (idempotency_key) DO NOTHING
+      `).run(
+        job.id,
+        job.idempotencyKey,
+        job.event?.accountId || 'unknown',
+        job.event?.type || 'event',
+        JSON.stringify(job.event?.data || {}),
+        job.maxAttempts,
+        scheduledIso
+      );
+    } catch (e) {
+      // Ignore if table not yet initialized or duplicate insert
+    }
+  }
+
+  async updateJobState(jobId, state, errorMessage = null, isProcessed = false) {
+    try {
+      if (isProcessed) {
+        await db.prepare(`
+          UPDATE webhook_jobs SET
+            state = ?,
+            processed_at = datetime('now'),
+            updated_at = datetime('now')
+          WHERE id = ?
+        `).run(state, jobId);
+      } else if (errorMessage) {
+        await db.prepare(`
+          UPDATE webhook_jobs SET
+            state = ?,
+            error_message = ?,
+            updated_at = datetime('now')
+          WHERE id = ?
+        `).run(state, String(errorMessage).slice(0, 500), jobId);
+      } else {
+        await db.prepare(`
+          UPDATE webhook_jobs SET
+            state = ?,
+            attempts = attempts + 1,
+            updated_at = datetime('now')
+          WHERE id = ?
+        `).run(state, jobId);
+      }
+    } catch (e) {
+      // Non-blocking update failure
+    }
+  }
+
+  enqueue(event) {
+    if (this.isShuttingDown) {
+      console.warn('[Queue] Worker is shutting down, rejecting new job.');
+      return null;
+    }
+
+    const idempotencyKey = this.getIdempotencyKey(event);
+    if (idempotencyKey && this.seenIdempotencyKeys.has(idempotencyKey)) {
+      console.log(`[Queue] ⚠️ Duplicate event ignored for idempotency key: ${idempotencyKey}`);
+      return null;
+    }
+    if (idempotencyKey) {
+      this.seenIdempotencyKeys.add(idempotencyKey);
+      if (this.seenIdempotencyKeys.size > 10000) {
+        const arr = Array.from(this.seenIdempotencyKeys);
+        this.seenIdempotencyKeys = new Set(arr.slice(5000));
+      }
+    }
+
+    const id = uuidv4();
+    const delayMs = calculateRandomDelayMs();
+    const scheduledAt = Date.now() + delayMs;
+
+    const job = {
+      id,
+      idempotencyKey,
+      event,
+      attempts: 0,
+      maxAttempts: QUEUE_CONFIG.MAX_JOB_ATTEMPTS,
+      scheduledAt,
+      state: 'QUEUED'
+    };
+
+    if (delayMs > 0) {
+      console.log(`[Queue] ⏳ Job ${id} (${event?.type}) enqueued with natural delay: ${(delayMs / 1000).toFixed(1)}s (Key: ${idempotencyKey})`);
+    }
+
+    // Persist asynchronously in DB
+    this.persistJob(job).catch(() => {});
+
+    this.queue.push(job);
+    this.scheduleNext();
+    return job;
+  }
+
+  scheduleNext() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    if (this.isShuttingDown || !this.queue.length) return;
+
+    const now = Date.now();
+    let earliestDelay = Infinity;
+    for (const job of this.queue) {
+      const waitTime = Math.max(0, job.scheduledAt - now);
+      if (waitTime < earliestDelay) {
+        earliestDelay = waitTime;
+      }
+    }
+
+    const nextTickMs = earliestDelay === Infinity ? 50 : Math.min(earliestDelay, 1000);
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.processNext();
+    }, nextTickMs);
+  }
+
+  checkAccountThrottle(accountId) {
+    if (!accountId) return { throttled: false };
+    const now = Date.now();
+
+    // 1. Account backoff lock (e.g. from 429)
+    const backoffUntil = this.accountBackoffs.get(accountId) || 0;
+    if (backoffUntil > now) {
+      return { throttled: true, reason: 'account_backoff', waitMs: backoffUntil - now };
+    }
+
+    // 2. Concurrency limit per account
+    const activeForAcc = this.activePerAccount.get(accountId) || 0;
+    if (activeForAcc >= QUEUE_CONFIG.ACCOUNT_MAX_CONCURRENT) {
+      return { throttled: true, reason: 'concurrency_limit', waitMs: 500 };
+    }
+
+    // 3. Sliding-window rate limit (requests per minute)
+    let timestamps = this.rateLimitWindows.get(accountId) || [];
+    timestamps = timestamps.filter(t => t > now - 60000);
+    this.rateLimitWindows.set(accountId, timestamps);
+
+    if (timestamps.length >= QUEUE_CONFIG.ACCOUNT_RATE_LIMIT_PER_MINUTE) {
+      const oldest = timestamps[0];
+      const waitMs = Math.max(500, 60000 - (now - oldest));
+      return { throttled: true, reason: 'rate_limit', waitMs };
+    }
+
+    return { throttled: false };
+  }
+
+  recordAccountSend(accountId) {
+    if (!accountId) return;
+    const now = Date.now();
+    const timestamps = this.rateLimitWindows.get(accountId) || [];
+    timestamps.push(now);
+    this.rateLimitWindows.set(accountId, timestamps);
   }
 
   async processNext() {
-    if (!this.queue.length || this.activeWorkers >= this.concurrency) return;
-    const job = this.queue.shift();
-    this.activeWorkers++;
-    try {
-      await this.handleJob(job);
-    } catch (err) {
-      console.error(`[Worker] ❌ Error processing job ${job.id} (${job.event?.type}):`, err.message);
-      if (job.attempts < job.maxAttempts && !err.isPermanent) {
-        job.attempts++;
-        setTimeout(() => { this.queue.push(job); this.processNext(); }, Math.pow(2, job.attempts) * 500);
+    if (this.isShuttingDown) return;
+    if (this.activeWorkers >= this.concurrency || !this.queue.length) {
+      return;
+    }
+
+    const now = Date.now();
+    let jobIndex = -1;
+
+    // Pick earliest job that is ready (scheduledAt <= now) and whose account is not throttled
+    for (let i = 0; i < this.queue.length; i++) {
+      const candidate = this.queue[i];
+      if (candidate.scheduledAt > now) continue;
+
+      const accId = candidate.event?.accountId;
+      const throttleCheck = this.checkAccountThrottle(accId);
+
+      if (throttleCheck.throttled) {
+        candidate.scheduledAt = now + throttleCheck.waitMs;
+        continue;
       }
-    } finally {
+
+      jobIndex = i;
+      break;
+    }
+
+    if (jobIndex === -1) {
+      this.scheduleNext();
+      return;
+    }
+
+    const [job] = this.queue.splice(jobIndex, 1);
+    this.activeWorkers++;
+
+    const accId = job.event?.accountId;
+    if (accId) {
+      this.activePerAccount.set(accId, (this.activePerAccount.get(accId) || 0) + 1);
+      this.recordAccountSend(accId);
+    }
+
+    this.executeJob(job).finally(() => {
       this.activeWorkers--;
+      if (accId) {
+        const currentAccCount = (this.activePerAccount.get(accId) || 1) - 1;
+        if (currentAccCount <= 0) {
+          this.activePerAccount.delete(accId);
+        } else {
+          this.activePerAccount.set(accId, currentAccCount);
+        }
+      }
       this.processNext();
+    });
+
+    if (this.activeWorkers < this.concurrency && this.queue.length) {
+      setImmediate(() => this.processNext());
     }
   }
 
+  async executeJob(job) {
+    try {
+      job.state = 'PROCESSING';
+      job.attempts++;
+      await this.updateJobState(job.id, 'PROCESSING');
+
+      await this.handleJob(job);
+
+      job.state = 'SENT';
+      await this.updateJobState(job.id, 'SENT', null, true);
+    } catch (err) {
+      console.error(`[Worker] ❌ Error processing job ${job.id} (${job.event?.type}):`, err.message);
+
+      const isPermanent = Boolean(
+        err.isPermanent || 
+        err.statusCode === 400 || 
+        err.statusCode === 401 || 
+        err.statusCode === 403 ||
+        err.message?.includes('window_closed') ||
+        err.message?.includes('No Instagram account found')
+      );
+
+      const retryAfterMs = extractRetryAfterMs(err);
+      if (retryAfterMs && job.event?.accountId) {
+        console.warn(`[Worker] ⚠️ Meta rate limit hit on account ${job.event?.accountId}. Backing off for ${(retryAfterMs / 1000).toFixed(1)}s.`);
+        this.accountBackoffs.set(job.event?.accountId, Date.now() + retryAfterMs);
+      }
+
+      if (job.attempts < job.maxAttempts && !isPermanent) {
+        const backoffMs = retryAfterMs || calculateBackoffWithJitter(job.attempts);
+        job.state = 'RETRYING';
+        job.scheduledAt = Date.now() + backoffMs;
+        console.log(`[Worker] 🔄 Requeuing job ${job.id} (attempt ${job.attempts}/${job.maxAttempts}) in ${(backoffMs / 1000).toFixed(1)}s`);
+        await this.updateJobState(job.id, 'RETRYING', err.message);
+        this.queue.push(job);
+        this.scheduleNext();
+      } else {
+        job.state = 'DEAD_LETTER';
+        console.error(`[Worker] 💀 Job ${job.id} moved to DEAD_LETTER after ${job.attempts} attempts. Reason: ${err.message}`);
+        await this.updateJobState(job.id, 'DEAD_LETTER', err.message);
+      }
+    }
+  }
+
+  async shutdown(timeoutMs = 5000) {
+    this.isShuttingDown = true;
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    const start = Date.now();
+    while (this.activeWorkers > 0 && Date.now() - start < timeoutMs) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+    console.log(`[Queue] Graceful shutdown completed. Remaining in queue: ${this.queue.length}`);
+  }
+
+  getQueueStats() {
+    return {
+      activeWorkers: this.activeWorkers,
+      queueDepth: this.queue.length,
+      concurrency: this.concurrency,
+      accountsThrottled: this.accountBackoffs.size
+    };
+  }
+
+  checkRateLimit(accountId, type) {
+    const check = this.checkAccountThrottle(accountId);
+    return !check.throttled;
+  }
+
   async handleJob(job) {
-    const { type, accountId, data } = job.event;
+    const { type, accountId, data } = job.event || {};
     if (type === 'comments') await this.processComment(accountId, data);
     else if (type === 'messages') await this.processMessage(accountId, data);
   }

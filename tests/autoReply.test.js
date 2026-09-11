@@ -15,7 +15,7 @@ const db = require('../backend/src/db');
 const queue = require('../backend/src/services/queue');
 const { verifyMetaSignature, generateMetaSignature, encrypt, decrypt } = require('../backend/src/services/crypto');
 
-async function waitFor(predicate, timeoutMs = 5000, intervalMs = 100) {
+async function waitFor(predicate, timeoutMs = 12000, intervalMs = 100) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {

@@ -97,6 +97,25 @@ if (pgPool) {
             created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
           );
         `);
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS webhook_jobs (
+            id TEXT PRIMARY KEY,
+            idempotency_key TEXT UNIQUE NOT NULL,
+            account_id TEXT NOT NULL,
+            job_type TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            state TEXT NOT NULL DEFAULT 'QUEUED',
+            attempts INTEGER NOT NULL DEFAULT 0,
+            max_attempts INTEGER NOT NULL DEFAULT 5,
+            scheduled_at TEXT NOT NULL,
+            processed_at TEXT,
+            error_message TEXT,
+            created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          );
+          CREATE INDEX IF NOT EXISTS idx_webhook_jobs_sched_state ON webhook_jobs(state, scheduled_at);
+          CREATE INDEX IF NOT EXISTS idx_webhook_jobs_account ON webhook_jobs(account_id);
+        `);
         // Ensure default admin user exists safely without hardcoded credentials
         const existingAdmin = await pgPool.query("SELECT id, password_hash FROM users WHERE email = 'admin@airvix.com'");
         if (!existingAdmin.rows || existingAdmin.rows.length === 0) {

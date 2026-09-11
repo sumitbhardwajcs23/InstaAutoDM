@@ -30,11 +30,11 @@ const CONTENT_DOCS = {
   // Product Features
   'comment-engine': {
     title: 'Comment-to-DM Engine',
-    badge: 'Core Technology • 1.4s Execution',
+    badge: 'Core Technology • Queue-Backed Execution',
     sections: [
       {
-        heading: 'Lightning-Fast Instant Lead Delivery',
-        text: 'When an Instagram user comments on your post or reel with your trigger keyword (e.g. "LINK", "WORKBOOK", "PRICE"), our Meta Webhook engine catches the event within 400ms. In under 1.4 seconds, an automated DM is delivered directly into their inbox containing your customized message, download link, or interactive CTA button.'
+        heading: 'Reliable Automated Lead Delivery',
+        text: 'When an Instagram user comments on your post or reel with your trigger keyword (e.g. "LINK", "WORKBOOK", "PRICE"), our Meta Webhook engine ingests the event immediately. Our background queue processes and dispatches your automated DM with natural response pacing, ensuring steady throughput and Meta compliance.'
       },
       {
         heading: 'Dual-Action Algorithm Velocity Surge',
@@ -78,14 +78,14 @@ const CONTENT_DOCS = {
         text: 'Typical automation tools fire 300 identical messages in 10 seconds at exact 500ms intervals. Instagram\'s abuse filters immediately detect this robotic pattern, resulting in temporary action blocks or shadowbans.'
       },
       {
-        heading: 'The Airvix Human Jitter Algorithm',
-        text: 'Airvix introduces randomized, organic micro-delays between 1.4s and 4.2s for every outgoing direct message and public reply. Combined with spintax text variation, your activity appears 100% human to Meta\'s security filters.'
+        heading: 'The Airvix Natural Pacing & Queue Architecture',
+        text: 'Airvix introduces configurable random processing delays (5s–30s) and per-account rate limiting for outgoing direct messages and public replies. This controlled pacing eliminates traffic spikes and respects Meta Graph API platform limits.'
       },
       {
         heading: 'Guaranteed Protection Specs',
         list: [
-          'Dynamic randomized dispatch delay (1,400ms – 4,200ms)',
-          'Strict compliance with Meta Graph API rate limits (200 calls/hr per user ceiling)',
+          'Configurable random response delay (5s – 30s)',
+          'Strict compliance with Meta Graph API rate limits (per-account concurrency limits)',
           'Automatic queue throttling during viral surges to protect account reputation'
         ]
       }
@@ -168,7 +168,7 @@ const CONTENT_DOCS = {
     sections: [
       {
         heading: 'Monetize While You Sleep',
-        text: 'You spent hours creating a viral Reel that blew up overnight with 2,000 comments saying "link please". By the time you wake up, viewer buying intent has cooled down. Airvix delivers your digital products, preset downloads, and affiliate links within 1.4 seconds while the viewer is still excited.'
+        text: 'You spent hours creating a viral Reel that blew up overnight with 2,000 comments saying "link please". By the time you wake up, viewer buying intent has cooled down. Airvix reliably queues and delivers your digital products, preset downloads, and affiliate links in the background while viewer interest is high.'
       },
       {
         heading: 'Creator Case Studies',
@@ -311,7 +311,7 @@ const CONTENT_DOCS = {
           '2. Deliver High Value: Share 3 actionable tips in the Reel video',
           '3. Clear Call-to-Action: "Comment GUIDE and I\'ll DM you the complete supplier list!"',
           '4. Single-Word Keyword: Pick simple words like "BOOK", "LIST", "PRICE" to avoid typos',
-          '5. Instant Dual Reply: Airvix replies publicly and DMs the link in under 1.4s',
+          '5. Controlled Dual Reply: Airvix queues and delivers the public reply and DM smoothly',
           '6. Algorithmic Momentum: Rapid comment replies tell Instagram to push your Reel to Explore',
           '7. Conversation Continuity: Ask a follow-up question in the DM to increase response rate'
         ]
@@ -1190,7 +1190,7 @@ export default function LandingView({
               </div>
 
               <p className="airvix-footer-brand-desc">
-                {siteSettings?.footer_tagline || 'The high-speed Instagram comment-to-DM conversion engine. Turn post comments, reels, and stories into automated customer conversations in under 1.4 seconds.'}
+                {siteSettings?.footer_tagline || 'The reliable Instagram comment-to-DM conversion engine. Turn post comments, reels, and stories into automated customer conversations with natural pacing and API compliance.'}
               </p>
 
               <div className="airvix-footer-compliance-pills">
@@ -1303,7 +1303,7 @@ export default function LandingView({
         <div className="airvix-modal-backdrop" onClick={() => setIsVideoModalOpen(false)}>
           <div className="airvix-video-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="airvix-modal-header">
-              <h3>Airvix 1.4s Comment-to-DM Engine Walkthrough</h3>
+              <h3>Airvix Comment-to-DM Engine Walkthrough</h3>
               <button type="button" onClick={() => setIsVideoModalOpen(false)} aria-label="Close modal">
                 <X size={20} />
               </button>

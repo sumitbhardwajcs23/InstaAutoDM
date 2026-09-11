@@ -130,9 +130,10 @@ app.use((_req, res) => {
 });
 
 const { startBillingRolloverJob } = require('./services/billingRollover');
+const queue = require('./services/queue');
 
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`\n🚀 Airvix SaaS v3.0`);
     console.log(`   API:     http://localhost:${PORT}`);
     console.log(`   Login:   http://localhost:${PORT}/login`);
@@ -142,6 +143,17 @@ if (process.env.NODE_ENV !== 'test') {
     // Start automated 30-day billing rollover background service
     startBillingRolloverJob();
   });
+
+  const handleShutdown = async (signal) => {
+    console.log(`\n[Server] Received ${signal}. Initiating graceful shutdown...`);
+    server.close(async () => {
+      await queue.shutdown(5000);
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
 }
 
 module.exports = app;
