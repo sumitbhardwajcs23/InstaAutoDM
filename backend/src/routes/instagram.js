@@ -33,6 +33,9 @@ function sanitizeAccount(account) {
     has_page_access_token: Boolean(page_access_token_enc || access_token_enc),
     has_long_lived_token: Boolean(long_lived_token_enc || access_token_enc),
     token_days_remaining: daysRemaining,
+    last_diagnostic: account.last_diagnostic_result ? (() => {
+      try { return JSON.parse(account.last_diagnostic_result); } catch (e) { return null; }
+    })() : null
   };
 }
 
@@ -1122,6 +1125,62 @@ router.post('/refresh-token', async (req, res) => {
     success: true,
     message: 'Access token successfully refreshed.',
     account: sanitizeAccount(updated)
+  });
+});
+
+// Run 7-point Connection Diagnostics
+router.post('/diagnostics/run', async (req, res) => {
+  const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+  const accountId = req.body?.account_id;
+  let account;
+  if (accountId) {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ?").get(uid, accountId);
+  } else {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1").get(uid);
+  }
+
+  if (!account) return res.status(404).json({ error: 'No Instagram account found to run diagnostics on' });
+
+  const diagnostics = require('../services/diagnostics');
+  const result = await diagnostics.runDiagnostics(account, req.body?.options || {});
+
+  res.json({
+    success: true,
+    diagnostics: result
+  });
+});
+
+router.get('/diagnostics', async (req, res) => {
+  const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+  const accountId = req.query.account_id;
+  let account;
+  if (accountId) {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ?").get(uid, accountId);
+  } else {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1").get(uid);
+  }
+
+  if (!account) return res.status(404).json({ error: 'No Instagram account found' });
+
+  let result = null;
+  if (account.last_diagnostic_result) {
+    try {
+      result = JSON.parse(account.last_diagnostic_result);
+    } catch (e) {}
+  }
+
+  if (!result) {
+    const diagnostics = require('../services/diagnostics');
+    result = await diagnostics.runDiagnostics(account);
+  }
+
+  res.json({
+    success: true,
+    diagnostics: result
   });
 });
 

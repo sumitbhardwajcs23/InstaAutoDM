@@ -4,18 +4,50 @@ This document contains the complete Meta App Review package for **Airvix** (`ins
 
 ---
 
-## 1. Required Permissions Justification
+## 1. Required Permissions Justification & Minimization Mapping
 
-Airvix requests only the minimal set of permissions strictly necessary for its creator automation features. Every requested permission is tied to an active, demonstrable feature:
+Airvix requests only the minimal set of permissions strictly necessary for its creator automation features. In accordance with Meta App Review guidelines, every requested permission maps to an exact feature, specific API endpoint, and verified business justification:
 
-| Requested Permission | Exact Business Purpose | Feature Utilizing It |
-| :--- | :--- | :--- |
-| **`instagram_basic`** | To read the connected creator's Instagram username, profile picture URL, follower count, and account type (Business/Creator). | Displays the creator's profile card in the Airvix workspace header and Settings view to confirm account connection. |
-| **`instagram_manage_comments`** | To receive real-time webhook events when users comment on creator posts/Reels, and to post automated public replies when configured. | **Comment-to-DM Automation**: Evaluates keyword rules on inbound comments and dispatches creator-configured public comment replies. |
-| **`instagram_manage_messages`** | To ingest incoming direct message webhooks (Story replies, keywords) and send automated private DMs within Meta's allowable 24-hour messaging window. | **Direct Message Automation & Private Reply**: Sends private DMs in response to keyword comments (e.g. delivering requested resource links) and answers common DM inquiries. |
-| **`pages_show_list`** | To list and identify the Facebook Pages connected to the user's Instagram Professional account during OAuth onboarding. | **Account Linking Modal**: Allows creators managing multiple Pages to select and bind the specific Instagram Business account they want to automate. |
-| **`pages_read_engagement`** | To read post engagement data and retrieve recent media posts/Reels for targeting automations to specific posts. | **Media Picker**: Allows creators to target automations to a specific Reel or post rather than global account comments. |
-| **`pages_manage_metadata`** | To subscribe the connected Page and Instagram Professional account to Webhook event topics (`feed`, `mention`, `messages`). | **Webhook Handshake & Subscription**: Automatically establishes real-time webhook event routing from Meta Graph API to Airvix. |
+| Requested Permission | Required Capability | API Endpoint | Exact Feature & Business Justification |
+| :--- | :--- | :--- | :--- |
+| **`instagram_basic`** | Read profile metadata | `GET /me?fields=id,username,profile_picture_url,account_type,followers_count` | **Account Connection & Profile Card**: Displays the creator's profile card in the Airvix workspace header and Settings view to confirm verified account connection. |
+| **`instagram_manage_comments`** | Read & reply to post comments | `GET /{media-id}/comments`<br>`POST /{comment-id}/replies` | **Comment-to-DM Automation**: Evaluates keyword rules on inbound comments and dispatches creator-configured public comment replies to engage fans. |
+| **`instagram_manage_messages`** | Ingest & reply to direct messages | `POST /webhooks/instagram`<br>`POST /{page-id}/messages` | **Direct Message Automation & Private Reply**: Sends private DMs in response to keyword comments (e.g. delivering requested resource links) and answers common DM inquiries within the 24h window. |
+| **`pages_show_list`** | Discover connected business assets | `GET /me/accounts` | **Account Linking Modal**: Allows creators managing multiple Facebook Pages to select and bind the specific Instagram Business account they want to automate. |
+| **`pages_read_engagement`** | Read engagement & media lists | `GET /{ig-user-id}/media?fields=id,caption,media_type,thumbnail_url` | **Media Picker**: Allows creators to target automations to a specific Reel or post rather than global account comments. |
+| **`pages_manage_metadata`** | Subscribe to webhook topics | `POST /{page-id}/subscribed_apps` | **Webhook Handshake & Subscription**: Automatically establishes real-time webhook event routing from Meta Graph API to Airvix. |
+
+---
+
+## 2. Onboarding & Connection Diagnostics Checklist
+
+Airvix eliminates connection failures and user configuration errors by running an automated **7-Point Connection Diagnostic** upon account connection. Meta reviewers can verify this directly in **Settings &rarr; Diagnostics**:
+
+1. **Authentication & Token Validity**: Verifies decrypted OAuth token is active and not revoked/expired.
+2. **Account Type Check**: Confirms account is an Instagram Professional account (`BUSINESS` or `CREATOR`). Rejects personal accounts with instructions to switch in the Instagram mobile app.
+3. **Business Asset / Page Check**: Verifies valid Facebook Page linkage for Graph API routing.
+4. **Permission Check**: Confirms all 6 required Meta permissions are approved.
+5. **Messaging Access Check**: Confirms "Allow Access to Messages" is toggled ON in Instagram mobile app settings (*Settings > Privacy > Messages > Connected Tools*).
+6. **Webhook Subscription Check**: Confirms active subscriptions for `comments` and `messages`.
+7. **API Capability Check**: Performs an active round-trip handshake with Meta Graph API.
+
+---
+
+## 3. Automation Loop Prevention & Safety Safeguards
+
+To protect creator accounts and comply with Meta platform policies against uncontrolled messaging traffic, Airvix implements four independent safety layers:
+
+1. **Sender Origin Verification**: Airvix ignores events originating from the connected account itself (`sender.id === ig_user_id || page_id || fb_user_id`), events matching the creator username, and Meta echo events (`is_echo === true`).
+2. **Internal Per-User Daily Limit (Internal Product Safeguard)**:
+   - Limits automated direct messages to **3 automated DMs per user per 24-hour period**.
+   - *Note for Reviewers:* This is an internal Airvix safeguard designed to prevent spam and accidental bot loops; it is not represented to users as an official Meta platform limit.
+3. **Automated Loop & Ping-Pong Detection**:
+   - **Rapid Cadence Detection**: Detects if 3 or more messages are exchanged between participants within 10 seconds.
+   - **Repeated Identical Responses**: Detects if 3 identical automated replies are dispatched consecutively without recipient response.
+   - **Action upon Loop**: Immediately pauses conversation automation (`status = 'loop_paused'`), halts outbound messaging, logs an incident in `automation_loop_incidents`, and alerts the creator in the dashboard.
+4. **Natural Response Delay & Rate Limiting**:
+   - Random response delay of 5–30 seconds to prevent burst traffic.
+   - Per-account throttling: max 2 concurrent sends and 30 requests/minute per account.
 
 ---
 

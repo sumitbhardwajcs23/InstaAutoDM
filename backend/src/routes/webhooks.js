@@ -38,15 +38,33 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
     }
   }
   const payload = req.body;
-  console.log('[Webhook] Payload received:', JSON.stringify(payload));
+  if (!payload || typeof payload !== 'object' || !Array.isArray(payload.entry) || (payload.object !== 'instagram' && payload.object !== 'page')) {
+    console.warn('[Webhook] ❌ Rejected webhook: Malformed payload or unsupported object type:', payload?.object);
+    return res.status(400).json({ error: 'Invalid webhook payload structure' });
+  }
+
+  // Scrub sensitive tokens before logging
+  const safeLog = JSON.stringify(payload).replace(/("access_token"|"token"):"[^"]+"/g, '$1:"[REDACTED]"');
+  console.log('[Webhook] Payload received (sanitized):', safeLog);
   const eventId = uuidv4();
   try {
-    await db.prepare("INSERT INTO webhook_events (id, event_type, payload, status, created_at) VALUES (?, ?, ?, 'pending', datetime('now'))").run(eventId, payload.entry?.[0]?.changes?.[0]?.field || 'webhook', JSON.stringify(payload));
+    await db.prepare("INSERT INTO webhook_events (id, event_type, payload, status, created_at) VALUES (?, ?, ?, 'pending', datetime('now'))").run(eventId, payload.entry?.[0]?.changes?.[0]?.field || 'webhook', safeLog);
   } catch (e) { console.error('[Webhook] Save error:', e.message); }
+
+  // Replay Freshness Protection (in production, discard events older than 10 minutes)
+  const now = Date.now();
+  const maxDriftMs = 10 * 60 * 1000; // 10 minutes
 
   try {
     if (payload.entry?.length) {
       for (const entry of payload.entry) {
+        if (process.env.NODE_ENV === 'production' && entry.time) {
+          const entryTimeMs = Number(entry.time) < 1e11 ? Number(entry.time) * 1000 : Number(entry.time);
+          if (now - entryTimeMs > maxDriftMs) {
+            console.warn(`[Webhook] ⏱️ Discarding stale replay webhook event for entry ${entry.id} (age: ${Math.round((now - entryTimeMs) / 1000)}s)`);
+            continue;
+          }
+        }
         const accountId = entry.id;
 
         // --- New Instagram Business API format (entry.changes[]) ---

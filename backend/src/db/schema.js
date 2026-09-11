@@ -219,7 +219,22 @@ CREATE TABLE IF NOT EXISTS data_deletion_requests (
   completed_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
 
+CREATE TABLE IF NOT EXISTS automation_loop_incidents (
+  id TEXT PRIMARY KEY,
+  instagram_account_id TEXT NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+  target_user_id TEXT NOT NULL,
+  trigger_rule_id TEXT,
+  loop_reason TEXT NOT NULL,
+  details TEXT,
+  status TEXT DEFAULT 'active',
+  detected_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  resolved_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_data_deletion_code ON data_deletion_requests(confirmation_code);
+CREATE INDEX IF NOT EXISTS idx_loop_incidents_account ON automation_loop_incidents(instagram_account_id, status);
+CREATE INDEX IF NOT EXISTS idx_loop_incidents_conv ON automation_loop_incidents(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_ig_accounts_user ON instagram_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_comment_replies_comment_id ON comment_replies(comment_id);
 CREATE INDEX IF NOT EXISTS idx_rules_account_active ON automation_rules(instagram_account_id, is_active);

@@ -1,6 +1,5 @@
-// frontend/src/components/SettingsView.jsx
-import React, { useState } from 'react';
-import { Instagram, Key, Shield, CheckCircle2, Copy, ExternalLink, RefreshCw, Edit3, Download, Trash2, ShieldCheck, Lock, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Instagram, Key, Shield, CheckCircle2, Copy, ExternalLink, RefreshCw, Edit3, Download, Trash2, ShieldCheck, Lock, AlertTriangle, CheckCircle, XCircle, Activity, Info, Zap } from 'lucide-react';
 import { apiFetch } from '../api/client';
 
 export default function SettingsView({ account, onOpenConnect, onDisconnectAccount, onRefresh }) {
@@ -14,9 +13,70 @@ export default function SettingsView({ account, onOpenConnect, onDisconnectAccou
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
-  const webhookUrl = 'https://instaautodm-kh61.onrender.com/webhooks/instagram';
 
+  const [diagnostics, setDiagnostics] = useState(account?.last_diagnostic || null);
+  const [runningDiag, setRunningDiag] = useState(false);
+  const [diagError, setDiagError] = useState(null);
+  const [incidents, setIncidents] = useState([]);
+  const [loadingIncidents, setLoadingIncidents] = useState(false);
+
+  const webhookUrl = 'https://instaautodm-kh61.onrender.com/webhooks/instagram';
   const isConnected = !!(account && (account.status === 'connected' || account.username));
+
+  useEffect(() => {
+    if (isConnected) {
+      fetchIncidents();
+    }
+  }, [isConnected, account?.id]);
+
+  const fetchIncidents = async () => {
+    setLoadingIncidents(true);
+    try {
+      const res = await apiFetch(`/conversations/incidents${account?.id ? `?account_id=${account.id}` : ''}`);
+      if (res.ok) {
+        const d = await res.json();
+        setIncidents(d.incidents || []);
+      }
+    } catch (e) {
+    } finally {
+      setLoadingIncidents(false);
+    }
+  };
+
+  const handleRunDiagnostics = async () => {
+    setRunningDiag(true);
+    setDiagError(null);
+    try {
+      const res = await apiFetch('/instagram/diagnostics/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: account?.id })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setDiagnostics(d.diagnostics);
+      } else {
+        const err = await res.json();
+        setDiagError(err.error || 'Failed to run diagnostics');
+      }
+    } catch (err) {
+      setDiagError(err.message);
+    } finally {
+      setRunningDiag(false);
+    }
+  };
+
+  const handleResumeIncident = async (incidentId) => {
+    try {
+      const res = await apiFetch(`/conversations/incidents/${incidentId}/resume`, { method: 'POST' });
+      if (res.ok) {
+        fetchIncidents();
+        if (onRefresh) onRefresh();
+      }
+    } catch (err) {
+      alert('Error resuming automation: ' + err.message);
+    }
+  };
 
   const handleExportData = async () => {
     setExporting(true);
@@ -277,6 +337,261 @@ export default function SettingsView({ account, onOpenConnect, onDisconnectAccou
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Connection Diagnostics Checklist Card */}
+        <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                background: 'rgba(59, 130, 246, 0.1)',
+                color: '#3B82F6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Activity size={22} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                  Connection Diagnostics Checklist
+                </h2>
+                <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: 0 }}>
+                  Meta Graph API prerequisites, Page linkage, and messaging permissions validation
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={runningDiag || !isConnected}
+              onClick={handleRunDiagnostics}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: 'var(--primary)',
+                color: '#ffffff',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: (runningDiag || !isConnected) ? 'not-allowed' : 'pointer',
+                opacity: (runningDiag || !isConnected) ? 0.6 : 1
+              }}
+            >
+              <RefreshCw size={14} className={runningDiag ? 'animate-spin' : ''} />
+              {runningDiag ? 'Running Diagnostics...' : 'Run Diagnostics'}
+            </button>
+          </div>
+
+          {diagError && (
+            <div style={{ padding: '12px 14px', borderRadius: '8px', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#B91C1C', fontSize: '13px', marginBottom: '16px' }}>
+              ⚠️ {diagError}
+            </div>
+          )}
+
+          {!diagnostics ? (
+            <div style={{ padding: '24px', textAlign: 'center', background: 'var(--bg-subtle)', borderRadius: '12px', border: '1px dashed var(--border-subtle)' }}>
+              <Info size={28} style={{ color: 'var(--text-muted)', margin: '0 auto 8px auto' }} />
+              <p style={{ fontSize: '13.5px', color: 'var(--text-main)', fontWeight: 600, margin: 0 }}>
+                {isConnected ? 'Run a 7-point diagnostic test to verify your integration.' : 'Connect an Instagram account above to run diagnostics.'}
+              </p>
+              <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                Verifies token health, Professional account type, Facebook Page linkage, and Instagram messaging access.
+              </p>
+            </div>
+          ) : (
+            <div>
+              {/* Overall status banner */}
+              <div style={{
+                padding: '12px 16px',
+                borderRadius: '10px',
+                background: diagnostics.all_passed ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                border: `1px solid ${diagnostics.all_passed ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '16px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: diagnostics.all_passed ? '#10B981' : '#EF4444' }}>
+                  {diagnostics.all_passed ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+                  <span>
+                    <strong>{diagnostics.all_passed ? 'All Checks Passed!' : `${diagnostics.failed_count} Prerequisite Check(s) Failed:`}</strong>{' '}
+                    {diagnostics.all_passed ? 'Your Meta integration is completely ready for automated replies.' : 'Action is required to enable full automation.'}
+                  </span>
+                </div>
+                <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                  Checked: {new Date(diagnostics.checked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+
+              {/* 7-Step Checklist list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {diagnostics.checks?.map((check) => {
+                  const isPass = check.status === 'passed';
+                  return (
+                    <div
+                      key={check.id}
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: '10px',
+                        background: 'var(--bg-subtle)',
+                        border: `1px solid ${isPass ? 'var(--border-subtle)' : '#FCA5A5'}`
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {isPass ? (
+                            <CheckCircle2 size={18} style={{ color: '#10B981', flexShrink: 0 }} />
+                          ) : (
+                            <AlertTriangle size={18} style={{ color: '#EF4444', flexShrink: 0 }} />
+                          )}
+                          <div>
+                            <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-main)' }}>
+                              {check.name}
+                            </div>
+                            <div style={{ fontSize: '12px', color: isPass ? 'var(--text-muted)' : '#EF4444', marginTop: '2px' }}>
+                              {check.details}
+                            </div>
+                          </div>
+                        </div>
+
+                        {!isPass && (
+                          <button
+                            type="button"
+                            onClick={check.action === 'reconnect' ? onOpenConnect : handleRunDiagnostics}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              background: '#EF4444',
+                              color: '#ffffff',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {check.action === 'reconnect' ? 'Reconnect' : 'Fix / Recheck'}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Expanded Guidance for Failed Checks */}
+                      {!isPass && (
+                        <div style={{ marginTop: '12px', padding: '12px', borderRadius: '8px', background: '#FEF2F2', border: '1px solid #FEE2E2', fontSize: '12.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div><strong style={{ color: '#991B1B' }}>Problem:</strong> <span style={{ color: '#B91C1C' }}>{check.problem}</span></div>
+                          <div><strong style={{ color: '#991B1B' }}>Why required:</strong> <span style={{ color: '#B91C1C' }}>{check.requirement}</span></div>
+                          <div><strong style={{ color: '#991B1B' }}>Where to configure:</strong> <span style={{ color: '#1E293B' }}>{check.resolution}</span></div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Automation Loop Protection & Safeguards Card */}
+        <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              background: 'rgba(16, 185, 129, 0.1)',
+              color: '#10B981',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <ShieldCheck size={22} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+                Automation Loop Prevention & Safety Safeguards
+              </h2>
+              <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: 0 }}>
+                Multi-signal defenses against bot-to-bot loops, rapid ping-pong recursion, and spam
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ padding: '12px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
+              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-main)' }}>🤖 Self-Event Filter</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Ignores events originated by your own account or Meta echo webhooks.
+              </div>
+            </div>
+            <div style={{ padding: '12px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
+              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-main)' }}>⚡ Ping-Pong Detector</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Halts rapid exchanges (&gt; 3 messages within 10s) between bots.
+              </div>
+            </div>
+            <div style={{ padding: '12px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
+              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text-main)' }}>🛡️ Daily Recipient Cap</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Max 3 automated DMs per user per day. <em>(Internal safeguard, not official Meta limit)</em>
+              </div>
+            </div>
+          </div>
+
+          {incidents && incidents.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>Recent Safety Incidents:</div>
+              {incidents.map(inc => (
+                <div key={inc.id} style={{
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  background: inc.status === 'active' ? '#FEF2F2' : 'var(--bg-subtle)',
+                  border: `1px solid ${inc.status === 'active' ? '#FCA5A5' : 'var(--border-subtle)'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: inc.status === 'active' ? '#B91C1C' : 'var(--text-main)' }}>
+                      {inc.status === 'active' ? '🛑 Loop Prevented:' : '✅ Resolved:'} {inc.loop_reason}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Recipient: @{inc.username || inc.target_user_id} &bull; {inc.details}
+                    </div>
+                  </div>
+                  {inc.status === 'active' && (
+                    <button
+                      type="button"
+                      onClick={() => handleResumeIncident(inc.id)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: '#10B981',
+                        color: '#fff',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Resume Automation
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
+              ✅ All loop detectors active. No recursive loops or safety violations recorded.
+            </div>
+          )}
         </div>
 
         {/* Edit Handle Modal */}

@@ -134,6 +134,26 @@ if (pgPool) {
         await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_refreshed_at TEXT;");
         await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_type TEXT DEFAULT 'ig_long_lived';");
         await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS last_auth_error TEXT;");
+        await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS last_diagnostic_result TEXT;");
+        await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS last_diagnostic_at TEXT;");
+        await pgPool.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS daily_automated_dm_count INTEGER DEFAULT 0;");
+        await pgPool.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_automated_dm_date TEXT;");
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS automation_loop_incidents (
+            id TEXT PRIMARY KEY,
+            instagram_account_id TEXT NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+            conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+            target_user_id TEXT NOT NULL,
+            trigger_rule_id TEXT,
+            loop_reason TEXT NOT NULL,
+            details TEXT,
+            status TEXT DEFAULT 'active',
+            detected_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            resolved_at TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_loop_incidents_account ON automation_loop_incidents(instagram_account_id, status);
+          CREATE INDEX IF NOT EXISTS idx_loop_incidents_conv ON automation_loop_incidents(conversation_id);
+        `);
         // Ensure default admin user exists safely without hardcoded credentials
         const existingAdmin = await pgPool.query("SELECT id, password_hash FROM users WHERE email = 'admin@airvix.com'");
         if (!existingAdmin.rows || existingAdmin.rows.length === 0) {

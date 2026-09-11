@@ -4,6 +4,7 @@ const db = require('../db');
 const metaClient = require('./metaClient');
 const { decrypt } = require('./crypto');
 const profileCache = require('./profileCache');
+const loopDetection = require('./loopDetection');
 const { dmLimitFor } = require('../constants/planLimits');
 const {
   QUEUE_CONFIG,
@@ -645,40 +646,55 @@ class EventQueueWorker {
       const rawDm = `${account.disclosure_message || ''}${dmTextTemplate}`;
       dmMsg = rawDm.replace(/\{username\}/gi, commenterUsername || 'there');
 
-      const cardPayload = (rule.card_enabled == 1 && rule.card_title) ? {
-        title: (rule.card_title || '').replace(/\{username\}/gi, commenterUsername || 'there'),
-        subtitle: (rule.card_subtitle || dmTextTemplate || '').replace(/\{username\}/gi, commenterUsername || 'there'),
-        image_url: rule.card_image_url || rule.target_media_thumbnail || undefined,
-        button_text: rule.card_button_text || 'View Link 🚀',
-        button_url: rule.card_button_url || undefined
-      } : null;
+      const safety = await loopDetection.checkOutboundSafety({
+        account,
+        recipientId: commenterId,
+        recipientUsername: commenterUsername,
+        replyContent: dmMsg,
+        ruleId: rule.id
+      });
 
-      if (isSimulated) {
-        metaMessageId = `sim_dm_${uuidv4().slice(0, 8)}`;
-        await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
-        await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
-        if (cardPayload) {
-          console.log(`[Worker] 🧪 [Simulation] Rich Instagram DM Card sent for comment ${commentId}: "${cardPayload.title}" (Image: ${cardPayload.image_url || 'none'}, CTA: [${cardPayload.button_text}])`);
-        } else {
-          console.log(`[Worker] 🧪 [Simulation] Private DM generated for comment ${commentId}: "${dmMsg}"`);
-        }
+      if (!safety.allow) {
+        console.warn(`[Worker] 🛡️ Comment Private DM suppressed by safety engine (${safety.reason}) for @${commenterUsername || commenterId}`);
+        dmError = `Suppressed by safety safeguard: ${safety.reason}`;
       } else {
-        try {
-          const dmResp = await metaClient.sendPrivateCommentReply({
-            pageId: account.page_id,
-            commentId,
-            messageText: dmMsg,
-            accessToken: token,
-            card: cardPayload
-          });
-          metaMessageId = dmResp?.message_id || null;
+        const cardPayload = (rule.card_enabled == 1 && rule.card_title) ? {
+          title: (rule.card_title || '').replace(/\{username\}/gi, commenterUsername || 'there'),
+          subtitle: (rule.card_subtitle || dmTextTemplate || '').replace(/\{username\}/gi, commenterUsername || 'there'),
+          image_url: rule.card_image_url || rule.target_media_thumbnail || undefined,
+          button_text: rule.card_button_text || 'View Link 🚀',
+          button_url: rule.card_button_url || undefined
+        } : null;
+
+        if (isSimulated) {
+          metaMessageId = `sim_dm_${uuidv4().slice(0, 8)}`;
           await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
-          await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
-          console.log(`[Worker] ✅ Private DM ${cardPayload ? 'Card ' : ''}sent for comment ${commentId} to @${commenterUsername || 'user'}`);
-        } catch (err) {
-          dmError = err.message;
-          console.warn(`[Worker] ⚠️ Private DM reply error for comment ${commentId}:`, err.message);
-          if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
+          const cId = await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
+          await loopDetection.recordAutomatedDmSent(cId);
+          if (cardPayload) {
+            console.log(`[Worker] 🧪 [Simulation] Rich Instagram DM Card sent for comment ${commentId}: "${cardPayload.title}" (Image: ${cardPayload.image_url || 'none'}, CTA: [${cardPayload.button_text}])`);
+          } else {
+            console.log(`[Worker] 🧪 [Simulation] Private DM generated for comment ${commentId}: "${dmMsg}"`);
+          }
+        } else {
+          try {
+            const dmResp = await metaClient.sendPrivateCommentReply({
+              pageId: account.page_id,
+              commentId,
+              messageText: dmMsg,
+              accessToken: token,
+              card: cardPayload
+            });
+            metaMessageId = dmResp?.message_id || null;
+            await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
+            const cId = await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
+            await loopDetection.recordAutomatedDmSent(cId);
+            console.log(`[Worker] ✅ Private DM ${cardPayload ? 'Card ' : ''}sent for comment ${commentId} to @${commenterUsername || 'user'}`);
+          } catch (err) {
+            dmError = err.message;
+            console.warn(`[Worker] ⚠️ Private DM reply error for comment ${commentId}:`, err.message);
+            if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
+          }
         }
       }
     }
@@ -957,6 +973,25 @@ class EventQueueWorker {
       button_url: rule.card_button_url || undefined
     } : null;
 
+    // Run Outbound Safety & Loop Detection
+    const safety = await loopDetection.checkOutboundSafety({
+      account,
+      recipientId: senderId,
+      recipientUsername: finalUsername,
+      replyContent: msg,
+      ruleId: rule.id,
+      conversationId: convId
+    });
+
+    if (!safety.allow) {
+      console.warn(`[Worker] 🛡️ Inbound DM reply suppressed by safety engine (${safety.reason}) for @${finalUsername}`);
+      const safetyOutTs = new Date(eventTime + 1000).toISOString();
+      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+        uuidv4(), convId, 'outbound', msg, 'suppressed_loop_safety', safety.reason, safetyOutTs
+      );
+      return;
+    }
+
     try {
       let resp;
       if (isSimulated) {
@@ -981,6 +1016,7 @@ class EventQueueWorker {
       await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'sent', resp.message_id, outboundCreatedAt);
       await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
       await db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
+      await loopDetection.recordAutomatedDmSent(convId);
       await this.updateActivityLog(account.id, 'dm');
       await this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, msg, 'outbound', 'replied', new Date().toISOString());
       console.log(`[Worker] ✅ DM auto-reply sent to ${realName || finalUsername} (Rule: "${rule.trigger_keyword}")`);
