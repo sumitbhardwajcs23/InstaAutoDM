@@ -26,6 +26,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import LandingView from './LandingView';
 
 export default function LandingPageEditor({ user, onBackToApp, showToast }) {
   // Main Navigation Tab State: 'content' | 'design' | 'seo' | 'settings'
@@ -738,151 +739,15 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
     </div>
   );
 
-  // Live Preview Component (Rendered Mockup matching reference design)
+  // Live Preview Component (Exact Replica of Public Landing Page)
   const LivePreviewRender = ({ settings, isDraft = true }) => {
-    const accent = settings.accent_color || '#3b82f6';
-    const highlight = settings.hero_highlight_color || accent;
-
     return (
-      <div className="lpe-preview-mockup-wrapper">
-        {/* Landing Nav */}
-        <div className="lpe-mockup-nav">
-          <div className="lpe-mockup-brand">
-            <div className="lpe-mockup-logo-icon">A</div>
-            <span className="lpe-mockup-logo-title">Airvix</span>
-          </div>
-          <div className="lpe-mockup-nav-links">
-            <span>Product</span>
-            <span>Solutions</span>
-            <span>Pricing</span>
-            <span>Resources</span>
-          </div>
-          <div className="lpe-mockup-nav-actions">
-            <span className="lpe-mockup-signin">Sign in</span>
-            <button type="button" className="lpe-mockup-nav-cta" style={{ background: accent }}>
-              Get started free →
-            </button>
-          </div>
-        </div>
-
-        {/* Hero Section */}
-        <div className="lpe-mockup-hero">
-          {settings.hero_badge && (
-            <div className="lpe-mockup-badge" style={{ color: accent, borderColor: `${accent}40`, background: `${accent}15` }}>
-              {settings.hero_badge}
-            </div>
-          )}
-          <h1 className="lpe-mockup-headline">
-            {settings.hero_headline ? (
-              settings.hero_headline_highlight ? (
-                <>
-                  {settings.hero_headline.replace(settings.hero_headline_highlight, '')}
-                  <span style={{ color: highlight }}>{settings.hero_headline_highlight}</span>
-                </>
-              ) : settings.hero_headline
-            ) : 'Turn Instagram Conversations Into Real Growth'}
-          </h1>
-          <p className="lpe-mockup-subtitle">
-            {settings.hero_subtitle || 'Airvix helps creators and businesses automate Instagram comments and DMs...'}
-          </p>
-
-          <div className="lpe-mockup-cta-group">
-            <button type="button" className="lpe-mockup-primary-btn" style={{ background: accent }}>
-              {settings.primary_cta_text || 'Get started free →'}
-            </button>
-            <button type="button" className="lpe-mockup-secondary-btn">
-              <span>▶</span> {settings.secondary_cta_text || 'Watch demo'}
-            </button>
-          </div>
-
-          <div className="lpe-mockup-trust-row">
-            <div className="lpe-mockup-avatars">
-              <span className="av1">👤</span>
-              <span className="av2">👩</span>
-              <span className="av3">👨</span>
-            </div>
-            <span className="lpe-mockup-trust-text">
-              {settings.hero_trust_text || 'Trusted by 10,000+ creators and businesses worldwide.'}
-            </span>
-          </div>
-
-          {/* Visual Floating Cards & Tablet Demo Frame */}
-          <div className="lpe-mockup-demo-frame">
-            <div className="lpe-mockup-tablet-screen">
-              <div className="lpe-mockup-tablet-header">
-                <div className="lpe-mockup-tb-brand">Airvix</div>
-                <div className="lpe-mockup-tb-stats">
-                  <div><strong>1,248</strong><span>Comments</span></div>
-                  <div><strong>892</strong><span>Auto Replies</span></div>
-                  <div><strong>24.8K</strong><span>Engagement</span></div>
-                </div>
-              </div>
-
-              {/* Floating Toast 1 */}
-              <div className="lpe-toast-card float-left">
-                <div className="lpe-toast-icon">💬</div>
-                <div>
-                  <div className="lpe-toast-title">New comment</div>
-                  <div className="lpe-toast-body">"Do you have the price?"</div>
-                </div>
-              </div>
-
-              {/* Floating Toast 2 */}
-              <div className="lpe-toast-card float-right" style={{ borderColor: `${accent}50` }}>
-                <div className="lpe-toast-icon" style={{ background: accent }}>🤖</div>
-                <div>
-                  <div className="lpe-toast-title" style={{ color: accent }}>AI Reply Sent</div>
-                  <div className="lpe-toast-body">"Hey! Here's the link for you 👋"</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Brands Banner */}
-        <div className="lpe-mockup-brands-bar">
-          <div className="lpe-mockup-brands-title">TRUSTED BY CREATORS, BRANDS AND AGENCIES</div>
-          <div className="lpe-mockup-brand-logos">
-            <span>zomato</span>
-            <span>boAt</span>
-            <span>mamaearth</span>
-            <span>NOISE</span>
-            <span>SUGAR</span>
-            <span>DERMA CO</span>
-          </div>
-        </div>
-
-        {/* Features Section */}
-        <div className="lpe-mockup-features">
-          <div className="lpe-mockup-feat-badge" style={{ color: accent }}>{settings.features_badge || 'WHY AIRVIX'}</div>
-          <h2 className="lpe-mockup-feat-heading">
-            {settings.features_heading || "More than automation.\nIt's a growth system."}
-          </h2>
-          <p className="lpe-mockup-feat-sub">{settings.features_subtitle}</p>
-
-          <div className="lpe-mockup-feat-grid">
-            <div className="lpe-feat-card">
-              <div className="lpe-feat-icon blue">⚡</div>
-              <h4>{settings.feature_1_title || 'Automate Replies'}</h4>
-              <p>{settings.feature_1_desc || 'Instant, intelligent responses.'}</p>
-            </div>
-            <div className="lpe-feat-card">
-              <div className="lpe-feat-icon purple">🚀</div>
-              <h4>{settings.feature_2_title || 'Increase Engagement'}</h4>
-              <p>{settings.feature_2_desc || 'Turn followers into customers.'}</p>
-            </div>
-            <div className="lpe-feat-card">
-              <div className="lpe-feat-icon green">⏳</div>
-              <h4>{settings.feature_3_title || 'Save Hours'}</h4>
-              <p>{settings.feature_3_desc || 'Let AI handle repetitive conversations.'}</p>
-            </div>
-            <div className="lpe-feat-card">
-              <div className="lpe-feat-icon orange">🛡️</div>
-              <h4>{settings.feature_4_title || 'Stay in Control'}</h4>
-              <p>{settings.feature_4_desc || 'Customize responses easily.'}</p>
-            </div>
-          </div>
-        </div>
+      <div className="lpe-preview-mockup-wrapper" style={{ overflowY: 'auto', maxHeight: '780px', borderRadius: '10px' }}>
+        <LandingView
+          siteSettingsOverride={settings}
+          isPreview={true}
+          user={user}
+        />
       </div>
     );
   };
