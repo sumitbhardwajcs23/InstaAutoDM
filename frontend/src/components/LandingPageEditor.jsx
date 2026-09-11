@@ -747,6 +747,8 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
           siteSettingsOverride={settings}
           isPreview={true}
           user={user}
+          activeSectionHighlight={activeSection}
+          onSectionClick={(secId) => setActiveSection(secId)}
         />
       </div>
     );

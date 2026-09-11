@@ -420,7 +420,15 @@ const CONTENT_DOCS = {
   }
 };
 
-export default function LandingView({ onNavigate = () => {}, user, siteSettingsOverride = null, isPreview = false, onSectionClick = null, activeSectionOnly = null }) {
+export default function LandingView({ 
+  onNavigate = () => {}, 
+  user, 
+  siteSettingsOverride = null, 
+  isPreview = false, 
+  onSectionClick = null, 
+  activeSectionOnly = null,
+  activeSectionHighlight = null 
+}) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState('monthly'); // 'monthly' | 'yearly'
   const [internalSettings, setInternalSettings] = useState(null);
@@ -429,6 +437,25 @@ export default function LandingView({ onNavigate = () => {}, user, siteSettingsO
   const [testimonialIndex, setTestimonialIndex] = useState(0);
 
   const siteSettings = siteSettingsOverride || internalSettings;
+
+  useEffect(() => {
+    if (isPreview && activeSectionHighlight) {
+      const sectionIdMap = {
+        hero: 'hero',
+        features: 'features',
+        howitworks: 'how-it-works',
+        pricing: 'pricing',
+        testimonials: 'stories',
+        faq: 'faq',
+        footer: 'legal'
+      };
+      const targetId = sectionIdMap[activeSectionHighlight] || activeSectionHighlight;
+      const el = document.getElementById(targetId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [activeSectionHighlight, isPreview]);
 
   const showSection = (name) => {
     if (!activeSectionOnly) return true;
