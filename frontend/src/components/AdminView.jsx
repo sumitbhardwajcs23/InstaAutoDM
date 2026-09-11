@@ -3483,18 +3483,18 @@ export default function AdminView({ user, onBackToApp }) {
       {selectedUserDetail && (
         <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedUserDetail(null); }}>
           <div className="admin-modal-box" style={{ maxWidth: '680px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '14px' }}>
+            <div className="admin-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <ShieldCheck size={22} color="#3b82f6" />
+                <ShieldCheck size={22} color="#2563eb" />
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ffffff' }}>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
                     User Inspection &amp; Access Control
                   </h3>
-                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>ID: {selectedUserDetail.id}</span>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Account ID: {selectedUserDetail.id}</span>
                 </div>
               </div>
-              <button type="button" onClick={() => setSelectedUserDetail(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-                <X size={20} />
+              <button type="button" onClick={() => setSelectedUserDetail(null)} className="admin-modal-close-btn">
+                <X size={18} />
               </button>
             </div>
 
@@ -3502,11 +3502,11 @@ export default function AdminView({ user, onBackToApp }) {
             <div className="admin-user-details-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff' }}>{selectedUserDetail.name}</div>
-                  <div style={{ fontSize: '13px', color: '#3b82f6', fontWeight: 600 }}>{selectedUserDetail.email}</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>{selectedUserDetail.name}</div>
+                  <div style={{ fontSize: '13px', color: '#2563eb', fontWeight: 600 }}>{selectedUserDetail.email}</div>
                 </div>
 
-                <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', background: selectedUserDetail.status === 'suspended' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)', color: selectedUserDetail.status === 'suspended' ? '#f87171' : '#10b981', border: '1px solid currentColor' }}>
+                <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', background: selectedUserDetail.status === 'suspended' ? '#fef2f2' : '#f0fdf4', color: selectedUserDetail.status === 'suspended' ? '#dc2626' : '#16a34a', border: '1px solid currentColor' }}>
                   {selectedUserDetail.status === 'suspended' ? '● Suspended' : '● Active Account'}
                 </span>
               </div>
@@ -3514,8 +3514,16 @@ export default function AdminView({ user, onBackToApp }) {
               <div className="admin-detail-grid">
                 <div className="admin-stat-pill">
                   <div className="admin-stat-pill-label">Subscription Tier</div>
-                  <div className="admin-stat-pill-value" style={{ color: '#3b82f6', textTransform: 'uppercase' }}>
+                  <div className="admin-stat-pill-value" style={{ color: '#2563eb', textTransform: 'uppercase' }}>
                     {selectedUserDetail.plan}
+                  </div>
+                </div>
+
+                <div className="admin-stat-pill">
+                  <div className="admin-stat-pill-label">Monthly DM Limit</div>
+                  <div className="admin-stat-pill-value" style={{ color: '#0f172a' }}>
+                    {selectedUserDetail.dmLimit?.toLocaleString()} DMs
+                    {selectedUserDetail.custom_dm_limit ? <span style={{ fontSize: '10px', color: '#16a34a', display: 'block', fontWeight: 600 }}>(Custom Override)</span> : null}
                   </div>
                 </div>
 
@@ -3527,16 +3535,25 @@ export default function AdminView({ user, onBackToApp }) {
                 </div>
 
                 <div className="admin-stat-pill">
-                  <div className="admin-stat-pill-label">Monthly Limit</div>
-                  <div className="admin-stat-pill-value" style={{ color: '#10b981' }}>
-                    {selectedUserDetail.dmLimit?.toLocaleString()} DMs
+                  <div className="admin-stat-pill-label">Max IG Accounts</div>
+                  <div className="admin-stat-pill-value" style={{ color: '#7c3aed' }}>
+                    {selectedUserDetail.igLimit || 1} Accounts
+                    {selectedUserDetail.custom_ig_limit ? <span style={{ fontSize: '10px', color: '#16a34a', display: 'block', fontWeight: 600 }}>(Custom Override)</span> : null}
+                  </div>
+                </div>
+
+                <div className="admin-stat-pill">
+                  <div className="admin-stat-pill-label">Active Rules Limit</div>
+                  <div className="admin-stat-pill-value" style={{ color: '#0f172a' }}>
+                    {selectedUserDetail.rulesLimit || 5} Rules
+                    {selectedUserDetail.custom_rules_limit ? <span style={{ fontSize: '10px', color: '#16a34a', display: 'block', fontWeight: 600 }}>(Custom Override)</span> : null}
                   </div>
                 </div>
 
                 <div className="admin-stat-pill">
                   <div className="admin-stat-pill-label">Account Role</div>
                   <div className="admin-stat-pill-value">
-                    {selectedUserDetail.role === 'admin' ? '🛡️ Admin' : '👤 Creator'}
+                    {selectedUserDetail.role === 'admin' ? '🛡️ Super Admin' : '👤 Creator User'}
                   </div>
                 </div>
               </div>
@@ -3544,28 +3561,39 @@ export default function AdminView({ user, onBackToApp }) {
 
             {/* Connected Accounts */}
             <div style={{ marginBottom: '20px' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '13.5px', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Film size={16} color="#a855f7" />
-                <span>Connected Instagram Business Accounts ({selectedUserDetail.connected_accounts?.length || 0})</span>
-              </h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Film size={16} color="#7c3aed" />
+                  <span>Connected Instagram Accounts ({selectedUserDetail.connected_accounts?.length || 0} of {selectedUserDetail.igLimit || 1})</span>
+                </h4>
+              </div>
 
-              {(selectedUserDetail.connected_accounts || []).map(ig => (
-                <div key={ig.id} className="admin-ig-account-row">
-                  <div>
-                    <div style={{ fontWeight: 800, color: '#ffffff', fontSize: '13.5px' }}>@{ig.username}</div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                      Insta ID: <span style={{ fontFamily: 'monospace', color: '#cbd5e1' }}>{ig.ig_user_id}</span>
+              {(selectedUserDetail.connected_accounts && selectedUserDetail.connected_accounts.length > 0) ? (
+                selectedUserDetail.connected_accounts.map(ig => (
+                  <div key={ig.id} className="admin-ig-account-row">
+                    <div>
+                      <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px' }}>@{ig.username}</div>
+                      <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                        Insta ID: <span style={{ fontFamily: 'monospace', color: '#334155' }}>{ig.ig_user_id}</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#16a34a' }}>
+                        {ig.followers_count?.toLocaleString() || 0} Followers
+                      </div>
+                      <span style={{ fontSize: '10.5px', color: '#64748b', textTransform: 'capitalize' }}>{ig.status || 'Connected'}</span>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#10b981' }}>{ig.followers_count?.toLocaleString()} Followers</div>
-                  </div>
+                ))
+              ) : (
+                <div style={{ padding: '14px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', color: '#64748b', fontSize: '12.5px', textAlign: 'center' }}>
+                  No Instagram accounts currently connected for this user.
                 </div>
-              ))}
+              )}
             </div>
 
             {/* Actions */}
-            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <button
                   type="button"
@@ -3596,31 +3624,45 @@ export default function AdminView({ user, onBackToApp }) {
       )}
 
       {/* =========================================================================
-          MODAL: EDIT USER ACCESS & TIER
+          MODAL: EDIT USER ACCESS & TIER & CUSTOM LIMITS (ADMIN CONTROL)
       ========================================================================= */}
       {editingUser && (
         <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setEditingUser(null); }}>
-          <div className="admin-modal-box" style={{ maxWidth: '520px' }}>
+          <div className="admin-modal-box" style={{ maxWidth: '560px' }}>
             <div className="admin-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Edit3 size={20} color="#3b82f6" />
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ffffff' }}>Edit User Access &amp; Tier</h3>
+                <Edit3 size={20} color="#2563eb" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                    Edit User Access &amp; Quotas
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Account: {editingUser.email}</span>
+                </div>
               </div>
-              <button type="button" onClick={() => setEditingUser(null)} className="admin-modal-close-btn"><X size={18} /></button>
+              <button type="button" onClick={() => setEditingUser(null)} className="admin-modal-close-btn">
+                <X size={18} />
+              </button>
             </div>
 
             <form onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
+              const customIg = formData.get('custom_ig_limit');
+              const customDm = formData.get('custom_dm_limit');
+              const customRules = formData.get('custom_rules_limit');
+
               handleUpdateUser(editingUser.id, {
                 name: formData.get('name'),
                 plan: formData.get('plan'),
                 role: formData.get('role'),
                 status: formData.get('status'),
+                custom_ig_limit: customIg !== '' && customIg !== null ? parseInt(customIg, 10) : null,
+                custom_dm_limit: customDm !== '' && customDm !== null ? parseInt(customDm, 10) : null,
+                custom_rules_limit: customRules !== '' && customRules !== null ? parseInt(customRules, 10) : null,
                 reset_dm_usage: formData.get('reset_dm_usage') === 'on'
               });
             }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '16px 0' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '14px 0' }}>
                 <div className="admin-form-group">
                   <label className="admin-form-label">Full Name</label>
                   <input type="text" name="name" defaultValue={editingUser.name || 'Creator'} className="admin-form-input" required />
@@ -3628,13 +3670,13 @@ export default function AdminView({ user, onBackToApp }) {
 
                 <div className="admin-form-group">
                   <label className="admin-form-label">User Email (Read-Only ID)</label>
-                  <input type="email" value={editingUser.email} className="admin-form-input" disabled style={{ opacity: 0.6 }} />
+                  <input type="email" value={editingUser.email} className="admin-form-input" disabled />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="admin-form-group">
                     <label className="admin-form-label">Plan Tier</label>
-                    <select name="plan" defaultValue={editingUser.plan || 'free'} className="admin-form-select">
+                    <select name="plan" defaultValue={(editingUser.plan || 'free').toLowerCase()} className="admin-form-select">
                       <option value="free">Free Starter</option>
                       <option value="pro">Pro Creator</option>
                       <option value="agency">Agency &amp; Brand</option>
@@ -3659,9 +3701,98 @@ export default function AdminView({ user, onBackToApp }) {
                   </select>
                 </div>
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#cbd5e1', cursor: 'pointer', marginTop: '4px' }}>
+                {/* Live Instagram Accounts Count Badge */}
+                <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Film size={15} color="#7c3aed" />
+                      <span>Connected Instagram Accounts</span>
+                    </span>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '3px 8px', borderRadius: '6px' }}>
+                      {editingUser.connected_accounts_count || editingUser.instagram_accounts?.length || 0} / {editingUser.custom_ig_limit || editingUser.igLimit || 1} Accounts
+                    </span>
+                  </div>
+                  {editingUser.instagram_accounts && editingUser.instagram_accounts.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                      {editingUser.instagram_accounts.map(ig => (
+                        <span key={ig.id} style={{ fontSize: '12px', color: '#0f172a', background: '#ffffff', border: '1px solid #cbd5e1', padding: '3px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                          @{ig.username}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', marginTop: '6px' }}>
+                      No Instagram accounts currently connected.
+                    </div>
+                  )}
+                </div>
+
+                {/* 🛠️ CUSTOM LIMITS OVERRIDE BOX (User Specific Control) */}
+                <div className={`admin-custom-limits-box ${(editingUser.custom_ig_limit || editingUser.custom_dm_limit || editingUser.custom_rules_limit) ? 'active-custom' : ''}`}>
+                  <div className="admin-custom-limits-header">
+                    <div className="admin-custom-limits-title">
+                      <SlidersHorizontal size={16} color="#16a34a" />
+                      <span>Custom Quota &amp; Limit Overrides</span>
+                    </div>
+                    {(editingUser.custom_ig_limit || editingUser.custom_dm_limit || editingUser.custom_rules_limit) && (
+                      <span style={{ fontSize: '11px', fontWeight: 700, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '6px' }}>
+                        ⚡ Custom Limit Active
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#475569', lineHeight: 1.4 }}>
+                    Admin control: set custom limits for this user to override their plan defaults. Leave any field blank to use standard plan limits.
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                    <div className="admin-form-group">
+                      <label className="admin-form-label" style={{ fontSize: '11px' }}>
+                        Custom IG Accounts
+                      </label>
+                      <input
+                        type="number"
+                        name="custom_ig_limit"
+                        min="1"
+                        max="1000"
+                        defaultValue={editingUser.custom_ig_limit ?? ''}
+                        placeholder={`Plan: ${editingUser.igLimit || 1}`}
+                        className="admin-form-input"
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label" style={{ fontSize: '11px' }}>
+                        Custom DM Limit / Mo
+                      </label>
+                      <input
+                        type="number"
+                        name="custom_dm_limit"
+                        min="0"
+                        defaultValue={editingUser.custom_dm_limit ?? ''}
+                        placeholder={`Plan: ${(editingUser.dmLimit || 1000).toLocaleString()}`}
+                        className="admin-form-input"
+                      />
+                    </div>
+
+                    <div className="admin-form-group">
+                      <label className="admin-form-label" style={{ fontSize: '11px' }}>
+                        Custom Rules Limit
+                      </label>
+                      <input
+                        type="number"
+                        name="custom_rules_limit"
+                        min="1"
+                        defaultValue={editingUser.custom_rules_limit ?? ''}
+                        placeholder={`Plan: ${editingUser.rulesLimit || 5}`}
+                        className="admin-form-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#334155', cursor: 'pointer', margin: '4px 0' }}>
                   <input type="checkbox" name="reset_dm_usage" />
-                  <span>Reset current DM usage tokens to 0</span>
+                  <span style={{ fontWeight: 600 }}>Reset current DM usage tokens to 0</span>
                 </label>
               </div>
 
@@ -3682,18 +3813,20 @@ export default function AdminView({ user, onBackToApp }) {
           <div className="admin-modal-box" style={{ maxWidth: '460px' }}>
             <div className="admin-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <AlertCircle size={22} color="#ef4444" />
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ef4444' }}>Delete User Account</h3>
+                <AlertCircle size={22} color="#dc2626" />
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#dc2626' }}>Delete User Account</h3>
               </div>
-              <button type="button" onClick={() => setDeletingUser(null)} className="admin-modal-close-btn"><X size={18} /></button>
+              <button type="button" onClick={() => setDeletingUser(null)} className="admin-modal-close-btn">
+                <X size={18} />
+              </button>
             </div>
 
             <div style={{ margin: '16px 0' }}>
-              <p style={{ fontSize: '13.5px', color: '#f8fafc', lineHeight: 1.5, margin: '0 0 10px 0' }}>
-                Are you sure you want to permanently delete user <strong style={{ color: '#ffffff' }}>{deletingUser.name || deletingUser.email}</strong>?
+              <p style={{ fontSize: '14px', color: '#334155', lineHeight: 1.5, margin: '0 0 12px 0' }}>
+                Are you sure you want to permanently delete user <strong style={{ color: '#0f172a' }}>{deletingUser.name || deletingUser.email}</strong>?
               </p>
-              <p style={{ fontSize: '12px', color: '#94a3b8', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '10px 12px', borderRadius: '8px' }}>
-                ⚠️ Warning: This action cannot be undone. All connected Instagram accounts, automation rules, activity logs, and workspace data will be purged.
+              <p style={{ fontSize: '12.5px', color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca', padding: '10px 14px', borderRadius: '8px', lineHeight: 1.4 }}>
+                ⚠️ Warning: This action cannot be undone. All connected Instagram accounts, automation rules, activity logs, and workspace data will be permanently purged.
               </p>
             </div>
 
@@ -3708,35 +3841,37 @@ export default function AdminView({ user, onBackToApp }) {
       )}
 
       {/* =========================================================================
-          MODAL: CREATE / EDIT PRICING PLAN
+          MODAL: CREATE / EDIT PRICING PLAN (PER-PLAN INSTAGRAM ACCOUNT LIMITS)
       ========================================================================= */}
       {isCreatingPlan && (
         <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsCreatingPlan(false); }}>
-          <div className="admin-modal-box" style={{ maxWidth: '600px' }}>
+          <div className="admin-modal-box" style={{ maxWidth: '620px' }}>
             <div className="admin-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <CreditCard size={20} color="#3b82f6" />
-                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#ffffff' }}>
-                  {editingPlan ? 'Edit Pricing Plan' : 'Create Custom Pricing Plan'}
+                <CreditCard size={20} color="#2563eb" />
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  {editingPlan ? `Edit Pricing Plan: ${editingPlan.name}` : 'Create Custom Pricing Plan'}
                 </h3>
               </div>
-              <button type="button" onClick={() => setIsCreatingPlan(false)} className="admin-modal-close-btn"><X size={18} /></button>
+              <button type="button" onClick={() => setIsCreatingPlan(false)} className="admin-modal-close-btn">
+                <X size={18} />
+              </button>
             </div>
 
             <form onSubmit={handleSavePlan}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', margin: '16px 0' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '14px 0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="admin-form-group">
                     <label className="admin-form-label">Plan Name</label>
-                    <input type="text" value={planFormData.name} onChange={(e) => setPlanFormData({ ...planFormData, name: e.target.value })} className="admin-form-input" required />
+                    <input type="text" value={planFormData.name} onChange={(e) => setPlanFormData({ ...planFormData, name: e.target.value })} className="admin-form-input" placeholder="e.g. Pro Creator" required />
                   </div>
                   <div className="admin-form-group">
                     <label className="admin-form-label">Badge Label (e.g. 🔥 POPULAR)</label>
-                    <input type="text" value={planFormData.badge || ''} onChange={(e) => setPlanFormData({ ...planFormData, badge: e.target.value })} className="admin-form-input" />
+                    <input type="text" value={planFormData.badge || ''} onChange={(e) => setPlanFormData({ ...planFormData, badge: e.target.value })} className="admin-form-input" placeholder="e.g. MOST POPULAR" />
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="admin-form-group">
                     <label className="admin-form-label">Monthly Price (₹ INR)</label>
                     <input type="number" value={planFormData.monthlyPrice} onChange={(e) => setPlanFormData({ ...planFormData, monthlyPrice: e.target.value })} className="admin-form-input" required />
@@ -3747,24 +3882,33 @@ export default function AdminView({ user, onBackToApp }) {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-                  <div className="admin-form-group">
-                    <label className="admin-form-label">DM Limit / Mo</label>
-                    <input type="number" value={planFormData.dmLimit} onChange={(e) => setPlanFormData({ ...planFormData, dmLimit: e.target.value })} className="admin-form-input" required />
+                {/* Per-Plan Quotas and Limits */}
+                <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f172a', marginBottom: '10px' }}>
+                    Plan Quotas &amp; Instagram Account Limits
                   </div>
-                  <div className="admin-form-group">
-                    <label className="admin-form-label">IG Accounts Limit</label>
-                    <input type="number" value={planFormData.igLimit} onChange={(e) => setPlanFormData({ ...planFormData, igLimit: e.target.value })} className="admin-form-input" required />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                    <div className="admin-form-group" style={{ marginBottom: 0 }}>
+                      <label className="admin-form-label">DM Limit / Mo</label>
+                      <input type="number" value={planFormData.dmLimit} onChange={(e) => setPlanFormData({ ...planFormData, dmLimit: e.target.value })} className="admin-form-input" placeholder="1000" required />
+                    </div>
+                    <div className="admin-form-group" style={{ marginBottom: 0 }}>
+                      <label className="admin-form-label">IG Accounts Limit</label>
+                      <input type="number" min="1" max="1000" value={planFormData.igLimit} onChange={(e) => setPlanFormData({ ...planFormData, igLimit: e.target.value })} className="admin-form-input" placeholder="1" required />
+                    </div>
+                    <div className="admin-form-group" style={{ marginBottom: 0 }}>
+                      <label className="admin-form-label">Active Rules Limit</label>
+                      <input type="number" min="1" max="1000" value={planFormData.rulesLimit} onChange={(e) => setPlanFormData({ ...planFormData, rulesLimit: e.target.value })} className="admin-form-input" placeholder="5" required />
+                    </div>
                   </div>
-                  <div className="admin-form-group">
-                    <label className="admin-form-label">Active Rules Limit</label>
-                    <input type="number" value={planFormData.rulesLimit} onChange={(e) => setPlanFormData({ ...planFormData, rulesLimit: e.target.value })} className="admin-form-input" required />
-                  </div>
+                  <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginTop: '6px' }}>
+                    Determines how many Instagram accounts and active rules creators on this plan are allowed to connect.
+                  </span>
                 </div>
 
                 <div className="admin-form-group">
                   <label className="admin-form-label">Description</label>
-                  <input type="text" value={planFormData.description} onChange={(e) => setPlanFormData({ ...planFormData, description: e.target.value })} className="admin-form-input" />
+                  <input type="text" value={planFormData.description} onChange={(e) => setPlanFormData({ ...planFormData, description: e.target.value })} className="admin-form-input" placeholder="Short description of this plan tier" />
                 </div>
 
                 <div className="admin-form-group">
@@ -3775,6 +3919,7 @@ export default function AdminView({ user, onBackToApp }) {
                     onChange={(e) => setPlanFeaturesText(e.target.value)}
                     className="admin-form-input"
                     style={{ resize: 'vertical' }}
+                    placeholder="Enter features, one per line"
                   />
                 </div>
               </div>

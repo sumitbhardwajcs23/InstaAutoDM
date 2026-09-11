@@ -8,6 +8,7 @@ const metaClient = require('../services/metaClient');
 const instagramProfileService = require('../services/instagramProfileService');
 const { encrypt, decrypt, parseSignedRequest } = require('../services/crypto');
 const { JWT_SECRET } = require('../middleware/auth');
+const { igLimitFor } = require('../constants/planLimits');
 
 // Helper to strip sensitive encryption tokens before returning accounts to clients
 function sanitizeAccount(account) {
@@ -42,6 +43,43 @@ function sanitizeAccount(account) {
 async function getUserId(req) {
   if (req.user && req.user.id) return req.user.id;
   return null;
+}
+
+// Check if user has exceeded their connected Instagram accounts limit
+async function checkUserIgLimit(userId) {
+  const user = await db.prepare('SELECT id, plan, custom_ig_limit FROM users WHERE id = ?').get(userId);
+  if (!user) return { allowed: true };
+
+  const currentCountRow = await db.prepare('SELECT COUNT(*) as count FROM instagram_accounts WHERE user_id = ?').get(userId);
+  const currentCount = parseInt(currentCountRow?.count || 0, 10);
+
+  let planIgLimit = null;
+  try {
+    const plansSetting = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
+    if (plansSetting?.value) {
+      const plansList = JSON.parse(plansSetting.value);
+      const matchedPlan = (plansList || []).find(p => 
+        (p.slug || '').toLowerCase() === (user.plan || 'free').toLowerCase() || 
+        (p.name || '').toLowerCase() === (user.plan || 'free').toLowerCase()
+      );
+      if (matchedPlan && matchedPlan.igLimit) planIgLimit = Number(matchedPlan.igLimit);
+    }
+  } catch (e) {}
+
+  const allowedLimit = (user.custom_ig_limit !== null && user.custom_ig_limit !== undefined && Number(user.custom_ig_limit) > 0)
+    ? Number(user.custom_ig_limit)
+    : (planIgLimit || igLimitFor(user.plan));
+
+  if (currentCount >= allowedLimit) {
+    return {
+      allowed: false,
+      currentCount,
+      allowedLimit,
+      error: `Instagram account limit reached (${currentCount}/${allowedLimit} accounts). Upgrade your subscription or ask an administrator to raise your account limit.`
+    };
+  }
+
+  return { allowed: true, currentCount, allowedLimit };
 }
 
 // Safely parse user token if present on any Instagram route
@@ -255,6 +293,11 @@ router.post('/connect-token', async (req, res) => {
       return res.status(409).json({
         error: 'This Instagram account is already connected to another Airvix workspace. Please contact support to transfer it.'
       });
+    if (!existing) {
+      const limitCheck = await checkUserIgLimit(uid);
+      if (!limitCheck.allowed) {
+        return res.status(403).json({ error: limitCheck.error });
+      }
     }
 
     const accountId = existing ? existing.id : uuidv4();
@@ -438,6 +481,12 @@ router.post('/connect-username', async (req, res) => {
       || (await db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ? AND lower(username) = ?').get(targetUserId, rawUsername));
 
     const accountId = existing ? existing.id : uuidv4();
+    if (!existing) {
+      const limitCheck = await checkUserIgLimit(targetUserId);
+      if (!limitCheck.allowed) {
+        return res.status(403).json({ error: limitCheck.error });
+      }
+    }
     if (existing) {
       await db.prepare(`
         UPDATE instagram_accounts SET

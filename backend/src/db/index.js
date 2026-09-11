@@ -84,6 +84,9 @@ if (pgPool) {
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_button_url TEXT;");
         await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';");
         await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';");
+        await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_dm_limit INTEGER;");
+        await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_ig_limit INTEGER;");
+        await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_rules_limit INTEGER;");
         await pgPool.query(`
           CREATE TABLE IF NOT EXISTS site_settings (
             key TEXT PRIMARY KEY,

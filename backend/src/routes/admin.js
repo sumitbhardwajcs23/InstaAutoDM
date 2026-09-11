@@ -7,7 +7,7 @@ const db = require('../db');
 const { requireAuth, requireAdmin, requireAdminRole } = require('../middleware/auth');
 const { DEFAULT_TEMPLATES } = require('../constants/defaultTemplates');
 const { DEFAULT_SITE_SETTINGS, mergeSettingsWithEnvDefaults } = require('./site');
-const { dmLimitFor } = require('../constants/planLimits');
+const { dmLimitFor, igLimitFor, rulesLimitFor } = require('../constants/planLimits');
 const cryptoService = require('../services/crypto');
 const totp = require('../services/totp');
 const { abuseDetection } = require('../services/abuseDetection');
@@ -272,6 +272,9 @@ router.get('/users', async (req, res) => {
         u.plan, 
         u.role, 
         u.status, 
+        u.custom_dm_limit,
+        u.custom_ig_limit,
+        u.custom_rules_limit,
         u.dm_usage_this_period, 
         u.usage_period_start, 
         u.created_at,
@@ -310,7 +313,7 @@ router.get('/users', async (req, res) => {
 
     const users = await db.prepare(query).all(...params);
 
-    // Enrich users with connected instagram accounts array
+    // Enrich users with connected instagram accounts array & effective limits
     const enrichedUsers = await Promise.all((users || []).map(async u => {
       let instagram_accounts = [];
       try {
@@ -318,10 +321,20 @@ router.get('/users', async (req, res) => {
         if (igRows) instagram_accounts = igRows;
       } catch (e) {}
 
+      const effectiveDmLimit = dmLimitFor(u.plan, u.custom_dm_limit);
+      const effectiveIgLimit = igLimitFor(u.plan, u.custom_ig_limit);
+      const effectiveRulesLimit = rulesLimitFor(u.plan, u.custom_rules_limit);
+
       return {
         ...u,
         connected_accounts_count: instagram_accounts.length || parseInt(u.connected_accounts_count || 0, 10),
         rules_count: parseInt(u.rules_count || 0, 10),
+        dmLimit: effectiveDmLimit,
+        igLimit: effectiveIgLimit,
+        rulesLimit: effectiveRulesLimit,
+        custom_dm_limit: u.custom_dm_limit,
+        custom_ig_limit: u.custom_ig_limit,
+        custom_rules_limit: u.custom_rules_limit,
         instagram_accounts
       };
     }));
@@ -366,7 +379,7 @@ router.get('/users', async (req, res) => {
 router.patch('/users/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { plan, role, status, name, reset_dm_usage } = req.body;
+    const { plan, role, status, name, reset_dm_usage, custom_dm_limit, custom_ig_limit, custom_rules_limit } = req.body;
 
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     if (!user) {
@@ -412,6 +425,43 @@ router.patch('/users/:id', async (req, res) => {
       updates.push('dm_usage_this_period = 0');
     }
 
+    // Custom Limits Override Support
+    if (custom_dm_limit !== undefined) {
+      if (custom_dm_limit === null || custom_dm_limit === '' || custom_dm_limit === 'null') {
+        updates.push('custom_dm_limit = NULL');
+      } else {
+        const val = parseInt(custom_dm_limit, 10);
+        if (!isNaN(val) && val >= 0) {
+          updates.push('custom_dm_limit = ?');
+          params.push(val);
+        }
+      }
+    }
+
+    if (custom_ig_limit !== undefined) {
+      if (custom_ig_limit === null || custom_ig_limit === '' || custom_ig_limit === 'null') {
+        updates.push('custom_ig_limit = NULL');
+      } else {
+        const val = parseInt(custom_ig_limit, 10);
+        if (!isNaN(val) && val >= 0) {
+          updates.push('custom_ig_limit = ?');
+          params.push(val);
+        }
+      }
+    }
+
+    if (custom_rules_limit !== undefined) {
+      if (custom_rules_limit === null || custom_rules_limit === '' || custom_rules_limit === 'null') {
+        updates.push('custom_rules_limit = NULL');
+      } else {
+        const val = parseInt(custom_rules_limit, 10);
+        if (!isNaN(val) && val >= 0) {
+          updates.push('custom_rules_limit = ?');
+          params.push(val);
+        }
+      }
+    }
+
     if (updates.length > 0) {
       updates.push('updated_at = to_char(NOW(), \'YYYY-MM-DD HH24:MI:SS\')');
       params.push(id);
@@ -453,7 +503,7 @@ router.patch('/users/:id', async (req, res) => {
       );
     }
 
-    const updatedUser = await db.prepare('SELECT id, email, name, plan, role, status, dm_usage_this_period, created_at, updated_at FROM users WHERE id = ?').get(id);
+    const updatedUser = await db.prepare('SELECT id, email, name, plan, role, status, custom_dm_limit, custom_ig_limit, custom_rules_limit, dm_usage_this_period, created_at, updated_at FROM users WHERE id = ?').get(id);
     res.json({ message: 'User updated successfully', user: updatedUser });
   } catch (err) {
     console.error('[Admin] Update user error:', err);
@@ -590,7 +640,7 @@ router.post('/users/:id/reset-password', async (req, res) => {
 router.get('/users/:id/details', async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await db.prepare('SELECT id, email, name, avatar_url, plan, role, status, dm_usage_this_period, usage_period_start, created_at, updated_at FROM users WHERE id = ?').get(id);
+    const user = await db.prepare('SELECT id, email, name, avatar_url, plan, role, status, custom_dm_limit, custom_ig_limit, custom_rules_limit, dm_usage_this_period, usage_period_start, created_at, updated_at FROM users WHERE id = ?').get(id);
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -612,8 +662,10 @@ router.get('/users/:id/details', async (req, res) => {
       rulesCount = parseInt(rulesRow?.count || 0, 10);
     }
 
-    // Determine plan DM limits
-    const dmLimit = dmLimitFor(user.plan);
+    // Determine effective limits (custom overrides plan defaults)
+    const dmLimit = dmLimitFor(user.plan, user.custom_dm_limit);
+    const igLimit = igLimitFor(user.plan, user.custom_ig_limit);
+    const rulesLimit = rulesLimitFor(user.plan, user.custom_rules_limit);
     const dmUsed = user.dm_usage_this_period || 0;
     const dmLeft = Math.max(0, dmLimit - dmUsed);
 
@@ -621,6 +673,8 @@ router.get('/users/:id/details', async (req, res) => {
       user: {
         ...user,
         dmLimit,
+        igLimit,
+        rulesLimit,
         dmUsed,
         dmLeft,
         connected_accounts: igAccounts || [],
