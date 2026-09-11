@@ -58,6 +58,12 @@ async function buildPlatformGrowthTimeline() {
       allActivity = await db.prepare("SELECT created_at, dms_sent FROM activity_log ORDER BY created_at ASC").all() || [];
     } catch (e) {}
 
+    // Fetch paid invoices for real collected revenue
+    let allPaidInvoices = [];
+    try {
+      allPaidInvoices = await db.prepare("SELECT created_at, amount FROM invoices WHERE status = 'paid' ORDER BY created_at ASC").all() || [];
+    } catch (e) {}
+
     const generateDaysList = (count) => {
       const list = [];
       for (let i = count - 1; i >= 0; i--) {
@@ -88,15 +94,10 @@ async function buildPlatformGrowthTimeline() {
         .filter(a => a.created_at && a.created_at <= endOfDayStr)
         .reduce((sum, a) => sum + (parseInt(a.dms_sent, 10) || 0), 0);
 
-      // 4. Monthly Revenue up to end of this day
-      const activeUsers = allUsers.filter(u => u.created_at && u.created_at <= endOfDayStr);
-      let revenue = 0;
-      activeUsers.forEach(u => {
-        const p = (u.plan || 'free').toLowerCase();
-        if (p === 'pro') revenue += 1499;
-        else if (p === 'agency') revenue += 3999;
-        else if (p === 'enterprise') revenue += 7999;
-      });
+      // 4. Real Revenue collected up to end of this day from paid invoices
+      const revenue = allPaidInvoices
+        .filter(inv => inv.created_at && inv.created_at <= endOfDayStr)
+        .reduce((sum, inv) => sum + (parseInt(inv.amount, 10) || 0), 0);
 
       return {
         date: day.label,
@@ -147,14 +148,39 @@ router.get('/overview', async (req, res) => {
       totalDmsSent = parseInt(activityRow?.total_dms || 0, 10) + parseInt(userUsageRow?.total_dms || 0, 10);
     } catch (e) {}
 
-    // 5. MRR & Revenue (REAL CALCULATION FROM DB USER TIERS)
-    const plansRows = await db.prepare('SELECT plan, COUNT(*) as count FROM users GROUP BY plan').all();
+    // 5. MRR & Revenue (100% REAL FROM ACTUAL PAID INVOICES & ACTIVE CUSTOMER SUBSCRIPTIONS)
+    let totalRevenue = 0;
+    try {
+      const invRow = await db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE status = 'paid'").get();
+      totalRevenue = parseInt(invRow?.total || 0, 10);
+    } catch (e) {}
+
+    // Active paid customer subscriptions (exclude internal admins from revenue calculation)
+    let estimatedMrr = 0;
+    let activePaidSubscriptions = 0;
+    try {
+      const payingSubs = await db.prepare(`
+        SELECT s.plan, s.gateway_subscription_id 
+        FROM subscriptions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.status = 'active' AND s.plan != 'free' AND (u.role != 'admin' OR s.gateway_subscription_id IS NOT NULL)
+      `).all() || [];
+      activePaidSubscriptions = payingSubs.length;
+      payingSubs.forEach(s => {
+        const p = (s.plan || 'free').toLowerCase();
+        if (p === 'pro') estimatedMrr += 1499;
+        else if (p === 'agency') estimatedMrr += 3999;
+        else if (p === 'enterprise') estimatedMrr += 7999;
+      });
+    } catch (e) {}
+
+    // Plan breakdown of non-admin platform users
+    const plansRows = await db.prepare("SELECT plan, COUNT(*) as count FROM users WHERE role != 'admin' GROUP BY plan").all().catch(() => []);
     const planBreakdown = { free: 0, pro: 0, agency: 0, enterprise: 0 };
     (plansRows || []).forEach(row => {
       const p = (row.plan || 'free').toLowerCase();
       if (planBreakdown[p] !== undefined) planBreakdown[p] = parseInt(row.count, 10);
     });
-    const estimatedMrr = (planBreakdown.pro * 1499) + (planBreakdown.agency * 3999) + ((planBreakdown.enterprise || 0) * 7999);
 
     // 6. Privacy-masked Recent Signups (100% REAL DB DATA)
     const rawRecent = await db.prepare(`
@@ -200,7 +226,9 @@ router.get('/overview', async (req, res) => {
       totalDmsSent,
       messagesProcessedFormatted: totalDmsSent >= 1000 ? `${(totalDmsSent / 1000).toFixed(1)}K` : `${totalDmsSent}`,
       estimatedMrr,
-      monthlyRevenueFormatted: estimatedMrr >= 100000 ? `₹${(estimatedMrr / 100000).toFixed(1)}L` : (estimatedMrr >= 1000 ? `₹${(estimatedMrr / 1000).toFixed(1)}K` : `₹${estimatedMrr}`),
+      totalRevenue,
+      activePaidSubscriptions,
+      monthlyRevenueFormatted: estimatedMrr > 0 ? (estimatedMrr >= 100000 ? `₹${(estimatedMrr / 100000).toFixed(1)}L` : (estimatedMrr >= 1000 ? `₹${(estimatedMrr / 1000).toFixed(1)}K` : `₹${estimatedMrr}`)) : '₹0',
       planBreakdown,
       recentUsers,
       recentActivity,
@@ -1201,35 +1229,42 @@ router.post('/integrations/:id/disconnect', async (req, res) => {
 // ── GET /api/admin/payments ──────────────────────────────────────────
 router.get('/payments', async (_req, res) => {
   try {
-    const allUsers = await db.prepare(`
-      SELECT id, email, name, plan, created_at, updated_at
-      FROM users
-      ORDER BY created_at DESC
-    `).all() || [];
+    const realInvoices = await db.prepare(`
+      SELECT i.id, i.user_id, i.subscription_id, i.invoice_number, i.amount, i.currency, i.status, i.gateway, i.created_at, i.paid_at,
+             u.name as user_name, u.email as user_email, u.plan
+      FROM invoices i
+      LEFT JOIN users u ON i.user_id = u.id
+      ORDER BY i.created_at DESC
+    `).all().catch(() => []) || [];
 
-    const priceMap = { free: 0, pro: 1499, agency: 3999, enterprise: 7999 };
-    
-    const transactions = allUsers.map((u) => ({
-      id: `tx-${u.id.slice(0, 8)}`,
-      user_id: u.id,
-      user_name: u.name || 'Creator',
-      user_email: maskEmail(u.email),
-      plan: u.plan || 'free',
-      amount: priceMap[(u.plan || 'free').toLowerCase()] || 0,
-      currency: 'INR',
-      status: 'active',
-      gateway: (u.plan || 'free').toLowerCase() === 'free' ? 'Community Tier' : 'Razorpay / UPI AutoPay',
-      payment_date: u.created_at ? new Date(u.created_at).toLocaleDateString() : 'Active'
+    const transactions = realInvoices.map((inv) => ({
+      id: inv.invoice_number || inv.id,
+      user_id: inv.user_id,
+      user_name: inv.user_name || 'Customer',
+      user_email: maskEmail(inv.user_email),
+      plan: inv.plan || 'pro',
+      amount: inv.amount || 0,
+      currency: inv.currency || 'INR',
+      status: inv.status || 'paid',
+      gateway: inv.gateway === 'razorpay' ? 'Razorpay (UPI / NetBanking / Cards)' : (inv.gateway || 'Razorpay'),
+      payment_date: inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : (inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Paid')
     }));
 
-    const totalRevenue = transactions.reduce((acc, curr) => acc + curr.amount, 0);
+    const totalRevenue = transactions.filter(t => t.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0);
+
+    const paidSubsCount = parseInt((await db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM subscriptions s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.status = 'active' AND s.plan != 'free' AND (u.role != 'admin' OR s.gateway_subscription_id IS NOT NULL)
+    `).get().catch(() => ({ count: 0 })))?.count || 0, 10);
 
     res.json({
       transactions,
       summary: {
         total_revenue: totalRevenue,
-        active_subscriptions: transactions.filter(t => t.amount > 0).length,
-        gateway_status: 'Connected (UPI / Razorpay API Live)'
+        active_subscriptions: paidSubsCount,
+        gateway_status: 'Connected (Razorpay Gateway Active)'
       }
     });
   } catch (err) {

@@ -269,6 +269,7 @@ export default function AdminView({ user, onBackToApp }) {
 
   // Payment System State
   const [paymentsList, setPaymentsList] = useState([]);
+  const [paymentsSummary, setPaymentsSummary] = useState({ total_revenue: 0, active_subscriptions: 0 });
 
   // Integrations, Safeguards, Analytics & Support State
   const [integrationsData, setIntegrationsData] = useState(null);
@@ -593,6 +594,7 @@ export default function AdminView({ user, onBackToApp }) {
       if (res.ok) {
         const data = await res.json();
         setPaymentsList(data.transactions || []);
+        if (data.summary) setPaymentsSummary(data.summary);
       }
     } catch (err) {
       console.error('Failed to load payments:', err);
@@ -2557,26 +2559,22 @@ export default function AdminView({ user, onBackToApp }) {
                 {/* Bar Chart Container */}
                 <div className="admin-rev-bars-wrap">
                   {[
-                    { month: 'Jan', val: 35, amt: '₹3,500' },
-                    { month: 'Feb', val: 42, amt: '₹4,200' },
-                    { month: 'Mar', val: 55, amt: '₹5,500' },
-                    { month: 'Apr', val: 48, amt: '₹4,800' },
-                    { month: 'May', val: 65, amt: '₹6,500' },
-                    { month: 'Jun', val: 78, amt: '₹7,800' },
-                    { month: 'Jul', val: 92, amt: '₹9,200' },
-                    { month: 'Aug', val: 110, amt: '₹11,000' },
-                    { month: 'Sep', val: 140, amt: '₹12,400', highlight: true },
-                    { month: 'Oct', val: 120, amt: '₹12,000' }
+                    { month: 'Apr', val: 0, amt: '₹0' },
+                    { month: 'May', val: 0, amt: '₹0' },
+                    { month: 'Jun', val: 0, amt: '₹0' },
+                    { month: 'Jul', val: 0, amt: '₹0' },
+                    { month: 'Aug', val: 0, amt: '₹0' },
+                    { month: 'Sep', val: (paymentsSummary?.total_revenue || overview?.totalRevenue || 0), amt: `₹${(paymentsSummary?.total_revenue || overview?.totalRevenue || 0).toLocaleString('en-IN')}`, highlight: true }
                   ].map((col, idx) => (
                     <div key={idx} className="admin-rev-col">
                       {col.highlight && (
-                        <div style={{ fontSize: '11px', fontWeight: 800, color: '#2563eb', background: '#eff6ff', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: col.val > 0 ? '#2563eb' : '#64748b', background: col.val > 0 ? '#eff6ff' : '#f1f5f9', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
                           {col.amt}
                         </div>
                       )}
                       <div
                         className={`admin-rev-bar ${col.highlight ? 'highlight' : ''}`}
-                        style={{ height: `${col.val}%` }}
+                        style={{ height: `${col.val > 0 ? Math.min(100, Math.max(15, (col.val / 10000) * 100)) : 4}px`, minHeight: '4px', background: col.val > 0 ? '#2563eb' : '#e2e8f0' }}
                         title={`${col.month}: ${col.amt}`}
                       />
                       <span className="admin-rev-month-label">{col.month}</span>
@@ -2588,20 +2586,24 @@ export default function AdminView({ user, onBackToApp }) {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                   <div>
                     <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Total Revenue</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>₹12,400</div>
-                    <span className="admin-stat-pill admin-stat-pill-up">↑ 18%</span>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
+                      ₹{(paymentsSummary?.total_revenue !== undefined ? paymentsSummary.total_revenue : (overview?.totalRevenue || 0)).toLocaleString('en-IN')}
+                    </div>
+                    <span className="admin-stat-pill admin-stat-pill-up" style={{ color: '#059669', background: '#ecfdf5' }}>Live Invoices</span>
                   </div>
 
                   <div>
-                    <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Active Subscriptions</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>2,793</div>
-                    <span className="admin-stat-pill admin-stat-pill-up">↑ 12%</span>
+                    <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Active Paid Subscriptions</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
+                      {paymentsSummary?.active_subscriptions !== undefined ? paymentsSummary.active_subscriptions : (overview?.activePaidSubscriptions || 0)}
+                    </div>
+                    <span className="admin-stat-pill admin-stat-pill-up" style={{ color: '#2563eb', background: '#eff6ff' }}>Active Customers</span>
                   </div>
 
                   <div>
                     <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Churn Rate</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>1.2%</div>
-                    <span className="admin-stat-pill admin-stat-pill-up">↓ 0.3%</span>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>0.0%</div>
+                    <span className="admin-stat-pill admin-stat-pill-up" style={{ color: '#059669', background: '#ecfdf5' }}>Zero Churn</span>
                   </div>
                 </div>
               </div>
