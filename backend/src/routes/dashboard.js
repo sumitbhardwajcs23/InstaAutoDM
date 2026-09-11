@@ -2,8 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-
-const FREE_CAP = parseInt(process.env.FREE_PLAN_DM_LIMIT || '1000', 10);
+const { dmLimitFor } = require('../constants/planLimits');
 
 async function getAccountForUser(userId, accountId) {
   if (!userId) return null;
@@ -33,6 +32,8 @@ router.get('/stats', async (req, res) => {
     }
   }
 
+  const userPlanLimit = dmLimitFor(user?.plan);
+
   if (!account || !user) {
     return res.json({
       connected: false,
@@ -43,7 +44,7 @@ router.get('/stats', async (req, res) => {
       activeRules: 0,
       totalRules: 0,
       dmUsage: 0,
-      dmLimit: FREE_CAP,
+      dmLimit: userPlanLimit,
       usagePercent: 0,
       accountHealthy: false
     });
@@ -70,7 +71,7 @@ router.get('/stats', async (req, res) => {
 
   const activeRules = (await db.prepare('SELECT COUNT(*) as count FROM automation_rules WHERE instagram_account_id = ? AND is_active = 1').get(account.id))?.count || 0;
   const totalRules = (await db.prepare('SELECT COUNT(*) as count FROM automation_rules WHERE instagram_account_id = ?').get(account.id))?.count || 0;
-  const usagePercent = Math.min(100, Math.round((totalDmsSent / FREE_CAP) * 100));
+  const usagePercent = Math.min(100, Math.round((totalDmsSent / (userPlanLimit || 1)) * 100));
 
   const recent_conversations = (await db.prepare(`
     SELECT * FROM conversations
@@ -106,8 +107,8 @@ router.get('/stats', async (req, res) => {
     },
     user: { id: user.id, name: user.name, email: user.email, plan: user.plan },
     totalDmsSent,
-    dmLimit: FREE_CAP,
-    dmRemaining: Math.max(0, FREE_CAP - totalDmsSent),
+    dmLimit: userPlanLimit,
+    dmRemaining: Math.max(0, userPlanLimit - totalDmsSent),
     usagePercent,
     commentsReplied: commentsThisMonth,
     commentsRepliedChange: changePercent,
@@ -117,7 +118,7 @@ router.get('/stats', async (req, res) => {
     accountHealthy: account.status === 'connected',
     stats: {
       dms_sent_period: totalDmsSent,
-      dms_limit: FREE_CAP,
+      dms_limit: userPlanLimit,
       dm_percent: usagePercent,
       comments_replied: commentsThisMonth,
       active_rules: activeRules,

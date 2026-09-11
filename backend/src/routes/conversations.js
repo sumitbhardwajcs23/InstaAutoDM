@@ -4,6 +4,7 @@ const router = express.Router();
 const db = require('../db');
 const { decrypt } = require('../services/crypto');
 const profileCache = require('../services/profileCache');
+const { dmLimitFor } = require('../constants/planLimits');
 
 // KNOWN_TESTERS is now part of profileCache — no need to duplicate here
 const KNOWN_TESTERS = profileCache.KNOWN_USERS;
@@ -183,9 +184,18 @@ router.post('/:id/reply', async (req, res) => {
   const { text } = req.body;
   if (!text || !text.trim()) return res.status(400).json({ error: 'Message text required' });
 
+  // Plan limit enforcement
+  const user = await db.prepare('SELECT id, plan, dm_usage_this_period FROM users WHERE id = ?').get(req.user.id);
+  const planLimit = dmLimitFor(user?.plan);
+  const currentUsage = user?.dm_usage_this_period || 0;
+  if (currentUsage >= planLimit) {
+    return res.status(403).json({
+      error: `Monthly DM limit reached for your plan (${user?.plan || 'free'}: ${planLimit}). Upgrade your plan to send more messages.`
+    });
+  }
+
   const { v4: uuidv4 } = require('uuid');
   const metaClient = require('../services/metaClient');
-  const { decrypt } = require('../services/crypto');
 
   let status = 'sent';
   let metaMessageId = null;
@@ -212,6 +222,11 @@ router.post('/:id/reply', async (req, res) => {
   await db.prepare("UPDATE conversations SET last_message = ?, last_message_direction = 'outbound', status = 'replied', updated_at = datetime('now') WHERE id = ?").run(
     text, conversation.id
   );
+
+  // Meter outbound DM usage on success
+  if (status === 'sent') {
+    await db.prepare("UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1, updated_at = datetime('now') WHERE id = ?").run(req.user.id);
+  }
 
   res.json({ success: true, messageId: msgId, status, error: errorMsg });
 });

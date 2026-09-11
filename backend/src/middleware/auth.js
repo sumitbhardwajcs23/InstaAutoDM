@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'instautodm_jwt_secret_change_in_production_2026';
+const { JWT_SECRET } = require('../config/secrets');
 
 const PUBLIC_PATHS = [
   '/instagram/oauth/start',

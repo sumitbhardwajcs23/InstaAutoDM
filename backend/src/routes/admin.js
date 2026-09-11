@@ -7,6 +7,7 @@ const db = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { DEFAULT_TEMPLATES } = require('../constants/defaultTemplates');
 const { DEFAULT_SITE_SETTINGS } = require('./site');
+const { dmLimitFor } = require('../constants/planLimits');
 
 // All endpoints in this router require authentication and admin privileges
 router.use(requireAuth);
@@ -554,13 +555,7 @@ router.get('/users/:id/details', async (req, res) => {
     }
 
     // Determine plan DM limits
-    const planLimits = {
-      free: 1000,
-      pro: 25000,
-      agency: 100000,
-      enterprise: 500000
-    };
-    const dmLimit = planLimits[(user.plan || 'free').toLowerCase()] || 1000;
+    const dmLimit = dmLimitFor(user.plan);
     const dmUsed = user.dm_usage_this_period || 0;
     const dmLeft = Math.max(0, dmLimit - dmUsed);
 

@@ -3,9 +3,11 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { JWT_SECRET, requireAuth } = require('../middleware/auth');
+const { authLimiter } = require('../middleware/rateLimiter');
 
 function isConfiguredAdminEmail(email) {
   if (!email) return false;
@@ -32,7 +34,7 @@ function makeToken(user) {
 }
 
 // POST /api/auth/register
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { email, password, name } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
@@ -64,7 +66,7 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
@@ -108,7 +110,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/admin-login (Strict Super Admin Gateway)
-router.post('/admin-login', async (req, res) => {
+router.post('/admin-login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Admin email and master password are required' });
@@ -179,22 +181,74 @@ router.post('/admin-login', async (req, res) => {
   }
 });
 
-// POST /api/auth/reset-password
-router.post('/reset-password', async (req, res) => {
+// POST /api/auth/forgot-password (Request single-use reset token)
+router.post('/forgot-password', authLimiter, async (req, res) => {
   try {
-    const { email, newPassword } = req.body;
-    if (!email || !newPassword) return res.status(400).json({ error: 'Email and new password are required' });
-    if (newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
 
     const normalizedEmail = email.toLowerCase().trim();
-    const user = await db.prepare('SELECT id, email, name, role FROM users WHERE email = ?').get(normalizedEmail);
-    if (!user) return res.status(404).json({ error: 'No account found with this email address' });
+    const user = await db.prepare('SELECT id, email FROM users WHERE email = ?').get(normalizedEmail);
+
+    let devToken = null;
+    if (user) {
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 mins
+      const resetId = uuidv4();
+
+      await db.prepare(`
+        INSERT INTO password_resets (id, user_id, token_hash, expires_at, used, created_at)
+        VALUES (?, ?, ?, ?, 0, datetime('now'))
+      `).run(resetId, user.id, tokenHash, expiresAt);
+
+      if (process.env.NODE_ENV !== 'production') {
+        devToken = rawToken;
+        console.log(`[Auth] 🔑 Password reset token generated for ${user.email}: ${rawToken}`);
+      }
+    }
+
+    // Always return uniform message to prevent account enumeration
+    res.json({
+      success: true,
+      message: 'If an account exists with this email, password reset instructions have been sent.',
+      ...(devToken ? { dev_token: devToken } : {})
+    });
+  } catch (err) {
+    console.error('[Auth] Forgot password error:', err.message);
+    res.status(500).json({ error: 'Failed to process password reset request.' });
+  }
+});
+
+// POST /api/auth/reset-password (Verify single-use token and update password)
+router.post('/reset-password', authLimiter, async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Reset token and new password are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+    const resetRecord = await db.prepare(`
+      SELECT r.*, u.email 
+      FROM password_resets r
+      JOIN users u ON r.user_id = u.id
+      WHERE r.token_hash = ? AND r.used = 0 AND r.expires_at > datetime('now')
+    `).get(tokenHash);
+
+    if (!resetRecord) {
+      return res.status(400).json({ error: 'Invalid, expired, or previously used password reset token.' });
+    }
 
     const password_hash = await bcrypt.hash(newPassword, 12);
     const now = new Date().toISOString();
-    await db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(password_hash, now, user.id);
+    await db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(password_hash, now, resetRecord.user_id);
+    await db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run(resetRecord.id);
 
-    res.json({ success: true, message: 'Password updated successfully! You can now log in.' });
+    res.json({ success: true, message: 'Password has been reset successfully! You can now log in.' });
   } catch (err) {
     console.error('[Auth] Reset password error:', err.message);
     res.status(500).json({ error: 'Password reset failed. Please try again.' });

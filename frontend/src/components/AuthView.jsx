@@ -52,7 +52,9 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
 
   // Reset Password Dialog State
   const [showResetModal, setShowResetModal] = useState(false);
+  const [resetStep, setResetStep] = useState('request'); // 'request' | 'submit'
   const [resetEmail, setResetEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
   const [resetError, setResetError] = useState(null);
@@ -99,9 +101,40 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
   const handleForgotPassword = () => {
     setResetEmail(email || '');
     setNewPassword('');
+    setResetToken('');
+    setResetStep('request');
     setResetError(null);
     setResetSuccess(null);
     setShowResetModal(true);
+  };
+
+  const handleRequestResetToken = async (e) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setResetError(null);
+    setResetSuccess(null);
+
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetSuccess(data.message || 'Reset token generated! Please enter your token and new password.');
+        if (data.dev_token) {
+          setResetToken(data.dev_token);
+        }
+        setResetStep('submit');
+      } else {
+        throw new Error(data.error || 'Failed to request reset token');
+      }
+    } catch (err) {
+      setResetError(err.message);
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const handleResetPasswordSubmit = async (e) => {
@@ -114,12 +147,11 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetEmail, newPassword }),
+        body: JSON.stringify({ token: resetToken, newPassword }),
       });
       const data = await res.json();
       if (res.ok) {
         setResetSuccess(data.message || 'Password updated successfully!');
-        setEmail(resetEmail);
         setPassword(newPassword);
         setTimeout(() => {
           setShowResetModal(false);
@@ -430,65 +462,99 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                 Reset Your Password
               </h2>
             </div>
-            <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>
-              Enter your email and choose a new password. You will be able to log in right away.
-            </p>
+            {resetStep === 'request' ? (
+              <form onSubmit={handleRequestResetToken} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>
+                  Enter your account email to receive a secure single-use password reset token.
+                </p>
 
-            {resetError && (
-              <div className="auth-alert-box error" style={{ marginBottom: '16px' }}>
-                <AlertCircle size={16} />
-                <span>{resetError}</span>
-              </div>
-            )}
-
-            {resetSuccess && (
-              <div className="auth-alert-box info" style={{ marginBottom: '16px', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)', background: 'rgba(16, 185, 129, 0.1)' }}>
-                <CheckCircle2 size={16} />
-                <span>{resetSuccess}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="auth-input-group">
-                <label className="auth-input-label">Account Email</label>
-                <div className="auth-input-box">
-                  <Mail size={16} className="auth-input-icon" />
-                  <input
-                    type="email"
-                    required
-                    value={resetEmail}
-                    onChange={(e) => setResetEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="auth-text-input"
-                  />
+                <div className="auth-input-group">
+                  <label className="auth-input-label">Account Email</label>
+                  <div className="auth-input-box">
+                    <Mail size={16} className="auth-input-icon" />
+                    <input
+                      type="email"
+                      required
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="auth-text-input"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="auth-input-group">
-                <label className="auth-input-label">New Password</label>
-                <div className="auth-input-box">
-                  <Lock size={16} className="auth-input-icon" />
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="At least 6 characters"
-                    className="auth-text-input"
-                  />
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="auth-submit-btn"
+                  style={{ marginTop: '8px' }}
+                >
+                  {resetLoading ? 'Requesting Token...' : 'Send Reset Instructions'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setResetStep('submit')}
+                  style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '12.5px', cursor: 'pointer', padding: '4px' }}
+                >
+                  Already have a reset token? Click here
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>
+                  Enter the secure reset token and your new password.
+                </p>
+
+                <div className="auth-input-group">
+                  <label className="auth-input-label">Reset Token</label>
+                  <div className="auth-input-box">
+                    <KeyRound size={16} className="auth-input-icon" />
+                    <input
+                      type="text"
+                      required
+                      value={resetToken}
+                      onChange={(e) => setResetToken(e.target.value)}
+                      placeholder="Paste 64-character reset token"
+                      className="auth-text-input"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                disabled={resetLoading}
-                className="auth-submit-btn"
-                style={{ marginTop: '8px' }}
-              >
-                {resetLoading ? 'Updating Password...' : 'Save New Password & Sign In'}
-              </button>
-            </form>
+                <div className="auth-input-group">
+                  <label className="auth-input-label">New Password</label>
+                  <div className="auth-input-box">
+                    <Lock size={16} className="auth-input-icon" />
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="At least 6 characters"
+                      className="auth-text-input"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="auth-submit-btn"
+                  style={{ marginTop: '8px' }}
+                >
+                  {resetLoading ? 'Updating Password...' : 'Save New Password & Sign In'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setResetStep('request')}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '12.5px', cursor: 'pointer', padding: '4px' }}
+                >
+                  ← Request a new token
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}

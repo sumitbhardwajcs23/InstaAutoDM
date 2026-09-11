@@ -3,8 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const queue = require('../services/queue');
-
-const FREE_CAP = parseInt(process.env.FREE_PLAN_DM_LIMIT || '1000', 10);
+const { dmLimitFor } = require('../constants/planLimits');
 
 router.get('/', async (req, res) => {
   let user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
@@ -27,7 +26,10 @@ router.get('/', async (req, res) => {
   
   const totalSentReplies = account ? (await db.prepare("SELECT COUNT(*) as c FROM comment_replies WHERE status='sent' AND instagram_account_id=?").get(account.id))?.c || 0 : 0;
   const totalSentDMs = account ? (await db.prepare("SELECT COUNT(*) as c FROM messages WHERE direction='outbound' AND status='sent' AND conversation_id IN (SELECT id FROM conversations WHERE instagram_account_id=?)").get(account.id))?.c || 0 : 0;
-  const usagePercent = Math.min(100, Math.round((user.dm_usage_this_period / FREE_CAP) * 100));
+  
+  const planLimit = dmLimitFor(user?.plan);
+  const usageCount = user?.dm_usage_this_period || 0;
+  const usagePercent = Math.min(100, Math.round((usageCount / (planLimit || 1)) * 100));
 
   const slidingWindows = account ? queue.getRateLimitStatus(account.id) : {
     private_replies_last_hour: 0,
@@ -37,24 +39,19 @@ router.get('/', async (req, res) => {
   };
 
   res.json({
-    plan: user.plan,
-    dms_sent: user.dm_usage_this_period,
-    dm_usage_this_period: user.dm_usage_this_period,
-    dm_limit: FREE_CAP,
-    monthly_limit: FREE_CAP,
+    plan: user.plan || 'free',
+    dms_sent: usageCount,
+    dm_usage_this_period: usageCount,
+    dm_limit: planLimit,
+    monthly_limit: planLimit,
     percent_used: usagePercent,
     usage_percent: usagePercent,
     usage_period_start: user.usage_period_start,
-    is_capped: user.dm_usage_this_period >= FREE_CAP,
-    dm_remaining: Math.max(0, FREE_CAP - user.dm_usage_this_period),
+    is_capped: usageCount >= planLimit,
+    dm_remaining: Math.max(0, planLimit - usageCount),
     sliding_windows: slidingWindows,
     stats: { total_sent_replies: totalSentReplies, total_sent_dms: totalSentDMs, total_all_sent: totalSentReplies + totalSentDMs }
   });
-});
-
-router.post('/reset', async (req, res) => {
-  await db.prepare("UPDATE users SET dm_usage_this_period=0, usage_period_start=date('now') WHERE id=?").run(req.user.id);
-  res.json({ success: true, dms_sent_period: 0 });
 });
 
 module.exports = router;

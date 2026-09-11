@@ -237,7 +237,15 @@ router.post('/connect-token', async (req, res) => {
     const fullName = tokenInfo.full_name || tokenInfo.name || tokenInfo.username;
     const profilePicUrl = tokenInfo.profile_picture_url || null;
 
-    const existing = await db.prepare("SELECT id FROM instagram_accounts WHERE ig_user_id = ? OR fb_user_id = ? OR (lower(username) = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected'))").get(tokenInfo.ig_user_id, tokenInfo.fb_user_id || tokenInfo.ig_user_id, (tokenInfo.username || '').toLowerCase());
+    const existing = await db.prepare("SELECT id, user_id FROM instagram_accounts WHERE ig_user_id = ? OR fb_user_id = ? OR (lower(username) = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected'))").get(tokenInfo.ig_user_id, tokenInfo.fb_user_id || tokenInfo.ig_user_id, (tokenInfo.username || '').toLowerCase());
+    
+    // Prevent tenant hijacking: reject if this IG account is already owned by another user
+    if (existing && existing.user_id && existing.user_id !== uid) {
+      return res.status(409).json({
+        error: 'This Instagram account is already connected to another Airvix workspace. Please contact support to transfer it.'
+      });
+    }
+
     const accountId = existing ? existing.id : uuidv4();
     if (existing) {
       await db.prepare(`
@@ -809,7 +817,13 @@ router.get('/oauth/callback', async (req, res) => {
     const profilePicUrl = tokenInfo.profile_picture_url || null;
     const accountType = tokenInfo.account_type || 'Creator Account';
 
-    const existing = await db.prepare("SELECT id FROM instagram_accounts WHERE ig_user_id = ? OR (lower(username) = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected'))").get(tokenInfo.ig_user_id, tokenInfo.username.toLowerCase());
+    const existing = await db.prepare("SELECT id, user_id FROM instagram_accounts WHERE ig_user_id = ? OR (lower(username) = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected'))").get(tokenInfo.ig_user_id, tokenInfo.username.toLowerCase());
+    
+    // Prevent tenant hijacking: reject if this IG account is already owned by another user
+    if (existing && existing.user_id && existing.user_id !== user.id) {
+      return res.redirect(`/dashboard?error=${encodeURIComponent('This Instagram account is already connected to another Airvix workspace. Please contact support to transfer it.')}`);
+    }
+
     const accountId = existing ? existing.id : uuidv4();
     if (existing) {
       await db.prepare(`

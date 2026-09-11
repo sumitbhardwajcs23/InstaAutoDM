@@ -10,19 +10,24 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
+const { validateSecrets } = require('./config/secrets');
+validateSecrets();
+
 require('./db'); // Initialize DB
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const { requireAuth } = require('./middleware/auth');
+const { apiLimiter } = require('./middleware/rateLimiter');
 
 app.use(cors({ origin: '*', methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'] }));
 
 app.use(express.json({
+  limit: '1mb',
   verify: (req, _res, buf) => { req.rawBody = buf; }
 }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ── Public routes (no auth required / handles own auth) ──────────────
 app.use('/api/auth', require('./routes/auth'));
@@ -33,8 +38,9 @@ app.use('/api/instagram', require('./routes/instagram'));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().toISOString(), version: '3.3.0' }));
 
-// ── Protected API routes (JWT required) ─────────────────────────────
-// Apply auth middleware to remaining /api/* routes
+// ── Protected API routes (JWT required & Rate Limited) ─────────────────────
+// Apply auth and rate limiting middleware to remaining /api/* routes
+app.use('/api', apiLimiter);
 app.use('/api', requireAuth);
 
 app.use('/api/dashboard', require('./routes/dashboard'));
@@ -123,6 +129,8 @@ app.use((_req, res) => {
   }
 });
 
+const { startBillingRolloverJob } = require('./services/billingRollover');
+
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`\n🚀 Airvix SaaS v3.0`);
@@ -130,6 +138,9 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`   Login:   http://localhost:${PORT}/login`);
     console.log(`   Webhook: http://localhost:${PORT}/webhooks/instagram`);
     console.log(`   Health:  http://localhost:${PORT}/health\n`);
+
+    // Start automated 30-day billing rollover background service
+    startBillingRolloverJob();
   });
 }
 

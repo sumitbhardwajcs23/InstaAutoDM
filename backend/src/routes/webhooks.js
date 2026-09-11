@@ -5,9 +5,11 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const queue = require('../services/queue');
 const { verifyMetaSignature } = require('../services/crypto');
+const { webhookLimiter } = require('../middleware/rateLimiter');
+const { META_VERIFY_TOKEN, META_APP_SECRET } = require('../config/secrets');
 
-const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'instagram_autoreply_verify_token_2026';
-const APP_SECRET = process.env.META_APP_SECRET || 'test_app_secret_12345';
+const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || META_VERIFY_TOKEN;
+const APP_SECRET = process.env.META_APP_SECRET || META_APP_SECRET;
 
 router.get('/instagram', (req, res) => {
   const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
@@ -15,15 +17,24 @@ router.get('/instagram', (req, res) => {
   res.sendStatus(403);
 });
 
-router.post('/instagram', async (req, res) => {
+router.post('/instagram', webhookLimiter, async (req, res) => {
   console.log('[Webhook] 🔔 Incoming webhook request received from Meta!');
   const signature = req.headers['x-hub-signature-256'];
-  const rawBody = req.rawBody || JSON.stringify(req.body);
-  if (signature) {
+  const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
+
+  const bypassVerification = process.env.NODE_ENV === 'test' && process.env.SKIP_WEBHOOK_VERIFY === 'true';
+
+  if (!bypassVerification) {
+    if (!signature) {
+      console.warn('[Webhook] ❌ Rejected webhook: Missing x-hub-signature-256 header.');
+      return res.status(401).json({ error: 'Missing x-hub-signature-256 header' });
+    }
+
     const isValid = verifyMetaSignature(rawBody, signature, APP_SECRET) ||
                     (process.env.META_IG_APP_SECRET && verifyMetaSignature(rawBody, signature, process.env.META_IG_APP_SECRET));
     if (!isValid) {
-      console.warn('[Webhook] ⚠️ Signature verification failed (APP_SECRET might differ), but proceeding to process event in development mode.');
+      console.warn('[Webhook] ❌ Rejected webhook: Invalid HMAC signature.');
+      return res.status(401).json({ error: 'Invalid webhook signature' });
     }
   }
   const payload = req.body;

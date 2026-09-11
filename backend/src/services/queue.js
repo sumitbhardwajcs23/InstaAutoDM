@@ -4,8 +4,8 @@ const db = require('../db');
 const metaClient = require('./metaClient');
 const { decrypt } = require('./crypto');
 const profileCache = require('./profileCache');
+const { dmLimitFor } = require('../constants/planLimits');
 
-const FREE_CAP = parseInt(process.env.FREE_PLAN_DM_LIMIT || '1000', 10);
 const MAX_COMMENT_AGE_MS = 7 * 24 * 3600000;
 const MAX_DM_WINDOW_MS = 24 * 3600000;
 const rateLimitWindows = new Map();
@@ -213,8 +213,9 @@ class EventQueueWorker {
       return;
     }
 
-    if (shouldSendDm && user.dm_usage_this_period >= FREE_CAP) {
-      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', 'usage_capped', 'Free plan monthly cap reached');
+    const dmLimit = dmLimitFor(user.plan);
+    if (shouldSendDm && user.dm_usage_this_period >= dmLimit) {
+      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', 'usage_capped', `Plan limit reached (${user.plan || 'free'}: ${dmLimit})`);
       return;
     }
 
@@ -657,9 +658,10 @@ class EventQueueWorker {
       return;
     }
 
-    if (user.dm_usage_this_period >= FREE_CAP) {
+    const dmLimit = dmLimitFor(user.plan);
+    if (user.dm_usage_this_period >= dmLimit) {
       const cappedOutTs = new Date(eventTime + 1000).toISOString();
-      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped', 'Free cap reached', cappedOutTs);
+      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped', `Plan limit reached (${user.plan || 'free'}: ${dmLimit})`, cappedOutTs);
       return;
     }
 

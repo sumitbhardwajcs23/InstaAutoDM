@@ -1,25 +1,49 @@
 // backend/src/services/crypto.js
 const crypto = require('crypto');
-const ENCRYPTION_KEY = (process.env.ENCRYPTION_KEY || '01234567890123456789012345678901').slice(0, 32);
-const IV_LENGTH = 16;
+const { ENCRYPTION_KEY } = require('../config/secrets');
 
-function encrypt(text) {
-  if (!text) return '';
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return `${iv.toString('hex')}:${encrypted}`;
+const GCM_IV_LENGTH = 12; // Standard 96-bit IV for AES-GCM
+const CBC_IV_LENGTH = 16; // Legacy 128-bit IV for AES-CBC
+
+function getKeyBuffer(keyStr) {
+  if (!keyStr) return null;
+  const keyBuf = Buffer.alloc(32);
+  Buffer.from(keyStr).copy(keyBuf, 0, 0, Math.min(32, Buffer.byteLength(keyStr)));
+  return keyBuf;
 }
 
-function tryDecryptWithKey(encryptedText, keyStr) {
+/**
+ * Encrypts text using authenticated AES-256-GCM.
+ * Output format: <ivHex>:<authTagHex>:<ciphertextHex>
+ */
+function encrypt(text) {
+  if (!text) return '';
+  const key = getKeyBuffer(process.env.ENCRYPTION_KEY || ENCRYPTION_KEY);
+  if (!key) throw new Error('[Crypto] Cannot encrypt: ENCRYPTION_KEY is missing.');
+
+  const iv = crypto.randomBytes(GCM_IV_LENGTH);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag();
+
+  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+}
+
+/**
+ * Attempts AES-256-GCM authenticated decryption.
+ */
+function tryDecryptGcm(ivHex, authTagHex, encryptedHex, keyStr) {
   try {
-    const [ivHex, encrypted] = encryptedText.split(':');
+    const key = getKeyBuffer(keyStr);
+    if (!key) return null;
     const iv = Buffer.from(ivHex, 'hex');
-    const key = Buffer.alloc(32);
-    Buffer.from(keyStr).copy(key, 0, 0, Math.min(32, keyStr.length));
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    const authTag = Buffer.from(authTagHex, 'hex');
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;
   } catch {
@@ -27,20 +51,60 @@ function tryDecryptWithKey(encryptedText, keyStr) {
   }
 }
 
+/**
+ * Attempts legacy AES-256-CBC decryption for backward compatibility with existing rows.
+ */
+function tryDecryptCbc(ivHex, encryptedHex, keyStr) {
+  try {
+    const key = getKeyBuffer(keyStr);
+    if (!key) return null;
+    const iv = Buffer.from(ivHex, 'hex');
+
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decrypts ciphertext.
+ * Automatically handles AES-256-GCM (3 parts) and legacy AES-256-CBC (2 parts).
+ */
 function decrypt(encryptedText) {
   if (!encryptedText) return '';
+  // Plain unencrypted token pass-through
   if (encryptedText.startsWith('EAA') || encryptedText.startsWith('IGQ')) return encryptedText;
   if (!encryptedText.includes(':')) return encryptedText;
 
-  // 1. Try env key
-  if (process.env.ENCRYPTION_KEY) {
-    const dec = tryDecryptWithKey(encryptedText, process.env.ENCRYPTION_KEY);
-    if (dec && (dec.startsWith('EAA') || dec.startsWith('IGQ') || dec.length > 20)) return dec;
+  const parts = encryptedText.split(':');
+  const candidateKeys = [];
+
+  if (process.env.ENCRYPTION_KEY) candidateKeys.push(process.env.ENCRYPTION_KEY);
+  if (process.env.ENCRYPTION_KEY_PREVIOUS) candidateKeys.push(process.env.ENCRYPTION_KEY_PREVIOUS);
+  if (process.env.NODE_ENV !== 'production' && ENCRYPTION_KEY && !candidateKeys.includes(ENCRYPTION_KEY)) {
+    candidateKeys.push(ENCRYPTION_KEY);
   }
 
-  // 2. Try default repo key
-  const defaultDec = tryDecryptWithKey(encryptedText, '01234567890123456789012345678901');
-  if (defaultDec) return defaultDec;
+  // Case 1: AES-256-GCM (iv:authTag:ciphertext)
+  if (parts.length === 3) {
+    const [ivHex, authTagHex, encryptedHex] = parts;
+    for (const key of candidateKeys) {
+      const dec = tryDecryptGcm(ivHex, authTagHex, encryptedHex, key);
+      if (dec !== null) return dec;
+    }
+  }
+
+  // Case 2: Legacy AES-256-CBC (iv:ciphertext)
+  if (parts.length === 2) {
+    const [ivHex, encryptedHex] = parts;
+    for (const key of candidateKeys) {
+      const dec = tryDecryptCbc(ivHex, encryptedHex, key);
+      if (dec !== null) return dec;
+    }
+  }
 
   return encryptedText;
 }
@@ -48,13 +112,18 @@ function decrypt(encryptedText) {
 function verifyMetaSignature(rawBody, signatureHeader, appSecret) {
   if (!signatureHeader || !appSecret) return false;
   const [algo, expectedSig] = signatureHeader.split('=');
-  if (algo !== 'sha256') return false;
+  if (algo !== 'sha256' || !expectedSig) return false;
   const hmac = crypto.createHmac('sha256', appSecret);
   hmac.update(rawBody);
   const calculatedSig = hmac.digest('hex');
   try {
-    return crypto.timingSafeEqual(Buffer.from(expectedSig, 'hex'), Buffer.from(calculatedSig, 'hex'));
-  } catch { return false; }
+    const expectedBuf = Buffer.from(expectedSig, 'hex');
+    const calculatedBuf = Buffer.from(calculatedSig, 'hex');
+    if (expectedBuf.length !== calculatedBuf.length) return false;
+    return crypto.timingSafeEqual(expectedBuf, calculatedBuf);
+  } catch {
+    return false;
+  }
 }
 
 function generateMetaSignature(payload, appSecret) {
@@ -63,4 +132,10 @@ function generateMetaSignature(payload, appSecret) {
   return `sha256=${hmac.digest('hex')}`;
 }
 
-module.exports = { encrypt, decrypt, verifyMetaSignature, generateMetaSignature };
+module.exports = {
+  encrypt,
+  decrypt,
+  tryDecryptCbc,
+  verifyMetaSignature,
+  generateMetaSignature
+};
