@@ -56,8 +56,10 @@ if (pgPool) {
         await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS fb_user_id TEXT;');
         await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS account_type TEXT;');
         await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS full_name TEXT;');
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;');
         await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;');
+        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_refreshed_at TEXT;');
+        await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_type TEXT DEFAULT 'ig_long_lived';");
+        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS last_auth_error TEXT;');
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_mode TEXT DEFAULT 'both';");
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_message TEXT;");
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS dm_reply_message TEXT;");
@@ -116,6 +118,22 @@ if (pgPool) {
           CREATE INDEX IF NOT EXISTS idx_webhook_jobs_sched_state ON webhook_jobs(state, scheduled_at);
           CREATE INDEX IF NOT EXISTS idx_webhook_jobs_account ON webhook_jobs(account_id);
         `);
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS data_deletion_requests (
+            id TEXT PRIMARY KEY,
+            confirmation_code TEXT UNIQUE NOT NULL,
+            user_id TEXT,
+            account_id TEXT,
+            status TEXT NOT NULL DEFAULT 'completed',
+            details TEXT,
+            requested_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            completed_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          );
+        `);
+        await pgPool.query("CREATE INDEX IF NOT EXISTS idx_data_deletion_code ON data_deletion_requests(confirmation_code);");
+        await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_refreshed_at TEXT;");
+        await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_type TEXT DEFAULT 'ig_long_lived';");
+        await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS last_auth_error TEXT;");
         // Ensure default admin user exists safely without hardcoded credentials
         const existingAdmin = await pgPool.query("SELECT id, password_hash FROM users WHERE email = 'admin@airvix.com'");
         if (!existingAdmin.rows || existingAdmin.rows.length === 0) {

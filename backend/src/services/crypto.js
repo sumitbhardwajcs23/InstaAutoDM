@@ -132,10 +132,57 @@ function generateMetaSignature(payload, appSecret) {
   return `sha256=${hmac.digest('hex')}`;
 }
 
+/**
+ * Parses and verifies Meta's signed_request parameter (used in Data Deletion & Canvas callbacks)
+ * Format: <encoded_sig>.<encoded_payload> (base64url)
+ */
+function parseSignedRequest(signedRequest, appSecret) {
+  if (!signedRequest || typeof signedRequest !== 'string') return null;
+  const parts = signedRequest.split('.');
+  if (parts.length !== 2) return null;
+
+  const [encodedSig, encodedPayload] = parts;
+  if (!encodedSig || !encodedPayload) return null;
+
+  try {
+    const sig = Buffer.from(encodedSig, 'base64url');
+    const expectedSig = crypto.createHmac('sha256', appSecret).update(encodedPayload).digest();
+
+    if (sig.length !== expectedSig.length || !crypto.timingSafeEqual(sig, expectedSig)) {
+      return null;
+    }
+
+    const payloadJson = Buffer.from(encodedPayload, 'base64url').toString('utf8');
+    const data = JSON.parse(payloadJson);
+    if (!data || typeof data !== 'object') return null;
+    if (data.algorithm && data.algorithm.toUpperCase() !== 'HMAC-SHA256') return null;
+
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Generates a valid Meta-compatible signed_request (for testing and verification)
+ */
+function createSignedRequest(payload, appSecret) {
+  const payloadWithAlgo = {
+    algorithm: 'HMAC-SHA256',
+    issued_at: Math.floor(Date.now() / 1000),
+    ...(typeof payload === 'object' ? payload : { user_id: String(payload) })
+  };
+  const encodedPayload = Buffer.from(JSON.stringify(payloadWithAlgo)).toString('base64url');
+  const encodedSig = crypto.createHmac('sha256', appSecret).update(encodedPayload).digest('base64url');
+  return `${encodedSig}.${encodedPayload}`;
+}
+
 module.exports = {
   encrypt,
   decrypt,
   tryDecryptCbc,
   verifyMetaSignature,
-  generateMetaSignature
+  generateMetaSignature,
+  parseSignedRequest,
+  createSignedRequest
 };

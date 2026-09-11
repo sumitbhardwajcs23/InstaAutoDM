@@ -3,53 +3,212 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy - Airvix</title>
+  <title>Privacy Policy — Airvix</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #1e293b; max-width: 800px; margin: 40px auto; padding: 0 20px; background: #f8fafc; }
-    .card { background: #fff; padding: 40px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    h1 { color: #0f172a; margin-bottom: 8px; }
-    h2 { color: #334155; margin-top: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
-    p, li { font-size: 15px; color: #475569; }
-    .badge { display: inline-block; background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }
-    .logo-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
-    .logo-header img { height: 36px; }
+    :root {
+      --bg: #080B12;
+      --card-bg: #0E1422;
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #F1F5F9;
+      --text-muted: #94A3B8;
+      --primary: #6366F1;
+      --primary-light: #818CF8;
+      --accent: #00D4B2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.7;
+      color: var(--text);
+      background: var(--bg);
+      margin: 0;
+      padding: 40px 20px 80px;
+    }
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 48px 44px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .brand-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .brand-logo img { height: 38px; }
+    .brand-name { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--primary-light);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+    h1 { font-size: 32px; font-weight: 800; margin: 0 0 10px 0; color: #FFFFFF; letter-spacing: -0.5px; }
+    .meta-date { font-size: 14px; color: var(--text-muted); margin-bottom: 28px; }
+    h2 { font-size: 19px; font-weight: 700; color: #FFFFFF; margin-top: 36px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+    h2 span { color: var(--primary-light); }
+    p, li { font-size: 14.5px; color: var(--text-muted); margin-bottom: 14px; }
+    ul { padding-left: 22px; margin-bottom: 20px; }
+    li { margin-bottom: 8px; }
+    strong { color: #FFFFFF; }
+    .callout {
+      background: rgba(255, 255, 255, 0.03);
+      border-left: 4px solid var(--primary);
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .callout p { margin: 0; color: var(--text); font-size: 14px; }
+    a { color: var(--primary-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .footer-nav {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    @media (max-width: 640px) {
+      .container { padding: 28px 20px; }
+      h1 { font-size: 26px; }
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo-header">
-      <img src="/logo-icon.png" alt="Airvix" />
-      <span style="font-size: 20px; font-weight: 900; letter-spacing: -0.5px;">Air<span style="color: #6366F1;">vix</span></span>
+  <div class="container">
+    <div class="brand-header">
+      <a href="/" class="brand-logo">
+        <img src="/logo-icon.png" alt="Airvix" onerror="this.style.display='none'" />
+        <span class="brand-name">Air<span style="color: #6366F1;">vix</span></span>
+      </a>
+      <span class="badge">🔒 Meta Platform Compliant</span>
     </div>
-    <span class="badge">Meta Platform Compliant</span>
+
     <h1>Privacy Policy</h1>
-    <p><em>Last updated: September 5, 2026</em></p>
+    <div class="meta-date">Effective Date: September 11, 2026 • Version 3.3</div>
 
-    <p>Airvix ("we", "our", or "us") provides conversation automation tools for Instagram professional and business accounts in accordance with Meta Platform Terms and Developer Policies.</p>
+    <p>Airvix Technologies ("Airvix", "we", "our", or "us") provides conversation automation and engagement workflows for Instagram Professional and Creator accounts via official Meta Graph APIs. This Privacy Policy details how we access, collect, process, store, and protect your information when you access our platform or connect your Instagram account.</p>
 
-    <h2>1. Information We Access</h2>
-    <p>When you connect your Instagram account, we access only the data necessary to provide automated replies:</p>
+    <h2><span>1.</span> Account & User Information Collected</h2>
+    <p>When you register for an Airvix workspace, we collect the following basic information:</p>
     <ul>
-      <li>Instagram User ID and Page ID</li>
-      <li>Inbound comments and direct messages sent to your account</li>
-      <li>Timestamps to enforce Meta's 24-hour messaging window and 7-day comment age cutoff</li>
+      <li><strong>Account Credentials:</strong> Full name, business email address, and encrypted password hash (salted using bcrypt).</li>
+      <li><strong>Subscription Details:</strong> Selected pricing tier (Free, Pro, Agency, Enterprise), billing period start date, and automated reply quota consumption.</li>
+      <li><strong>Workspace Configuration:</strong> Custom automation rules, keyword triggers, response templates, and notification preferences.</li>
     </ul>
 
-    <h2>2. How Information is Used</h2>
+    <h2><span>2.</span> Instagram & Meta Information Accessed</h2>
+    <p>When you connect your Instagram account via official Meta OAuth 2.0 authorization, Airvix accesses strictly the data necessary to provide automated responses:</p>
     <ul>
-      <li>Triggering automated responses based on creator-configured keyword rules</li>
-      <li>Preventing spam and enforcing messaging rate limits</li>
-      <li>Displaying analytics and usage statistics in your dashboard</li>
+      <li><strong>Profile Metadata:</strong> Instagram User ID, handle (@username), profile picture URL, account type (Professional/Business/Creator), and follower count.</li>
+      <li><strong>Connected Facebook Page:</strong> Facebook Page ID and Page name linked to your Instagram Professional account (used solely to discover and route webhook events).</li>
+      <li><strong>Media Metadata:</strong> Recent Reels and Post identifiers, captions, media type, and timestamp (to allow targeting automations to specific posts).</li>
+      <li><strong>Inbound Public Comments:</strong> Comment ID, comment text, commenter Instagram scoped ID and username, and timestamp.</li>
+      <li><strong>Inbound Direct Messages:</strong> Message ID, conversation thread ID, incoming text payload, sender scoped ID, and message timestamp.</li>
     </ul>
 
-    <h2>3. Security & Cryptography</h2>
-    <p>All Meta access tokens and webhook secrets are stored using AES-256-GCM encryption. We do not sell, rent, or transfer user message data to third parties.</p>
+    <h2><span>3.</span> Scope of Processed Comments & Messages</h2>
+    <p>Airvix operates on a strict minimization principle. We process only:</p>
+    <ul>
+      <li>Inbound comments and direct messages that match creator-configured keyword triggers or active automated follow-up sequences.</li>
+      <li>Interactions occurring within Meta's allowable interaction windows: maximum 7 days for comment private replies, and within 24 hours of user initiation for direct messages.</li>
+      <li>We <strong>never</strong> access or read personal friend feeds, private personal chats unrelated to your professional inbox, or third-party browsing data.</li>
+    </ul>
 
-    <h2>4. Data Retention & Deletion</h2>
-    <p>Message logs are retained solely for idempotency and audit logs. Users may request deletion of their data at any time via our automated deletion callback or by disconnecting their account in Settings.</p>
+    <h2><span>4.</span> Stored Identifiers & Data Minimization</h2>
+    <p>To deliver reliable automation, idempotency, and audit logs, Airvix stores only minimal technical identifiers:</p>
+    <ul>
+      <li>Meta Instagram Scoped User IDs (IGSID) and Page-Scoped IDs (PSID).</li>
+      <li>Unique Comment IDs and Meta Message IDs.</li>
+      <li>Deterministic idempotency keys (e.g. <code>comm_{commentId}</code>, <code>msg_{messageId}</code>) to mathematically guarantee duplicate replies are never dispatched during network re-transmissions.</li>
+    </ul>
 
-    <h2>5. Contact Us</h2>
-    <p>If you have questions about this Privacy Policy, contact support at privacy@airvix.com.</p>
+    <h2><span>5.</span> Purpose of Data Collection</h2>
+    <p>The information collected is used exclusively for legitimate business purposes:</p>
+    <ul>
+      <li>Delivering creator-configured automated replies to customer comments and inquiries.</li>
+      <li>Fulfilling automated lead magnet delivery (e.g., sending resource links requested by commenters).</li>
+      <li>Displaying your creator inbox and conversation reply histories within your private workspace.</li>
+      <li>Enforcing fair use, rate limits, and platform compliance policies.</li>
+    </ul>
+
+    <h2><span>6.</span> Operational Usage & Rate Limiting</h2>
+    <p>All automated messages are routed through an asynchronous queue with natural jittered pacing (5–30 seconds) and per-account concurrency caps (maximum 2 concurrent sends, 30 requests/min). This prevents traffic bursts, respects Meta rate limits, and protects creator account standing.</p>
+
+    <h2><span>7.</span> Data Retention & Purge Schedule</h2>
+    <ul>
+      <li><strong>Active Connections:</strong> Data is retained for the duration of your active workspace subscription.</li>
+      <li><strong>Disconnected Accounts:</strong> When an account is disconnected, stored access tokens are immediately purged.</li>
+      <li><strong>Data Deletion Requests:</strong> When requested via in-app deletion or Meta's Data Deletion Callback, all associated tokens, conversation history, and automation rules are permanently deleted from database storage within 24 to 48 hours.</li>
+    </ul>
+
+    <h2><span>8.</span> Storage Location & Cryptographic Security</h2>
+    <div class="callout">
+      <p><strong>Military-Grade Encryption at Rest & In Transit:</strong> All Meta OAuth access tokens and sensitive secrets are stored using AES-256-GCM authenticated encryption with unique per-record initialization vectors and authentication tags. Database storage is hosted in Amazon Web Services (AWS us-east-1) via managed PostgreSQL with mandatory TLS 1.3 encryption in transit.</p>
+    </div>
+
+    <h2><span>9.</span> Access Isolation & Third-Party Disclosure</h2>
+    <ul>
+      <li><strong>Tenant Isolation:</strong> Every database query is strictly filtered by workspace tenant ID (<code>user_id</code>). One workspace can never access another creator's conversations or rules.</li>
+      <li><strong>Zero Third-Party Sale:</strong> We <strong>do not sell, rent, monetize, or transfer</strong> user data, comments, or direct message contents to advertisers, brokers, or external AI model trainers.</li>
+      <li><strong>Personnel Access:</strong> Only authorized Airvix security engineers may access system infrastructure under strict least-privilege protocols for debugging and compliance.</li>
+    </ul>
+
+    <h2><span>10.</span> How to Disconnect Your Account</h2>
+    <p>You have full autonomy over your Instagram connection. You can disconnect at any time:</p>
+    <ol>
+      <li>Log in to your Airvix workspace dashboard.</li>
+      <li>Navigate to <strong>Settings</strong> &rarr; <strong>Connected Accounts</strong>.</li>
+      <li>Click <strong>Disconnect Account</strong>. All stored tokens are instantly deleted and webhooks cease processing.</li>
+    </ol>
+
+    <h2><span>11.</span> User Data Deletion & GDPR / CCPA Rights</h2>
+    <p>In accordance with GDPR, CCPA, and Meta Platform Terms, you have the absolute right to erasure. You can request deletion through:</p>
+    <ul>
+      <li><strong>Meta App Settings:</strong> Removing Airvix from your Facebook/Instagram connected apps automatically triggers our real-time <a href="/data-deletion.html">Data Deletion Callback</a>.</li>
+      <li><strong>Account Erasure:</strong> Click "Delete My Account" in Creator Settings to initiate an immediate cascade purge of all user records.</li>
+      <li><strong>Direct Request:</strong> Email our Data Protection Officer at <a href="mailto:support@airvix.com">support@airvix.com</a>.</li>
+    </ul>
+    <p>You can check the audit status of any deletion request anytime at <a href="/data-deletion-status">/data-deletion-status</a> using your confirmation code.</p>
+
+    <h2><span>12.</span> Corporate Contact Information</h2>
+    <p>If you have any questions, concerns, or requests regarding this Privacy Policy or our data practices, contact us:</p>
+    <ul>
+      <li><strong>Email:</strong> <a href="mailto:support@airvix.com">support@airvix.com</a></li>
+      <li><strong>Phone / WhatsApp:</strong> +91 98765 43210</li>
+      <li><strong>Entity:</strong> Airvix Technologies Private Limited</li>
+      <li><strong>Address:</strong> 100 Feet Road, Indiranagar, Bengaluru, Karnataka 560038, India</li>
+    </ul>
+
+    <div class="footer-nav">
+      <div>&copy; 2026 Airvix Technologies Pvt Ltd. All rights reserved.</div>
+      <div>
+        <a href="/terms.html">Terms of Service</a> &bull;
+        <a href="/data-deletion.html">Data Deletion</a> &bull;
+        <a href="/">Home</a>
+      </div>
+    </div>
   </div>
 </body>
 </html>

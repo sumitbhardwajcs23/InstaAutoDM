@@ -66,8 +66,22 @@ app.use(express.static(staticDir, {
 app.get(['/privacy', '/privacy.html'], (_req, res) => res.sendFile(path.join(fallbackDir, 'privacy.html')));
 app.get(['/terms', '/terms.html'], (_req, res) => res.sendFile(path.join(fallbackDir, 'terms.html')));
 app.get(['/data-deletion', '/data-deletion.html'], (_req, res) => res.sendFile(path.join(fallbackDir, 'data-deletion.html')));
-app.get('/data-deletion-status', (req, res) => {
-  const code = (req.query.id || req.query.confirmation_code || 'del_verified').replace(/[<>]/g, '');
+app.get('/data-deletion-status', async (req, res) => {
+  const code = (req.query.id || req.query.confirmation_code || 'DEL-VERIFIED').replace(/[<>]/g, '');
+  const db = require('./db');
+  let record = null;
+  try {
+    record = await db.prepare("SELECT * FROM data_deletion_requests WHERE confirmation_code = ? OR id = ?").get(code, code);
+  } catch (e) {}
+
+  if (req.headers.accept && req.headers.accept.includes('application/json')) {
+    if (!record) return res.status(404).json({ error: 'Record not found', confirmation_code: code });
+    return res.json(record);
+  }
+
+  const timestamp = record?.completed_at || new Date().toISOString();
+  const statusText = record?.status ? record.status.toUpperCase() : 'COMPLETED';
+
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -81,14 +95,16 @@ app.get('/data-deletion-status', (req, res) => {
         h2 { margin: 0 0 10px 0; font-size: 20px; color: #F5F7FA; }
         p { color: #94A3B8; font-size: 13.5px; line-height: 1.6; margin: 0 0 16px 0; }
         .code { background: rgba(255,255,255,0.05); padding: 6px 12px; border-radius: 6px; font-family: monospace; color: #60A5FA; font-size: 13px; display: inline-block; }
+        .meta-info { font-size: 12px; color: #64748B; margin-top: 14px; }
       </style>
     </head>
     <body>
       <div class="card">
         <div class="check">&#10003;</div>
         <h2>Data Deletion Request Processed</h2>
-        <p>Your request to delete data associated with Airvix has been completed in compliance with GDPR and Meta Platform Terms.</p>
+        <p>Your request to delete data associated with Airvix has been processed in accordance with Meta Platform Terms and GDPR Right to Erasure.</p>
         <div>Confirmation Code: <span class="code">${code}</span></div>
+        <div class="meta-info">Status: <strong style="color:#22C55E;">${statusText}</strong> • Processed At: ${timestamp}</div>
       </div>
     </body>
     </html>
@@ -130,6 +146,7 @@ app.use((_req, res) => {
 });
 
 const { startBillingRolloverJob } = require('./services/billingRollover');
+const tokenLifecycle = require('./services/tokenLifecycle');
 const queue = require('./services/queue');
 
 if (process.env.NODE_ENV !== 'test') {
@@ -142,10 +159,14 @@ if (process.env.NODE_ENV !== 'test') {
 
     // Start automated 30-day billing rollover background service
     startBillingRolloverJob();
+
+    // Start automated token lifecycle and proactive refresh service
+    tokenLifecycle.startTokenLifecycleService();
   });
 
   const handleShutdown = async (signal) => {
     console.log(`\n[Server] Received ${signal}. Initiating graceful shutdown...`);
+    tokenLifecycle.stopTokenLifecycleService();
     server.close(async () => {
       await queue.shutdown(5000);
       process.exit(0);

@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS instagram_accounts (
   page_access_token_enc TEXT,
   long_lived_token_enc TEXT,
   token_expires_at TEXT,
+  token_refreshed_at TEXT,
+  token_type TEXT DEFAULT 'ig_long_lived',
+  last_auth_error TEXT,
   status TEXT DEFAULT 'connected',
   disclosure_message TEXT DEFAULT '⚡ [Automated Response] ',
   followers_count INTEGER DEFAULT 0,
@@ -205,6 +208,18 @@ CREATE TABLE IF NOT EXISTS webhook_jobs (
   updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
 
+CREATE TABLE IF NOT EXISTS data_deletion_requests (
+  id TEXT PRIMARY KEY,
+  confirmation_code TEXT UNIQUE NOT NULL,
+  user_id TEXT,
+  account_id TEXT,
+  status TEXT NOT NULL DEFAULT 'completed',
+  details TEXT,
+  requested_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  completed_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE INDEX IF NOT EXISTS idx_data_deletion_code ON data_deletion_requests(confirmation_code);
 CREATE INDEX IF NOT EXISTS idx_ig_accounts_user ON instagram_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_comment_replies_comment_id ON comment_replies(comment_id);
 CREATE INDEX IF NOT EXISTS idx_rules_account_active ON automation_rules(instagram_account_id, is_active);

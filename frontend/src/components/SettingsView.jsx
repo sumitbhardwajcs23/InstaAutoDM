@@ -198,6 +198,42 @@ export default function SettingsView({ account, onOpenConnect, onDisconnectAccou
             </div>
           </div>
 
+          {isConnected && account?.status === 'reauth_required' && (
+            <div style={{
+              marginTop: '16px',
+              padding: '12px 16px',
+              borderRadius: '10px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#EF4444' }}>
+                <span>⚠️</span>
+                <span><strong>Reauthorization Required:</strong> Your Instagram access token has expired or permissions were modified. Please reconnect your account to resume auto-replies.</span>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenConnect}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#EF4444',
+                  color: '#FFFFFF',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Reconnect Now
+              </button>
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginTop: '16px' }}>
             <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>USERNAME</div>
@@ -214,9 +250,19 @@ export default function SettingsView({ account, onOpenConnect, onDisconnectAccou
             </div>
 
             <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-subtle)' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>INSTAGRAM USER ID</div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', marginTop: '2px', fontFamily: 'monospace' }}>
-                {isConnected ? (account?.ig_user_id || '—') : '—'}
+              <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>TOKEN HEALTH</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {isConnected ? (
+                  account?.status === 'reauth_required' ? (
+                    <span style={{ color: '#EF4444' }}>⚠️ Reconnection Needed</span>
+                  ) : account?.token_days_remaining !== null && account?.token_days_remaining !== undefined ? (
+                    <span style={{ color: account.token_days_remaining < 15 ? '#F59E0B' : '#10B981' }}>
+                      ● Valid ({account.token_days_remaining}d remaining)
+                    </span>
+                  ) : (
+                    <span style={{ color: '#10B981' }}>● Active & Monitored</span>
+                  )
+                ) : '—'}
               </div>
             </div>
 

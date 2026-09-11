@@ -121,29 +121,21 @@ const DEFAULT_SITE_SETTINGS = {
   gst_number: process.env.GST_NUMBER || '29ABCDE1234F1Z5',
 
   // Legal & Compliance Documents
-  privacy_policy_text: `AIRVIX PRIVACY POLICY
-Effective Date: September 2026
+  privacy_policy_text: `AIRVIX PRIVACY POLICY (Full document live at /privacy.html)
+Effective Date: September 2026 • Version 3.3
 
-1. DATA COLLECTION & MINIMIZATION
-We collect only the essential data required to provide automated Instagram comment-to-DM responses. This includes public post comments, connected Instagram Account IDs, and automated reply logs.
+1. DATA COLLECTION & ACCESS: We access strictly necessary Instagram metadata (User ID, username, comments, DMs) via official Meta Graph API OAuth 2.0. We never request or store Instagram passwords.
+2. ENCRYPTION & SECURITY: All tokens are encrypted at rest using military-grade AES-256-GCM. In-flight data is protected with TLS 1.3.
+3. DATA RETENTION & DELETION: Data is retained during active subscription. Disconnecting your account or requesting deletion purges all tokens and conversation data within 24 to 48 hours. Real-time data deletion callback is available at /data-deletion.html.
+4. ISOLATION & PRIVACY: Data is strictly tenant-isolated. We do not sell, rent, or monetize user data to third parties.`,
 
-2. SECURITY & OAUTH ENCRYPTION
-Airvix connects exclusively via official Meta OAuth 2.0. We never request or store your Instagram password. All access tokens are encrypted at rest using AES-256-GCM.
+  terms_of_service_text: `AIRVIX TERMS OF SERVICE (Full document live at /terms.html)
+Effective Date: September 2026 • Version 3.3
 
-3. DATA RETENTION & DELETION
-You may disconnect your Instagram account or request complete account deletion at any time from your Creator Settings. Deleted data is permanently purged from our database within 24 hours.`,
-
-  terms_of_service_text: `AIRVIX TERMS OF SERVICE
-Effective Date: September 2026
-
-1. ACCEPTANCE OF TERMS
-By accessing or using Airvix, you agree to comply with these Terms of Service and all applicable Meta Developer Terms.
-
-2. COMPLIANCE & FAIR USE
-Airvix provides automated comment-to-DM delivery tools. Users agree not to use Airvix for sending prohibited spam, illegal content, or violating Instagram Community Guidelines.
-
-3. ACCOUNT RESPONSIBILITY
-You are responsible for maintaining the security of your account login credentials. Airvix reserves the right to suspend accounts violating Meta API rate limits or engaging in abusive spam behavior.`,
+1. ACCEPTANCE & COMPLIANCE: By using Airvix, you agree to comply with these Terms, Meta Platform Terms, Developer Policies, and Instagram Community Standards.
+2. ZERO-TOLERANCE ANTI-SPAM: Prohibits unsolicited bulk cold outreach, deceptive promotions, and abusive messaging. Accounts violating policies are suspended immediately without refund.
+3. AUTOMATION LIMITATIONS: Automated replies are subject to Meta's 24-hour messaging window, 7-day comment limits, and natural queue delays (5–30s) to smooth traffic. Instant replies are not promised.
+4. INTELLECTUAL PROPERTY & LIABILITY: You retain all rights to your content. Service provided 'as is' with limitation of liability as defined in full terms.`,
 
   refund_policy_text: `AIRVIX REFUND & CANCELLATION POLICY
 Effective Date: September 2026
