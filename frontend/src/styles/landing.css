@@ -681,12 +681,13 @@
 }
 
 /* ==========================================================================
-   5. WHY AIRVIX / VALUE PROPOSITION (Clean White Aesthetic)
+   5. WHY AIRVIX / VALUE PROPOSITION (Dark Obsidian Aesthetic)
    ========================================================================== */
 .airvix-features-section {
-  background-color: var(--airvix-bg-white);
+  background-color: var(--airvix-bg-dark);
   padding: 100px 0 90px 0;
   position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .airvix-features-header-row {
@@ -703,9 +704,9 @@
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #2563eb;
-  background: #eff6ff;
-  border: 1px solid #dbeafe;
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
   padding: 6px 14px;
   border-radius: 9999px;
   margin-bottom: 16px;
@@ -715,14 +716,14 @@
   font-size: 40px;
   font-weight: 800;
   line-height: 1.15;
-  color: #0f172a;
+  color: #ffffff;
   letter-spacing: -0.03em;
   margin: 0 0 16px 0;
 }
 
 .airvix-section-sub {
   font-size: 17px;
-  color: #64748b;
+  color: #94a3b8;
   max-width: 560px;
   line-height: 1.6;
   margin: 0;
@@ -731,7 +732,7 @@
 .airvix-features-note {
   position: relative;
   top: 10px;
-  color: #3b82f6;
+  color: #60a5fa;
   font-size: 28px;
   transform: rotate(-3deg);
   max-width: 220px;
@@ -745,11 +746,11 @@
 }
 
 .airvix-feature-card {
-  background: #ffffff;
-  border: 1px solid #f1f5f9;
+  background: #0b1120;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
   padding: 32px 24px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   transition: all 0.25s ease;
   display: flex;
   flex-direction: column;
@@ -757,8 +758,8 @@
 }
 
 .airvix-feature-card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.07);
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 14px 40px rgba(59, 130, 246, 0.15);
   transform: translateY(-4px);
 }
 
@@ -772,21 +773,21 @@
   margin-bottom: 22px;
 }
 
-.airvix-icon-blue { background: #eff6ff; }
-.airvix-icon-purple { background: #faf5ff; }
-.airvix-icon-green { background: #ecfdf5; }
-.airvix-icon-orange { background: #fff7ed; }
+.airvix-icon-blue { background: rgba(59, 130, 246, 0.15); }
+.airvix-icon-purple { background: rgba(168, 85, 247, 0.15); }
+.airvix-icon-green { background: rgba(16, 185, 129, 0.15); }
+.airvix-icon-orange { background: rgba(249, 115, 22, 0.15); }
 
 .airvix-feature-title {
   font-size: 19px;
   font-weight: 700;
-  color: #0f172a;
+  color: #ffffff;
   margin: 0 0 10px 0;
 }
 
 .airvix-feature-desc {
   font-size: 14px;
-  color: #64748b;
+  color: #94a3b8;
   line-height: 1.6;
   margin: 0;
 }
@@ -799,6 +800,7 @@
   padding: 100px 0;
   color: #ffffff;
   position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .airvix-how-grid {
@@ -914,12 +916,12 @@
 }
 
 /* ==========================================================================
-   7. SUCCESS STORIES / TESTIMONIALS (Clean White Background)
+   7. SUCCESS STORIES / TESTIMONIALS (Dark Obsidian Theme)
    ========================================================================== */
 .airvix-stories-section {
-  background-color: var(--airvix-bg-white);
+  background-color: var(--airvix-bg-dark);
   padding: 100px 0;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .airvix-stories-header {
@@ -938,20 +940,20 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: #0b1120;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #334155;
+  color: #ffffff;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .airvix-carousel-arrows button:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  color: #0f172a;
+  background: #1e293b;
+  border-color: #3b82f6;
+  color: #60a5fa;
 }
 
 .airvix-testimonials-grid {
@@ -961,11 +963,11 @@
 }
 
 .airvix-testimonial-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: #0b1120;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
   padding: 32px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -973,8 +975,8 @@
 }
 
 .airvix-testimonial-card.highlighted {
-  border-color: #93c5fd;
-  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.1);
+  border-color: #3b82f6;
+  box-shadow: 0 12px 36px rgba(59, 130, 246, 0.25);
 }
 
 .airvix-quote-icon {
@@ -987,7 +989,7 @@
 
 .airvix-quote-text {
   font-size: 15px;
-  color: #334155;
+  color: #e2e8f0;
   line-height: 1.6;
   margin: 0 0 28px 0;
   font-weight: 500;
@@ -1004,26 +1006,27 @@
   height: 48px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #e2e8f0;
+  border: 2px solid rgba(59, 130, 246, 0.4);
 }
 
 .airvix-author-name {
   font-size: 15px;
   font-weight: 700;
-  color: #0f172a;
+  color: #ffffff;
 }
 
 .airvix-author-role {
   font-size: 13px;
-  color: #64748b;
+  color: #94a3b8;
 }
 
 /* ==========================================================================
    8. SIMPLE PRICING (STRICTLY IN INDIAN RUPEES ₹ - NO DOLLARS)
    ========================================================================== */
 .airvix-pricing-section {
-  background-color: var(--airvix-bg-light-surface);
+  background-color: var(--airvix-bg-dark);
   padding: 100px 0 110px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .airvix-pricing-intro {
@@ -1042,7 +1045,8 @@
 }
 
 .airvix-billing-toggle {
-  background: #e2e8f0;
+  background: #0b1120;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 9999px;
   padding: 4px;
   display: flex;
@@ -1053,7 +1057,7 @@
   border: none;
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
+  color: #94a3b8;
   padding: 6px 18px;
   border-radius: 9999px;
   cursor: pointer;
@@ -1063,14 +1067,15 @@
 .airvix-billing-toggle button.active {
   background: #3b82f6;
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.5);
 }
 
 .airvix-save-pill {
   font-size: 11px;
   font-weight: 700;
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
   padding: 4px 10px;
   border-radius: 9999px;
 }
@@ -1084,26 +1089,27 @@
 }
 
 .airvix-price-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: #0b1120;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
   padding: 38px 32px;
   display: flex;
   flex-direction: column;
   position: relative;
   transition: all 0.25s ease;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .airvix-price-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  border-color: rgba(59, 130, 246, 0.4);
 }
 
 /* Pro Card Accent */
 .airvix-card-popular {
   border: 2px solid #3b82f6;
-  box-shadow: 0 12px 36px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 12px 36px rgba(59, 130, 246, 0.25);
 }
 
 .airvix-popular-pill {
@@ -1124,13 +1130,13 @@
 .airvix-tier-name {
   font-size: 24px;
   font-weight: 800;
-  color: #0f172a;
+  color: #ffffff;
   margin-bottom: 6px;
 }
 
 .airvix-tier-desc {
   font-size: 14px;
-  color: #64748b;
+  color: #94a3b8;
   margin-bottom: 24px;
 }
 
@@ -1139,28 +1145,28 @@
   align-items: baseline;
   margin-bottom: 28px;
   padding-bottom: 24px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Indian Rupee Symbol and Price Typography */
 .airvix-currency-symbol {
   font-size: 28px;
   font-weight: 700;
-  color: #0f172a;
+  color: #ffffff;
   margin-right: 2px;
 }
 
 .airvix-price-num {
   font-size: 48px;
   font-weight: 800;
-  color: #0f172a;
+  color: #ffffff;
   line-height: 1;
   letter-spacing: -0.03em;
 }
 
 .airvix-price-freq {
   font-size: 14px;
-  color: #64748b;
+  color: #94a3b8;
   margin-left: 6px;
   font-weight: 500;
 }
@@ -1180,7 +1186,7 @@
   align-items: center;
   gap: 10px;
   font-size: 14px;
-  color: #334155;
+  color: #cbd5e1;
 }
 
 /* ==========================================================================
