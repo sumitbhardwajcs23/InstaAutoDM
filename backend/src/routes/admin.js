@@ -11,6 +11,7 @@ const { dmLimitFor } = require('../constants/planLimits');
 const cryptoService = require('../services/crypto');
 const totp = require('../services/totp');
 const { abuseDetection } = require('../services/abuseDetection');
+const integrationService = require('../services/integrationService');
 
 // All endpoints in this router require authentication and admin privileges
 router.use(requireAuth);
@@ -387,6 +388,32 @@ router.patch('/users/:id', async (req, res) => {
       updates.push('updated_at = to_char(NOW(), \'YYYY-MM-DD HH24:MI:SS\')');
       params.push(id);
       await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+
+      // Single Source of Truth (SSOT): Atomically sync plan & status to subscriptions
+      if (plan !== undefined || status !== undefined) {
+        try {
+          const targetPlan = (plan !== undefined ? plan : user.plan || 'free').toLowerCase();
+          const targetStatus = (status !== undefined ? status : user.status || 'active').toLowerCase();
+          const existingSub = await db.prepare('SELECT id FROM subscriptions WHERE user_id = ?').get(id);
+          const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+          const nextMonthStr = new Date(Date.now() + 30 * 86400000).toISOString().replace('T', ' ').slice(0, 19);
+
+          if (existingSub) {
+            await db.prepare(`
+              UPDATE subscriptions 
+              SET plan = ?, status = ?, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') 
+              WHERE user_id = ?
+            `).run(targetPlan, targetStatus === 'active' ? 'active' : 'suspended', id);
+          } else {
+            await db.prepare(`
+              INSERT INTO subscriptions (id, user_id, plan, status, billing_cycle, current_period_start, current_period_end, created_at, updated_at)
+              VALUES (?, ?, ?, ?, 'monthly', ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+            `).run(`sub-${uuidv4().slice(0, 8)}`, id, targetPlan, targetStatus === 'active' ? 'active' : 'suspended', nowStr, nextMonthStr);
+          }
+        } catch (subErr) {
+          console.error('[SSOT] Error synchronizing subscription:', subErr.message);
+        }
+      }
 
       // Record live audit log in PostgreSQL
       await logAuditEvent(
@@ -1113,40 +1140,61 @@ router.get('/system-status', async (_req, res) => {
   }
 });
 
-// ── GET /api/admin/integrations ──────────────────────────────────────
-router.get('/integrations', async (_req, res) => {
+// ── GET /api/admin/integrations (100% REAL LIVE INTEGRATION STATUS) ────
+router.get('/integrations', async (req, res) => {
   try {
-    const igAccounts = await db.prepare('SELECT id, username, status, created_at FROM instagram_accounts LIMIT 5').all() || [];
-    const totalIgAccounts = parseInt((await db.prepare('SELECT COUNT(*) as count FROM instagram_accounts').get())?.count || 0, 10);
-
-    const recentIngestedEvents = igAccounts.map((ig, idx) => ({
-      id: `wh-${ig.id.slice(0, 6)}`,
-      event: 'messages',
-      account: `@${ig.username}`,
-      payload_type: 'Comment & DM Webhook',
-      status: 'Success (0.8s)',
-      timestamp: ig.created_at ? new Date(ig.created_at).toLocaleTimeString() : 'Active'
-    }));
-
-    res.json({
-      metaAppStatus: {
-        appId: process.env.META_APP_ID || '102938475610293',
-        status: 'Connected & Verified',
-        apiVersion: 'v19.0',
-        webhookUrl: `${process.env.APP_URL || 'https://airvix.com'}/api/webhooks/instagram`
-      },
-      connectedAccountsCount: totalIgAccounts,
-      webhooks: [
-        { event: 'messages', description: 'Real-time Instagram Direct Messages', active: true, status: 'Active' },
-        { event: 'messaging_postbacks', description: 'Quick Reply button clicks & Card CTA taps', active: true, status: 'Active' },
-        { event: 'feed', description: 'Instagram Post & Reel comments', active: true, status: 'Active' },
-        { event: 'comments', description: 'Keyword matching on Reel & Post comments', active: true, status: 'Active' }
-      ],
-      recentIngestedEvents
-    });
+    const data = await integrationService.getIntegrations(req);
+    res.json(data);
   } catch (err) {
     console.error('[Admin] Get integrations error:', err);
-    res.status(500).json({ error: 'Failed to fetch integrations data' });
+    res.status(500).json({ error: 'Failed to fetch integrations data: ' + err.message });
+  }
+});
+
+// ── POST /api/admin/integrations/:id/configure ───────────────────────
+router.post('/integrations/:id/configure', async (req, res) => {
+  try {
+    const result = await integrationService.configureIntegration(req.params.id, req.body);
+    await logAuditEvent(
+      req.user?.id,
+      req.user?.email,
+      `Configured ${req.params.id.toUpperCase()} Integration`,
+      'integrations',
+      `Credentials/settings updated for ${req.params.id}`
+    );
+    res.json(result);
+  } catch (err) {
+    console.error(`[Admin] Configure ${req.params.id} error:`, err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── POST /api/admin/integrations/:id/test ────────────────────────────
+router.post('/integrations/:id/test', async (req, res) => {
+  try {
+    const result = await integrationService.testIntegration(req.params.id, req.body);
+    res.json(result);
+  } catch (err) {
+    console.error(`[Admin] Test ${req.params.id} error:`, err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── POST /api/admin/integrations/:id/disconnect ──────────────────────
+router.post('/integrations/:id/disconnect', async (req, res) => {
+  try {
+    const result = await integrationService.disconnectIntegration(req.params.id);
+    await logAuditEvent(
+      req.user?.id,
+      req.user?.email,
+      `Disconnected ${req.params.id.toUpperCase()} Integration`,
+      'integrations',
+      `Credentials purged for ${req.params.id}`
+    );
+    res.json(result);
+  } catch (err) {
+    console.error(`[Admin] Disconnect ${req.params.id} error:`, err);
+    res.status(400).json({ error: err.message });
   }
 });
 

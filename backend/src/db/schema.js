@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS site_settings (
 
 CREATE TABLE IF NOT EXISTS password_resets (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
   token_hash TEXT NOT NULL,
   expires_at TEXT NOT NULL,
   used INTEGER DEFAULT 0,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS password_resets (
 
 CREATE TABLE IF NOT EXISTS instagram_accounts (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
   ig_user_id TEXT UNIQUE NOT NULL,
   username TEXT,
   account_type TEXT DEFAULT 'Business Account',
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS instagram_accounts (
 
 CREATE TABLE IF NOT EXISTS automation_rules (
   id TEXT PRIMARY KEY,
-  instagram_account_id TEXT NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  instagram_account_id TEXT NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE,
   type TEXT NOT NULL,
   trigger_keyword TEXT NOT NULL,
   match_mode TEXT DEFAULT 'exact',
@@ -90,8 +90,8 @@ CREATE TABLE IF NOT EXISTS automation_rules (
 CREATE TABLE IF NOT EXISTS comment_replies (
   id TEXT PRIMARY KEY,
   comment_id TEXT UNIQUE NOT NULL,
-  automation_rule_id TEXT REFERENCES automation_rules(id) ON DELETE SET NULL,
-  instagram_account_id TEXT REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  automation_rule_id TEXT REFERENCES automation_rules(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  instagram_account_id TEXT REFERENCES instagram_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE,
   commenter_username TEXT,
   comment_text TEXT,
   reply_sent TEXT,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS comment_replies (
 
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,
-  instagram_account_id TEXT NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  instagram_account_id TEXT NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE,
   ig_scoped_user_id TEXT NOT NULL,
   username TEXT,
   name TEXT,
@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
-  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE ON UPDATE CASCADE,
   direction TEXT NOT NULL,
   content TEXT NOT NULL,
   status TEXT NOT NULL,
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 
 CREATE TABLE IF NOT EXISTS activity_log (
   id TEXT PRIMARY KEY,
-  instagram_account_id TEXT REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  instagram_account_id TEXT REFERENCES instagram_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE,
   event_date TEXT NOT NULL,
   dms_sent INTEGER DEFAULT 0,
   comments_replied INTEGER DEFAULT 0,
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS activity_log (
 CREATE TABLE IF NOT EXISTS workspaces (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
   status TEXT DEFAULT 'active',
   created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE TABLE IF NOT EXISTS data_requests (
   id TEXT PRIMARY KEY,
-  user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
   user_email TEXT,
   request_type TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS dead_letter_queue (
 
 CREATE TABLE IF NOT EXISTS subscriptions (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
   plan TEXT NOT NULL DEFAULT 'free',
   status TEXT NOT NULL DEFAULT 'active',
   billing_cycle TEXT NOT NULL DEFAULT 'monthly',
@@ -256,8 +256,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 
 CREATE TABLE IF NOT EXISTS invoices (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  subscription_id TEXT REFERENCES subscriptions(id) ON DELETE SET NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  subscription_id TEXT REFERENCES subscriptions(id) ON DELETE SET NULL ON UPDATE CASCADE,
   invoice_number TEXT UNIQUE NOT NULL,
   amount INTEGER NOT NULL,
   currency TEXT NOT NULL DEFAULT 'INR',
@@ -288,7 +288,7 @@ CREATE TABLE IF NOT EXISTS payment_webhook_events (
 
 CREATE TABLE IF NOT EXISTS admin_sessions (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
   token_hash TEXT NOT NULL,
   ip_address TEXT DEFAULT 'masked',
   user_agent TEXT,
