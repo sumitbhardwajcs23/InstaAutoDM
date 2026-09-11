@@ -5,6 +5,7 @@ const metaClient = require('./metaClient');
 const { decrypt } = require('./crypto');
 const profileCache = require('./profileCache');
 const loopDetection = require('./loopDetection');
+const { abuseDetection } = require('./abuseDetection');
 const { dmLimitFor } = require('../constants/planLimits');
 const {
   QUEUE_CONFIG,
@@ -224,15 +225,35 @@ class EventQueueWorker {
       return;
     }
 
+    // Emergency kill switch: Pause all dispatch if global kill switch is active
+    try {
+      const isGlobalKilled = await abuseDetection.isGlobalKillSwitchActive();
+      if (isGlobalKilled) {
+        console.warn('[Queue] 🛑 Global kill switch active! Pausing queue dispatch.');
+        this.scheduleNext();
+        return;
+      }
+    } catch (e) {}
+
     const now = Date.now();
     let jobIndex = -1;
 
-    // Pick earliest job that is ready (scheduledAt <= now) and whose account is not throttled
+    // Pick earliest job that is ready (scheduledAt <= now) and whose account is not throttled or paused
     for (let i = 0; i < this.queue.length; i++) {
       const candidate = this.queue[i];
       if (candidate.scheduledAt > now) continue;
 
       const accId = candidate.event?.accountId;
+      if (accId) {
+        try {
+          const isAccountPaused = await abuseDetection.isAccountPaused(accId);
+          if (isAccountPaused) {
+            candidate.scheduledAt = now + 5000;
+            continue;
+          }
+        } catch (e) {}
+      }
+
       const throttleCheck = this.checkAccountThrottle(accId);
 
       if (throttleCheck.throttled) {
@@ -286,8 +307,14 @@ class EventQueueWorker {
 
       job.state = 'SENT';
       await this.updateJobState(job.id, 'SENT', null, true);
+
+      // Post-dispatch abuse velocity tracking
+      abuseDetection.recordDispatch(job.event?.accountId, job.userId, true).catch(() => {});
     } catch (err) {
       console.error(`[Worker] ❌ Error processing job ${job.id} (${job.event?.type}):`, err.message);
+
+      // Track dispatch failure for error rate spike detection
+      abuseDetection.recordDispatch(job.event?.accountId, job.userId, false).catch(() => {});
 
       const retriable = isTransientError(err);
 

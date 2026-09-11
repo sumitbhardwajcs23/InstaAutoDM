@@ -71,77 +71,87 @@ async function runTests() {
         const testUserId = `admin-lockout-${uuidv4().slice(0, 8)}`;
         const testEmail = `admin_lock_${uuidv4().slice(0, 6)}@test.local`;
 
-        await db.prepare(`
-            INSERT INTO users (id, email, name, role, admin_role, failed_login_attempts, dm_usage_this_period, usage_period_start, created_at, updated_at)
-            VALUES (?, ?, 'Admin Tester', 'admin', 'superadmin', 4, 0, '2026-09-01', datetime('now'), datetime('now'))
-        `).run(testUserId, testEmail);
+        try {
+            await db.prepare(`
+                INSERT INTO users (id, email, name, role, admin_role, failed_login_attempts, dm_usage_this_period, usage_period_start, created_at, updated_at)
+                VALUES (?, ?, 'Admin Tester', 'admin', 'superadmin', 4, 0, '2026-09-01', datetime('now'), datetime('now'))
+            `).run(testUserId, testEmail);
 
-        // 5th failed attempt:
-        const user = await db.prepare('SELECT failed_login_attempts FROM users WHERE id = ?').get(testUserId);
-        const newAttempts = user.failed_login_attempts + 1;
-        let lockedUntil = null;
-        if (newAttempts >= 5) {
-            lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+            // 5th failed attempt:
+            const user = await db.prepare('SELECT failed_login_attempts FROM users WHERE id = ?').get(testUserId);
+            const newAttempts = user.failed_login_attempts + 1;
+            let lockedUntil = null;
+            if (newAttempts >= 5) {
+                lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+            }
+
+            await db.prepare('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?')
+                .run(newAttempts, lockedUntil, testUserId);
+
+            const updatedUser = await db.prepare('SELECT failed_login_attempts, locked_until FROM users WHERE id = ?').get(testUserId);
+            assert.strictEqual(updatedUser.failed_login_attempts, 5);
+            assert(updatedUser.locked_until, 'locked_until must be populated');
+            assert(new Date(updatedUser.locked_until) > new Date(), 'locked_until must be in the future');
+        } finally {
+            await db.prepare('DELETE FROM users WHERE id = ?').run(testUserId).catch(() => {});
         }
-
-        await db.prepare('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?')
-            .run(newAttempts, lockedUntil, testUserId);
-
-        const updatedUser = await db.prepare('SELECT failed_login_attempts, locked_until FROM users WHERE id = ?').get(testUserId);
-        assert.strictEqual(updatedUser.failed_login_attempts, 5);
-        assert(updatedUser.locked_until, 'locked_until must be populated');
-        assert(new Date(updatedUser.locked_until) > new Date(), 'locked_until must be in the future');
     });
 
     // 4. Session revocation enforcement
     await test('Revoked admin session is rejected by requireAdmin middleware', async () => {
         const sessionId = uuidv4();
         const adminId = `admin-rev-${uuidv4().slice(0, 8)}`;
+        const testEmail = `admin_rev_${uuidv4().slice(0, 8)}@airvix.com`;
         const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
 
-        // Insert admin user first to satisfy foreign key constraint
-        await db.prepare(`
-            INSERT INTO users (id, email, name, role, admin_role, dm_usage_this_period, usage_period_start, created_at, updated_at)
-            VALUES (?, 'admin_rev@airvix.com', 'Admin Revoker', 'admin', 'superadmin', 0, '2026-09-01', datetime('now'), datetime('now'))
-        `).run(adminId);
+        try {
+            // Insert admin user first to satisfy foreign key constraint
+            await db.prepare(`
+                INSERT INTO users (id, email, name, role, admin_role, dm_usage_this_period, usage_period_start, created_at, updated_at)
+                VALUES (?, ?, 'Admin Revoker', 'admin', 'superadmin', 0, '2026-09-01', datetime('now'), datetime('now'))
+            `).run(adminId, testEmail);
 
-        // Insert active session
-        await db.prepare(`
-            INSERT INTO admin_sessions (id, user_id, token_hash, ip_address, user_agent, expires_at, is_active, created_at)
-            VALUES (?, ?, 'hash123', '127.0.0.1', 'JestTest', ?, 1, datetime('now'))
-        `).run(sessionId, adminId, expiresAt);
+            // Insert active session
+            await db.prepare(`
+                INSERT INTO admin_sessions (id, user_id, token_hash, ip_address, user_agent, expires_at, is_active, created_at)
+                VALUES (?, ?, 'hash123', '127.0.0.1', 'JestTest', ?, 1, datetime('now'))
+            `).run(sessionId, adminId, expiresAt);
 
-        // Revoke session
-        await db.prepare('UPDATE admin_sessions SET is_active = 0 WHERE id = ?').run(sessionId);
+            // Revoke session
+            await db.prepare('UPDATE admin_sessions SET is_active = 0 WHERE id = ?').run(sessionId);
 
-        // Simulate requireAdmin middleware call
-        const req = {
-            user: {
-                id: adminId,
-                email: 'admin@airvix.com',
-                role: 'admin',
-                session_id: sessionId
-            },
-            headers: {}
-        };
+            // Simulate requireAdmin middleware call
+            const req = {
+                user: {
+                    id: adminId,
+                    email: testEmail,
+                    role: 'admin',
+                    session_id: sessionId
+                },
+                headers: {}
+            };
 
-        let responseStatusCode = null;
-        let responseJson = null;
-        const res = {
-            status: (code) => {
-                responseStatusCode = code;
-                return {
-                    json: (data) => { responseJson = data; }
-                };
-            }
-        };
+            let responseStatusCode = null;
+            let responseJson = null;
+            const res = {
+                status: (code) => {
+                    responseStatusCode = code;
+                    return {
+                        json: (data) => { responseJson = data; }
+                    };
+                }
+            };
 
-        let nextCalled = false;
-        await requireAdmin(req, res, () => { nextCalled = true; });
+            let nextCalled = false;
+            await requireAdmin(req, res, () => { nextCalled = true; });
 
-        assert.strictEqual(nextCalled, false, 'Next must not be called for revoked session');
-        assert.strictEqual(responseStatusCode, 401, 'Must return HTTP 401');
-        assert(responseJson.error.includes('expired or been revoked'), 'Error message must reflect session revocation');
+            assert.strictEqual(nextCalled, false, 'Next must not be called for revoked session');
+            assert.strictEqual(responseStatusCode, 401, 'Must return HTTP 401');
+            assert(responseJson.error.includes('expired or been revoked'), 'Error message must reflect session revocation');
+        } finally {
+            await db.prepare('DELETE FROM admin_sessions WHERE id = ?').run(sessionId).catch(() => {});
+            await db.prepare('DELETE FROM users WHERE id = ?').run(adminId).catch(() => {});
+        }
     });
 
     console.log(`\n========================================`);

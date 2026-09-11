@@ -1,5 +1,6 @@
 // backend/src/services/metaClient.js
 const { v4: uuidv4 } = require('uuid');
+const { costProtection } = require('./costProtection');
 const GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
 const GRAPH_IG_BASE = 'https://graph.instagram.com';
 
@@ -77,6 +78,14 @@ class MetaClient {
         }
 
         if (res.ok && data && (data.recipient_id || data.message_id || data.id)) {
+          costProtection.recordApiCall({
+            userId: pageId,
+            accountId: pageId,
+            apiType: 'meta_graph',
+            endpoint: 'messages/private_reply',
+            costUnits: 1,
+            statusCode: res.status
+          }).catch(() => {});
           console.log(`[MetaClient] ✅ Private reply sent via ${endpoint}, message_id:`, data.message_id || data.id);
           return { success: true, recipient_id: data.recipient_id, message_id: data.message_id || data.id };
         }
@@ -118,6 +127,14 @@ class MetaClient {
         });
         const data = await res.json();
         if (res.ok && data && (data.id || data.success)) {
+          costProtection.recordApiCall({
+            userId: commentId,
+            accountId: commentId,
+            apiType: 'meta_graph',
+            endpoint: 'comments/reply',
+            costUnits: 1,
+            statusCode: res.status
+          }).catch(() => {});
           console.log(`[MetaClient] ✅ Public comment reply posted successfully, id:`, data.id);
           return { success: true, id: data.id };
         }
@@ -171,6 +188,14 @@ class MetaClient {
       throw e;
     }
     console.log(`[MetaClient] DM sent successfully, message_id:`, data.message_id);
+    costProtection.recordApiCall({
+      userId: pageId,
+      accountId: pageId,
+      apiType: 'meta_graph',
+      endpoint: 'messages/send_dm',
+      costUnits: 1,
+      statusCode: res.status
+    }).catch(() => {});
     return { success: true, recipient_id: data.recipient_id, message_id: data.message_id };
   }
 

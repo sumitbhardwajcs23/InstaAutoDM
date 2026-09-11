@@ -109,6 +109,47 @@ function requireAdminRole(...allowedRoles) {
   };
 }
 
-module.exports = { requireAuth, requireAdmin, requireAdminRole, JWT_SECRET };
+/**
+ * Sanitize a string or structured input to neutralize potential XSS / script injections
+ */
+function sanitizeInput(input) {
+  if (typeof input === 'string') {
+    return input
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/javascript:/gi, '')
+      .replace(/on\w+\s*=/gi, '')
+      .trim();
+  }
+  if (Array.isArray(input)) {
+    return input.map(sanitizeInput);
+  }
+  if (input !== null && typeof input === 'object') {
+    const cleaned = {};
+    for (const [k, v] of Object.entries(input)) {
+      cleaned[k] = sanitizeInput(v);
+    }
+    return cleaned;
+  }
+  return input;
+}
+
+function sanitizeParamsMiddleware(req, _res, next) {
+  if (req.query && typeof req.query === 'object') {
+    req.query = sanitizeInput(req.query);
+  }
+  if (req.params && typeof req.params === 'object') {
+    req.params = sanitizeInput(req.params);
+  }
+  next();
+}
+
+module.exports = {
+  requireAuth,
+  requireAdmin,
+  requireAdminRole,
+  sanitizeInput,
+  sanitizeParamsMiddleware,
+  JWT_SECRET
+};
 
 

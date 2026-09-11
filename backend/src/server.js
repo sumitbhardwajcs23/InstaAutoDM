@@ -18,16 +18,44 @@ require('./db'); // Initialize DB
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const { requireAuth } = require('./middleware/auth');
+const { requireAuth, sanitizeParamsMiddleware } = require('./middleware/auth');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const correlationIdMiddleware = require('./middleware/correlationId');
+const { securityHeaders, validateContentType, enforceHttps } = require('./middleware/securityHeaders');
 const observability = require('./services/observability');
 const logger = require('./services/logger');
 
+// Enforce HTTPS in production
+app.use(enforceHttps);
+
+// Content-Security-Policy & Strict Security Headers
+app.use(securityHeaders);
+
 app.use(correlationIdMiddleware);
 
+// Strict CORS allowlist with environment override support
+const defaultOrigins = [
+  'https://airvix.ai',
+  'https://app.airvix.ai',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:4173'
+];
+const envAllowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+  : [];
+const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envAllowedOrigins]));
+
 app.use(cors({ 
-  origin: '*', 
+  origin: (origin, callback) => {
+    // Allow non-browser requests (tools, curl, server-to-server) without Origin header
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin '${origin}' not permitted by CORS policy`));
+  },
+  credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'], 
   allowedHeaders: ['Content-Type','Authorization','X-Request-Id'] 
 }));
@@ -52,11 +80,14 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(validateContentType);
+
 app.use(express.json({
   limit: '1mb',
   verify: (req, _res, buf) => { req.rawBody = buf; }
 }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(sanitizeParamsMiddleware);
 
 // ── Public routes (no auth required / handles own auth) ──────────────
 app.use('/api/auth', require('./routes/auth'));
@@ -215,6 +246,10 @@ if (process.env.NODE_ENV !== 'test') {
 
     // Start automated token lifecycle and proactive refresh service
     tokenLifecycle.startTokenLifecycleService();
+
+    // Start automated daily data retention pruning job
+    const { dataRetention } = require('./services/dataRetention');
+    dataRetention.scheduleRetentionJobs();
   });
 
   const handleShutdown = async (signal) => {

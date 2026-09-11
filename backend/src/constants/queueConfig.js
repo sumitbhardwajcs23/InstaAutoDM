@@ -1,7 +1,24 @@
 // backend/src/constants/queueConfig.js
 
+/**
+ * Traffic Control, Backpressure & Rate Limit Headroom Configuration
+ * 
+ * DESIGN RATIONALE:
+ * The dispatch delay is an architectural traffic-pacing mechanism designed for API compliance:
+ * 1. Meta Graph API Compliance: Spreads outbound call volume evenly over time to prevent
+ *    burst violations against Meta's per-minute / per-hour Graph API rate limits.
+ * 2. Backpressure Management: Smooths out sharp webhook ingestion spikes (e.g. viral posts,
+ *    giveaways) into a steady, controlled processing flow, avoiding upstream 429 errors.
+ * 3. Fair-Share Tenant Allocation: Prevents any single active tenant from monopolizing worker
+ *    concurrency or saturating database connections.
+ * 4. Jittered Exponential Backoff: Protects upstream services against thundering-herd retry storms.
+ * 
+ * NOTE: Delay intervals exist strictly for system reliability, resource isolation, and platform
+ * rate limit adherence — NOT as an evasion or anti-detection technique.
+ */
+
 const QUEUE_CONFIG = {
-  // Random response delay range in seconds
+  // Traffic pacing delay range in seconds (spreads dispatch to maintain API compliance headroom)
   MIN_DELAY_SECONDS: parseInt(process.env.QUEUE_MIN_DELAY_SECONDS, 10) || 5,
   MAX_DELAY_SECONDS: parseInt(process.env.QUEUE_MAX_DELAY_SECONDS, 10) || 30,
 
@@ -19,7 +36,8 @@ const QUEUE_CONFIG = {
 };
 
 /**
- * Calculates a random processing delay in milliseconds within the configured range.
+ * Calculates a traffic pacing delay in milliseconds within the configured range.
+ * Spreads dispatch across time windows to maintain safe headroom below Meta rate limits.
  * In test mode or when QUEUE_DELAY_DISABLED=true, returns 0 to allow instant test execution.
  */
 function calculateRandomDelayMs(

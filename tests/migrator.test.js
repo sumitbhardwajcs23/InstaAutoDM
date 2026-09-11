@@ -37,9 +37,9 @@ async function runTests() {
   }
 
   // Test 1: Discover Migration Files
-  await test('Discovers all migration files (001 to 005) with valid structure', async () => {
+  await test('Discovers all migration files (001 to 006) with valid structure', async () => {
     const files = migrator.getMigrationFiles();
-    assert.strictEqual(files.length >= 5, true, `Expected at least 5 migration files, found ${files.length}`);
+    assert.strictEqual(files.length >= 6, true, `Expected at least 6 migration files, found ${files.length}`);
     
     const versions = files.map(f => f.version);
     assert.ok(versions.includes('001'), 'Missing 001_initial_schema');
@@ -47,6 +47,7 @@ async function runTests() {
     assert.ok(versions.includes('003'), 'Missing 003_saas_billing_subscriptions');
     assert.ok(versions.includes('004'), 'Missing 004_admin_security_mfa_sessions');
     assert.ok(versions.includes('005'), 'Missing 005_observability_telemetry');
+    assert.ok(versions.includes('006'), 'Missing 006_data_retention_abuse');
 
     // Verify SHA-256 checksum format
     for (const f of files) {
@@ -61,7 +62,7 @@ async function runTests() {
   await test('Reports migration status including checksum verification', async () => {
     const status = await migrator.status();
     assert.strictEqual(Array.isArray(status), true);
-    assert.strictEqual(status.length >= 5, true);
+    assert.strictEqual(status.length >= 6, true);
     for (const s of status) {
       assert.ok('version' in s);
       assert.ok('name' in s);
@@ -82,6 +83,7 @@ async function runTests() {
     assert.ok(appliedVersions.includes('003'));
     assert.ok(appliedVersions.includes('004'));
     assert.ok(appliedVersions.includes('005'));
+    assert.ok(appliedVersions.includes('006'));
   });
 
   // Test 4: Verify Migrated Tables Exist
@@ -104,7 +106,10 @@ async function runTests() {
       'system_alerts',
       'error_events',
       'data_deletion_requests',
-      'automation_loop_incidents'
+      'automation_loop_incidents',
+      'tenant_api_usage',
+      'abuse_flags',
+      'global_kill_switch'
     ];
 
     const res = await pool.query(`
@@ -120,27 +125,28 @@ async function runTests() {
   });
 
   // Test 5: Reversible Rollback (down)
-  await test('Rolls back the most recent migration (005) cleanly and updates schema_migrations', async () => {
-    // Current state: 005 applied
+  await test('Rolls back the most recent migration cleanly and updates schema_migrations', async () => {
     const beforeApplied = await migrator.getAppliedMigrations();
-    assert.strictEqual(beforeApplied[beforeApplied.length - 1].version, '005');
+    const latest = beforeApplied[beforeApplied.length - 1];
+    assert.ok(latest, 'Expected at least one applied migration');
+    const latestVersion = latest.version;
 
-    // Rollback 005
+    // Rollback latest migration
     const rolledBack = await migrator.down();
-    assert.strictEqual(rolledBack.version, '005');
+    assert.strictEqual(rolledBack.version, latestVersion);
 
-    // Verify 005 is no longer in schema_migrations
+    // Verify latest is no longer in schema_migrations
     const afterApplied = await migrator.getAppliedMigrations();
-    assert.strictEqual(afterApplied.some(m => m.version === '005'), false);
+    assert.strictEqual(afterApplied.some(m => m.version === latestVersion), false);
 
-    // Re-apply 005 so DB remains at latest schema
+    // Re-apply latest so DB remains at latest schema
     const reapplied = await migrator.up();
     assert.strictEqual(reapplied.length, 1);
-    assert.strictEqual(reapplied[0].version, '005');
+    assert.strictEqual(reapplied[0].version, latestVersion);
 
-    // Confirm 005 is applied again
+    // Confirm latest is applied again
     const finalApplied = await migrator.getAppliedMigrations();
-    assert.strictEqual(finalApplied[finalApplied.length - 1].version, '005');
+    assert.strictEqual(finalApplied[finalApplied.length - 1].version, latestVersion);
   });
 
   // Test 6: Idempotent Execution

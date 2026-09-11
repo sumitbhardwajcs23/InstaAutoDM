@@ -10,6 +10,7 @@ const { DEFAULT_SITE_SETTINGS, mergeSettingsWithEnvDefaults } = require('./site'
 const { dmLimitFor } = require('../constants/planLimits');
 const cryptoService = require('../services/crypto');
 const totp = require('../services/totp');
+const { abuseDetection } = require('../services/abuseDetection');
 
 // All endpoints in this router require authentication and admin privileges
 router.use(requireAuth);
@@ -1471,6 +1472,149 @@ router.get('/audit-logs', async (req, res) => {
   } catch (err) {
     console.error('[Admin] Get audit logs error:', err.message);
     res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+});
+
+// ── EMERGENCY KILL SWITCHES & ABUSE PREVENTION ───────────────────────
+
+// POST /api/admin/kill-switch/global (Pause or resume ALL system automation)
+router.post('/kill-switch/global', async (req, res) => {
+  try {
+    const { isActive, reason } = req.body;
+    const activeVal = isActive === true || isActive === 1 || isActive === 'true';
+    const result = await abuseDetection.setGlobalKillSwitch(activeVal, reason || 'Admin global toggle', req.user.email);
+    await logAuditEvent(req.user.id, req.user.email, 'GLOBAL_KILL_SWITCH_TOGGLED', 'global_kill_switch', `Status: ${activeVal ? 'ACTIVE (PAUSED)' : 'INACTIVE (RUNNING)'} - Reason: ${reason || 'N/A'}`);
+    res.json({ success: true, killSwitch: result });
+  } catch (err) {
+    console.error('[Admin] Global kill switch toggle error:', err.message);
+    res.status(500).json({ error: 'Failed to toggle global kill switch' });
+  }
+});
+
+// POST /api/admin/kill-switch/account/:id (Pause or resume specific account automation)
+router.post('/kill-switch/account/:id', async (req, res) => {
+  try {
+    const { isActive, reason } = req.body;
+    const activeVal = isActive === true || isActive === 1 || isActive === 'true';
+    const result = await abuseDetection.setAccountKillSwitch(req.params.id, activeVal, reason || 'Account-level pause', req.user.email);
+    await logAuditEvent(req.user.id, req.user.email, 'ACCOUNT_KILL_SWITCH_TOGGLED', 'instagram_accounts', `Account: ${req.params.id} - Status: ${activeVal ? 'PAUSED' : 'RESUMED'}`);
+    res.json({ success: true, killSwitch: result });
+  } catch (err) {
+    console.error('[Admin] Account kill switch toggle error:', err.message);
+    res.status(500).json({ error: 'Failed to toggle account kill switch' });
+  }
+});
+
+// POST /api/admin/kill-switch/rule/:id (Pause or resume specific automation rule)
+router.post('/kill-switch/rule/:id', async (req, res) => {
+  try {
+    const { isActive, reason } = req.body;
+    const activeVal = isActive === true || isActive === 1 || isActive === 'true';
+    const result = await abuseDetection.setRuleKillSwitch(req.params.id, activeVal, reason || 'Rule-level pause', req.user.email);
+    await logAuditEvent(req.user.id, req.user.email, 'RULE_KILL_SWITCH_TOGGLED', 'automation_rules', `Rule: ${req.params.id} - Status: ${activeVal ? 'PAUSED' : 'RESUMED'}`);
+    res.json({ success: true, killSwitch: result });
+  } catch (err) {
+    console.error('[Admin] Rule kill switch toggle error:', err.message);
+    res.status(500).json({ error: 'Failed to toggle rule kill switch' });
+  }
+});
+
+// GET /api/admin/kill-switch/status (View all currently active kill switches)
+router.get('/kill-switch/status', async (_req, res) => {
+  try {
+    const activeSwitches = await abuseDetection.getKillSwitchStatus();
+    res.json({ kill_switches: activeSwitches });
+  } catch (err) {
+    console.error('[Admin] Get kill switch status error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch kill switch status' });
+  }
+});
+
+// GET /api/admin/abuse-flags (List abuse flags)
+router.get('/abuse-flags', async (req, res) => {
+  try {
+    const resolved = req.query.resolved === '1' || req.query.resolved === 'true' ? 1 : 0;
+    const flags = await abuseDetection.getAbuseFlags(resolved);
+    res.json({ abuse_flags: flags });
+  } catch (err) {
+    console.error('[Admin] Get abuse flags error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch abuse flags' });
+  }
+});
+
+// POST /api/admin/abuse-flags/:id/resolve (Mark abuse flag resolved)
+router.post('/abuse-flags/:id/resolve', async (req, res) => {
+  try {
+    const result = await abuseDetection.resolveAbuseFlag(req.params.id, req.user.email);
+    await logAuditEvent(req.user.id, req.user.email, 'ABUSE_FLAG_RESOLVED', 'abuse_flags', `Resolved flag ${req.params.id}`);
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] Resolve abuse flag error:', err.message);
+    res.status(500).json({ error: 'Failed to resolve abuse flag' });
+  }
+});
+
+// ── COST REPORTING & PER-TENANT USAGE TRACKING ──────────────────────
+
+// GET /api/admin/cost-report (System-wide API consumption breakdown)
+router.get('/cost-report', async (_req, res) => {
+  try {
+    const pool = db.getPgPool();
+    if (!pool) return res.status(503).json({ error: 'Database unavailable' });
+
+    // Aggregate by API type
+    const byTypeRes = await pool.query(`
+      SELECT api_type, COUNT(*) as total_calls, COALESCE(SUM(cost_units), 0) as total_units
+      FROM tenant_api_usage
+      GROUP BY api_type
+      ORDER BY total_units DESC
+    `);
+
+    // Top tenants by API consumption
+    const topTenantsRes = await pool.query(`
+      SELECT u.id as user_id, u.email, u.plan, COUNT(t.id) as call_count, COALESCE(SUM(t.cost_units), 0) as total_units
+      FROM tenant_api_usage t
+      JOIN users u ON t.user_id = u.id
+      GROUP BY u.id, u.email, u.plan
+      ORDER BY total_units DESC
+      LIMIT 25
+    `);
+
+    res.json({
+      summary_by_api: byTypeRes.rows || [],
+      top_consuming_tenants: (topTenantsRes.rows || []).map(r => ({
+        ...r,
+        email: maskEmail(r.email)
+      }))
+    });
+  } catch (err) {
+    console.error('[Admin] Cost report error:', err.message);
+    res.status(500).json({ error: 'Failed to generate cost report' });
+  }
+});
+
+// GET /api/admin/cost-report/:userId (Per-tenant detailed cost drilldown)
+router.get('/cost-report/:userId', async (req, res) => {
+  try {
+    const pool = db.getPgPool();
+    if (!pool) return res.status(503).json({ error: 'Database unavailable' });
+
+    const tenantRes = await pool.query(`
+      SELECT api_type, endpoint, COUNT(*) as call_count, COALESCE(SUM(cost_units), 0) as total_units,
+             MIN(created_at) as first_call, MAX(created_at) as last_call
+      FROM tenant_api_usage
+      WHERE user_id = $1
+      GROUP BY api_type, endpoint
+      ORDER BY total_units DESC
+    `, [req.params.userId]);
+
+    res.json({
+      user_id: req.params.userId,
+      usage_breakdown: tenantRes.rows || []
+    });
+  } catch (err) {
+    console.error('[Admin] Tenant cost drilldown error:', err.message);
+    res.status(500).json({ error: 'Failed to generate tenant cost report' });
   }
 });
 
