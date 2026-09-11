@@ -30,3 +30,8 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Encrypted database backup archives (store in secure remote storage, not git)
+backups/
+*.enc.json
+*.manifest.json
