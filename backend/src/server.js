@@ -20,8 +20,37 @@ const PORT = process.env.PORT || 3000;
 
 const { requireAuth } = require('./middleware/auth');
 const { apiLimiter } = require('./middleware/rateLimiter');
+const correlationIdMiddleware = require('./middleware/correlationId');
+const observability = require('./services/observability');
+const logger = require('./services/logger');
 
-app.use(cors({ origin: '*', methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'] }));
+app.use(correlationIdMiddleware);
+
+app.use(cors({ 
+  origin: '*', 
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'], 
+  allowedHeaders: ['Content-Type','Authorization','X-Request-Id'] 
+}));
+
+// Global request latency & structured telemetry tracking
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    observability.recordApiRequest(req.method, req.route ? req.route.path : req.path, res.statusCode, duration);
+    if (req.path.startsWith('/api') || req.path.startsWith('/webhooks')) {
+      logger.info(`${req.method} ${req.originalUrl || req.path} ${res.statusCode} ${duration}ms`, {
+        method: req.method,
+        url: req.originalUrl || req.path,
+        status: res.statusCode,
+        duration_ms: duration,
+        correlationId: req.id,
+        ip: req.ip
+      });
+    }
+  });
+  next();
+});
 
 app.use(express.json({
   limit: '1mb',
@@ -32,17 +61,27 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // ── Public routes (no auth required / handles own auth) ──────────────
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/site', require('./routes/site'));
+app.use('/webhooks/payment', require('./routes/webhooksPayment'));
 app.use('/webhooks', require('./routes/webhooks'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/instagram', require('./routes/instagram'));
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().toISOString(), version: '3.3.0' }));
+// Basic liveness probe
+app.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().toISOString(), version: '3.4.0' }));
+
+// Deep readiness probe with database, queue, and latency percentiles
+app.get(['/health/ready', '/api/health'], async (_req, res) => {
+  const status = await observability.getHealthStatus();
+  const statusCode = status.status === 'healthy' ? 200 : 503;
+  res.status(statusCode).json(status);
+});
 
 // ── Protected API routes (JWT required & Rate Limited) ─────────────────────
 // Apply auth and rate limiting middleware to remaining /api/* routes
 app.use('/api', apiLimiter);
 app.use('/api', requireAuth);
 
+app.use('/api/billing', require('./routes/billing'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/rules', require('./routes/rules'));
@@ -143,6 +182,20 @@ app.use((_req, res) => {
   } else {
     res.sendFile(path.join(fallbackDir, 'index.html'));
   }
+});
+
+// Global unhandled error handler
+app.use((err, req, res, _next) => {
+  const correlationId = req.id || 'unknown';
+  observability.recordError('EXPRESS_UNCAUGHT_ERROR', err, {
+    correlationId,
+    path: req.path,
+    method: req.method
+  });
+  res.status(err.status || 500).json({
+    error: 'Internal Server Error',
+    correlation_id: correlationId
+  });
 });
 
 const { startBillingRolloverJob } = require('./services/billingRollover');

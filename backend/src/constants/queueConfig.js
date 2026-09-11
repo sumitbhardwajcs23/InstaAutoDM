@@ -86,9 +86,47 @@ function extractRetryAfterMs(input) {
   return null;
 }
 
+/**
+ * Classifies whether an error is transient (retriable) or permanent (fatal / non-retriable).
+ */
+function isTransientError(err) {
+  if (!err) return false;
+  if (err.isPermanent) return false;
+
+  const msg = (err.message || '').toLowerCase();
+  const status = err.statusCode || err.status || err.response?.status;
+
+  // Known permanent failures - do not retry
+  if (status === 400 || status === 401 || status === 403 || status === 404 || status === 422) return false;
+  if (msg.includes('window_closed') || msg.includes('window closed') || msg.includes('cannot get application info') || msg.includes('no instagram account found') || msg.includes('invalid oauth') || msg.includes('plan_limit_reached')) {
+    return false;
+  }
+
+  const metaErr = err.metaError || err.response?.data?.error;
+  if (metaErr) {
+    // 24-hour standard messaging window expired or permission revoked
+    if (metaErr.code === 10 && metaErr.error_subcode === 2018001) return false;
+    if (metaErr.code === 190) return false;
+    // Transient Meta errors: rate limit, temporary server error
+    if (metaErr.code === 32 || metaErr.code === 613 || metaErr.error_subcode === 2207001 || metaErr.code === 1 || metaErr.code === 2) {
+      return true;
+    }
+  }
+
+  // Network / HTTP 429 / 5xx are transient
+  if (status === 429 || (status >= 500 && status <= 599)) return true;
+  if (msg.includes('timeout') || msg.includes('econnreset') || msg.includes('etimedout') || msg.includes('enotfound') || msg.includes('network') || msg.includes('rate limit')) {
+    return true;
+  }
+
+  return true;
+}
+
 module.exports = {
   QUEUE_CONFIG,
   calculateRandomDelayMs,
   calculateBackoffWithJitter,
   extractRetryAfterMs,
+  isTransientError,
 };
+

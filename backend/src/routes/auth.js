@@ -9,6 +9,9 @@ const db = require('../db');
 const { JWT_SECRET, requireAuth } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
 
+const cryptoService = require('../services/crypto');
+const totp = require('../services/totp');
+
 function isConfiguredAdminEmail(email) {
   if (!email) return false;
   const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com,admin@airvix.com')
@@ -32,6 +35,24 @@ function makeToken(user) {
     { expiresIn: '7d' }
   );
 }
+
+function makeAdminToken(user, sessionId) {
+  return jwt.sign(
+    { 
+      id: user.id, 
+      email: user.email, 
+      name: user.name, 
+      plan: user.plan, 
+      role: 'admin',
+      admin_role: user.admin_role || 'superadmin',
+      session_id: sessionId,
+      status: user.status || 'active'
+    },
+    JWT_SECRET,
+    { expiresIn: '12h' }
+  );
+}
+
 
 // POST /api/auth/register
 router.post('/register', authLimiter, async (req, res) => {
@@ -138,6 +159,14 @@ router.post('/admin-login', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid admin credentials or unauthorized account' });
     }
 
+    // Check progressive brute-force lockout
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      const waitSeconds = Math.ceil((new Date(user.locked_until) - new Date()) / 1000);
+      return res.status(429).json({ 
+        error: `Account is temporarily locked due to repeated failed login attempts. Please try again in ${waitSeconds} seconds.` 
+      });
+    }
+
     if (user.status === 'suspended') {
       return res.status(403).json({ error: 'This admin account has been suspended' });
     }
@@ -148,8 +177,24 @@ router.post('/admin-login', authLimiter, async (req, res) => {
 
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      return res.status(401).json({ error: 'Invalid admin credentials' });
+      // Increment failed attempts and lock out if threshold reached (5 attempts -> 15 min lock)
+      const attempts = (user.failed_login_attempts || 0) + 1;
+      let lockedUntil = null;
+      if (attempts >= 5) {
+        lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      }
+      await db.prepare('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?')
+        .run(attempts, lockedUntil, user.id);
+
+      return res.status(401).json({ 
+        error: attempts >= 5 
+          ? 'Account locked for 15 minutes due to multiple failed login attempts.' 
+          : 'Invalid admin credentials' 
+      });
     }
+
+    // Reset failed login attempts on successful password verification
+    await db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?').run(user.id);
 
     // Auto-grant admin role if email is configured admin
     let role = user.role || 'user';
@@ -165,21 +210,131 @@ router.post('/admin-login', authLimiter, async (req, res) => {
       });
     }
 
+    const adminRole = user.admin_role || 'superadmin';
+
+    // Check if MFA/2FA is enabled for this admin
+    if (user.mfa_enabled) {
+      const tempToken = jwt.sign(
+        { id: user.id, mfa_pending: true, role: 'admin', admin_role: adminRole },
+        JWT_SECRET,
+        { expiresIn: '5m' }
+      );
+      return res.json({
+        mfa_required: true,
+        temp_token: tempToken,
+        message: '2FA verification code required to complete login'
+      });
+    }
+
+    // MFA is not enabled: create active admin session directly
+    const sessionId = uuidv4();
+    const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+
     const userData = { 
       id: user.id, 
       email: user.email, 
       name: user.name, 
       plan: user.plan, 
-      role: 'admin', 
+      role: 'admin',
+      admin_role: adminRole,
       status: user.status || 'active' 
     };
-    const token = makeToken(userData);
-    res.json({ token, user: userData });
+
+    const token = makeAdminToken(userData, sessionId);
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    await db.prepare(`
+      INSERT INTO admin_sessions (id, user_id, token_hash, ip_address, user_agent, expires_at, is_active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'))
+    `).run(sessionId, user.id, tokenHash, ipAddress, userAgent, expiresAt);
+
+    res.json({ token, user: userData, session_id: sessionId });
   } catch (err) {
     console.error('[Auth] Admin Login error:', err.message);
     res.status(500).json({ error: 'Admin authentication failed. Please try again.' });
   }
 });
+
+// POST /api/auth/admin-mfa-verify (Verify 2FA TOTP or backup code and issue session)
+router.post('/admin-mfa-verify', authLimiter, async (req, res) => {
+  try {
+    const { temp_token, code } = req.body;
+    if (!temp_token || !code) {
+      return res.status(400).json({ error: 'temp_token and 2FA verification code are required' });
+    }
+
+    let decoded = null;
+    try {
+      decoded = jwt.verify(temp_token, JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ error: 'Session verification expired or invalid. Please log in again.' });
+    }
+
+    if (!decoded || !decoded.mfa_pending || !decoded.id) {
+      return res.status(401).json({ error: 'Invalid MFA verification request' });
+    }
+
+    const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(decoded.id);
+    if (!user || !user.mfa_secret_enc) {
+      return res.status(400).json({ error: 'MFA is not configured for this account' });
+    }
+
+    const secret = cryptoService.decrypt(user.mfa_secret_enc);
+    let verified = totp.verifyTotp(secret, code.trim());
+
+    // If TOTP verification fails, try backup recovery codes
+    if (!verified && user.mfa_backup_codes_enc) {
+      try {
+        const hashedCodes = JSON.parse(cryptoService.decrypt(user.mfa_backup_codes_enc));
+        const backupResult = totp.verifyAndConsumeBackupCode(code.trim(), hashedCodes);
+        if (backupResult.valid) {
+          verified = true;
+          // Update remaining backup codes encrypted
+          const updatedEnc = cryptoService.encrypt(JSON.stringify(backupResult.remainingHashedCodes));
+          await db.prepare('UPDATE users SET mfa_backup_codes_enc = ? WHERE id = ?').run(updatedEnc, user.id);
+        }
+      } catch (backupErr) {
+        console.warn('[Auth] Backup code parsing error:', backupErr.message);
+      }
+    }
+
+    if (!verified) {
+      return res.status(401).json({ error: 'Invalid 2FA verification code or backup code' });
+    }
+
+    const adminRole = user.admin_role || 'superadmin';
+    const sessionId = uuidv4();
+    const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+
+    const userData = { 
+      id: user.id, 
+      email: user.email, 
+      name: user.name, 
+      plan: user.plan, 
+      role: 'admin',
+      admin_role: adminRole,
+      status: user.status || 'active' 
+    };
+
+    const token = makeAdminToken(userData, sessionId);
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    await db.prepare(`
+      INSERT INTO admin_sessions (id, user_id, token_hash, ip_address, user_agent, expires_at, is_active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'))
+    `).run(sessionId, user.id, tokenHash, ipAddress, userAgent, expiresAt);
+
+    res.json({ token, user: userData, session_id: sessionId });
+  } catch (err) {
+    console.error('[Auth] Admin MFA verification error:', err.message);
+    res.status(500).json({ error: 'Failed to complete 2FA verification' });
+  }
+});
+
 
 // POST /api/auth/forgot-password (Request single-use reset token)
 router.post('/forgot-password', authLimiter, async (req, res) => {

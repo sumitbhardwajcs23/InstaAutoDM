@@ -11,6 +11,7 @@ const {
   calculateRandomDelayMs,
   calculateBackoffWithJitter,
   extractRetryAfterMs,
+  isTransientError,
 } = require('../constants/queueConfig');
 
 const MAX_COMMENT_AGE_MS = 7 * 24 * 3600000;
@@ -38,6 +39,23 @@ class EventQueueWorker {
       return `msg_${data.messageId}`;
     }
     return `evt_${uuidv4()}`;
+  }
+
+  isDuplicate(idempotencyKey) {
+    if (!idempotencyKey) return false;
+    return this.seenIdempotencyKeys.has(idempotencyKey);
+  }
+
+  async isDuplicateInDb(idempotencyKey) {
+    if (!idempotencyKey) return false;
+    try {
+      const existing = await db.prepare("SELECT id FROM webhook_jobs WHERE idempotency_key = ? LIMIT 1").get(idempotencyKey);
+      if (existing) return true;
+      const existingEvent = await db.prepare("SELECT id FROM webhook_events WHERE idempotency_key = ? LIMIT 1").get(idempotencyKey);
+      return Boolean(existingEvent);
+    } catch {
+      return false;
+    }
   }
 
   async persistJob(job) {
@@ -271,14 +289,7 @@ class EventQueueWorker {
     } catch (err) {
       console.error(`[Worker] ❌ Error processing job ${job.id} (${job.event?.type}):`, err.message);
 
-      const isPermanent = Boolean(
-        err.isPermanent || 
-        err.statusCode === 400 || 
-        err.statusCode === 401 || 
-        err.statusCode === 403 ||
-        err.message?.includes('window_closed') ||
-        err.message?.includes('No Instagram account found')
-      );
+      const retriable = isTransientError(err);
 
       const retryAfterMs = extractRetryAfterMs(err);
       if (retryAfterMs && job.event?.accountId) {
@@ -286,7 +297,7 @@ class EventQueueWorker {
         this.accountBackoffs.set(job.event?.accountId, Date.now() + retryAfterMs);
       }
 
-      if (job.attempts < job.maxAttempts && !isPermanent) {
+      if (job.attempts < job.maxAttempts && retriable) {
         const backoffMs = retryAfterMs || calculateBackoffWithJitter(job.attempts);
         job.state = 'RETRYING';
         job.scheduledAt = Date.now() + backoffMs;
@@ -298,8 +309,68 @@ class EventQueueWorker {
         job.state = 'DEAD_LETTER';
         console.error(`[Worker] 💀 Job ${job.id} moved to DEAD_LETTER after ${job.attempts} attempts. Reason: ${err.message}`);
         await this.updateJobState(job.id, 'DEAD_LETTER', err.message);
+        try {
+          const dlqId = uuidv4();
+          await db.prepare(`
+            INSERT INTO dead_letter_queue (
+              id, job_id, idempotency_key, account_id, job_type, payload, error_message, error_stack, attempts, status, failed_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'unresolved', to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+          `).run(
+            dlqId,
+            job.id,
+            job.idempotencyKey || null,
+            job.event?.accountId || 'unknown',
+            job.event?.type || 'unknown',
+            JSON.stringify(job.event?.data || {}),
+            String(err.message).slice(0, 1000),
+            String(err.stack || '').slice(0, 2000),
+            job.attempts
+          );
+        } catch (dlqErr) {
+          console.error('[Worker] Error persisting to dead_letter_queue:', dlqErr.message);
+        }
       }
     }
+  }
+
+  /**
+   * Reprocesses a dead-letter queue job, resetting attempt counters and re-enqueuing.
+   */
+  async reprocessDlqJob(dlqId, userId = null) {
+    let dlqItem;
+    if (userId) {
+      dlqItem = await db.prepare(`
+        SELECT dlq.* FROM dead_letter_queue dlq
+        JOIN instagram_accounts a ON dlq.account_id = a.id OR dlq.account_id = a.ig_user_id
+        WHERE dlq.id = ? AND a.user_id = ?
+      `).get(dlqId, userId);
+    } else {
+      dlqItem = await db.prepare("SELECT * FROM dead_letter_queue WHERE id = ?").get(dlqId);
+    }
+
+    if (!dlqItem) {
+      return { success: false, error: 'Dead-letter item not found or unauthorized' };
+    }
+
+    let payload = {};
+    try {
+      payload = JSON.parse(dlqItem.payload);
+    } catch {}
+
+    const job = this.enqueue({
+      type: dlqItem.job_type,
+      accountId: dlqItem.account_id,
+      data: payload
+    });
+
+    await db.prepare(`
+      UPDATE dead_letter_queue SET
+        status = 'reprocessed',
+        resolved_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+      WHERE id = ?
+    `).run(dlqId);
+
+    return { success: true, message: 'Job successfully re-enqueued', job };
   }
 
   async shutdown(timeoutMs = 5000) {
@@ -486,6 +557,12 @@ class EventQueueWorker {
 
     if (!shouldSendDm && !shouldReplyComment) {
       console.warn(`[Worker] Rule "${rule.trigger_keyword}" matched but neither comment reply nor DM is configured for mode: ${mode}`);
+      return;
+    }
+
+    const subStatus = user.subscription_status || 'active';
+    if (subStatus === 'unpaid' || subStatus === 'suspended') {
+      console.warn(`[Worker] 🛑 User ${user.id} subscription is ${subStatus}. Suppressing automated comment response.`);
       return;
     }
 
@@ -949,6 +1026,12 @@ class EventQueueWorker {
       return;
     }
 
+    const subStatus = user.subscription_status || 'active';
+    if (subStatus === 'unpaid' || subStatus === 'suspended') {
+      console.warn(`[Worker] 🛑 User ${user.id} subscription is ${subStatus}. Suppressing automated DM response.`);
+      return;
+    }
+
     const dmLimit = dmLimitFor(user.plan);
     if (user.dm_usage_this_period >= dmLimit) {
       const cappedOutTs = new Date(eventTime + 1000).toISOString();
@@ -1056,6 +1139,80 @@ class EventQueueWorker {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(id, accountId, igUserId, username, name || username, profilePic || null, username, lastMessage, direction, status, nowIso, nowIso, nowIso);
       return id;
+    }
+  }
+
+  async isDuplicate(idempotencyKey) {
+    if (!idempotencyKey) return false;
+    try {
+      const existing = await db.prepare('SELECT id FROM webhook_events WHERE idempotency_key = ?').get(idempotencyKey);
+      return Boolean(existing);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async handleDeadLetter(job, err) {
+    try {
+      const dlqId = uuidv4();
+      const jobId = job.id || `job-${Date.now()}`;
+      const userId = job.userId || job.data?.userId || 'system';
+      const queueName = job.type || 'dm-dispatch';
+      const payloadStr = typeof job === 'string' ? job : JSON.stringify(job);
+      const errorName = err?.name || 'WorkerError';
+      const errorMessage = err?.message || String(err);
+      const errorStack = err?.stack || null;
+      const retryCount = job.attempt || job.attempts || 3;
+
+      await db.prepare(`
+        INSERT INTO dead_letter_queue (
+          id, job_id, user_id, queue_name, payload, error_name, error_message, error_stack, retry_count, is_resolved, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+      `).run(dlqId, jobId, userId, queueName, payloadStr, errorName, errorMessage, errorStack, retryCount);
+
+      console.warn(`[Queue DLQ] ☠️ Dispatched job ${jobId} to dead-letter queue: ${errorMessage}`);
+      return dlqId;
+    } catch (dlqErr) {
+      console.error('[Queue DLQ] Error persisting dead letter item:', dlqErr.message);
+      return null;
+    }
+  }
+
+  async reprocessDlqJob(dlqId, userId) {
+    try {
+      const record = await db.prepare('SELECT * FROM dead_letter_queue WHERE id = ?').get(dlqId);
+      if (!record) {
+        throw new Error(`DLQ record ${dlqId} not found`);
+      }
+
+      if (userId && record.user_id && record.user_id !== userId && userId !== 'admin') {
+        throw new Error('Unauthorized DLQ access');
+      }
+
+      let parsedPayload = null;
+      try {
+        parsedPayload = JSON.parse(record.payload);
+      } catch (e) {
+        parsedPayload = record.payload;
+      }
+
+      // Re-enqueue job
+      const newJobId = record.job_id || `reprocess-${uuidv4()}`;
+      if (typeof parsedPayload === 'object' && parsedPayload.data) {
+        await this.add(parsedPayload.type || 'INSTAGRAM_DM', parsedPayload.data, { userId: record.user_id });
+      }
+
+      // Mark DLQ entry resolved
+      await db.prepare(`
+        UPDATE dead_letter_queue 
+        SET is_resolved = 1, resolved_at = datetime('now') 
+        WHERE id = ?
+      `).run(dlqId);
+
+      return { success: true, newJobId };
+    } catch (err) {
+      console.error('[Queue DLQ] Reprocess error:', err.message);
+      throw err;
     }
   }
 

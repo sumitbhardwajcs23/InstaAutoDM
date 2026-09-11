@@ -37,7 +37,15 @@ function requireAuth(req, res, next) {
   next();
 }
 
-function requireAdmin(req, res, next) {
+let db = null;
+function getDb() {
+  if (!db) {
+    db = require('../db');
+  }
+  return db;
+}
+
+async function requireAdmin(req, res, next) {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized: authentication required' });
   }
@@ -54,8 +62,53 @@ function requireAdmin(req, res, next) {
     return res.status(403).json({ error: 'Forbidden: Admin privileges required' });
   }
 
+  // Session revocation validation if session_id is encoded in token
+  if (req.user.session_id) {
+    try {
+      const activeSession = await getDb().prepare(`
+        SELECT id, is_active, expires_at 
+        FROM admin_sessions 
+        WHERE id = ?
+      `).get(req.user.session_id);
+
+      if (!activeSession || !activeSession.is_active || new Date(activeSession.expires_at) < new Date()) {
+        return res.status(401).json({ 
+          error: 'Admin session has expired or been revoked. Please log in again.' 
+        });
+      }
+    } catch (err) {
+      console.warn('[AuthMiddleware] Session check warning:', err.message);
+    }
+  }
+
   next();
 }
 
-module.exports = { requireAuth, requireAdmin, JWT_SECRET };
+/**
+ * Granular Role-Based Access Control (RBAC) middleware for admin operations
+ * Supported roles: 'superadmin', 'admin', 'support', 'auditor'
+ */
+function requireAdminRole(...allowedRoles) {
+  return async (req, res, next) => {
+    requireAdmin(req, res, () => {
+      const userRole = req.user.admin_role || (req.user.role === 'admin' ? 'superadmin' : 'support');
+      
+      // Superadmin has full access across all operations
+      if (userRole === 'superadmin') {
+        return next();
+      }
+
+      if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+        return res.status(403).json({ 
+          error: `Forbidden: Requires one of roles: [${allowedRoles.join(', ')}]. Current role: ${userRole}` 
+        });
+      }
+
+      next();
+    });
+  };
+}
+
+module.exports = { requireAuth, requireAdmin, requireAdminRole, JWT_SECRET };
+
 

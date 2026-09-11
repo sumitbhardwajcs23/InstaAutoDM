@@ -4,10 +4,12 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin, requireAdminRole } = require('../middleware/auth');
 const { DEFAULT_TEMPLATES } = require('../constants/defaultTemplates');
 const { DEFAULT_SITE_SETTINGS, mergeSettingsWithEnvDefaults } = require('./site');
 const { dmLimitFor } = require('../constants/planLimits');
+const cryptoService = require('../services/crypto');
+const totp = require('../services/totp');
 
 // All endpoints in this router require authentication and admin privileges
 router.use(requireAuth);
@@ -1277,6 +1279,198 @@ router.get('/analytics', async (_req, res) => {
   } catch (err) {
     console.error('[Admin] Get analytics error:', err);
     res.status(500).json({ error: 'Failed to fetch admin analytics' });
+  }
+});
+
+// ── 2FA / MFA SECURITY ENDPOINTS ─────────────────────────────────────
+
+// POST /api/admin/mfa/setup (Generate secret & QR code URI)
+router.post('/mfa/setup', async (req, res) => {
+  try {
+    const user = await db.prepare('SELECT id, email, mfa_enabled FROM users WHERE id = ?').get(req.user.id);
+    if (!user) return res.status(404).json({ error: 'Admin user not found' });
+
+    const secret = totp.generateSecret();
+    const otpAuthUrl = totp.getOtpAuthUrl(user.email, 'Airvix Admin', secret);
+
+    res.json({
+      secret,
+      otpAuthUrl,
+      instructions: 'Add this secret into your Google Authenticator or 1Password, then confirm with a 6-digit code.'
+    });
+  } catch (err) {
+    console.error('[Admin MFA] Setup error:', err.message);
+    res.status(500).json({ error: 'Failed to initiate 2FA setup' });
+  }
+});
+
+// POST /api/admin/mfa/confirm (Verify code, activate 2FA, generate backup codes)
+router.post('/mfa/confirm', async (req, res) => {
+  try {
+    const { secret, code } = req.body;
+    if (!secret || !code) {
+      return res.status(400).json({ error: 'Secret and verification code are required' });
+    }
+
+    const isValid = totp.verifyTotp(secret, code.trim());
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid 6-digit code. Please verify time synchronization on your device.' });
+    }
+
+    // Generate 8 emergency recovery backup codes
+    const backupCodes = totp.generateBackupCodes(8);
+    const hashedCodes = backupCodes.map(c => totp.hashBackupCode(c));
+
+    const encryptedSecret = cryptoService.encrypt(secret);
+    const encryptedBackupCodes = cryptoService.encrypt(JSON.stringify(hashedCodes));
+
+    await db.prepare(`
+      UPDATE users 
+      SET mfa_enabled = 1, mfa_secret_enc = ?, mfa_backup_codes_enc = ?, updated_at = ?
+      WHERE id = ?
+    `).run(encryptedSecret, encryptedBackupCodes, new Date().toISOString(), req.user.id);
+
+    await logAuditEvent(req.user.id, req.user.email, 'MFA_ACTIVATED', 'users', 'Admin activated TOTP 2FA');
+
+    res.json({
+      success: true,
+      message: 'Two-Factor Authentication activated successfully.',
+      backup_codes: backupCodes,
+      warning: 'Store these backup codes safely. They are your only way to recover account access without an authenticator app.'
+    });
+  } catch (err) {
+    console.error('[Admin MFA] Confirm error:', err.message);
+    res.status(500).json({ error: 'Failed to activate 2FA' });
+  }
+});
+
+// POST /api/admin/mfa/disable (Requires current admin password)
+router.post('/mfa/disable', async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ error: 'Password confirmation is required to disable 2FA' });
+    }
+
+    const user = await db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(req.user.id);
+    if (!user || !user.password_hash) {
+      return res.status(400).json({ error: 'Invalid user credentials' });
+    }
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Incorrect password confirmation' });
+    }
+
+    await db.prepare(`
+      UPDATE users 
+      SET mfa_enabled = 0, mfa_secret_enc = NULL, mfa_backup_codes_enc = NULL, updated_at = ?
+      WHERE id = ?
+    `).run(new Date().toISOString(), req.user.id);
+
+    await logAuditEvent(req.user.id, req.user.email, 'MFA_DISABLED', 'users', 'Admin disabled TOTP 2FA');
+
+    res.json({ success: true, message: 'Two-Factor Authentication disabled successfully.' });
+  } catch (err) {
+    console.error('[Admin MFA] Disable error:', err.message);
+    res.status(500).json({ error: 'Failed to disable 2FA' });
+  }
+});
+
+// ── SESSION REVOCATION & AUDIT HISTORY ───────────────────────────────
+
+// GET /api/admin/sessions (List active sessions)
+router.get('/sessions', async (req, res) => {
+  try {
+    const isSuperAdmin = (req.user.admin_role === 'superadmin') || (req.user.role === 'admin');
+    let sessions = [];
+
+    if (isSuperAdmin && req.query.all === 'true') {
+      sessions = await db.prepare(`
+        SELECT s.id, s.user_id, s.ip_address, s.user_agent, s.expires_at, s.is_active, s.created_at, u.email as user_email
+        FROM admin_sessions s
+        LEFT JOIN users u ON s.user_id = u.id
+        WHERE s.is_active = 1 AND s.expires_at > datetime('now')
+        ORDER BY s.created_at DESC
+        LIMIT 50
+      `).all() || [];
+    } else {
+      sessions = await db.prepare(`
+        SELECT id, user_id, ip_address, user_agent, expires_at, is_active, created_at
+        FROM admin_sessions
+        WHERE user_id = ? AND is_active = 1 AND expires_at > datetime('now')
+        ORDER BY created_at DESC
+      `).all(req.user.id) || [];
+    }
+
+    res.json({
+      sessions: sessions.map(s => ({
+        ...s,
+        current: s.id === req.user.session_id
+      }))
+    });
+  } catch (err) {
+    console.error('[Admin] Get sessions error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch active admin sessions' });
+  }
+});
+
+// POST /api/admin/sessions/:id/revoke (Revoke a specific session)
+router.post('/sessions/:id/revoke', async (req, res) => {
+  try {
+    const sessionId = req.params.id;
+    const session = await db.prepare('SELECT * FROM admin_sessions WHERE id = ?').get(sessionId);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    const isSuperAdmin = (req.user.admin_role === 'superadmin') || (req.user.role === 'admin');
+    if (session.user_id !== req.user.id && !isSuperAdmin) {
+      return res.status(403).json({ error: 'Forbidden: Cannot revoke other admin sessions' });
+    }
+
+    await db.prepare('UPDATE admin_sessions SET is_active = 0 WHERE id = ?').run(sessionId);
+    await logAuditEvent(req.user.id, req.user.email, 'SESSION_REVOKED', 'admin_sessions', `Revoked session ${sessionId}`);
+
+    res.json({ success: true, message: `Session ${sessionId} has been successfully revoked.` });
+  } catch (err) {
+    console.error('[Admin] Revoke session error:', err.message);
+    res.status(500).json({ error: 'Failed to revoke session' });
+  }
+});
+
+// POST /api/admin/sessions/revoke-all (Revoke all other sessions except current)
+router.post('/sessions/revoke-all', async (req, res) => {
+  try {
+    const currentSessionId = req.user.session_id || 'none';
+    await db.prepare(`
+      UPDATE admin_sessions 
+      SET is_active = 0 
+      WHERE user_id = ? AND id != ?
+    `).run(req.user.id, currentSessionId);
+
+    await logAuditEvent(req.user.id, req.user.email, 'ALL_SESSIONS_REVOKED', 'admin_sessions', 'Revoked all other active sessions');
+
+    res.json({ success: true, message: 'All other active sessions have been revoked.' });
+  } catch (err) {
+    console.error('[Admin] Revoke all sessions error:', err.message);
+    res.status(500).json({ error: 'Failed to revoke sessions' });
+  }
+});
+
+// GET /api/admin/audit-logs (View audit trail)
+router.get('/audit-logs', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || 50, 10), 200);
+    const logs = await db.prepare(`
+      SELECT id, actor_id, actor_email, action, target_resource, ip_address, details, created_at
+      FROM audit_logs
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(limit) || [];
+
+    res.json({ audit_logs: logs });
+  } catch (err) {
+    console.error('[Admin] Get audit logs error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch audit logs' });
   }
 });
 

@@ -135,8 +135,14 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE TABLE IF NOT EXISTS webhook_events (
   id TEXT PRIMARY KEY,
+  idempotency_key TEXT,
+  account_id TEXT,
+  sender_id TEXT,
   event_type TEXT NOT NULL,
   payload TEXT NOT NULL,
+  signature_hash TEXT,
+  delivery_timestamp TEXT,
+  processing_time_ms INTEGER,
   processed_at TEXT,
   status TEXT DEFAULT 'pending',
   error TEXT,
@@ -158,8 +164,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
   name TEXT NOT NULL,
   owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   status TEXT DEFAULT 'active',
-  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
-  updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -176,7 +181,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE TABLE IF NOT EXISTS data_requests (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
   user_email TEXT,
   request_type TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
@@ -207,6 +212,115 @@ CREATE TABLE IF NOT EXISTS webhook_jobs (
   error_message TEXT,
   created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
   updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS dead_letter_queue (
+  id TEXT PRIMARY KEY,
+  job_id TEXT,
+  user_id TEXT,
+  account_id TEXT,
+  idempotency_key TEXT,
+  queue_name TEXT DEFAULT 'dm-dispatch',
+  job_type TEXT DEFAULT 'INSTAGRAM_DM',
+  payload TEXT NOT NULL,
+  error_name TEXT,
+  error_message TEXT,
+  error_stack TEXT,
+  retry_count INTEGER DEFAULT 0,
+  attempts INTEGER DEFAULT 0,
+  is_resolved INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'unresolved',
+  resolved_at TEXT,
+  failed_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan TEXT NOT NULL DEFAULT 'free',
+  status TEXT NOT NULL DEFAULT 'active',
+  billing_cycle TEXT NOT NULL DEFAULT 'monthly',
+  current_period_start TEXT NOT NULL,
+  current_period_end TEXT NOT NULL,
+  cancel_at_period_end INTEGER DEFAULT 0,
+  canceled_at TEXT,
+  trial_ends_at TEXT,
+  grace_period_ends_at TEXT,
+  gateway TEXT DEFAULT 'razorpay',
+  gateway_subscription_id TEXT,
+  gateway_customer_id TEXT,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS invoices (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subscription_id TEXT REFERENCES subscriptions(id) ON DELETE SET NULL,
+  invoice_number TEXT UNIQUE NOT NULL,
+  amount INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  status TEXT NOT NULL DEFAULT 'paid',
+  gateway TEXT DEFAULT 'razorpay',
+  gateway_payment_id TEXT,
+  gateway_order_id TEXT,
+  billing_name TEXT,
+  billing_email TEXT,
+  gst_number TEXT,
+  billing_address TEXT,
+  paid_at TEXT,
+  failed_reason TEXT,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS payment_webhook_events (
+  id TEXT PRIMARY KEY,
+  gateway TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  idempotency_key TEXT UNIQUE NOT NULL,
+  payload TEXT NOT NULL,
+  signature_verified INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'processed',
+  error TEXT,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL,
+  ip_address TEXT DEFAULT 'masked',
+  user_agent TEXT,
+  is_revoked INTEGER DEFAULT 0,
+  expires_at TEXT NOT NULL,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  last_active_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS system_alerts (
+  id TEXT PRIMARY KEY,
+  alert_type TEXT NOT NULL,
+  severity TEXT DEFAULT 'warning',
+  message TEXT NOT NULL,
+  details TEXT,
+  resolved INTEGER DEFAULT 0,
+  resolved_at TEXT,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS error_events (
+  id TEXT PRIMARY KEY,
+  error_fingerprint TEXT NOT NULL,
+  message TEXT NOT NULL,
+  stack TEXT,
+  url TEXT,
+  method TEXT,
+  user_id TEXT,
+  request_id TEXT,
+  occurrence_count INTEGER DEFAULT 1,
+  first_seen_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  last_seen_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
 
 CREATE TABLE IF NOT EXISTS data_deletion_requests (
@@ -250,10 +364,16 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC)
 CREATE INDEX IF NOT EXISTS idx_data_requests_user ON data_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_webhook_jobs_sched_state ON webhook_jobs(state, scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_webhook_jobs_account ON webhook_jobs(account_id);
+CREATE INDEX IF NOT EXISTS idx_subs_user ON subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_subs_status ON subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_invoices_user ON invoices(user_id);
+CREATE INDEX IF NOT EXISTS idx_pay_webhooks_key ON payment_webhook_events(idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_user ON admin_sessions(user_id, is_revoked);
+CREATE INDEX IF NOT EXISTS idx_system_alerts_res ON system_alerts(resolved, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_error_events_fp ON error_events(error_fingerprint);
 `;
 
 module.exports = {
   CREATE_TABLES_PG_SQL,
   CREATE_TABLES_SQL: CREATE_TABLES_PG_SQL,
 };
-
