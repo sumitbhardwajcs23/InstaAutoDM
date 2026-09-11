@@ -107,12 +107,12 @@ const DEFAULT_SITE_SETTINGS = {
   nav_signup_text: 'Get started',
 
   // Contact & Business Details
-  support_email: 'support@airvix.com',
-  support_phone: '+91 98765 43210',
-  whatsapp_number: '+91 98765 43210',
-  business_address: 'Airvix Technologies Pvt Ltd, 100 Feet Road, Indiranagar, Bengaluru, Karnataka 560038, India',
+  support_email: process.env.SUPPORT_EMAIL || 'support@airvix.com',
+  support_phone: process.env.SUPPORT_PHONE || '+91 98765 43210',
+  whatsapp_number: process.env.WHATSAPP_NUMBER || '919876543210',
+  business_address: process.env.BUSINESS_ADDRESS || 'Airvix Technologies Pvt Ltd, 100 Feet Road, Indiranagar, Bengaluru, Karnataka 560038, India',
   business_hours: '24/7 Global Automated Support',
-  gst_number: '29ABCDE1234F1Z5',
+  gst_number: process.env.GST_NUMBER || '29ABCDE1234F1Z5',
 
   // Legal & Compliance Documents
   privacy_policy_text: `AIRVIX PRIVACY POLICY
