@@ -1,0 +1,110 @@
+{
+  "backup_file": "backup-2026-09-11T15-03-51-158Z.enc.json",
+  "created_at": "2026-09-11T15:03:58.776Z",
+  "checksum_sha256": "570efedabd82ed0028f8f5ad577883b373f9b10ad6dc355027fbe002dfadec30",
+  "original_size_bytes": 236262,
+  "compressed_size_bytes": 48960,
+  "table_count": 25,
+  "tables": [
+    {
+      "name": "activity_log",
+      "records": 11
+    },
+    {
+      "name": "admin_sessions",
+      "records": 1
+    },
+    {
+      "name": "audit_logs",
+      "records": 0
+    },
+    {
+      "name": "automation_loop_incidents",
+      "records": 0
+    },
+    {
+      "name": "automation_rules",
+      "records": 17
+    },
+    {
+      "name": "comment_replies",
+      "records": 18
+    },
+    {
+      "name": "conversations",
+      "records": 27
+    },
+    {
+      "name": "data_deletion_requests",
+      "records": 0
+    },
+    {
+      "name": "data_requests",
+      "records": 0
+    },
+    {
+      "name": "dead_letter_queue",
+      "records": 2
+    },
+    {
+      "name": "error_events",
+      "records": 0
+    },
+    {
+      "name": "instagram_accounts",
+      "records": 54
+    },
+    {
+      "name": "invoices",
+      "records": 2
+    },
+    {
+      "name": "messages",
+      "records": 10
+    },
+    {
+      "name": "password_resets",
+      "records": 7
+    },
+    {
+      "name": "payment_webhook_events",
+      "records": 2
+    },
+    {
+      "name": "schema_migrations",
+      "records": 5
+    },
+    {
+      "name": "security_events",
+      "records": 0
+    },
+    {
+      "name": "site_settings",
+      "records": 116
+    },
+    {
+      "name": "subscriptions",
+      "records": 2
+    },
+    {
+      "name": "system_alerts",
+      "records": 0
+    },
+    {
+      "name": "users",
+      "records": 97
+    },
+    {
+      "name": "webhook_events",
+      "records": 16
+    },
+    {
+      "name": "webhook_jobs",
+      "records": 54
+    },
+    {
+      "name": "workspaces",
+      "records": 0
+    }
+  ]
+}

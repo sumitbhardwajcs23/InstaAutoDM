@@ -1,0 +1,115 @@
+name: CI Security & Quality Gates
+
+on:
+  push:
+    branches: [ main, staging, develop ]
+  pull_request:
+    branches: [ main, staging ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Secret & Token Leak Detection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks Secret Scanner
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-audit:
+    name: Dependency Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Run Root NPM Audit
+        run: npm audit --audit-level=high
+
+      - name: Run Frontend NPM Audit
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm audit --audit-level=high
+
+  test-suite:
+    name: Automated Test Verification Gates
+    runs-on: ubuntu-latest
+    needs: [secret-scan, dependency-audit]
+    env:
+      NODE_ENV: test
+      JWT_SECRET: ci-test-jwt-secret-minimum-32-chars-long-security
+      TOKEN_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      BACKUP_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      META_APP_SECRET: ci-mock-meta-app-secret-1234567890
+      META_WEBHOOK_VERIFY_TOKEN: ci-mock-verify-token
+      DATABASE_URL: ${{ secrets.DATABASE_URL_TEST || secrets.DATABASE_URL }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Run Backup & Recovery Unit Tests
+        run: node tests/backupRecovery.test.js
+
+      - name: Run Database Migration Unit Tests
+        run: node tests/migrator.test.js
+
+      - name: Run Multi-Tenant Security Tests
+        run: node tests/multiTenantSecurity.test.js
+
+      - name: Run Webhook Reliability & DLQ Tests
+        run: node tests/webhookReliability.test.js
+
+      - name: Run Billing & Subscription Tests
+        run: node tests/billingAndSubscription.test.js
+
+      - name: Run Admin Security & MFA Tests
+        run: node tests/adminSecurity.test.js
+
+      - name: Run Observability & Telemetry Tests
+        run: node tests/observability.test.js
+
+  build-check:
+    name: Frontend Build & Compilation Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build Frontend Application
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
