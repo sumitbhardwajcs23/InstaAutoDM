@@ -420,7 +420,7 @@ const CONTENT_DOCS = {
   }
 };
 
-export default function LandingView({ onNavigate = () => {}, user, siteSettingsOverride = null, isPreview = false, onSectionClick = null }) {
+export default function LandingView({ onNavigate = () => {}, user, siteSettingsOverride = null, isPreview = false, onSectionClick = null, activeSectionOnly = null }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState('monthly'); // 'monthly' | 'yearly'
   const [internalSettings, setInternalSettings] = useState(null);
@@ -429,6 +429,18 @@ export default function LandingView({ onNavigate = () => {}, user, siteSettingsO
   const [testimonialIndex, setTestimonialIndex] = useState(0);
 
   const siteSettings = siteSettingsOverride || internalSettings;
+
+  const showSection = (name) => {
+    if (!activeSectionOnly) return true;
+    if (activeSectionOnly === name) return true;
+    if (activeSectionOnly === 'howitworks' && (name === 'how-it-works' || name === 'howitworks')) return true;
+    if (activeSectionOnly === 'how-it-works' && (name === 'how-it-works' || name === 'howitworks')) return true;
+    if (activeSectionOnly === 'stories' && (name === 'testimonials' || name === 'stories')) return true;
+    if (activeSectionOnly === 'testimonials' && (name === 'testimonials' || name === 'stories')) return true;
+    if (activeSectionOnly === 'footer' && (name === 'legal' || name === 'footer')) return true;
+    if (activeSectionOnly === 'legal' && (name === 'legal' || name === 'footer')) return true;
+    return false;
+  };
 
   useEffect(() => {
     if (!siteSettingsOverride) {
@@ -487,204 +499,232 @@ export default function LandingView({ onNavigate = () => {}, user, siteSettingsO
   };
 
   return (
-    <div className={`airvix-page-wrapper ${isPreview ? 'is-cms-preview' : ''}`}>
-      {/* HEADER NAVBAR */}
-      <header className={`airvix-navbar ${isScrolled ? 'scrolled' : ''}`}>
-        <div className="airvix-nav-container">
-          <a href="#" className="airvix-logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-            <img src="/airvix-mark.png" alt="Airvix" className="airvix-logo-img" />
-            <span className="airvix-logo-text">Airvix</span>
-          </a>
-
-          <nav className="airvix-nav-links">
-            <a href="#features">Product</a>
-            <a href="#how-it-works">Solutions</a>
-            <a href="#pricing">Plans &amp; Billing</a>
-            <div className="airvix-nav-dropdown">
-              <span className="airvix-dropdown-label">
-                Resources <ChevronDown size={14} />
-              </span>
-              <div className="airvix-dropdown-menu">
-                <a href="#how" onClick={(e) => { e.preventDefault(); setActiveDocKey('how-it-works-guide'); }}>How It Works</a>
-                <a href="#checklist" onClick={(e) => { e.preventDefault(); setActiveDocKey('reel-checklist'); }}>Viral Reel Blueprint</a>
-                <a href="#safety" onClick={(e) => { e.preventDefault(); setActiveDocKey('meta-safety'); }}>Meta API Safety Guide</a>
-                <a href="#gst" onClick={(e) => { e.preventDefault(); setActiveDocKey('gst-info'); }}>Rupee &amp; GST Invoicing</a>
-                <a href="#privacy" onClick={(e) => { e.preventDefault(); setActiveDocKey('privacy'); }}>Security &amp; Privacy</a>
-              </div>
-            </div>
-          </nav>
-
-          <div className="airvix-nav-actions">
-            {user ? (
-              <button className="airvix-btn-primary" onClick={() => onNavigate('app')}>
-                Open Dashboard <ArrowRight size={14} />
-              </button>
-            ) : (
-              <>
-                <button className="airvix-btn-ghost" onClick={() => onNavigate('auth-login')}>
-                  Sign in
-                </button>
-                <button className="airvix-btn-primary" onClick={() => onNavigate('auth-signup')}>
-                  Get started <ArrowRight size={14} />
-                </button>
-              </>
-            )}
-          </div>
+    <div className={`airvix-page-wrapper ${activeSectionOnly ? 'is-section-preview' : ''} ${isPreview ? 'is-cms-preview' : ''}`}>
+      {/* 1. TOP ANNOUNCEMENT BAR */}
+      {((siteSettings?.announcement_enabled && !activeSectionOnly) || activeSectionOnly === 'announcement') && (
+        <div
+          className="airvix-announcement-bar"
+          onClick={() => handleSectionClick('announcement')}
+          style={{ cursor: isPreview ? 'pointer' : 'default' }}
+        >
+          {siteSettings?.announcement_badge && (
+            <span className="airvix-announcement-badge">{siteSettings.announcement_badge}</span>
+          )}
+          <span>{siteSettings?.announcement_text || '✨ Launch Offer: Get 20% off on all annual plans!'}</span>
+          {siteSettings?.announcement_link && (
+            <a href={siteSettings.announcement_link} style={{ color: '#93c5fd', textDecoration: 'underline', marginLeft: '8px', fontWeight: 700 }}>
+              Learn more →
+            </a>
+          )}
         </div>
-      </header>
+      )}
+
+      {/* 2. HEADER NAVBAR */}
+      {(!activeSectionOnly || activeSectionOnly === 'navbar') && (
+        <header
+          className={`airvix-navbar ${isScrolled ? 'scrolled' : ''}`}
+          onClick={() => handleSectionClick('navbar')}
+          style={{ cursor: isPreview ? 'pointer' : 'default' }}
+        >
+          <div className="airvix-nav-container">
+            <a href="#" className="airvix-logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+              <img src="/airvix-mark.png" alt="Airvix" className="airvix-logo-img" />
+              <span className="airvix-logo-text">{siteSettings?.platform_name || siteSettings?.site_name || 'Airvix'}</span>
+            </a>
+
+            <nav className="airvix-nav-links">
+              <a href="#features">Product</a>
+              <a href="#how-it-works">Solutions</a>
+              <a href="#pricing">Plans &amp; Billing</a>
+              <div className="airvix-nav-dropdown">
+                <span className="airvix-dropdown-label">
+                  Resources <ChevronDown size={14} />
+                </span>
+                <div className="airvix-dropdown-menu">
+                  <a href="#how" onClick={(e) => { e.preventDefault(); setActiveDocKey('how-it-works-guide'); }}>How It Works</a>
+                  <a href="#checklist" onClick={(e) => { e.preventDefault(); setActiveDocKey('reel-checklist'); }}>Viral Reel Blueprint</a>
+                  <a href="#safety" onClick={(e) => { e.preventDefault(); setActiveDocKey('meta-safety'); }}>Meta API Safety Guide</a>
+                  <a href="#gst" onClick={(e) => { e.preventDefault(); setActiveDocKey('gst-info'); }}>Rupee &amp; GST Invoicing</a>
+                  <a href="#privacy" onClick={(e) => { e.preventDefault(); setActiveDocKey('privacy'); }}>Security &amp; Privacy</a>
+                </div>
+              </div>
+            </nav>
+
+            <div className="airvix-nav-actions">
+              {user ? (
+                <button className="airvix-btn-primary" onClick={() => onNavigate('app')}>
+                  Open Dashboard <ArrowRight size={14} />
+                </button>
+              ) : (
+                <>
+                  <button className="airvix-btn-ghost" onClick={() => onNavigate('auth-login')}>
+                    {siteSettings?.nav_login_text || 'Sign in'}
+                  </button>
+                  <button className="airvix-btn-primary" onClick={() => onNavigate('auth-signup')}>
+                    {siteSettings?.nav_signup_text || 'Get started'} <ArrowRight size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </header>
+      )}
 
       {/* 3. HERO SECTION (Dark Obsidian Atmosphere with Ambient Background Video) */}
-      <section 
-        className="airvix-hero-section"
-        onClick={() => handleSectionClick('hero')}
-        style={{ cursor: isPreview ? 'pointer' : 'default' }}
-      >
-        {/* Ambient Looping Video Background or Custom Image */}
-        <div className="airvix-hero-video-bg">
-          {siteSettings?.hero_media_type === 'image' && siteSettings?.hero_image_url ? (
-            <img 
-              src={siteSettings.hero_image_url} 
-              alt="Hero Media" 
-              className="airvix-bg-video" 
-              style={{ objectFit: 'cover' }} 
-            />
-          ) : (
-            <video
-              key={siteSettings?.hero_video_url || 'default-video'}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="airvix-bg-video"
-            >
-              <source src={siteSettings?.hero_video_url || '/Mere_ko_apne_business_air_airv.mp4'} type="video/mp4" />
-            </video>
-          )}
-          <div className="airvix-hero-video-overlay"></div>
-        </div>
-
-        <div className="airvix-hero-radial-glow"></div>
-        <div className="airvix-container airvix-hero-grid">
-          
-          {/* Left Column: Hero Content */}
-          <div className="airvix-hero-left">
-            <div className="airvix-badge-pill">
-              {siteSettings?.hero_badge || 'AUTOMATE, ENGAGE, GROW'}
-            </div>
-
-            <h1 className="airvix-hero-heading">
-              {siteSettings?.hero_headline || 'Turn Instagram Conversations'} <br />
-              Into <span 
-                className="airvix-gradient-highlight"
-                style={siteSettings?.hero_highlight_color ? {
-                  color: siteSettings.hero_highlight_color,
-                  WebkitTextFillColor: 'initial',
-                  background: 'none'
-                } : undefined}
+      {showSection('hero') && (
+        <section 
+          id="hero"
+          className="airvix-hero-section"
+          onClick={() => handleSectionClick('hero')}
+          style={{ cursor: isPreview ? 'pointer' : 'default' }}
+        >
+          {/* Ambient Looping Video Background or Custom Image */}
+          <div className="airvix-hero-video-bg">
+            {siteSettings?.hero_media_type === 'image' && siteSettings?.hero_image_url ? (
+              <img 
+                src={siteSettings.hero_image_url} 
+                alt="Hero Media" 
+                className="airvix-bg-video" 
+                style={{ objectFit: 'cover' }} 
+              />
+            ) : (
+              <video
+                key={siteSettings?.hero_video_url || 'default-video'}
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="airvix-bg-video"
               >
-                {siteSettings?.hero_headline_highlight || 'Real Growth'}
-              </span>
-            </h1>
-
-            <p className="airvix-hero-sub">
-              {siteSettings?.hero_subtitle || 
-                'Airvix helps creators and businesses automate Instagram comments and DMs, engage their audience, and convert conversations into customers — effortlessly.'}
-            </p>
-
-            <div className="airvix-hero-buttons">
-              <button 
-                className="airvix-btn-primary airvix-btn-lg" 
-                onClick={() => {
-                  if (isPreview) return;
-                  if (siteSettings?.primary_cta_url?.startsWith('#')) {
-                    onNavigate(user ? 'app' : 'auth-signup');
-                  } else if (siteSettings?.primary_cta_url) {
-                    window.location.href = siteSettings.primary_cta_url;
-                  } else {
-                    onNavigate(user ? 'app' : 'auth-signup');
-                  }
-                }}
-              >
-                {siteSettings?.primary_cta_text || 'Get started free'} <ArrowRight size={16} />
-              </button>
-              <button 
-                className="airvix-btn-dark airvix-btn-lg" 
-                onClick={() => {
-                  if (isPreview) return;
-                  setIsVideoModalOpen(true);
-                }}
-              >
-                <Play size={16} className="airvix-play-icon" />
-                <span>{siteSettings?.secondary_cta_text || 'Watch demo'}</span>
-              </button>
-            </div>
-
-            <div className="airvix-hero-trust-row">
-              <div className="airvix-trust-item">
-                <CreditCard size={15} color="#94a3b8" />
-                <span>No credit card required</span>
-              </div>
-              <div className="airvix-trust-item">
-                <Users size={15} color="#94a3b8" />
-                <span>Trusted by 10,000+ creators</span>
-              </div>
-              <div className="airvix-trust-item">
-                <Shield size={15} color="#94a3b8" />
-                <span>Secure &amp; private</span>
-              </div>
-            </div>
+                <source src={siteSettings?.hero_video_url || '/Mere_ko_apne_business_air_airv.mp4'} type="video/mp4" />
+              </video>
+            )}
+            <div className="airvix-hero-video-overlay"></div>
           </div>
 
-          {/* Right Column: Floating Highlights Over Live Background Video */}
-          <div className="airvix-hero-right">
-            <div className="airvix-handwritten-note airvix-hero-note">
-              <span>From Comments to Customers</span>
-              <svg className="airvix-curved-arrow" width="46" height="40" viewBox="0 0 46 40" fill="none">
-                <path d="M6 6 C18 20, 28 32, 40 34 M40 34 L32 30 M40 34 L36 24" stroke="#93c5fd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
+          <div className="airvix-hero-radial-glow"></div>
+          <div className="airvix-container airvix-hero-grid">
+            
+            {/* Left Column: Hero Content */}
+            <div className="airvix-hero-left">
+              <div className="airvix-badge-pill">
+                {siteSettings?.hero_badge || 'AUTOMATE, ENGAGE, GROW'}
+              </div>
 
-            <div className="airvix-hero-floating-stage">
-              {/* Floating Notification 1: Top Right New Comment */}
-              <div className="airvix-floating-toast airvix-toast-hero-1">
-                <div className="airvix-toast-icon airvix-toast-ig">📸</div>
-                <div className="airvix-toast-content">
-                  <div className="airvix-toast-header">
-                    <span className="airvix-toast-title">New comment</span>
-                    <span className="airvix-toast-time">now</span>
-                  </div>
-                  <div className="airvix-toast-body">"Do you have the price?"</div>
+              <h1 className="airvix-hero-heading">
+                {siteSettings?.hero_headline || 'Turn Instagram Conversations'} <br />
+                Into <span 
+                  className="airvix-gradient-highlight"
+                  style={siteSettings?.hero_highlight_color ? {
+                    color: siteSettings.hero_highlight_color,
+                    WebkitTextFillColor: 'initial',
+                    background: 'none'
+                  } : undefined}
+                >
+                  {siteSettings?.hero_headline_highlight || 'Real Growth'}
+                </span>
+              </h1>
+
+              <p className="airvix-hero-sub">
+                {siteSettings?.hero_subtitle || 
+                  'Airvix helps creators and businesses automate Instagram comments and DMs, engage their audience, and convert conversations into customers — effortlessly.'}
+              </p>
+
+              <div className="airvix-hero-buttons">
+                <button 
+                  className="airvix-btn-primary airvix-btn-lg" 
+                  onClick={() => {
+                    if (isPreview) return;
+                    if (siteSettings?.primary_cta_url?.startsWith('#')) {
+                      onNavigate(user ? 'app' : 'auth-signup');
+                    } else if (siteSettings?.primary_cta_url) {
+                      window.location.href = siteSettings.primary_cta_url;
+                    } else {
+                      onNavigate(user ? 'app' : 'auth-signup');
+                    }
+                  }}
+                >
+                  {siteSettings?.primary_cta_text || 'Get started free'} <ArrowRight size={16} />
+                </button>
+                <button 
+                  className="airvix-btn-dark airvix-btn-lg" 
+                  onClick={() => {
+                    if (isPreview) return;
+                    setIsVideoModalOpen(true);
+                  }}
+                >
+                  <Play size={16} className="airvix-play-icon" />
+                  <span>{siteSettings?.secondary_cta_text || 'Watch demo'}</span>
+                </button>
+              </div>
+
+              <div className="airvix-hero-trust-row">
+                <div className="airvix-trust-item">
+                  <CreditCard size={15} color="#94a3b8" />
+                  <span>{siteSettings?.hero_trust_1 || 'No credit card required'}</span>
+                </div>
+                <div className="airvix-trust-item">
+                  <Users size={15} color="#94a3b8" />
+                  <span>{siteSettings?.hero_trust_2 || 'Trusted by 10,000+ creators'}</span>
+                </div>
+                <div className="airvix-trust-item">
+                  <Shield size={15} color="#94a3b8" />
+                  <span>{siteSettings?.hero_trust_3 || 'Secure & private'}</span>
                 </div>
               </div>
+            </div>
 
-              {/* Floating Notification 2: Bottom Right AI Reply Sent */}
-              <div className="airvix-floating-toast airvix-toast-hero-2">
-                <div className="airvix-toast-icon airvix-toast-ai">🤖</div>
-                <div className="airvix-toast-content">
-                  <div className="airvix-toast-header">
-                    <span className="airvix-toast-title">AI Reply Sent</span>
-                    <span className="airvix-toast-time">now</span>
+            {/* Right Column: Floating Highlights Over Live Background Video */}
+            <div className="airvix-hero-right">
+              <div className="airvix-handwritten-note airvix-hero-note">
+                <span>{siteSettings?.hero_note || 'From Comments to Customers'}</span>
+                <svg className="airvix-curved-arrow" width="46" height="40" viewBox="0 0 46 40" fill="none">
+                  <path d="M6 6 C18 20, 28 32, 40 34 M40 34 L32 30 M40 34 L36 24" stroke="#93c5fd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+
+              <div className="airvix-hero-floating-stage">
+                {/* Floating Notification 1: Top Right New Comment */}
+                <div className="airvix-floating-toast airvix-toast-hero-1">
+                  <div className="airvix-toast-icon airvix-toast-ig">📸</div>
+                  <div className="airvix-toast-content">
+                    <div className="airvix-toast-header">
+                      <span className="airvix-toast-title">{siteSettings?.hero_toast_1_title || 'New comment'}</span>
+                      <span className="airvix-toast-time">now</span>
+                    </div>
+                    <div className="airvix-toast-body">{siteSettings?.hero_toast_1_body || '"Do you have the price?"'}</div>
                   </div>
-                  <div className="airvix-toast-body">"Hey! Here's the link for you 👋"</div>
+                </div>
+
+                {/* Floating Notification 2: Bottom Right AI Reply Sent */}
+                <div className="airvix-floating-toast airvix-toast-hero-2">
+                  <div className="airvix-toast-icon airvix-toast-ai">🤖</div>
+                  <div className="airvix-toast-content">
+                    <div className="airvix-toast-header">
+                      <span className="airvix-toast-title">{siteSettings?.hero_toast_2_title || 'AI Reply Sent'}</span>
+                      <span className="airvix-toast-time">now</span>
+                    </div>
+                    <div className="airvix-toast-body">{siteSettings?.hero_toast_2_body || '"Hey! Here\'s the link for you 👋"'}</div>
+                  </div>
+                </div>
+
+                {/* Live Status Badge */}
+                <div className="airvix-hero-live-badge">
+                  <span className="airvix-live-dot"></span>
+                  <span>{siteSettings?.hero_live_badge || 'Automated DM Engine Active'}</span>
                 </div>
               </div>
-
-              {/* Live Status Badge */}
-              <div className="airvix-hero-live-badge">
-                <span className="airvix-live-dot"></span>
-                <span>Automated DM Engine Active</span>
-              </div>
             </div>
+
           </div>
 
-        </div>
-
-        {/* Full-Page Cover Scroll Hint */}
-        <a href="#features" className="airvix-hero-scroll-hint" aria-label="Scroll to features">
-          <span>Scroll to explore</span>
-          <ChevronDown size={15} className="airvix-scroll-bounce" />
-        </a>
-      </section>
+          {/* Full-Page Cover Scroll Hint */}
+          <a href="#features" className="airvix-hero-scroll-hint" aria-label="Scroll to features">
+            <span>Scroll to explore</span>
+            <ChevronDown size={15} className="airvix-scroll-bounce" />
+          </a>
+        </section>
+      )}
 
       {/* 4. WHY AIRVIX / VALUE PROPOSITION (Clean White Aesthetic) */}
       <section 

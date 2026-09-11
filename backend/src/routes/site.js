@@ -25,6 +25,15 @@ const DEFAULT_SITE_SETTINGS = {
   hero_video_url: '/Mere_ko_apne_business_air_airv.mp4',
   hero_image_url: '',
   demo_keyword: 'WORKBOOK',
+  hero_trust_1: 'No credit card required',
+  hero_trust_2: 'Trusted by 10,000+ creators',
+  hero_trust_3: 'Secure & private',
+  hero_toast_1_title: 'New comment',
+  hero_toast_1_body: '"Do you have the price?"',
+  hero_toast_2_title: 'AI Reply Sent',
+  hero_toast_2_body: '"Hey! Here\'s the link for you 👋"',
+  hero_live_badge: 'Automated DM Engine Active',
+  hero_note: 'From Comments to Customers',
 
   // Feature Section (Why Airvix)
   features_badge: 'WHY AIRVIX',
@@ -50,17 +59,52 @@ const DEFAULT_SITE_SETTINGS = {
   step_2_desc: 'Define your trigger keywords (e.g. LINK, PRICE, WORKBOOK) and customize your DM with interactive links.',
   step_3_title: 'Watch Leads & Sales Convert',
   step_3_desc: 'When followers comment, Airvix delivers your link in under 1.4s while they are still engaged on your Reel.',
+  how_cta_text: 'See how it works →',
+  how_cta_url: '#signup',
+  how_quote: 'Creators Build Brighter Tomorrows',
+  how_image_url: '/workspace-laptop.jpg',
 
   // Pricing Section (INR ₹)
   pricing_badge: 'TRANSPARENT PRICING',
   pricing_heading: 'Scale your Instagram engagement in Rupees',
   pricing_subtitle: 'No hidden international conversion charges. Instant activation with UPI, Cards & Net Banking with GST.',
+  pricing_discount_badge: 'Save 20%',
+  pricing_guarantee: '7-day money-back guarantee • No questions asked • Cancel anytime with 1 click',
   price_starter: 0,
-  price_creator: 1499,
-  price_agency: 3999,
   limit_starter: '1,000',
+  plan_1_name: 'Starter',
+  plan_1_desc: 'Perfect for individuals',
+  plan_1_btn: 'Get started',
+  plan_1_url: '#signup',
+  price_creator: 1499,
   limit_creator: '25,000',
+  plan_2_name: 'Pro',
+  plan_2_desc: 'For growing creators & brands',
+  plan_2_badge: 'Most popular',
+  plan_2_btn: 'Start 14-day free trial',
+  plan_2_url: '#signup',
+  price_agency: 3999,
   limit_agency: '100,000',
+  plan_3_name: 'Agency',
+  plan_3_desc: 'For teams & agencies',
+  plan_3_btn: 'Get started',
+  plan_3_url: '#signup',
+
+  // Final Call to Action
+  cta_heading: 'Ready to turn engagement into growth?',
+  cta_sub: 'Join thousands of creators and businesses using Airvix to automate their Instagram.',
+  cta_button_text: 'Get started free →',
+  cta_button_url: '#signup',
+  cta_badge_1: '✓ Free 14-day trial',
+  cta_badge_2: '✓ No credit card required',
+  cta_badge_3: '✓ Instant setup in 3 mins',
+
+  // Footer & Badges
+  footer_pill_1: '🇮🇳 Made in India for creators worldwide',
+  footer_pill_2: '🔒 100% Official Meta Graph API v22.0',
+  footer_status: 'All Systems Operational • 99.98% Uptime',
+  nav_login_text: 'Sign in',
+  nav_signup_text: 'Get started',
 
   // Contact & Business Details
   support_email: 'support@airvix.com',
@@ -157,15 +201,27 @@ Airvix strictly adheres to the Digital Personal Data Protection Act 2023 (India)
   maker_team: 'The Airvix Engineering Team',
   copyright_text: '© 2026 Airvix Technologies Pvt Ltd. All rights reserved. Made in India for creators worldwide.',
 
-  // Design & SEO
+  // Design & Branding
   meta_title: 'Airvix - Instagram Comment-to-DM Conversion Engine',
   meta_description: 'Turn post comments, reels, and stories into automated customer conversations in under 1.4 seconds. Official Meta Graph API v22.0.',
   accent_color: '#3b82f6',
+  font_family: 'Inter, sans-serif',
+  hero_layout: 'standard', // 'standard' | 'split' | 'centered'
+  button_border_radius: '8px',
 
-  // Safeguards
+  // SEO & Metadata
+  meta_keywords: 'Instagram DM automation, Comment to DM, Instagram Reels automation, Meta Graph API, Airvix',
+  og_image_url: 'https://app.airvix.com/og-image.jpg',
+  canonical_url: 'https://airvix.com',
+  favicon_url: '/favicon.ico',
+
+  // System & Advanced Settings
   maintenance_mode: false,
   allow_registrations: true,
   free_dm_limit: 1000,
+  custom_domain: 'app.airvix.com',
+  analytics_tracking_id: 'G-AIRVIX2026',
+  custom_head_scripts: '',
 };
 
 // GET /api/site/settings (Public - no auth required)
