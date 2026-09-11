@@ -1252,15 +1252,19 @@
 }
 
 .airvix-cta-banner {
-  background: linear-gradient(135deg, #1e40af, #2563eb, #3b82f6) !important;
+  background-image: linear-gradient(rgba(10, 20, 45, 0.65), rgba(10, 20, 45, 0.8)), url('/cta-banner-bg.jpg') !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
   border-radius: 24px !important;
-  padding: 60px 40px !important;
+  padding: 68px 40px !important;
   text-align: center !important;
   position: relative !important;
   overflow: hidden !important;
-  box-shadow: 0 20px 60px rgba(37, 99, 235, 0.35) !important;
+  box-shadow: 0 25px 70px rgba(37, 99, 235, 0.25) !important;
   margin: 0 auto !important;
   max-width: 1080px !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
 }
 
 .airvix-cta-glow {
