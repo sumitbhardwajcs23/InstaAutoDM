@@ -18,7 +18,7 @@ import UpgradeModal from './components/UpgradeModal';
 import TemplatesView from './components/TemplatesView';
 import AdminView from './components/AdminView';
 import AdminLoginView from './components/AdminLoginView';
-import { getCurrentUser, clearAuthSession, apiFetch } from './api/client';
+import { getCurrentUser, clearAuthSession, apiFetch, getAuthToken } from './api/client';
 
 export default function App() {
   const [user, setUser] = useState(getCurrentUser());
