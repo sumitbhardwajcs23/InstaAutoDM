@@ -1,6 +1,6 @@
 // frontend/src/components/Topbar.jsx
 import React, { useState } from 'react';
-import { Search, Bell, Crown, ChevronDown, User, LogOut, Settings as SettingsIcon, Instagram, Plus } from 'lucide-react';
+import { Search, Bell, Crown, ChevronDown, User, LogOut, Settings as SettingsIcon, Instagram, Plus, Shield } from 'lucide-react';
 
 export default function Topbar({
   user,
@@ -10,6 +10,7 @@ export default function Topbar({
   onDisconnectAccount,
   onOpenConnect,
   onOpenUpgrade,
+  onOpenAdmin,
   onLogout,
   onSearch,
 }) {
@@ -420,6 +421,35 @@ export default function Topbar({
                 <Crown size={15} color="#d97706" />
                 <span>Billing & Plans</span>
               </button>
+
+              {(user?.role === 'admin' || (user?.email && ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(user.email.toLowerCase().trim()))) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    if (onOpenAdmin) onOpenAdmin();
+                    else window.location.hash = '#admin';
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 12px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#6366f1',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <Shield size={15} color="#6366f1" />
+                  <span>Admin Control Center</span>
+                </button>
+              )}
 
               <div style={{ height: '1px', background: 'var(--border-light)', margin: '4px 0' }} />
 

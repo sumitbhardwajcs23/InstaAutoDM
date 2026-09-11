@@ -12,14 +12,18 @@ import {
   CheckCircle2, 
   KeyRound, 
   ShieldCheck,
-  Terminal
+  Terminal,
+  ShieldCheck as ShieldIcon
 } from 'lucide-react';
-import { setAuthSession } from '../api/client';
+import { setAuthSession, apiFetch } from '../api/client';
 import '../styles/admin-login.css';
 
 export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
   const [email, setEmail] = useState('sumitbhardwaj2227@gmail.com');
   const [password, setPassword] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+  const [tempToken, setTempToken] = useState(null);
+  const [showMfaStep, setShowMfaStep] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -32,23 +36,53 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
     setNotice(null);
 
     try {
-      const res = await fetch('/api/auth/admin-login', {
+      if (showMfaStep) {
+        // Step 2: Verify MFA code
+        const mfaRes = await apiFetch('/auth/admin-mfa-verify', {
+          method: 'POST',
+          body: JSON.stringify({ temp_token: tempToken, token: mfaCode.trim() }),
+        });
+        const mfaData = await mfaRes.json();
+        if (mfaRes.ok && mfaData.token && mfaData.user) {
+          setAuthSession(mfaData.token, mfaData.user);
+          setNotice('✅ 2FA Verified! Initializing Super Admin Control Center...');
+          setTimeout(() => {
+            window.location.hash = '#admin';
+            onAuthSuccess(mfaData.user);
+          }, 500);
+          return;
+        } else {
+          throw new Error(mfaData.error || 'Invalid verification code. Please try again.');
+        }
+      }
+
+      // Step 1: Initial password check
+      const res = await apiFetch('/auth/admin-login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
       });
 
       const data = await res.json();
-      if (res.ok && data.token && data.user) {
-        setAuthSession(data.token, data.user);
-        setNotice('✅ Identity Verified. Initializing Super Admin Control Center...');
-        setTimeout(() => {
-          window.location.hash = '#admin';
-          onAuthSuccess(data.user);
-        }, 500);
-      } else {
-        throw new Error(data.error || data.message || 'Admin authentication failed. Access denied.');
+      if (res.ok) {
+        if (data.mfa_required) {
+          setTempToken(data.temp_token);
+          setShowMfaStep(true);
+          setNotice('🔐 Two-Factor Authentication required. Enter 6-digit TOTP or backup code.');
+          return;
+        }
+
+        if (data.token && data.user) {
+          setAuthSession(data.token, data.user);
+          setNotice('✅ Identity Verified. Initializing Super Admin Control Center...');
+          setTimeout(() => {
+            window.location.hash = '#admin';
+            onAuthSuccess(data.user);
+          }, 500);
+          return;
+        }
       }
+
+      throw new Error(data.error || data.message || 'Admin authentication failed. Access denied.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -148,29 +182,48 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
             </div>
           </div>
 
-          <div className="admin-field-group">
-            <label className="admin-field-label">Master Security Password</label>
-            <div className="admin-field-box">
-              <Lock size={16} className="admin-field-icon" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter master password"
-                className="admin-input"
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="admin-eye-btn"
-                title={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+          {!showMfaStep ? (
+            <div className="admin-field-group">
+              <label className="admin-field-label">Master Security Password</label>
+              <div className="admin-field-box">
+                <Lock size={16} className="admin-field-icon" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter master password"
+                  className="admin-input"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="admin-eye-btn"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="admin-field-group">
+              <label className="admin-field-label">Two-Factor Verification Code (TOTP or Backup Code)</label>
+              <div className="admin-field-box">
+                <ShieldIcon size={16} className="admin-field-icon" style={{ color: '#3b82f6' }} />
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                  placeholder="Enter 6-digit code or 8-char backup code"
+                  className="admin-input"
+                  style={{ letterSpacing: '2px', fontWeight: 'bold' }}
+                />
+              </div>
+            </div>
+          )}
 
           <button
             type="submit"
@@ -179,6 +232,12 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
           >
             {loading ? (
               <span>Authenticating Gateway...</span>
+            ) : showMfaStep ? (
+              <>
+                <ShieldCheck size={16} />
+                <span>Verify &amp; Enter Admin Panel</span>
+                <ArrowRight size={16} />
+              </>
             ) : (
               <>
                 <KeyRound size={16} />

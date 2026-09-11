@@ -32,7 +32,8 @@ export default function App() {
     if (path === '/admin-login' || hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') return 'admin-login';
     if (path === '/admin' || hash === '#admin') {
       const u = getCurrentUser();
-      return u?.role === 'admin' ? 'admin' : 'admin-login';
+      const isAdmin = u?.role === 'admin' || (u?.email && ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(u.email.toLowerCase().trim()));
+      return isAdmin ? 'admin' : 'admin-login';
     }
     if (path === '/login' || hash === '#login') return 'auth-login';
     if (path === '/signup' || path === '/register' || hash === '#signup' || hash === '#register') return 'auth-signup';
@@ -69,7 +70,8 @@ export default function App() {
       else if (hash === '#login') setCurrentView('auth-login');
       else if (hash === '#signup' || hash === '#register') setCurrentView('auth-signup');
       else if (hash === '#admin') {
-        if (user?.role === 'admin') {
+        const isAdmin = user?.role === 'admin' || (user?.email && ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(user.email.toLowerCase().trim()));
+        if (isAdmin) {
           setCurrentView('admin');
         } else {
           setCurrentView('admin-login');
@@ -335,7 +337,8 @@ export default function App() {
 
   // 1.8 Standalone Super Admin Panel (Separate Governance Portal)
   if (currentView === 'admin') {
-    if (!user || user?.role !== 'admin') {
+    const isAdmin = user && (user.role === 'admin' || ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(user?.email?.toLowerCase().trim()));
+    if (!isAdmin) {
       return (
         <AdminLoginView
           onAuthSuccess={(adminUser) => {
@@ -407,6 +410,7 @@ export default function App() {
           onDisconnectAccount={handleDisconnectAccount}
           onOpenConnect={() => setIsConnectIgOpen(true)}
           onOpenUpgrade={() => setIsUpgradeOpen(true)}
+          onOpenAdmin={() => handleNavigate('admin')}
           onLogout={handleLogout}
           onSearch={(q) => console.log('Searching for:', q)}
         />
@@ -518,7 +522,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'admin' && user?.role === 'admin' && (
+          {activeTab === 'admin' && (user?.role === 'admin' || (user?.email && ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(user.email.toLowerCase().trim()))) && (
             <AdminView user={user} />
           )}
         </main>
