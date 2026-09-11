@@ -16,6 +16,7 @@ validateSecrets();
 require('./db'); // Initialize DB
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 const { requireAuth, sanitizeParamsMiddleware } = require('./middleware/auth');
@@ -109,8 +110,8 @@ app.get(['/health/ready', '/api/health'], async (_req, res) => {
 
 // ── Protected API routes (JWT required & Rate Limited) ─────────────────────
 // Apply auth and rate limiting middleware to remaining /api/* routes
-app.use('/api', apiLimiter);
 app.use('/api', requireAuth);
+app.use('/api', apiLimiter);
 
 app.use('/api/billing', require('./routes/billing'));
 app.use('/api/dashboard', require('./routes/dashboard'));

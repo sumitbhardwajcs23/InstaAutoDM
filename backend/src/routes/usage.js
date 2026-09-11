@@ -54,4 +54,55 @@ router.get('/', async (req, res) => {
   });
 });
 
+// POST /api/usage/upgrade — Upgrade user plan
+router.post('/upgrade', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { plan = 'pro', cycle = 'monthly' } = req.body || {};
+    const validPlans = ['pro', 'agency', 'enterprise'];
+    const chosenPlan = validPlans.includes((plan || '').toLowerCase()) ? plan.toLowerCase() : 'pro';
+
+    await db.prepare("UPDATE users SET plan = ?, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?").run(chosenPlan, userId);
+
+    // Update or create active subscription record
+    const { v4: uuidv4 } = require('uuid');
+    const now = new Date();
+    const periodStart = now.toISOString();
+    const periodEnd = new Date(now.getTime() + (cycle === 'yearly' ? 365 : 30) * 24 * 3600 * 1000).toISOString();
+    const sub = await db.prepare("SELECT id FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").get(userId);
+
+    if (sub) {
+      await db.prepare(`
+        UPDATE subscriptions SET
+          plan = ?,
+          status = 'active',
+          billing_cycle = ?,
+          current_period_start = ?,
+          current_period_end = ?,
+          updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        WHERE id = ?
+      `).run(chosenPlan, cycle, periodStart, periodEnd, sub.id);
+    } else {
+      const subId = `sub_${uuidv4().slice(0, 12)}`;
+      await db.prepare(`
+        INSERT INTO subscriptions (
+          id, user_id, plan, status, billing_cycle, current_period_start, current_period_end, created_at, updated_at
+        ) VALUES (?, ?, ?, 'active', ?, ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+      `).run(subId, userId, chosenPlan, cycle, periodStart, periodEnd);
+    }
+
+    res.json({
+      success: true,
+      message: `Account successfully upgraded to ${chosenPlan.toUpperCase()}`,
+      plan: chosenPlan,
+      dm_limit: dmLimitFor(chosenPlan)
+    });
+  } catch (err) {
+    console.error('[Usage] Upgrade error:', err.message);
+    res.status(500).json({ error: 'Failed to upgrade plan' });
+  }
+});
+
 module.exports = router;

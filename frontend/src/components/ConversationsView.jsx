@@ -131,11 +131,12 @@ export default function ConversationsView({ conversations: initialConversations 
     }
   }, [normalizeConvo, selectedAccountId]);
 
-  // Auto-refresh poll every 5 seconds to show incoming DMs live
+  // Auto-refresh poll every 8 seconds to show incoming DMs live (paused when tab is in background)
   useEffect(() => {
     const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       refreshConversations();
-    }, 5000);
+    }, 8000);
     return () => clearInterval(timer);
   }, [refreshConversations]);
 

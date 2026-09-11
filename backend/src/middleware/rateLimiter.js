@@ -25,10 +25,12 @@ const webhookLimiter = rateLimit({
   }
 });
 
-// General protected API endpoints (300 requests per 15 minutes per IP)
+// General protected API endpoints (1,500 requests per 15 minutes per user/IP)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isTest ? 10000 : 300,
+  max: isTest ? 10000 : (process.env.RATE_LIMIT_API_MAX ? parseInt(process.env.RATE_LIMIT_API_MAX, 10) : 1500),
+  keyGenerator: (req) => req.user?.id || req.ip,
+  validate: false,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

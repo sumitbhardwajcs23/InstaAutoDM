@@ -119,6 +119,32 @@ router.get('/', async (req, res) => {
   res.json({ total, conversations });
 });
 
+// GET /api/conversations/incidents - List loop detection incidents (must precede /:id)
+router.get('/incidents', async (req, res) => {
+  const account = await getAccountForUser(req.user.id, req.query.account_id);
+  if (!account) return res.json({ incidents: [] });
+
+  const rows = await db.prepare(`
+    SELECT i.*, c.username, c.name
+    FROM automation_loop_incidents i
+    LEFT JOIN conversations c ON i.conversation_id = c.id
+    WHERE i.instagram_account_id = ?
+    ORDER BY i.detected_at DESC
+    LIMIT 50
+  `).all(account.id);
+
+  res.json({ incidents: rows });
+});
+
+// POST /api/conversations/incidents/:id/resume - Resume a loop-paused automation (tenant scoped)
+router.post('/incidents/:id/resume', async (req, res) => {
+  const loopDetection = require('../services/loopDetection');
+  const incident = await loopDetection.resolveLoopIncident(req.params.id, req.user.id);
+  if (!incident) return res.status(404).json({ error: 'Incident not found or unauthorized' });
+
+  res.json({ success: true, message: 'Automation loop resolved and conversation resumed.' });
+});
+
 // GET /api/conversations/:id — verify ownership
 router.get('/:id', async (req, res) => {
   const conversation = await db.prepare(`
@@ -265,32 +291,6 @@ router.get('/:id/messages', async (req, res) => {
     is_automated: m.direction === 'outbound'
   }));
   res.json(messages);
-});
-
-// GET /api/conversations/incidents - List loop detection incidents
-router.get('/incidents', async (req, res) => {
-  const account = await getAccountForUser(req.user.id, req.query.account_id);
-  if (!account) return res.json({ incidents: [] });
-
-  const rows = await db.prepare(`
-    SELECT i.*, c.username, c.name
-    FROM automation_loop_incidents i
-    LEFT JOIN conversations c ON i.conversation_id = c.id
-    WHERE i.instagram_account_id = ?
-    ORDER BY i.detected_at DESC
-    LIMIT 50
-  `).all(account.id);
-
-  res.json({ incidents: rows });
-});
-
-// POST /api/conversations/incidents/:id/resume - Resume a loop-paused automation (tenant scoped)
-router.post('/incidents/:id/resume', async (req, res) => {
-  const loopDetection = require('../services/loopDetection');
-  const incident = await loopDetection.resolveLoopIncident(req.params.id, req.user.id);
-  if (!incident) return res.status(404).json({ error: 'Incident not found or unauthorized' });
-
-  res.json({ success: true, message: 'Automation loop resolved and conversation resumed.' });
 });
 
 module.exports = router;
