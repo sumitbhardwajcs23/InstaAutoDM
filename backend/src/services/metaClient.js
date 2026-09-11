@@ -831,6 +831,7 @@ class MetaClient {
 
     // Return empty list when account has no active 24h stories
     return [];
+  }
 }
 
 module.exports = new MetaClient();

@@ -293,6 +293,8 @@ router.post('/connect-token', async (req, res) => {
       return res.status(409).json({
         error: 'This Instagram account is already connected to another Airvix workspace. Please contact support to transfer it.'
       });
+    }
+
     if (!existing) {
       const limitCheck = await checkUserIgLimit(uid);
       if (!limitCheck.allowed) {
