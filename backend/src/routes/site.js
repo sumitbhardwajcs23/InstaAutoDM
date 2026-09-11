@@ -243,7 +243,29 @@ router.get('/settings', async (_req, res) => {
       }
     });
 
-    const finalSettings = { ...DEFAULT_SITE_SETTINGS, ...settingsMap };
+function mergeSettingsWithEnvDefaults(settingsMap = {}) {
+  const merged = { ...DEFAULT_SITE_SETTINGS, ...settingsMap };
+  const envContactKeys = ['support_email', 'support_phone', 'whatsapp_number', 'business_address', 'gst_number'];
+  for (const k of envContactKeys) {
+    const val = settingsMap[k];
+    if (
+      val === undefined || 
+      val === null || 
+      val === '' || 
+      (k === 'support_email' && val === 'support@airvix.com' && process.env.SUPPORT_EMAIL) ||
+      (k === 'support_phone' && val === '+91 98765 43210' && process.env.SUPPORT_PHONE) ||
+      (k === 'whatsapp_number' && (val === '919876543210' || val === '+91 98765 43210') && process.env.WHATSAPP_NUMBER) ||
+      (k === 'business_address' && typeof val === 'string' && val.includes('Indiranagar') && process.env.BUSINESS_ADDRESS)
+    ) {
+      if (DEFAULT_SITE_SETTINGS[k]) {
+        merged[k] = DEFAULT_SITE_SETTINGS[k];
+      }
+    }
+  }
+  return merged;
+}
+
+    const finalSettings = mergeSettingsWithEnvDefaults(settingsMap);
     res.json({ settings: finalSettings });
   } catch (err) {
     console.warn('[Site] Get public settings fallback to defaults:', err.message);
@@ -274,4 +296,5 @@ router.get('/templates', async (_req, res) => {
 
 module.exports = router;
 module.exports.DEFAULT_SITE_SETTINGS = DEFAULT_SITE_SETTINGS;
+module.exports.mergeSettingsWithEnvDefaults = mergeSettingsWithEnvDefaults;
 

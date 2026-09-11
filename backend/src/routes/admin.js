@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { DEFAULT_TEMPLATES } = require('../constants/defaultTemplates');
-const { DEFAULT_SITE_SETTINGS } = require('./site');
+const { DEFAULT_SITE_SETTINGS, mergeSettingsWithEnvDefaults } = require('./site');
 const { dmLimitFor } = require('../constants/planLimits');
 
 // All endpoints in this router require authentication and admin privileges
@@ -423,8 +423,8 @@ router.get('/settings', async (req, res) => {
       }
     });
 
-    // Merge with defaults
-    const finalSettings = { ...DEFAULT_SITE_SETTINGS, ...settingsMap };
+    // Merge with defaults (env prioritized for contact details)
+    const finalSettings = mergeSettingsWithEnvDefaults(settingsMap);
     res.json({ settings: finalSettings });
   } catch (err) {
     console.error('[Admin] Get settings error:', err);
@@ -804,7 +804,7 @@ router.get('/settings', async (_req, res) => {
         settingsMap[r.key] = r.value;
       }
     });
-    const finalSettings = { ...DEFAULT_SITE_SETTINGS, ...settingsMap };
+    const finalSettings = mergeSettingsWithEnvDefaults(settingsMap);
     res.json({ settings: finalSettings });
   } catch (err) {
     console.error('[Admin] Get site settings error:', err);

@@ -143,10 +143,10 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
 
     // Footer & Brand
     footer_tagline: 'The premier Instagram comment-to-DM conversion engine for creators, brands, and agencies.',
-    support_email: 'support@airvix.com',
-    support_phone: '+91 98765 43210',
-    whatsapp_number: '+91 98765 43210',
-    business_address: 'Airvix Technologies Pvt Ltd, Indiranagar, Bengaluru, Karnataka, India',
+    support_email: (import.meta.env.VITE_SUPPORT_EMAIL || import.meta.env.SUPPORT_EMAIL || '').trim() || 'support@airvix.com',
+    support_phone: (import.meta.env.VITE_SUPPORT_PHONE || import.meta.env.SUPPORT_PHONE || '').trim() || '+91 98765 43210',
+    whatsapp_number: (import.meta.env.VITE_WHATSAPP_NUMBER || import.meta.env.WHATSAPP_NUMBER || '').trim() || '+91 98765 43210',
+    business_address: (import.meta.env.VITE_BUSINESS_ADDRESS || import.meta.env.BUSINESS_ADDRESS || '').trim() || 'Airvix Technologies Pvt Ltd, Indiranagar, Bengaluru, Karnataka, India',
     privacy_policy_text: 'Privacy Policy content...',
     terms_of_service_text: 'Terms of Service content...',
     refund_policy_text: 'Refund Policy content...',
@@ -183,8 +183,27 @@ export default function LandingPageEditor({ user, onBackToApp, showToast }) {
         if (res.ok) {
           const data = await res.json();
           if (data && data.settings) {
-            setSiteSettings(prev => ({ ...prev, ...data.settings }));
-            setDbSavedSettings(data.settings);
+            const envEmail = (import.meta.env.VITE_SUPPORT_EMAIL || import.meta.env.SUPPORT_EMAIL || '').trim();
+            const envPhone = (import.meta.env.VITE_SUPPORT_PHONE || import.meta.env.SUPPORT_PHONE || '').trim();
+            const envWhatsapp = (import.meta.env.VITE_WHATSAPP_NUMBER || import.meta.env.WHATSAPP_NUMBER || '').trim();
+            const envAddress = (import.meta.env.VITE_BUSINESS_ADDRESS || import.meta.env.BUSINESS_ADDRESS || '').trim();
+
+            const s = { ...data.settings };
+            if (envEmail && (!s.support_email || s.support_email === 'support@airvix.com')) {
+              s.support_email = envEmail;
+            }
+            if (envPhone && (!s.support_phone || s.support_phone === '+91 98765 43210')) {
+              s.support_phone = envPhone;
+            }
+            if (envWhatsapp && (!s.whatsapp_number || s.whatsapp_number === '+91 98765 43210' || s.whatsapp_number === '919876543210')) {
+              s.whatsapp_number = envWhatsapp;
+            }
+            if (envAddress && (!s.business_address || s.business_address.includes('Indiranagar, Bengaluru'))) {
+              s.business_address = envAddress;
+            }
+
+            setSiteSettings(prev => ({ ...prev, ...s }));
+            setDbSavedSettings(s);
           }
         }
       } catch (err) {
