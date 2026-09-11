@@ -178,6 +178,35 @@ async function requireRuleOwner(req, res, next) {
   }
 }
 
+// GET /api/rules/:id — fetch single rule with tenant ownership check
+router.get('/:id', requireRuleOwner, async (req, res) => {
+  const rule = req.rule;
+  const formatted = {
+    ...rule,
+    is_active: Boolean(rule?.is_active),
+    action_type: rule?.type === 'comment_to_dm' ? 'comment' : (rule?.type === 'story_reply' ? 'story' : 'dm'),
+    reply_text: rule?.dm_reply_message || rule?.reply_message,
+    comment_reply_mode: rule?.comment_reply_mode || 'both',
+    comment_reply_message: rule?.comment_reply_message || '',
+    dm_reply_message: rule?.dm_reply_message || rule?.reply_message || '',
+    target_media_id: rule?.target_media_id || null,
+    target_media_type: rule?.target_media_type || (rule?.type === 'story_reply' ? 'story' : 'all'),
+    target_media_thumbnail: rule?.target_media_thumbnail || null,
+    target_media_caption: rule?.target_media_caption || null,
+    require_follow: rule?.require_follow ? 1 : 0,
+    follow_prompt_message: rule?.follow_prompt_message || '',
+    follow_comment_reply: rule?.follow_comment_reply || '',
+    card_enabled: rule?.card_enabled ? 1 : 0,
+    card_title: rule?.card_title || '',
+    card_subtitle: rule?.card_subtitle || '',
+    card_image_url: rule?.card_image_url || '',
+    card_button_text: rule?.card_button_text || '',
+    card_button_url: rule?.card_button_url || '',
+    name: rule?.name || (rule?.trigger_keyword ? `${rule.trigger_keyword} Auto Reply` : 'Auto Reply Rule')
+  };
+  res.json({ success: true, rule: formatted });
+});
+
 router.patch('/:id/toggle', requireRuleOwner, async (req, res) => {
   const newStatus = req.rule.is_active ? 0 : 1;
   await db.prepare("UPDATE automation_rules SET is_active = ?, updated_at = datetime('now') WHERE id = ?").run(newStatus, req.params.id);

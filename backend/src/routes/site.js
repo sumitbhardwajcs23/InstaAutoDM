@@ -222,19 +222,6 @@ Airvix strictly adheres to the Digital Personal Data Protection Act 2023 (India)
   custom_head_scripts: '',
 };
 
-// GET /api/site/settings (Public - no auth required)
-router.get('/settings', async (_req, res) => {
-  try {
-    const rows = await db.prepare('SELECT key, value FROM site_settings').all();
-    const settingsMap = {};
-    (rows || []).forEach(r => {
-      try {
-        settingsMap[r.key] = JSON.parse(r.value);
-      } catch (e) {
-        settingsMap[r.key] = r.value;
-      }
-    });
-
 function mergeSettingsWithEnvDefaults(settingsMap = {}) {
   const merged = { ...DEFAULT_SITE_SETTINGS, ...settingsMap };
   const envContactKeys = ['support_email', 'support_phone', 'whatsapp_number', 'business_address', 'gst_number'];
@@ -256,6 +243,19 @@ function mergeSettingsWithEnvDefaults(settingsMap = {}) {
   }
   return merged;
 }
+
+// GET /api/site/settings (Public - no auth required)
+router.get('/settings', async (_req, res) => {
+  try {
+    const rows = await db.prepare('SELECT key, value FROM site_settings').all();
+    const settingsMap = {};
+    (rows || []).forEach(r => {
+      try {
+        settingsMap[r.key] = JSON.parse(r.value);
+      } catch (e) {
+        settingsMap[r.key] = r.value;
+      }
+    });
 
     const finalSettings = mergeSettingsWithEnvDefaults(settingsMap);
     res.json({ settings: finalSettings });

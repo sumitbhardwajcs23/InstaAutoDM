@@ -176,10 +176,11 @@ async function runTests() {
       VALUES (?, ?, 'pro', 0, date('now'))
     `).run(userId, `user_limit_${Date.now()}@example.com`);
 
+    const runSuffix = uuidv4().slice(0, 8);
     await db.prepare(`
       INSERT INTO instagram_accounts (id, user_id, ig_user_id, username, page_id, access_token_enc, status)
-      VALUES (?, ?, 'ig_host_99', 'host_brand', 'page_host_99', ?, 'connected')
-    `).run(accountId, userId, encrypt('mock_host_token_99'));
+      VALUES (?, ?, ?, 'host_brand', 'page_host_99', ?, 'connected')
+    `).run(accountId, userId, `ig_host_99_${runSuffix}`, encrypt('mock_host_token_99'));
 
     // Create conversation with 3 already-sent automated DMs today
     await db.prepare(`
@@ -218,10 +219,11 @@ async function runTests() {
       VALUES (?, ?, 'agency', 0, date('now'))
     `).run(userId, `user_loop_${Date.now()}@example.com`);
 
+    const runSuffix2 = uuidv4().slice(0, 8);
     await db.prepare(`
       INSERT INTO instagram_accounts (id, user_id, ig_user_id, username, page_id, access_token_enc, status)
-      VALUES (?, ?, 'ig_host_100', 'brand_loop_test', 'page_host_100', ?, 'connected')
-    `).run(accountId, userId, encrypt('mock_host_token_100'));
+      VALUES (?, ?, ?, 'brand_loop_test', 'page_host_100', ?, 'connected')
+    `).run(accountId, userId, `ig_host_100_${runSuffix2}`, encrypt('mock_host_token_100'));
 
     await db.prepare(`
       INSERT INTO conversations (

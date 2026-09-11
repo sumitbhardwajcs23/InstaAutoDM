@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS instagram_accounts (
   token_refreshed_at TEXT,
   token_type TEXT DEFAULT 'ig_long_lived',
   last_auth_error TEXT,
+  token_revoked_at TEXT,
   status TEXT DEFAULT 'connected',
   disclosure_message TEXT DEFAULT '⚡ [Automated Response] ',
   followers_count INTEGER DEFAULT 0,

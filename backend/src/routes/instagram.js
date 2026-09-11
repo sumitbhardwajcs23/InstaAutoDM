@@ -388,12 +388,7 @@ router.post('/connect-username', async (req, res) => {
       console.warn(`[ConnectUsername] Live scrape notice for @${rawUsername}:`, profileErr.message);
     }
 
-    // Look for existing connected system token so webhooks & DM automations stay live
-    const systemAcc = await db.prepare("SELECT * FROM instagram_accounts WHERE access_token_enc IS NOT NULL AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get();
-    const encToken = systemAcc?.access_token_enc || encrypt(`ig_tok_${Date.now()}`);
-    const encLongToken = systemAcc?.long_lived_token_enc || encToken;
-    const pageId = systemAcc?.page_id || `page_${Date.now().toString().slice(-8)}`;
-    const fbUserId = systemAcc?.fb_user_id || `fb_${Date.now().toString().slice(-8)}`;
+
 
     // Determine target user safely
     let targetUser = req.user?.id ? await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id) : null;
@@ -402,24 +397,41 @@ router.post('/connect-username', async (req, res) => {
     }
     const targetUserId = targetUser.id;
 
+    // Cross-tenant protection: reject if this handle or IG ID is already claimed by another workspace
+    const crossTenantAccount = await db.prepare(`
+      SELECT id, user_id FROM instagram_accounts 
+      WHERE (lower(username) = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected'))
+         OR (ig_user_id = ? AND ig_user_id IS NOT NULL)
+      LIMIT 1
+    `).get(rawUsername, req.body.ig_user_id || null);
+
+    if (crossTenantAccount && crossTenantAccount.user_id && crossTenantAccount.user_id !== targetUserId) {
+      return res.status(409).json({
+        error: 'This Instagram account is already connected to another Airvix workspace. Please contact support to transfer it.'
+      });
+    }
+
     // Determine Instagram User ID without colliding with other accounts
     let igUserId = req.body.ig_user_id ? String(req.body.ig_user_id).trim() : null;
     if (!igUserId) {
-      if (systemAcc && systemAcc.username && systemAcc.username.toLowerCase() === rawUsername) {
-        igUserId = systemAcc.ig_user_id;
+      const ownExistingByHandle = await db.prepare('SELECT ig_user_id FROM instagram_accounts WHERE user_id = ? AND lower(username) = ? LIMIT 1').get(targetUserId, rawUsername);
+      if (ownExistingByHandle?.ig_user_id) {
+        igUserId = ownExistingByHandle.ig_user_id;
       } else {
-        const existingByHandle = await db.prepare('SELECT ig_user_id FROM instagram_accounts WHERE lower(username) = ? LIMIT 1').get(rawUsername);
-        if (existingByHandle?.ig_user_id) {
-          igUserId = existingByHandle.ig_user_id;
-        } else {
-          let candidateId;
-          do {
-            candidateId = `1784140${Math.floor(100000000 + Math.random() * 900000000)}`;
-          } while (await db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(candidateId));
-          igUserId = candidateId;
-        }
+        let candidateId;
+        do {
+          candidateId = `1784140${Math.floor(100000000 + Math.random() * 900000000)}`;
+        } while (await db.prepare('SELECT id FROM instagram_accounts WHERE ig_user_id = ?').get(candidateId));
+        igUserId = candidateId;
       }
     }
+
+    // NEVER leak another tenant's access token! Look only for this user's own existing account token, or generate an isolated token
+    const userAcc = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND access_token_enc IS NOT NULL AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(targetUserId);
+    const encToken = userAcc?.access_token_enc || encrypt(`ig_tok_${Date.now()}_${targetUserId.slice(0, 6)}`);
+    const encLongToken = userAcc?.long_lived_token_enc || encToken;
+    const pageId = userAcc?.page_id || `page_${Date.now().toString().slice(-8)}`;
+    const fbUserId = userAcc?.fb_user_id || `fb_${Date.now().toString().slice(-8)}`;
 
     const expiresAt = new Date(Date.now() + 60 * 24 * 3600000).toISOString();
     const existing = (await db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ? AND ig_user_id = ?').get(targetUserId, igUserId))
@@ -432,11 +444,11 @@ router.post('/connect-username', async (req, res) => {
           user_id=?, username=?, full_name=?, profile_picture_url=?, ig_user_id=?, page_id=?, fb_page_name=?, fb_user_id=?,
           access_token_enc=?, page_access_token_enc=?, long_lived_token_enc=?,
           token_expires_at=?, status='connected', followers_count=?, account_type=?, updated_at=datetime('now')
-        WHERE id=?
+        WHERE id=? AND user_id=?
       `).run(
         targetUserId, rawUsername, fullName, profilePicUrl, igUserId, pageId, `${rawUsername}'s Page`, fbUserId,
         encToken, encToken, encLongToken,
-        expiresAt, followersCount, accountType, existing.id
+        expiresAt, followersCount, accountType, existing.id, targetUserId
       );
     } else {
       await db.prepare(`
@@ -446,7 +458,6 @@ router.post('/connect-username', async (req, res) => {
           token_expires_at, status, disclosure_message, followers_count, account_type, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'connected', '⚡ [Automated DM] ', ?, ?, datetime('now'), datetime('now'))
         ON CONFLICT (ig_user_id) DO UPDATE SET
-          user_id = EXCLUDED.user_id,
           username = EXCLUDED.username,
           full_name = EXCLUDED.full_name,
           profile_picture_url = EXCLUDED.profile_picture_url,
@@ -458,6 +469,7 @@ router.post('/connect-username', async (req, res) => {
           followers_count = EXCLUDED.followers_count,
           account_type = EXCLUDED.account_type,
           updated_at = datetime('now')
+        WHERE instagram_accounts.user_id = EXCLUDED.user_id
       `).run(
         accountId, targetUserId, igUserId, rawUsername, fullName, profilePicUrl, pageId, `${rawUsername}'s Page`, fbUserId,
         encToken, encToken, encLongToken,
@@ -573,8 +585,8 @@ router.post('/account/set-handle', async (req, res) => {
 
     if (account_id) {
       target = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ? AND user_id = ?').get(account_id, uid);
-    }
-    if (!target) {
+      if (!target) return res.status(404).json({ error: 'Instagram account not found' });
+    } else {
       target = await db.prepare('SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1').get(uid);
     }
     if (!target) return res.status(404).json({ error: 'No Instagram account found' });
@@ -1012,34 +1024,6 @@ router.get('/oauth/callback', async (req, res) => {
   }
 });
 
-// POST /api/instagram/refresh-token — refresh token when needed
-router.post('/refresh-token', async (req, res) => {
-  const uid = await getUserId(req);
-  const account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected'").get(uid);
-  if (!account) return res.status(404).json({ error: 'No connected Instagram account' });
-
-  try {
-    const rawLongToken = decrypt(account.long_lived_token_enc || account.access_token_enc);
-    const refreshed = await metaClient.refreshLongLivedToken(rawLongToken);
-    const newEncToken = encrypt(refreshed.access_token);
-    const newExpiresAt = new Date(Date.now() + (refreshed.expires_in || 5184000) * 1000).toISOString();
-
-    await db.prepare(`
-      UPDATE instagram_accounts 
-      SET long_lived_token_enc = ?, token_expires_at = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).run(newEncToken, newExpiresAt, account.id);
-
-    res.json({
-      success: true,
-      message: 'Access token successfully refreshed with Meta Graph API',
-      expires_at: newExpiresAt
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Token refresh failed: ' + err.message });
-  }
-});
-
 // POST /api/instagram/connect-mock — auto-detects mock profile & IDs
 // SECURITY: same reasoning as /connect-username above — fabricates a fake connected account
 // with no real Meta token, so it's restricted to non-production / mock mode only.
@@ -1058,6 +1042,18 @@ router.post('/connect-mock', async (req, res) => {
   const encLongToken = encrypt(`mock_long_token_${Date.now()}`);
   const expiresAt = new Date(Date.now() + 60 * 24 * 3600000).toISOString();
 
+  // Multi-tenant check: reject if this IG user ID or username is owned by another tenant
+  const crossConflict = await db.prepare(`
+    SELECT id, user_id FROM instagram_accounts 
+    WHERE (ig_user_id = ? AND ig_user_id IS NOT NULL)
+       OR (lower(username) = ? AND username NOT IN ('instagram_creator', 'test_creator_account', 'instagram_user', 'connected'))
+    LIMIT 1
+  `).get(mockIgId, mockUsername.toLowerCase());
+
+  if (crossConflict && crossConflict.user_id && crossConflict.user_id !== uid) {
+    return res.status(409).json({ error: 'This Instagram account is already connected to another Airvix workspace. Please contact support to transfer it.' });
+  }
+
   const existing = await db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ?').get(uid);
   if (existing) {
     await db.prepare(`
@@ -1065,8 +1061,8 @@ router.post('/connect-mock', async (req, res) => {
         ig_user_id=?, username=?, page_id=?, fb_page_name='Official Page', fb_user_id=?,
         access_token_enc=?, page_access_token_enc=?, long_lived_token_enc=?,
         token_expires_at=?, status='connected', followers_count=18500, updated_at=datetime('now')
-      WHERE id=?
-    `).run(mockIgId, mockUsername, mockPageId, mockFbUserId, encToken, encToken, encLongToken, expiresAt, existing.id);
+      WHERE id=? AND user_id=?
+    `).run(mockIgId, mockUsername, mockPageId, mockFbUserId, encToken, encToken, encLongToken, expiresAt, existing.id, uid);
   } else {
     await db.prepare(`
       INSERT INTO instagram_accounts (
@@ -1089,13 +1085,81 @@ router.post('/connect-mock', async (req, res) => {
   });
 });
 
-// DELETE /api/instagram/account — disconnect current user's account
+// DELETE /api/instagram/account — disconnect & revoke current user's account (tenant scoped)
 router.delete('/account', async (req, res) => {
   const uid = await getUserId(req);
-  const account = await db.prepare('SELECT id FROM instagram_accounts WHERE user_id = ?').get(uid);
-  if (!account) return res.status(404).json({ error: 'No account' });
-  await db.prepare("UPDATE instagram_accounts SET status='disconnected', access_token_enc='', page_access_token_enc='', long_lived_token_enc='' WHERE id=?").run(account.id);
-  res.json({ success: true, message: 'Instagram account disconnected.' });
+  if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+  const accountId = req.query.account_id || req.body?.account_id;
+  let account;
+  if (accountId) {
+    account = await db.prepare('SELECT * FROM instagram_accounts WHERE id = ? AND user_id = ?').get(accountId, uid);
+    if (!account) return res.status(404).json({ error: 'Instagram account not found' });
+  } else {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1").get(uid);
+  }
+  if (!account) return res.status(404).json({ error: 'No account found' });
+
+  const tokenLifecycle = require('../services/tokenLifecycle');
+  const result = await tokenLifecycle.revokeTokenForAccount(account);
+
+  res.json({ success: true, message: 'Instagram account disconnected and token revoked.', result });
+});
+
+// POST /api/instagram/revoke-token — revoke token and permissions on Meta and wipe from DB
+router.post('/revoke-token', async (req, res) => {
+  const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+  const accountId = req.body?.account_id || req.query.account_id;
+  let account;
+  if (accountId) {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ?").get(uid, accountId);
+    if (!account) return res.status(404).json({ error: 'Instagram account not found' });
+  } else {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status IN ('connected', 'reauth_required') ORDER BY updated_at DESC LIMIT 1").get(uid);
+  }
+
+  if (!account) return res.status(404).json({ error: 'No connected Instagram account found' });
+
+  const tokenLifecycle = require('../services/tokenLifecycle');
+  const result = await tokenLifecycle.revokeTokenForAccount(account);
+
+  res.json({
+    success: true,
+    message: 'Instagram token revoked and disconnected.',
+    revoked: result.revoked,
+    meta_revoked: result.metaRevoked
+  });
+});
+
+// POST /api/instagram/rotate-token — manual token rotation trigger
+router.post('/rotate-token', async (req, res) => {
+  const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+  const accountId = req.body?.account_id;
+  let account;
+  if (accountId) {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ?").get(uid, accountId);
+  } else {
+    account = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status IN ('connected', 'reauth_required') ORDER BY updated_at DESC LIMIT 1").get(uid);
+  }
+
+  if (!account) return res.status(404).json({ error: 'No connected Instagram account found' });
+
+  const tokenLifecycle = require('../services/tokenLifecycle');
+  const result = await tokenLifecycle.refreshTokenForAccount(account);
+
+  if (!result.success) {
+    return res.status(400).json({ error: result.error || 'Failed to rotate token' });
+  }
+
+  const updated = await db.prepare("SELECT * FROM instagram_accounts WHERE id = ?").get(account.id);
+  res.json({
+    success: true,
+    message: 'Access token successfully rotated and re-encrypted.',
+    account: sanitizeAccount(updated)
+  });
 });
 
 // POST /api/instagram/refresh-token — manual refresh trigger from Creator Settings

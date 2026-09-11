@@ -58,6 +58,7 @@ if (pgPool) {
         await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS full_name TEXT;');
         await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;');
         await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_refreshed_at TEXT;');
+        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_revoked_at TEXT;');
         await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_type TEXT DEFAULT 'ig_long_lived';");
         await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS last_auth_error TEXT;');
         await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_mode TEXT DEFAULT 'both';");

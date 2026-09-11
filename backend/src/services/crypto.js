@@ -1,6 +1,6 @@
 // backend/src/services/crypto.js
 const crypto = require('crypto');
-const { ENCRYPTION_KEY } = require('../config/secrets');
+const { ENCRYPTION_KEY, getCandidateEncryptionKeys } = require('../config/secrets');
 
 const GCM_IV_LENGTH = 12; // Standard 96-bit IV for AES-GCM
 const CBC_IV_LENGTH = 16; // Legacy 128-bit IV for AES-CBC
@@ -16,9 +16,10 @@ function getKeyBuffer(keyStr) {
  * Encrypts text using authenticated AES-256-GCM.
  * Output format: <ivHex>:<authTagHex>:<ciphertextHex>
  */
-function encrypt(text) {
+function encrypt(text, customKey = null) {
   if (!text) return '';
-  const key = getKeyBuffer(process.env.ENCRYPTION_KEY || ENCRYPTION_KEY);
+  const keyStr = customKey || process.env.ENCRYPTION_KEY || ENCRYPTION_KEY;
+  const key = getKeyBuffer(keyStr);
   if (!key) throw new Error('[Crypto] Cannot encrypt: ENCRYPTION_KEY is missing.');
 
   const iv = crypto.randomBytes(GCM_IV_LENGTH);
@@ -29,6 +30,13 @@ function encrypt(text) {
   const authTag = cipher.getAuthTag();
 
   return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+}
+
+/**
+ * Encrypts text using an explicitly provided 32-byte key string.
+ */
+function encryptWithKey(text, keyStr) {
+  return encrypt(text, keyStr);
 }
 
 /**
@@ -70,8 +78,37 @@ function tryDecryptCbc(ivHex, encryptedHex, keyStr) {
 }
 
 /**
+ * Decrypts ciphertext using a specific key.
+ */
+function decryptWithKey(encryptedText, keyStr) {
+  if (!encryptedText || !keyStr) return null;
+  if (!encryptedText.includes(':')) return encryptedText;
+
+  const parts = encryptedText.split(':');
+  if (parts.length === 3) {
+    return tryDecryptGcm(parts[0], parts[1], parts[2], keyStr);
+  } else if (parts.length === 2) {
+    return tryDecryptCbc(parts[0], parts[1], keyStr);
+  }
+  return null;
+}
+
+/**
+ * Re-encrypts ciphertext from an old key to a new key.
+ */
+function reencryptText(ciphertext, newKeyStr, oldKeyStr = null) {
+  if (!ciphertext) return '';
+  const plaintext = oldKeyStr ? decryptWithKey(ciphertext, oldKeyStr) : decrypt(ciphertext);
+  if (!plaintext) {
+    throw new Error('Failed to decrypt ciphertext during re-encryption');
+  }
+  return encryptWithKey(plaintext, newKeyStr);
+}
+
+/**
  * Decrypts ciphertext.
  * Automatically handles AES-256-GCM (3 parts) and legacy AES-256-CBC (2 parts).
+ * Tries current active key, then previous keys from getCandidateEncryptionKeys().
  */
 function decrypt(encryptedText) {
   if (!encryptedText) return '';
@@ -80,13 +117,9 @@ function decrypt(encryptedText) {
   if (!encryptedText.includes(':')) return encryptedText;
 
   const parts = encryptedText.split(':');
-  const candidateKeys = [];
-
-  if (process.env.ENCRYPTION_KEY) candidateKeys.push(process.env.ENCRYPTION_KEY);
-  if (process.env.ENCRYPTION_KEY_PREVIOUS) candidateKeys.push(process.env.ENCRYPTION_KEY_PREVIOUS);
-  if (process.env.NODE_ENV !== 'production' && ENCRYPTION_KEY && !candidateKeys.includes(ENCRYPTION_KEY)) {
-    candidateKeys.push(ENCRYPTION_KEY);
-  }
+  const candidateKeys = typeof getCandidateEncryptionKeys === 'function' 
+    ? getCandidateEncryptionKeys()
+    : [process.env.ENCRYPTION_KEY, process.env.ENCRYPTION_KEY_PREVIOUS, ENCRYPTION_KEY].filter(Boolean);
 
   // Case 1: AES-256-GCM (iv:authTag:ciphertext)
   if (parts.length === 3) {
@@ -180,6 +213,10 @@ function createSignedRequest(payload, appSecret) {
 module.exports = {
   encrypt,
   decrypt,
+  encryptWithKey,
+  decryptWithKey,
+  reencryptText,
+  getKeyBuffer,
   tryDecryptCbc,
   verifyMetaSignature,
   generateMetaSignature,

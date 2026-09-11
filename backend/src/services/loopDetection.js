@@ -237,9 +237,16 @@ async function recordAutomatedDmSent(conversationId) {
 
 /**
  * Resumes an automation that was paused by loop detection.
+ * Scoped to tenant (userId or accountId) to prevent cross-tenant BOLA.
  */
-async function resolveLoopIncident(incidentId, accountId) {
-  const incident = await db.prepare('SELECT * FROM automation_loop_incidents WHERE id = ? AND instagram_account_id = ?').get(incidentId, accountId);
+async function resolveLoopIncident(incidentId, accountIdOrUserId) {
+  if (!incidentId || !accountIdOrUserId) return null;
+  const incident = await db.prepare(`
+    SELECT i.* 
+    FROM automation_loop_incidents i
+    JOIN instagram_accounts a ON i.instagram_account_id = a.id
+    WHERE i.id = ? AND (a.user_id = ? OR a.id = ?)
+  `).get(incidentId, accountIdOrUserId, accountIdOrUserId);
   if (!incident) return null;
 
   await db.prepare("UPDATE automation_loop_incidents SET status = 'resolved', resolved_at = datetime('now') WHERE id = ?").run(incidentId);

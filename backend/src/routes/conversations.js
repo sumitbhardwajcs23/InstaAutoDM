@@ -284,13 +284,10 @@ router.get('/incidents', async (req, res) => {
   res.json({ incidents: rows });
 });
 
-// POST /api/conversations/incidents/:id/resume - Resume a loop-paused automation
+// POST /api/conversations/incidents/:id/resume - Resume a loop-paused automation (tenant scoped)
 router.post('/incidents/:id/resume', async (req, res) => {
-  const account = await getAccountForUser(req.user.id);
-  if (!account) return res.status(404).json({ error: 'No connected account' });
-
   const loopDetection = require('../services/loopDetection');
-  const incident = await loopDetection.resolveLoopIncident(req.params.id, account.id);
+  const incident = await loopDetection.resolveLoopIncident(req.params.id, req.user.id);
   if (!incident) return res.status(404).json({ error: 'Incident not found or unauthorized' });
 
   res.json({ success: true, message: 'Automation loop resolved and conversation resumed.' });

@@ -5,7 +5,11 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const queue = require('../services/queue');
 
-async function getAccount(userId) {
+async function getAccount(userId, accountId) {
+  if (!userId) return null;
+  if (accountId) {
+    return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
+  }
   return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' LIMIT 1").get(userId);
 }
 
@@ -16,7 +20,7 @@ router.post('/comment', async (req, res) => {
   const days_ago = req.body.days_ago !== undefined ? req.body.days_ago : (req.body.days_old !== undefined ? req.body.days_old : 0);
   const duplicate = req.body.duplicate || false;
 
-  const account = await getAccount(req.user.id);
+  const account = await getAccount(req.user.id, req.body.account_id);
   if (!account) return res.status(400).json({ error: 'No connected Instagram account' });
 
   const ts = Date.now() - (days_ago * 86400000);
@@ -99,7 +103,7 @@ router.post('/dm', async (req, res) => {
   const sender_id = req.body.sender_id || `uid_${uuidv4().slice(0, 8)}`;
   const hours_ago = req.body.hours_ago !== undefined ? req.body.hours_ago : 0;
 
-  const account = await getAccount(req.user.id);
+  const account = await getAccount(req.user.id, req.body.account_id);
   if (!account) return res.status(400).json({ error: 'No connected Instagram account' });
 
   const ts = Date.now() - (hours_ago * 3600000);
