@@ -114,7 +114,7 @@ export default function App() {
 
   // Fetch all user data
   const loadData = useCallback(async (targetAccId) => {
-    if (!user) return;
+    if (!getAuthToken()) return;
     const activeAccId = targetAccId !== undefined ? targetAccId : selectedAccountId;
     const queryParam = activeAccId ? `?account_id=${activeAccId}` : '';
 
@@ -142,9 +142,20 @@ export default function App() {
           accountHealthy: d.accountHealthy ?? false,
           recentConversations: d.recent_conversations || [],
         });
-        setAccount(d.account || null);
+        setAccount(prev => {
+          if (prev && d.account && prev.id === d.account.id && prev.status === d.account.status && prev.username === d.account.username) {
+            return prev;
+          }
+          return d.account || null;
+        });
         if (d.user) {
-          setUser(prev => ({ ...prev, name: d.user.name, plan: d.user.plan, role: d.user.role || prev?.role }));
+          setUser(prev => {
+            if (!prev) return d.user;
+            if (prev.name === d.user.name && prev.plan === d.user.plan && prev.role === (d.user.role || prev.role)) {
+              return prev; // Identical: preserve reference to avoid cascade re-renders
+            }
+            return { ...prev, name: d.user.name, plan: d.user.plan, role: d.user.role || prev.role };
+          });
         }
       }
 
@@ -164,7 +175,7 @@ export default function App() {
     } catch (e) {
       console.error('Error fetching dashboard data:', e);
     }
-  }, [user, selectedAccountId]);
+  }, [selectedAccountId]);
 
   useEffect(() => {
     if (currentView === 'app') {
