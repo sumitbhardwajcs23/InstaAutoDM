@@ -998,6 +998,24 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+.admin-subtab-badge {
+  display: inline-block;
+  margin-left: 6px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  border: 1px solid #bfdbfe;
+}
+
+.admin-subtab-btn.active .admin-subtab-badge {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+}
+
 /* 6. INTEGRATION CARDS GRID (3x2) */
 .admin-integrations-3x2-grid {
   display: grid;

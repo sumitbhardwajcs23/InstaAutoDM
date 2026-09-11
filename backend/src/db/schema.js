@@ -418,6 +418,23 @@ CREATE INDEX IF NOT EXISTS idx_abuse_flags_res ON abuse_flags(resolved, created_
 CREATE INDEX IF NOT EXISTS idx_abuse_flags_acc ON abuse_flags(instagram_account_id, resolved);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_kill_switch_scope_target ON global_kill_switch(scope, target_id);
 CREATE INDEX IF NOT EXISTS idx_kill_switch_active ON global_kill_switch(is_active);
+
+CREATE TABLE IF NOT EXISTS coupons (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  discount_percent INTEGER NOT NULL DEFAULT 0,
+  discount_amount INTEGER NOT NULL DEFAULT 0,
+  plan_slug TEXT DEFAULT 'all',
+  max_uses INTEGER DEFAULT 100,
+  used_count INTEGER DEFAULT 0,
+  expires_at TEXT,
+  description TEXT,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
+CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons(is_active);
 `;
 
 module.exports = {

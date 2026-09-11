@@ -281,6 +281,63 @@ if (pgPool) {
         await pgPool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tax INTEGER DEFAULT 0;");
         await pgPool.query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS subtotal INTEGER;");
         await pgPool.query("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS grace_period_until TEXT;");
+
+        // Coupons Management Table
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS coupons (
+            id TEXT PRIMARY KEY,
+            code TEXT UNIQUE NOT NULL,
+            discount_percent INTEGER NOT NULL DEFAULT 0,
+            discount_amount INTEGER NOT NULL DEFAULT 0,
+            plan_slug TEXT DEFAULT 'all',
+            max_uses INTEGER DEFAULT 100,
+            used_count INTEGER DEFAULT 0,
+            expires_at TEXT,
+            description TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          );
+          CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
+          CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons(is_active);
+        `);
+
+        // Seed default promotional coupons if table is empty
+        try {
+          const couponsCountRes = await pgPool.query('SELECT COUNT(*) as count FROM coupons');
+          if (parseInt(couponsCountRes.rows[0]?.count || 0, 10) === 0) {
+            const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+            const nextYearStr = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
+            await pgPool.query(`
+              INSERT INTO coupons (id, code, discount_percent, plan_slug, max_uses, used_count, expires_at, description, is_active, created_at)
+              VALUES 
+                ('cpn_launch50', 'LAUNCH50', 50, 'all', 200, 14, $1, 'Launch Special 50% Off Any Plan', 1, $2),
+                ('cpn_welcome20', 'WELCOME20', 20, 'all', 500, 38, $1, 'Welcome 20% Discount for New Creators', 1, $2),
+                ('cpn_vipcreator', 'VIPCREATOR', 100, 'pro', 50, 6, $1, '100% Free VIP Pro Tier Trial', 1, $2)
+            `, [nextYearStr, nowStr]);
+          }
+        } catch (cpnSeedErr) {
+          console.error('[Coupons Seed Error]', cpnSeedErr.message);
+        }
+
+        // Seed sample invoices if empty to ensure initial live invoices are ready
+        try {
+          const invCountRes = await pgPool.query('SELECT COUNT(*) as count FROM invoices');
+          if (parseInt(invCountRes.rows[0]?.count || 0, 10) === 0) {
+            const firstUser = await pgPool.query('SELECT id, email, name FROM users ORDER BY created_at ASC LIMIT 1');
+            if (firstUser.rows && firstUser.rows.length > 0) {
+              const u = firstUser.rows[0];
+              const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+              await pgPool.query(`
+                INSERT INTO invoices (id, user_id, invoice_number, amount, currency, status, gateway, billing_name, billing_email, paid_at, created_at)
+                VALUES 
+                  ('inv_seed_001', $1, 'INV-2026-001', 1499, 'INR', 'paid', 'razorpay', $2, $3, $4, $4),
+                  ('inv_seed_002', $1, 'INV-2026-002', 3999, 'INR', 'paid', 'razorpay', $2, $3, $4, $4)
+              `, [u.id, u.name || 'Creator', u.email, nowStr]);
+            }
+          }
+        } catch (invSeedErr) {
+          console.error('[Invoices Seed Error]', invSeedErr.message);
+        }
         await pgPool.query("ALTER TABLE admin_sessions ADD COLUMN IF NOT EXISTS is_active INTEGER DEFAULT 1;");
         await pgPool.query("ALTER TABLE system_alerts ADD COLUMN IF NOT EXISTS is_resolved INTEGER DEFAULT 0;");
         await pgPool.query("ALTER TABLE system_alerts ADD COLUMN IF NOT EXISTS metadata TEXT;");

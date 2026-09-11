@@ -861,6 +861,12 @@ router.put('/plans/:id', async (req, res) => {
     plans[idx] = {
       ...plans[idx],
       ...updates,
+      monthlyPrice: updates.monthlyPrice !== undefined ? (Number(updates.monthlyPrice) || 0) : plans[idx].monthlyPrice,
+      annualPrice: updates.annualPrice !== undefined ? (Number(updates.annualPrice) || 0) : plans[idx].annualPrice,
+      dmLimit: updates.dmLimit !== undefined ? (Number(updates.dmLimit) || 0) : plans[idx].dmLimit,
+      igLimit: updates.igLimit !== undefined ? (Number(updates.igLimit) || 1) : plans[idx].igLimit,
+      rulesLimit: updates.rulesLimit !== undefined ? (Number(updates.rulesLimit) || 5) : plans[idx].rulesLimit,
+      features: Array.isArray(updates.features) ? updates.features : (typeof updates.features === 'string' ? updates.features.split('\n').map(s => s.trim()).filter(Boolean) : plans[idx].features),
       id: plans[idx].id, // preserve ID
       updated_at: new Date().toISOString()
     };
@@ -900,6 +906,217 @@ router.post('/plans/reset', async (_req, res) => {
   } catch (err) {
     console.error('[Admin] Reset plans error:', err);
     res.status(500).json({ error: 'Failed to reset pricing plans' });
+  }
+});
+
+// ── COUPONS MANAGEMENT CRUD ──────────────────────────────────────────
+
+// GET /api/admin/coupons
+router.get('/coupons', async (_req, res) => {
+  try {
+    const coupons = await db.prepare('SELECT * FROM coupons ORDER BY created_at DESC').all().catch(() => []) || [];
+    res.json({ coupons });
+  } catch (err) {
+    console.error('[Admin] Get coupons error:', err);
+    res.status(500).json({ error: 'Failed to fetch coupons' });
+  }
+});
+
+// POST /api/admin/coupons
+router.post('/coupons', async (req, res) => {
+  try {
+    const { code, discount_percent, discount_amount, plan_slug, max_uses, expires_at, description } = req.body;
+    if (!code) return res.status(400).json({ error: 'Coupon code is required' });
+    const cleanCode = code.trim().toUpperCase();
+    const existing = await db.prepare('SELECT id FROM coupons WHERE UPPER(code) = ?').get(cleanCode);
+    if (existing) return res.status(400).json({ error: `Coupon code '${cleanCode}' already exists` });
+
+    const id = `cpn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    await db.prepare(`
+      INSERT INTO coupons (id, code, discount_percent, discount_amount, plan_slug, max_uses, used_count, expires_at, description, is_active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, 1, ?)
+    `).run(
+      id,
+      cleanCode,
+      Number(discount_percent) || 0,
+      Number(discount_amount) || 0,
+      plan_slug || 'all',
+      Number(max_uses) || 100,
+      expires_at || null,
+      description || '',
+      nowStr
+    );
+
+    const newCoupon = await db.prepare('SELECT * FROM coupons WHERE id = ?').get(id);
+    await logAuditEvent(req.user?.id, req.user?.email, 'Created Coupon', cleanCode, `Discount: ${discount_percent || discount_amount}%`);
+    res.status(201).json({ success: true, message: 'Coupon created successfully', coupon: newCoupon });
+  } catch (err) {
+    console.error('[Admin] Create coupon error:', err);
+    res.status(500).json({ error: 'Failed to create coupon' });
+  }
+});
+
+// PATCH /api/admin/coupons/:id
+router.patch('/coupons/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active, max_uses, expires_at, description } = req.body;
+    const coupon = await db.prepare('SELECT * FROM coupons WHERE id = ?').get(id);
+    if (!coupon) return res.status(404).json({ error: 'Coupon not found' });
+
+    const updates = [];
+    const params = [];
+    if (is_active !== undefined) {
+      updates.push('is_active = ?');
+      params.push(is_active ? 1 : 0);
+    }
+    if (max_uses !== undefined) {
+      updates.push('max_uses = ?');
+      params.push(Number(max_uses));
+    }
+    if (expires_at !== undefined) {
+      updates.push('expires_at = ?');
+      params.push(expires_at);
+    }
+    if (description !== undefined) {
+      updates.push('description = ?');
+      params.push(description);
+    }
+
+    if (updates.length > 0) {
+      params.push(id);
+      await db.prepare(`UPDATE coupons SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    }
+
+    const updatedCoupon = await db.prepare('SELECT * FROM coupons WHERE id = ?').get(id);
+    res.json({ success: true, message: 'Coupon updated', coupon: updatedCoupon });
+  } catch (err) {
+    console.error('[Admin] Update coupon error:', err);
+    res.status(500).json({ error: 'Failed to update coupon' });
+  }
+});
+
+// DELETE /api/admin/coupons/:id
+router.delete('/coupons/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.prepare('DELETE FROM coupons WHERE id = ?').run(id);
+    await logAuditEvent(req.user?.id, req.user?.email, 'Deleted Coupon', id);
+    res.json({ success: true, message: 'Coupon deleted successfully' });
+  } catch (err) {
+    console.error('[Admin] Delete coupon error:', err);
+    res.status(500).json({ error: 'Failed to delete coupon' });
+  }
+});
+
+// ── INVOICES MANAGEMENT CRUD ─────────────────────────────────────────
+
+// GET /api/admin/invoices
+router.get('/invoices', async (_req, res) => {
+  try {
+    const rows = await db.prepare(`
+      SELECT i.*, u.name as user_name, u.email as user_email, u.plan as user_plan
+      FROM invoices i
+      LEFT JOIN users u ON i.user_id = u.id
+      ORDER BY i.created_at DESC
+    `).all().catch(() => []) || [];
+
+    const invoices = rows.map(inv => ({
+      ...inv,
+      user_name: inv.user_name || inv.billing_name || 'Creator',
+      user_email_masked: maskEmail(inv.user_email || inv.billing_email || ''),
+      user_email_full: inv.user_email || inv.billing_email || '',
+      formatted_date: inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : (inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Paid')
+    }));
+
+    res.json({ invoices });
+  } catch (err) {
+    console.error('[Admin] Get invoices error:', err);
+    res.status(500).json({ error: 'Failed to fetch invoices' });
+  }
+});
+
+// POST /api/admin/invoices (Generate / Record Manual Invoice)
+router.post('/invoices', async (req, res) => {
+  try {
+    const { user_id, user_email, billing_name, amount, plan, currency, gateway, status, gst_number } = req.body;
+    if (!amount) return res.status(400).json({ error: 'Invoice amount is required' });
+
+    let targetUserId = user_id;
+    if (!targetUserId && user_email) {
+      const matchedUser = await db.prepare('SELECT id FROM users WHERE email = ?').get(user_email.trim());
+      if (matchedUser) targetUserId = matchedUser.id;
+    }
+    if (!targetUserId) {
+      const anyUser = await db.prepare('SELECT id FROM users LIMIT 1').get();
+      targetUserId = anyUser ? anyUser.id : req.user.id;
+    }
+
+    const invNumber = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const newId = `inv_${Date.now()}`;
+
+    await db.prepare(`
+      INSERT INTO invoices (id, user_id, invoice_number, amount, currency, status, gateway, billing_name, billing_email, gst_number, paid_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      newId,
+      targetUserId,
+      invNumber,
+      Number(amount),
+      currency || 'INR',
+      status || 'paid',
+      gateway || 'razorpay',
+      billing_name || 'Creator Customer',
+      user_email || req.user.email,
+      gst_number || '',
+      status === 'paid' ? nowStr : null,
+      nowStr
+    );
+
+    const createdInv = await db.prepare('SELECT * FROM invoices WHERE id = ?').get(newId);
+    await logAuditEvent(req.user?.id, req.user?.email, 'Created Manual Invoice', invNumber, `Amount: ₹${amount}`);
+    res.status(201).json({ success: true, message: 'Invoice generated successfully', invoice: createdInv });
+  } catch (err) {
+    console.error('[Admin] Create invoice error:', err);
+    res.status(500).json({ error: 'Failed to generate invoice' });
+  }
+});
+
+// PATCH /api/admin/invoices/:id
+router.patch('/invoices/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: 'Status is required' });
+
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    if (status === 'paid') {
+      await db.prepare("UPDATE invoices SET status = ?, paid_at = COALESCE(paid_at, ?) WHERE id = ?").run(status, nowStr, id);
+    } else {
+      await db.prepare("UPDATE invoices SET status = ? WHERE id = ?").run(status, id);
+    }
+
+    const updated = await db.prepare('SELECT * FROM invoices WHERE id = ?').get(id);
+    res.json({ success: true, message: `Invoice status updated to ${status}`, invoice: updated });
+  } catch (err) {
+    console.error('[Admin] Update invoice error:', err);
+    res.status(500).json({ error: 'Failed to update invoice' });
+  }
+});
+
+// DELETE /api/admin/invoices/:id
+router.delete('/invoices/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.prepare('DELETE FROM invoices WHERE id = ?').run(id);
+    await logAuditEvent(req.user?.id, req.user?.email, 'Deleted Invoice', id);
+    res.json({ success: true, message: 'Invoice deleted successfully' });
+  } catch (err) {
+    console.error('[Admin] Delete invoice error:', err);
+    res.status(500).json({ error: 'Failed to delete invoice' });
   }
 });
 

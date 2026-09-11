@@ -54,7 +54,14 @@ import {
   Clock,
   Power,
   ShieldAlert,
-  Copy
+  Copy,
+  Tag,
+  Receipt,
+  Printer,
+  Download,
+  Percent,
+  CheckCircle,
+  RefreshCcw
 } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import LandingPageEditor from './LandingPageEditor';
@@ -270,6 +277,54 @@ export default function AdminView({ user, onBackToApp }) {
   // Payment System State
   const [paymentsList, setPaymentsList] = useState([]);
   const [paymentsSummary, setPaymentsSummary] = useState({ total_revenue: 0, active_subscriptions: 0 });
+
+  // Plans & Billings Sub-tabs: 'subscriptions' | 'invoices' | 'coupons' | 'settings'
+  const [plansSubTab, setPlansSubTab] = useState('subscriptions');
+
+  // Invoices Sub-tab State
+  const [invoicesList, setInvoicesList] = useState([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('all');
+  const [isCreatingInvoice, setIsCreatingInvoice] = useState(false);
+  const [invoiceFormData, setInvoiceFormData] = useState({
+    user_email: '',
+    billing_name: '',
+    amount: 1499,
+    plan: 'pro',
+    gateway: 'razorpay',
+    status: 'paid',
+    gst_number: ''
+  });
+  const [selectedInvoiceSlip, setSelectedInvoiceSlip] = useState(null);
+
+  // Coupons Sub-tab State
+  const [couponsList, setCouponsList] = useState([]);
+  const [loadingCoupons, setLoadingCoupons] = useState(false);
+  const [couponSearch, setCouponSearch] = useState('');
+  const [isCreatingCoupon, setIsCreatingCoupon] = useState(false);
+  const [couponFormData, setCouponFormData] = useState({
+    code: '',
+    discount_percent: 20,
+    discount_amount: 0,
+    plan_slug: 'all',
+    max_uses: 100,
+    expires_at: '',
+    description: ''
+  });
+
+  // Billing & Gateway Settings State
+  const [savingBillingSettings, setSavingBillingSettings] = useState(false);
+  const [billingSettings, setBillingSettings] = useState({
+    razorpay_key_id: '',
+    currency: 'INR',
+    tax_gst_rate: 18,
+    gstin: '',
+    company_name: 'Airvix Technologies Pvt Ltd',
+    company_address: 'Indiranagar, Bangalore, Karnataka, India',
+    auto_renewal_default: true,
+    grace_period_days: 7
+  });
 
   // Integrations, Safeguards, Analytics & Support State
   const [integrationsData, setIntegrationsData] = useState(null);
@@ -601,6 +656,38 @@ export default function AdminView({ user, onBackToApp }) {
     }
   }, []);
 
+  // 8b. Fetch Invoices Data
+  const loadInvoices = useCallback(async () => {
+    try {
+      setLoadingInvoices(true);
+      const res = await apiFetch('/admin/invoices');
+      if (res.ok) {
+        const data = await res.json();
+        setInvoicesList(data.invoices || []);
+      }
+    } catch (err) {
+      console.error('Failed to load invoices:', err);
+    } finally {
+      setLoadingInvoices(false);
+    }
+  }, []);
+
+  // 8c. Fetch Coupons Data
+  const loadCoupons = useCallback(async () => {
+    try {
+      setLoadingCoupons(true);
+      const res = await apiFetch('/admin/coupons');
+      if (res.ok) {
+        const data = await res.json();
+        setCouponsList(data.coupons || []);
+      }
+    } catch (err) {
+      console.error('Failed to load coupons:', err);
+    } finally {
+      setLoadingCoupons(false);
+    }
+  }, []);
+
   // 9. Fetch Integrations Data
   const loadIntegrations = useCallback(async () => {
     try {
@@ -823,6 +910,9 @@ export default function AdminView({ user, onBackToApp }) {
       case 'plans':
         loadPlans();
         loadPayments();
+        loadInvoices();
+        loadCoupons();
+        loadSiteSettings();
         break;
       case 'landing_cms':
         loadSiteSettings();
@@ -913,28 +1003,244 @@ export default function AdminView({ user, onBackToApp }) {
     }
   };
 
-  // Save / Create Plan Handler
+  // Save / Create Plan Handler with instant optimistic update
   const handleSavePlan = async (e) => {
     e.preventDefault();
     try {
       const isEdit = Boolean(editingPlan);
-      const url = isEdit ? `/admin/plans/${editingPlan.id}` : '/admin/plans';
+      const url = isEdit ? `/admin/plans/${editingPlan.id || editingPlan.slug}` : '/admin/plans';
       const method = isEdit ? 'PUT' : 'POST';
 
       const payload = {
         ...planFormData,
+        monthlyPrice: Number(planFormData.monthlyPrice) || 0,
+        annualPrice: Number(planFormData.annualPrice) || 0,
+        dmLimit: Number(planFormData.dmLimit) || 0,
+        igLimit: Number(planFormData.igLimit) || 1,
+        rulesLimit: Number(planFormData.rulesLimit) || 5,
         features: planFeaturesText ? planFeaturesText.split('\n').map(s => s.trim()).filter(Boolean) : planFormData.features
       };
 
       const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
       if (res.ok) {
+        const data = await res.json();
         showToast(isEdit ? '✅ Plan updated live' : '✅ New plan created');
         setEditingPlan(null);
         setIsCreatingPlan(false);
+        // Instant optimistic update of plansList in state
+        if (data.plan) {
+          setPlansList(prev => {
+            const exists = prev.some(p => p.id === data.plan.id || p.slug === data.plan.slug);
+            if (exists) {
+              return prev.map(p => (p.id === data.plan.id || p.slug === data.plan.slug) ? data.plan : p);
+            }
+            return [...prev, data.plan];
+          });
+        }
         loadPlans();
+      } else {
+        const err = await res.json();
+        alert(`Failed to save plan: ${err.error || 'Server error'}`);
       }
     } catch (err) {
       alert(`Error saving plan: ${err.message}`);
+    }
+  };
+
+  // Reset Plans to Defaults Handler
+  const handleResetPlans = async () => {
+    if (!window.confirm('Reset all pricing plans to default Airvix tiers (Free Starter, Pro Creator, Agency & Brand, Enterprise VIP)? Custom edits will be restored to standard.')) return;
+    try {
+      const res = await apiFetch('/admin/plans/reset', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setPlansList(data.plans || []);
+        showToast('✅ Pricing plans reset to defaults');
+      } else {
+        const err = await res.json();
+        alert(`Failed to reset plans: ${err.error || 'Error'}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Delete Custom Plan Handler
+  const handleDeletePlan = async (planId, planName) => {
+    if (!window.confirm(`Permanently delete pricing plan tier "${planName}"?`)) return;
+    try {
+      const res = await apiFetch(`/admin/plans/${planId}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast(`✅ Plan "${planName}" deleted`);
+        setPlansList(prev => prev.filter(p => p.id !== planId && p.slug !== planId));
+        loadPlans();
+      } else {
+        const err = await res.json();
+        alert(`Failed to delete plan: ${err.error || 'Error'}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Create Manual Invoice Handler
+  const handleCreateInvoice = async (e) => {
+    e.preventDefault();
+    if (!invoiceFormData.amount) return alert('Invoice amount is required');
+    try {
+      const res = await apiFetch('/admin/invoices', {
+        method: 'POST',
+        body: JSON.stringify(invoiceFormData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(`✅ Invoice ${data.invoice?.invoice_number || ''} generated successfully`);
+        setIsCreatingInvoice(false);
+        setInvoiceFormData({
+          user_email: '',
+          billing_name: '',
+          amount: 1499,
+          plan: 'pro',
+          gateway: 'razorpay',
+          status: 'paid',
+          gst_number: ''
+        });
+        loadInvoices();
+        loadPayments();
+      } else {
+        const err = await res.json();
+        alert(`Failed to create invoice: ${err.error || 'Error'}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Update Invoice Status Handler
+  const handleUpdateInvoiceStatus = async (id, status) => {
+    try {
+      const res = await apiFetch(`/admin/invoices/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        showToast(`✅ Invoice status updated to ${status}`);
+        loadInvoices();
+        loadPayments();
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Delete Invoice Handler
+  const handleDeleteInvoice = async (id, invNum) => {
+    if (!window.confirm(`Delete invoice record ${invNum || id}?`)) return;
+    try {
+      const res = await apiFetch(`/admin/invoices/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('✅ Invoice record deleted');
+        loadInvoices();
+        loadPayments();
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Auto-generate Random Coupon Code
+  const handleGenerateRandomCouponCode = () => {
+    const prefixes = ['AIRVIX', 'CREATOR', 'LAUNCH', 'BOOST', 'VIP'];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const num = Math.floor(10 + Math.random() * 90);
+    const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const code = `${prefix}${num}-${rand}`;
+    setCouponFormData(prev => ({ ...prev, code }));
+  };
+
+  // Create Coupon Handler
+  const handleCreateCoupon = async (e) => {
+    e.preventDefault();
+    if (!couponFormData.code) return alert('Coupon code is required');
+    try {
+      const res = await apiFetch('/admin/coupons', {
+        method: 'POST',
+        body: JSON.stringify(couponFormData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(`✅ Coupon ${data.coupon?.code || couponFormData.code} created & activated`);
+        setIsCreatingCoupon(false);
+        setCouponFormData({
+          code: '',
+          discount_percent: 20,
+          discount_amount: 0,
+          plan_slug: 'all',
+          max_uses: 100,
+          expires_at: '',
+          description: ''
+        });
+        loadCoupons();
+      } else {
+        const err = await res.json();
+        alert(`Failed to create coupon: ${err.error || 'Error'}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Toggle Coupon Active Status
+  const handleToggleCouponActive = async (id, currentActive, code) => {
+    try {
+      const res = await apiFetch(`/admin/coupons/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: !currentActive })
+      });
+      if (res.ok) {
+        showToast(!currentActive ? `✅ Coupon ${code} activated` : `⏸️ Coupon ${code} paused`);
+        loadCoupons();
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Delete Coupon Handler
+  const handleDeleteCoupon = async (id, code) => {
+    if (!window.confirm(`Permanently delete coupon "${code}"?`)) return;
+    try {
+      const res = await apiFetch(`/admin/coupons/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast(`✅ Coupon ${code} deleted`);
+        loadCoupons();
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Save Billing & Tax Settings Handler
+  const handleSaveBillingSettings = async (e) => {
+    if (e) e.preventDefault();
+    try {
+      setSavingBillingSettings(true);
+      const res = await apiFetch('/admin/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          billing_settings: billingSettings
+        })
+      });
+      if (res.ok) {
+        showToast('✅ Billing & Tax configuration saved successfully');
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.error || 'Failed to save billing settings'}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSavingBillingSettings(false);
     }
   };
 
@@ -2446,167 +2752,900 @@ export default function AdminView({ user, onBackToApp }) {
           )}
 
           {/* =========================================================================
-              TAB 7: PLANS & BILLINGS (Matches Panel 4)
+              TAB 7: PLANS & BILLINGS (Fully Functional 4 Sub-Tabs)
           ========================================================================= */}
           {activeTab === 'plans' && (
             <div>
               {/* Header */}
-              <div className="admin-card-header" style={{ marginBottom: '14px' }}>
-                <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Plans &amp; Billings</h2>
+              <div className="admin-card-header" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 className="admin-card-title" style={{ fontSize: '20px', margin: 0, fontWeight: 800, color: '#0f172a' }}>Plans &amp; Billings</h2>
+                  <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+                    Manage pricing tiers, live invoices, promo coupons, and payment gateway configuration.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {plansSubTab === 'subscriptions' && (
+                    <>
+                      <button
+                        type="button"
+                        className="admin-btn-secondary"
+                        style={{ fontSize: '12.5px', padding: '7px 12px' }}
+                        onClick={handleResetPlans}
+                        title="Reset plans to standard defaults"
+                      >
+                        <RefreshCcw size={13} style={{ marginRight: '5px' }} />
+                        <span>Reset Defaults</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-btn-primary"
+                        onClick={() => {
+                          setEditingPlan(null);
+                          setPlanFormData({
+                            id: `plan-${Date.now()}`,
+                            slug: 'custom-vip',
+                            name: 'Custom VIP Plan',
+                            monthlyPrice: 4999,
+                            annualPrice: 3999,
+                            dmLimit: 50000,
+                            igLimit: 5,
+                            rulesLimit: 50,
+                            badge: 'SPECIAL',
+                            popular: false,
+                            description: 'Custom tier for high-volume creators',
+                            features: ['50,000 DMs/mo', '5 Connected Accounts', 'Priority Support'],
+                            active: true
+                          });
+                          setPlanFeaturesText("50,000 DMs/mo\n5 Connected Accounts\nPriority Support");
+                          setIsCreatingPlan(true);
+                        }}
+                      >
+                        <Plus size={14} />
+                        <span>Add Plan</span>
+                      </button>
+                    </>
+                  )}
+
+                  {plansSubTab === 'invoices' && (
+                    <>
+                      <button
+                        type="button"
+                        className="admin-btn-secondary"
+                        style={{ fontSize: '12.5px', padding: '7px 12px' }}
+                        onClick={loadInvoices}
+                        title="Refresh invoices list"
+                      >
+                        <RefreshCw size={13} className={loadingInvoices ? 'spin' : ''} />
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-btn-primary"
+                        onClick={() => setIsCreatingInvoice(true)}
+                      >
+                        <Plus size={14} />
+                        <span>Create Invoice</span>
+                      </button>
+                    </>
+                  )}
+
+                  {plansSubTab === 'coupons' && (
+                    <>
+                      <button
+                        type="button"
+                        className="admin-btn-secondary"
+                        style={{ fontSize: '12.5px', padding: '7px 12px' }}
+                        onClick={loadCoupons}
+                        title="Refresh coupons list"
+                      >
+                        <RefreshCw size={13} className={loadingCoupons ? 'spin' : ''} />
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-btn-primary"
+                        onClick={() => {
+                          handleGenerateRandomCouponCode();
+                          setIsCreatingCoupon(true);
+                        }}
+                      >
+                        <Plus size={14} />
+                        <span>Generate Coupon</span>
+                      </button>
+                    </>
+                  )}
+
+                  {plansSubTab === 'settings' && (
+                    <button
+                      type="button"
+                      className="admin-btn-primary"
+                      onClick={handleSaveBillingSettings}
+                      disabled={savingBillingSettings}
+                    >
+                      <Save size={14} />
+                      <span>{savingBillingSettings ? 'Saving...' : 'Save Settings'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Sub-Tabs Navigation Bar */}
+              <div className="admin-subtabs-nav" style={{ marginBottom: '20px' }}>
                 <button
                   type="button"
-                  className="admin-btn-primary"
-                  onClick={() => {
-                    setEditingPlan(null);
-                    setPlanFormData({
-                      id: `plan-${Date.now()}`,
-                      slug: 'custom-plan',
-                      name: 'Custom VIP Plan',
-                      monthlyPrice: 4999,
-                      annualPrice: 3999,
-                      dmLimit: 50000,
-                      igLimit: 5,
-                      rulesLimit: 50,
-                      badge: 'SPECIAL',
-                      popular: false,
-                      description: 'Custom tier for high-volume creators',
-                      features: ['50,000 DMs/mo', '5 Connected Accounts', 'Priority Support'],
-                      active: true
-                    });
-                    setPlanFeaturesText("50,000 DMs/mo\n5 Connected Accounts\nPriority Support");
-                    setIsCreatingPlan(true);
-                  }}
+                  className={`admin-subtab-btn ${plansSubTab === 'subscriptions' ? 'active' : ''}`}
+                  onClick={() => setPlansSubTab('subscriptions')}
                 >
-                  <Plus size={14} />
-                  <span>Add Plan</span>
+                  <CreditCard size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />
+                  <span>Subscriptions</span>
+                </button>
+                <button
+                  type="button"
+                  className={`admin-subtab-btn ${plansSubTab === 'invoices' ? 'active' : ''}`}
+                  onClick={() => { setPlansSubTab('invoices'); loadInvoices(); }}
+                >
+                  <Receipt size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />
+                  <span>Invoices</span>
+                  {invoicesList.length > 0 && <span className="admin-subtab-badge">{invoicesList.length}</span>}
+                </button>
+                <button
+                  type="button"
+                  className={`admin-subtab-btn ${plansSubTab === 'coupons' ? 'active' : ''}`}
+                  onClick={() => { setPlansSubTab('coupons'); loadCoupons(); }}
+                >
+                  <Tag size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />
+                  <span>Coupons</span>
+                  {couponsList.filter(c => c.is_active).length > 0 && (
+                    <span className="admin-subtab-badge">{couponsList.filter(c => c.is_active).length}</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className={`admin-subtab-btn ${plansSubTab === 'settings' ? 'active' : ''}`}
+                  onClick={() => setPlansSubTab('settings')}
+                >
+                  <SlidersHorizontal size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />
+                  <span>Settings</span>
                 </button>
               </div>
 
-              {/* Subtabs */}
-              <div className="admin-subtabs-nav">
-                <button type="button" className="admin-subtab-btn active">Subscriptions</button>
-                <button type="button" className="admin-subtab-btn">Invoices</button>
-                <button type="button" className="admin-subtab-btn">Coupons</button>
-                <button type="button" className="admin-subtab-btn">Settings</button>
-              </div>
+              {/* ─────────────────────────────────────────────────────────────
+                  SUB-TAB 1: SUBSCRIPTIONS & PRICING PLANS (LIVE DYNAMIC TABLE)
+              ───────────────────────────────────────────────────────────── */}
+              {plansSubTab === 'subscriptions' && (
+                <div>
+                  {/* Dynamic Plans Table Card */}
+                  <div className="admin-card" style={{ marginBottom: '24px' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="admin-clean-table">
+                        <thead>
+                          <tr>
+                            <th>Plan Name</th>
+                            <th>Price</th>
+                            <th>Billing Cycle</th>
+                            <th>Included Quotas</th>
+                            <th>Users</th>
+                            <th>Status</th>
+                            <th style={{ textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(plansList && plansList.length > 0) ? (
+                            plansList.map((plan, idx) => {
+                              const planUsersCount = (usersList || []).filter(u => (u.plan || '').toLowerCase() === (plan.slug || '').toLowerCase()).length;
+                              return (
+                                <tr key={plan.id || plan.slug || idx}>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px' }}>{plan.name}</span>
+                                      {plan.badge && (
+                                        <span style={{ fontSize: '10px', fontWeight: 800, background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '1px 6px', borderRadius: '4px' }}>
+                                          {plan.badge}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {plan.description && (
+                                      <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px', maxWidth: '280px' }}>
+                                        {plan.description}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '14px' }}>
+                                      ₹{Number(plan.monthlyPrice || 0).toLocaleString('en-IN')}
+                                    </div>
+                                    {plan.annualPrice > 0 && (
+                                      <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                        ₹{Number(plan.annualPrice).toLocaleString('en-IN')}/mo (annual)
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ color: '#475569', fontSize: '12.5px', fontWeight: 600 }}>
+                                    Monthly / Annual
+                                  </td>
+                                  <td style={{ color: '#334155', fontSize: '12px' }}>
+                                    <span style={{ fontWeight: 700, color: '#2563eb' }}>{Number(plan.dmLimit || 0).toLocaleString()} DMs</span>
+                                    <span style={{ margin: '0 4px', color: '#cbd5e1' }}>•</span>
+                                    <span>{plan.igLimit || 1} IG Account{(plan.igLimit || 1) > 1 ? 's' : ''}</span>
+                                    <span style={{ margin: '0 4px', color: '#cbd5e1' }}>•</span>
+                                    <span>{plan.rulesLimit || 5} Rules</span>
+                                  </td>
+                                  <td style={{ fontWeight: 700, color: '#0f172a' }}>
+                                    <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '12px' }}>
+                                      {planUsersCount} user{planUsersCount === 1 ? '' : 's'}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <span className={plan.active !== false ? 'admin-badge-status-active' : 'admin-badge-status-pending'}>
+                                      {plan.active !== false ? 'Active' : 'Inactive'}
+                                    </span>
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                                      <button
+                                        type="button"
+                                        className="admin-btn-secondary"
+                                        style={{ padding: '5px 10px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                        onClick={() => {
+                                          setEditingPlan(plan);
+                                          setPlanFormData({
+                                            ...plan,
+                                            monthlyPrice: plan.monthlyPrice ?? 0,
+                                            annualPrice: plan.annualPrice ?? 0,
+                                            dmLimit: plan.dmLimit ?? 1000,
+                                            igLimit: plan.igLimit ?? 1,
+                                            rulesLimit: plan.rulesLimit ?? 5
+                                          });
+                                          setPlanFeaturesText(Array.isArray(plan.features) ? plan.features.join('\n') : (plan.features || ''));
+                                          setIsCreatingPlan(true);
+                                        }}
+                                        title="Edit this plan"
+                                      >
+                                        <Edit3 size={13} />
+                                        <span>Edit</span>
+                                      </button>
 
-              {/* Plans Table Card */}
-              <div className="admin-card" style={{ marginBottom: '24px' }}>
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="admin-clean-table">
-                    <thead>
-                      <tr>
-                        <th>Plan Name</th>
-                        <th>Price</th>
-                        <th>Billing Cycle</th>
-                        <th>Users</th>
-                        <th>Status</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                                      {!['plan-free', 'plan-pro', 'plan-agency', 'plan-enterprise', 'free', 'pro', 'agency', 'enterprise'].includes(plan.id || plan.slug) && (
+                                        <button
+                                          type="button"
+                                          className="admin-btn-secondary"
+                                          style={{ padding: '5px 8px', color: '#dc2626' }}
+                                          onClick={() => handleDeletePlan(plan.id || plan.slug, plan.name)}
+                                          title="Delete custom plan"
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                                Loading plans from database...
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Revenue Overview Card */}
+                  <div className="admin-card">
+                    <div className="admin-card-header">
+                      <h3 className="admin-card-title">Revenue Overview</h3>
+                      <select className="admin-select-input">
+                        <option>Monthly</option>
+                        <option>Quarterly</option>
+                        <option>Yearly</option>
+                      </select>
+                    </div>
+
+                    {/* Bar Chart Container */}
+                    <div className="admin-rev-bars-wrap">
                       {[
-                        { id: 'p-1', name: 'Starter', price: '₹0', cycle: 'Monthly', users: '842', status: 'Active' },
-                        { id: 'p-2', name: 'Pro', price: '₹1,499', cycle: 'Monthly', users: '1,248', status: 'Active' },
-                        { id: 'p-3', name: 'Business', price: '₹2,999', cycle: 'Monthly', users: '703', status: 'Active' }
-                      ].map((plan, idx) => (
-                        <tr key={plan.id || idx}>
-                          <td style={{ fontWeight: 700, color: '#0f172a' }}>{plan.name}</td>
-                          <td style={{ fontWeight: 700, color: '#0f172a' }}>{plan.price}</td>
-                          <td style={{ color: '#475569' }}>{plan.cycle}</td>
-                          <td style={{ fontWeight: 600, color: '#0f172a' }}>{plan.users}</td>
-                          <td>
-                            <span className="admin-badge-status-active">{plan.status}</span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                              <button
-                                type="button"
-                                className="admin-btn-secondary"
-                                style={{ padding: '4px 8px', fontSize: '11px' }}
-                                onClick={() => {
-                                  const real = plansList.find(p => p.name.toLowerCase() === plan.name.toLowerCase()) || plansList[0];
-                                  if (real) {
-                                    setEditingPlan(real);
-                                    setPlanFormData(real);
-                                    setPlanFeaturesText(Array.isArray(real.features) ? real.features.join('\n') : '');
-                                    setIsCreatingPlan(true);
-                                  }
-                                }}
-                              >
-                                <Edit3 size={12} />
-                              </button>
+                        { month: 'Apr', val: 0, amt: '₹0' },
+                        { month: 'May', val: 0, amt: '₹0' },
+                        { month: 'Jun', val: 0, amt: '₹0' },
+                        { month: 'Jul', val: 0, amt: '₹0' },
+                        { month: 'Aug', val: 0, amt: '₹0' },
+                        { month: 'Sep', val: (paymentsSummary?.total_revenue || overview?.totalRevenue || 0), amt: `₹${(paymentsSummary?.total_revenue || overview?.totalRevenue || 0).toLocaleString('en-IN')}`, highlight: true }
+                      ].map((col, idx) => (
+                        <div key={idx} className="admin-rev-col">
+                          {col.highlight && (
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: col.val > 0 ? '#2563eb' : '#64748b', background: col.val > 0 ? '#eff6ff' : '#f1f5f9', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                              {col.amt}
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Revenue Overview Card */}
-              <div className="admin-card">
-                <div className="admin-card-header">
-                  <h3 className="admin-card-title">Revenue Overview</h3>
-                  <select className="admin-select-input">
-                    <option>Monthly</option>
-                    <option>Quarterly</option>
-                    <option>Yearly</option>
-                  </select>
-                </div>
-
-                {/* Bar Chart Container */}
-                <div className="admin-rev-bars-wrap">
-                  {[
-                    { month: 'Apr', val: 0, amt: '₹0' },
-                    { month: 'May', val: 0, amt: '₹0' },
-                    { month: 'Jun', val: 0, amt: '₹0' },
-                    { month: 'Jul', val: 0, amt: '₹0' },
-                    { month: 'Aug', val: 0, amt: '₹0' },
-                    { month: 'Sep', val: (paymentsSummary?.total_revenue || overview?.totalRevenue || 0), amt: `₹${(paymentsSummary?.total_revenue || overview?.totalRevenue || 0).toLocaleString('en-IN')}`, highlight: true }
-                  ].map((col, idx) => (
-                    <div key={idx} className="admin-rev-col">
-                      {col.highlight && (
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: col.val > 0 ? '#2563eb' : '#64748b', background: col.val > 0 ? '#eff6ff' : '#f1f5f9', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-                          {col.amt}
+                          )}
+                          <div
+                            className={`admin-rev-bar ${col.highlight ? 'highlight' : ''}`}
+                            style={{ height: `${col.val > 0 ? Math.min(100, Math.max(15, (col.val / 10000) * 100)) : 4}px`, minHeight: '4px', background: col.val > 0 ? '#2563eb' : '#e2e8f0' }}
+                            title={`${col.month}: ${col.amt}`}
+                          />
+                          <span className="admin-rev-month-label">{col.month}</span>
                         </div>
-                      )}
-                      <div
-                        className={`admin-rev-bar ${col.highlight ? 'highlight' : ''}`}
-                        style={{ height: `${col.val > 0 ? Math.min(100, Math.max(15, (col.val / 10000) * 100)) : 4}px`, minHeight: '4px', background: col.val > 0 ? '#2563eb' : '#e2e8f0' }}
-                        title={`${col.month}: ${col.amt}`}
+                      ))}
+                    </div>
+
+                    {/* 3 Metric Boxes Below Bar Chart */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                      <div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Total Revenue</div>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
+                          ₹{(paymentsSummary?.total_revenue !== undefined ? paymentsSummary.total_revenue : (overview?.totalRevenue || 0)).toLocaleString('en-IN')}
+                        </div>
+                        <span className="admin-stat-pill admin-stat-pill-up" style={{ color: '#059669', background: '#ecfdf5' }}>Live Invoices</span>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Active Paid Subscriptions</div>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
+                          {paymentsSummary?.active_subscriptions !== undefined ? paymentsSummary.active_subscriptions : (overview?.activePaidSubscriptions || 0)}
+                        </div>
+                        <span className="admin-stat-pill admin-stat-pill-up" style={{ color: '#2563eb', background: '#eff6ff' }}>Active Customers</span>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Churn Rate</div>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>0.0%</div>
+                        <span className="admin-stat-pill admin-stat-pill-up" style={{ color: '#059669', background: '#ecfdf5' }}>Zero Churn</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─────────────────────────────────────────────────────────────
+                  SUB-TAB 2: INVOICES & BILLING RECORDS
+              ───────────────────────────────────────────────────────────── */}
+              {plansSubTab === 'invoices' && (
+                <div>
+                  {/* Filters Bar */}
+                  <div className="admin-table-filters-bar" style={{ marginBottom: '14px' }}>
+                    <div className="admin-filter-group-left">
+                      <select
+                        className="admin-select-input"
+                        value={invoiceStatusFilter}
+                        onChange={(e) => setInvoiceStatusFilter(e.target.value)}
+                      >
+                        <option value="all">All Invoice Statuses</option>
+                        <option value="paid">Paid</option>
+                        <option value="pending">Pending</option>
+                        <option value="refunded">Refunded</option>
+                      </select>
+                    </div>
+
+                    <div className="admin-search-box-wrap" style={{ flex: 1, maxWidth: '380px' }}>
+                      <Search size={14} />
+                      <input
+                        type="text"
+                        placeholder="Search by Invoice #, customer email, or name..."
+                        value={invoiceSearch}
+                        onChange={(e) => setInvoiceSearch(e.target.value)}
+                        className="admin-search-box-input"
                       />
-                      <span className="admin-rev-month-label">{col.month}</span>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Invoices Table Card */}
+                  <div className="admin-card">
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="admin-clean-table">
+                        <thead>
+                          <tr>
+                            <th>Invoice #</th>
+                            <th>Customer</th>
+                            <th>Plan</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                            <th>Payment Gateway</th>
+                            <th>Status</th>
+                            <th style={{ textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            const filtered = (invoicesList || []).filter(inv => {
+                              const matchStatus = invoiceStatusFilter === 'all' || inv.status === invoiceStatusFilter;
+                              const q = invoiceSearch.toLowerCase();
+                              const matchSearch = !q ||
+                                (inv.invoice_number && inv.invoice_number.toLowerCase().includes(q)) ||
+                                (inv.user_name && inv.user_name.toLowerCase().includes(q)) ||
+                                (inv.user_email_full && inv.user_email_full.toLowerCase().includes(q)) ||
+                                (inv.user_email && inv.user_email.toLowerCase().includes(q));
+                              return matchStatus && matchSearch;
+                            });
+
+                            if (filtered.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
+                                    <Receipt size={32} style={{ color: '#cbd5e1', marginBottom: '8px' }} />
+                                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>No Invoices Found</div>
+                                    <p style={{ fontSize: '12px', margin: '4px 0 12px 0' }}>
+                                      {invoiceSearch || invoiceStatusFilter !== 'all' ? 'Try adjusting your search query or filter.' : 'Generate your first billing invoice.'}
+                                    </p>
+                                    <button
+                                      type="button"
+                                      className="admin-btn-primary"
+                                      style={{ margin: '0 auto' }}
+                                      onClick={() => setIsCreatingInvoice(true)}
+                                    >
+                                      <Plus size={13} />
+                                      <span>Create Invoice</span>
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return filtered.map((inv) => (
+                              <tr key={inv.id}>
+                                <td>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedInvoiceSlip(inv)}
+                                    style={{ background: 'none', border: 'none', padding: 0, fontWeight: 700, color: '#2563eb', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                    title="View Invoice Receipt"
+                                  >
+                                    <span>{inv.invoice_number || inv.id}</span>
+                                    <ExternalLink size={11} />
+                                  </button>
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{inv.user_name || 'Customer'}</div>
+                                  <div style={{ fontSize: '11px', color: '#64748b' }}>{inv.user_email_masked || inv.user_email || '—'}</div>
+                                </td>
+                                <td>
+                                  <span style={{ textTransform: 'capitalize', fontWeight: 600, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+                                    {inv.plan || inv.user_plan || 'Pro'}
+                                  </span>
+                                </td>
+                                <td style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px' }}>
+                                  ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
+                                </td>
+                                <td style={{ color: '#475569', fontSize: '12px' }}>
+                                  {inv.formatted_date || (inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Paid')}
+                                </td>
+                                <td style={{ color: '#475569', fontSize: '12px' }}>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Zap size={12} color="#16a34a" />
+                                    <span>{inv.gateway === 'razorpay' ? 'Razorpay' : (inv.gateway || 'Razorpay')}</span>
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className={inv.status === 'paid' ? 'admin-badge-status-active' : (inv.status === 'pending' ? 'admin-badge-status-pending' : 'admin-badge-plan')}>
+                                    {inv.status === 'paid' ? '● Paid' : (inv.status === 'pending' ? '⏳ Pending' : inv.status)}
+                                  </span>
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                                    <button
+                                      type="button"
+                                      className="admin-btn-secondary"
+                                      style={{ padding: '4px 8px', fontSize: '11px' }}
+                                      onClick={() => setSelectedInvoiceSlip(inv)}
+                                      title="Print / View Receipt"
+                                    >
+                                      <Printer size={12} />
+                                    </button>
+
+                                    {inv.status !== 'paid' && (
+                                      <button
+                                        type="button"
+                                        className="admin-btn-secondary"
+                                        style={{ padding: '4px 8px', fontSize: '11px', color: '#16a34a' }}
+                                        onClick={() => handleUpdateInvoiceStatus(inv.id, 'paid')}
+                                        title="Mark as Paid"
+                                      >
+                                        <Check size={12} />
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      className="admin-btn-secondary"
+                                      style={{ padding: '4px 8px', fontSize: '11px', color: '#dc2626' }}
+                                      onClick={() => handleDeleteInvoice(inv.id, inv.invoice_number)}
+                                      title="Delete invoice record"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ));
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
+              )}
 
-                {/* 3 Metric Boxes Below Bar Chart */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                  <div>
-                    <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Total Revenue</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
-                      ₹{(paymentsSummary?.total_revenue !== undefined ? paymentsSummary.total_revenue : (overview?.totalRevenue || 0)).toLocaleString('en-IN')}
+              {/* ─────────────────────────────────────────────────────────────
+                  SUB-TAB 3: PROMO COUPONS & DISCOUNT ENGINE
+              ───────────────────────────────────────────────────────────── */}
+              {plansSubTab === 'coupons' && (
+                <div>
+                  {/* Coupon Highlights Metric Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '18px' }}>
+                    <div className="admin-card" style={{ padding: '14px 18px' }}>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Active Promo Codes</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#2563eb', margin: '4px 0' }}>
+                        {couponsList.filter(c => c.is_active).length}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#059669', fontWeight: 700 }}>Ready for Checkout</span>
                     </div>
-                    <span className="admin-stat-pill admin-stat-pill-up" style={{ color: '#059669', background: '#ecfdf5' }}>Live Invoices</span>
+
+                    <div className="admin-card" style={{ padding: '14px 18px' }}>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Total Redemptions</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
+                        {couponsList.reduce((acc, c) => acc + (Number(c.used_count) || 0), 0)}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>Used by Creators</span>
+                    </div>
+
+                    <div className="admin-card" style={{ padding: '14px 18px' }}>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Max Discount Available</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', margin: '4px 0' }}>
+                        {Math.max(0, ...couponsList.map(c => c.discount_percent || 0))}%
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>VIP Promos Active</span>
+                    </div>
+
+                    <div className="admin-card" style={{ padding: '14px 18px' }}>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Total Coupons Built</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
+                        {couponsList.length}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>Campaigns Created</span>
+                    </div>
                   </div>
 
-                  <div>
-                    <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Active Paid Subscriptions</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>
-                      {paymentsSummary?.active_subscriptions !== undefined ? paymentsSummary.active_subscriptions : (overview?.activePaidSubscriptions || 0)}
+                  {/* Filter & Action Bar */}
+                  <div className="admin-table-filters-bar" style={{ marginBottom: '14px' }}>
+                    <div className="admin-search-box-wrap" style={{ flex: 1, maxWidth: '360px' }}>
+                      <Search size={14} />
+                      <input
+                        type="text"
+                        placeholder="Search coupons by code or campaign..."
+                        value={couponSearch}
+                        onChange={(e) => setCouponSearch(e.target.value)}
+                        className="admin-search-box-input"
+                      />
                     </div>
-                    <span className="admin-stat-pill admin-stat-pill-up" style={{ color: '#2563eb', background: '#eff6ff' }}>Active Customers</span>
                   </div>
 
-                  <div>
-                    <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Churn Rate</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '4px 0' }}>0.0%</div>
-                    <span className="admin-stat-pill admin-stat-pill-up" style={{ color: '#059669', background: '#ecfdf5' }}>Zero Churn</span>
+                  {/* Coupons Table Card */}
+                  <div className="admin-card">
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="admin-clean-table">
+                        <thead>
+                          <tr>
+                            <th>Coupon Code</th>
+                            <th>Discount</th>
+                            <th>Applies To</th>
+                            <th>Redemptions</th>
+                            <th>Valid Until</th>
+                            <th>Status</th>
+                            <th style={{ textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            const filtered = (couponsList || []).filter(c => {
+                              const q = couponSearch.toLowerCase();
+                              return !q || c.code.toLowerCase().includes(q) || (c.description && c.description.toLowerCase().includes(q));
+                            });
+
+                            if (filtered.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                                    <Tag size={32} style={{ color: '#cbd5e1', marginBottom: '8px' }} />
+                                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>No Coupons Found</div>
+                                    <p style={{ fontSize: '12px', margin: '4px 0 12px 0' }}>
+                                      Generate promotional codes to offer creator discounts on checkout.
+                                    </p>
+                                    <button
+                                      type="button"
+                                      className="admin-btn-primary"
+                                      style={{ margin: '0 auto' }}
+                                      onClick={() => {
+                                        handleGenerateRandomCouponCode();
+                                        setIsCreatingCoupon(true);
+                                      }}
+                                    >
+                                      <Plus size={13} />
+                                      <span>Generate First Coupon</span>
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return filtered.map((cpn) => {
+                              const pctUsed = cpn.max_uses > 0 ? Math.min(100, Math.round((cpn.used_count / cpn.max_uses) * 100)) : 0;
+                              return (
+                                <tr key={cpn.id}>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '14px', color: '#0f172a', background: '#f1f5f9', padding: '3px 8px', borderRadius: '5px', letterSpacing: '0.5px' }}>
+                                        {cpn.code}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(cpn.code);
+                                          showToast(`📋 Copied "${cpn.code}" to clipboard!`);
+                                        }}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '2px' }}
+                                        title="Copy code"
+                                      >
+                                        <Copy size={13} />
+                                      </button>
+                                    </div>
+                                    {cpn.description && (
+                                      <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
+                                        {cpn.description}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 800, color: '#16a34a', fontSize: '14px' }}>
+                                      {cpn.discount_percent ? `${cpn.discount_percent}% OFF` : `₹${cpn.discount_amount} OFF`}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155', textTransform: 'capitalize', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '4px' }}>
+                                      {cpn.plan_slug === 'all' ? 'All Plans' : `${cpn.plan_slug} Tier`}
+                                    </span>
+                                  </td>
+                                  <td style={{ minWidth: '140px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '3px' }}>
+                                      <span>{cpn.used_count || 0} used</span>
+                                      <span>Limit: {cpn.max_uses || '∞'}</span>
+                                    </div>
+                                    <div style={{ width: '100%', height: '6px', background: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+                                      <div style={{ width: `${pctUsed}%`, height: '100%', background: pctUsed > 80 ? '#dc2626' : '#2563eb', borderRadius: '999px' }} />
+                                    </div>
+                                  </td>
+                                  <td style={{ color: '#475569', fontSize: '12px' }}>
+                                    {cpn.expires_at ? new Date(cpn.expires_at).toLocaleDateString() : 'Never expires'}
+                                  </td>
+                                  <td>
+                                    <span className={cpn.is_active ? 'admin-badge-status-active' : 'admin-badge-status-pending'}>
+                                      {cpn.is_active ? 'Active' : 'Paused'}
+                                    </span>
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                                      <button
+                                        type="button"
+                                        className="admin-btn-secondary"
+                                        style={{ padding: '4px 8px', fontSize: '11px' }}
+                                        onClick={() => handleToggleCouponActive(cpn.id, cpn.is_active, cpn.code)}
+                                        title={cpn.is_active ? 'Pause this coupon' : 'Activate this coupon'}
+                                      >
+                                        {cpn.is_active ? 'Pause' : 'Activate'}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="admin-btn-secondary"
+                                        style={{ padding: '4px 8px', color: '#dc2626', fontSize: '11px' }}
+                                        onClick={() => handleDeleteCoupon(cpn.id, cpn.code)}
+                                        title="Delete coupon"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            });
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* ─────────────────────────────────────────────────────────────
+                  SUB-TAB 4: BILLING & PAYMENT GATEWAY SETTINGS
+              ───────────────────────────────────────────────────────────── */}
+              {plansSubTab === 'settings' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Card 1: Payment Gateway (Razorpay) */}
+                  <div className="admin-card">
+                    <div className="admin-card-header" style={{ marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+                          <CreditCard size={18} />
+                        </div>
+                        <div>
+                          <h3 className="admin-card-title" style={{ margin: 0 }}>Razorpay Payment Gateway</h3>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>Primary payment gateway for subscriptions, UPI, and credit cards</span>
+                        </div>
+                      </div>
+                      <span className="admin-badge-status-active" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckCircle size={11} />
+                        <span>Connected &amp; Live</span>
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Razorpay Key ID</label>
+                        <input
+                          type="text"
+                          value={billingSettings.razorpay_key_id || 'rzp_test_TQvXd6MQ7HJzVd'}
+                          onChange={(e) => setBillingSettings({ ...billingSettings, razorpay_key_id: e.target.value })}
+                          className="admin-form-input"
+                          placeholder="rzp_live_..."
+                        />
+                        <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                          Production API Key for Indian cards, NetBanking, and UPI QR
+                        </span>
+                      </div>
+
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Webhook Callback URL (Airvix Endpoint)</label>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <input
+                            type="text"
+                            readOnly
+                            value={`${window.location.origin}/api/payments/webhook`}
+                            className="admin-form-input"
+                            style={{ background: '#f8fafc', color: '#334155', fontWeight: 600 }}
+                          />
+                          <button
+                            type="button"
+                            className="admin-btn-secondary"
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/api/payments/webhook`);
+                              showToast('📋 Webhook URL copied to clipboard');
+                            }}
+                            title="Copy webhook URL"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                          Add this endpoint to your Razorpay Dashboard webhooks
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Taxation & GST Configuration */}
+                  <div className="admin-card">
+                    <div className="admin-card-header" style={{ marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
+                          <DollarSign size={18} />
+                        </div>
+                        <div>
+                          <h3 className="admin-card-title" style={{ margin: 0 }}>Taxation &amp; GST Invoicing</h3>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>Configure tax calculation on generated customer invoices</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Standard GST / Tax Rate (%)</label>
+                        <input
+                          type="number"
+                          value={billingSettings.tax_gst_rate}
+                          onChange={(e) => setBillingSettings({ ...billingSettings, tax_gst_rate: Number(e.target.value) || 0 })}
+                          className="admin-form-input"
+                          placeholder="18"
+                        />
+                        <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                          Default Indian SaaS IT GST is 18%
+                        </span>
+                      </div>
+
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Company GSTIN Number</label>
+                        <input
+                          type="text"
+                          value={billingSettings.gstin}
+                          onChange={(e) => setBillingSettings({ ...billingSettings, gstin: e.target.value })}
+                          className="admin-form-input"
+                          placeholder="29AAAAA0000A1Z5"
+                        />
+                        <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                          Printed on legal tax invoices and credit notes
+                        </span>
+                      </div>
+
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Legal Company Name (Invoice Header)</label>
+                        <input
+                          type="text"
+                          value={billingSettings.company_name}
+                          onChange={(e) => setBillingSettings({ ...billingSettings, company_name: e.target.value })}
+                          className="admin-form-input"
+                        />
+                      </div>
+
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Registered Office Address</label>
+                        <input
+                          type="text"
+                          value={billingSettings.company_address}
+                          onChange={(e) => setBillingSettings({ ...billingSettings, company_address: e.target.value })}
+                          className="admin-form-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Subscription & Grace Policies */}
+                  <div className="admin-card">
+                    <div className="admin-card-header" style={{ marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706' }}>
+                          <Clock size={18} />
+                        </div>
+                        <div>
+                          <h3 className="admin-card-title" style={{ margin: 0 }}>Subscription &amp; Renewal Policies</h3>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>Grace periods and automatic renewal settings</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                      <div className="admin-form-group">
+                        <label className="admin-form-label">Failed Payment Grace Period (Days)</label>
+                        <input
+                          type="number"
+                          value={billingSettings.grace_period_days}
+                          onChange={(e) => setBillingSettings({ ...billingSettings, grace_period_days: Number(e.target.value) || 0 })}
+                          className="admin-form-input"
+                          min="0"
+                          max="30"
+                        />
+                        <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                          Automations remain active for this many days after a failed renewal
+                        </span>
+                      </div>
+
+                      <div className="admin-form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                          <input
+                            type="checkbox"
+                            checked={billingSettings.auto_renewal_default}
+                            onChange={(e) => setBillingSettings({ ...billingSettings, auto_renewal_default: e.target.checked })}
+                          />
+                          <span>Enable auto-renewal on checkout by default</span>
+                        </label>
+                        <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', marginLeft: '22px' }}>
+                          Creators can cancel anytime from their account settings
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        className="admin-btn-primary"
+                        onClick={handleSaveBillingSettings}
+                        disabled={savingBillingSettings}
+                      >
+                        <Save size={14} />
+                        <span>{savingBillingSettings ? 'Saving...' : 'Save All Settings'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -3929,6 +4968,388 @@ export default function AdminView({ user, onBackToApp }) {
                 <button type="submit" className="admin-btn-primary">Save Plan</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: GENERATE / CREATE PROMO COUPON
+      ========================================================================= */}
+      {isCreatingCoupon && (
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsCreatingCoupon(false); }}>
+          <div className="admin-modal-box" style={{ maxWidth: '540px' }}>
+            <div className="admin-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Tag size={20} color="#2563eb" />
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  Generate Promotional Coupon
+                </h3>
+              </div>
+              <button type="button" onClick={() => setIsCreatingCoupon(false)} className="admin-modal-close-btn">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCoupon}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '14px 0' }}>
+                <div className="admin-form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label className="admin-form-label" style={{ margin: 0 }}>Coupon Promo Code</label>
+                    <button
+                      type="button"
+                      onClick={handleGenerateRandomCouponCode}
+                      style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <Sparkles size={12} />
+                      <span>Randomize Code</span>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={couponFormData.code}
+                    onChange={(e) => setCouponFormData({ ...couponFormData, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })}
+                    className="admin-form-input"
+                    placeholder="e.g. LAUNCH50 or SUMMERVIP"
+                    style={{ textTransform: 'uppercase', fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.8px' }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Discount Percentage (%)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={couponFormData.discount_percent}
+                      onChange={(e) => setCouponFormData({ ...couponFormData, discount_percent: e.target.value })}
+                      className="admin-form-input"
+                      placeholder="e.g. 50"
+                      required
+                    />
+                  </div>
+
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Applies To Plan</label>
+                    <select
+                      value={couponFormData.plan_slug}
+                      onChange={(e) => setCouponFormData({ ...couponFormData, plan_slug: e.target.value })}
+                      className="admin-form-select"
+                    >
+                      <option value="all">All Plans (Universal)</option>
+                      <option value="pro">Pro Creator Plan Only</option>
+                      <option value="agency">Agency &amp; Brand Only</option>
+                      <option value="enterprise">Enterprise VIP Only</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Max Redemptions Limit</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={couponFormData.max_uses}
+                      onChange={(e) => setCouponFormData({ ...couponFormData, max_uses: e.target.value })}
+                      className="admin-form-input"
+                      placeholder="100"
+                    />
+                    <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', display: 'block' }}>
+                      Leave at 100 or set custom redemption cap
+                    </span>
+                  </div>
+
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Expiration Date (Optional)</label>
+                    <input
+                      type="date"
+                      value={couponFormData.expires_at}
+                      onChange={(e) => setCouponFormData({ ...couponFormData, expires_at: e.target.value })}
+                      className="admin-form-input"
+                    />
+                    <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', display: 'block' }}>
+                      Leave blank for perpetual discount
+                    </span>
+                  </div>
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">Campaign Description / Notes</label>
+                  <input
+                    type="text"
+                    value={couponFormData.description}
+                    onChange={(e) => setCouponFormData({ ...couponFormData, description: e.target.value })}
+                    className="admin-form-input"
+                    placeholder="e.g. VIP Creator Launch Partner Discount"
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-footer">
+                <button type="button" className="admin-btn-secondary" onClick={() => setIsCreatingCoupon(false)}>Cancel</button>
+                <button type="submit" className="admin-btn-primary">Create &amp; Activate Coupon</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: CREATE / RECORD MANUAL INVOICE
+      ========================================================================= */}
+      {isCreatingInvoice && (
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsCreatingInvoice(false); }}>
+          <div className="admin-modal-box" style={{ maxWidth: '540px' }}>
+            <div className="admin-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Receipt size={20} color="#2563eb" />
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                  Generate Billing Invoice
+                </h3>
+              </div>
+              <button type="button" onClick={() => setIsCreatingInvoice(false)} className="admin-modal-close-btn">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateInvoice}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '14px 0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Customer Email</label>
+                    <input
+                      type="email"
+                      value={invoiceFormData.user_email}
+                      onChange={(e) => setInvoiceFormData({ ...invoiceFormData, user_email: e.target.value })}
+                      className="admin-form-input"
+                      placeholder="creator@example.com"
+                      required
+                    />
+                  </div>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Customer Billing Name</label>
+                    <input
+                      type="text"
+                      value={invoiceFormData.billing_name}
+                      onChange={(e) => setInvoiceFormData({ ...invoiceFormData, billing_name: e.target.value })}
+                      className="admin-form-input"
+                      placeholder="e.g. Sumit Bhardwaj"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Subscription Tier / Plan</label>
+                    <select
+                      value={invoiceFormData.plan}
+                      onChange={(e) => {
+                        const newPlan = e.target.value;
+                        const match = plansList.find(p => p.slug === newPlan);
+                        setInvoiceFormData({
+                          ...invoiceFormData,
+                          plan: newPlan,
+                          amount: match ? match.monthlyPrice : invoiceFormData.amount
+                        });
+                      }}
+                      className="admin-form-select"
+                    >
+                      <option value="free">Free Starter (₹0)</option>
+                      <option value="pro">Pro Creator (₹1,499)</option>
+                      <option value="agency">Agency &amp; Brand (₹3,999)</option>
+                      <option value="enterprise">Enterprise VIP (₹7,999)</option>
+                    </select>
+                  </div>
+
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Total Amount (₹ INR)</label>
+                    <input
+                      type="number"
+                      value={invoiceFormData.amount}
+                      onChange={(e) => setInvoiceFormData({ ...invoiceFormData, amount: e.target.value })}
+                      className="admin-form-input"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Payment Gateway / Method</label>
+                    <select
+                      value={invoiceFormData.gateway}
+                      onChange={(e) => setInvoiceFormData({ ...invoiceFormData, gateway: e.target.value })}
+                      className="admin-form-select"
+                    >
+                      <option value="razorpay">Razorpay (UPI / Cards)</option>
+                      <option value="bank_transfer">Direct Bank NEFT / IMPS</option>
+                      <option value="upi_direct">UPI Direct (GPay / PhonePe)</option>
+                      <option value="manual">Manual Admin Entry</option>
+                    </select>
+                  </div>
+
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Payment Status</label>
+                    <select
+                      value={invoiceFormData.status}
+                      onChange={(e) => setInvoiceFormData({ ...invoiceFormData, status: e.target.value })}
+                      className="admin-form-select"
+                    >
+                      <option value="paid">🟢 Paid (Settled)</option>
+                      <option value="pending">⏳ Pending Payment</option>
+                      <option value="refunded">⚪ Refunded</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">Customer GSTIN (Optional)</label>
+                  <input
+                    type="text"
+                    value={invoiceFormData.gst_number}
+                    onChange={(e) => setInvoiceFormData({ ...invoiceFormData, gst_number: e.target.value })}
+                    className="admin-form-input"
+                    placeholder="e.g. 29AAAAA0000A1Z5"
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-footer">
+                <button type="button" className="admin-btn-secondary" onClick={() => setIsCreatingInvoice(false)}>Cancel</button>
+                <button type="submit" className="admin-btn-primary">Generate &amp; Save Invoice</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: PROFESSIONAL PRINTABLE INVOICE SLIP
+      ========================================================================= */}
+      {selectedInvoiceSlip && (
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedInvoiceSlip(null); }}>
+          <div className="admin-modal-box" style={{ maxWidth: '640px', padding: '28px', background: '#ffffff', color: '#0f172a' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #e2e8f0', paddingBottom: '18px', marginBottom: '20px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <div style={{ width: '28px', height: '28px', background: '#2563eb', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+                    <Send size={15} />
+                  </div>
+                  <span style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.5px' }}>Airvix</span>
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748b', lineHeight: 1.4 }}>
+                  {billingSettings.company_name}<br />
+                  {billingSettings.company_address}<br />
+                  GSTIN: {billingSettings.gstin || '29AAAAA0000A1Z5'}
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '16px', fontWeight: 800, color: '#2563eb' }}>TAX INVOICE</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', margin: '2px 0' }}>
+                  {selectedInvoiceSlip.invoice_number || selectedInvoiceSlip.id}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                  Date: {selectedInvoiceSlip.formatted_date || (selectedInvoiceSlip.created_at ? new Date(selectedInvoiceSlip.created_at).toLocaleDateString() : 'Paid')}
+                </div>
+                <span className={selectedInvoiceSlip.status === 'paid' ? 'admin-badge-status-active' : 'admin-badge-status-pending'} style={{ marginTop: '6px', display: 'inline-block' }}>
+                  {selectedInvoiceSlip.status === 'paid' ? 'PAID & SETTLED' : selectedInvoiceSlip.status.toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            {/* Customer Details */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+                BILLED TO:
+              </div>
+              <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '14px' }}>
+                {selectedInvoiceSlip.user_name || selectedInvoiceSlip.billing_name || 'Creator Customer'}
+              </div>
+              <div style={{ fontSize: '12.5px', color: '#475569' }}>
+                {selectedInvoiceSlip.user_email_full || selectedInvoiceSlip.user_email_masked || selectedInvoiceSlip.billing_email}
+              </div>
+              {selectedInvoiceSlip.gst_number && (
+                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                  Customer GSTIN: {selectedInvoiceSlip.gst_number}
+                </div>
+              )}
+            </div>
+
+            {/* Line Items Table */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1.5px solid #e2e8f0', textAlign: 'left', fontSize: '12px', color: '#64748b' }}>
+                  <th style={{ padding: '8px 0' }}>ITEM DESCRIPTION</th>
+                  <th style={{ padding: '8px 0', textAlign: 'center' }}>QTY</th>
+                  <th style={{ padding: '8px 0', textAlign: 'right' }}>AMOUNT</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
+                  <td style={{ padding: '12px 0' }}>
+                    <div style={{ fontWeight: 700, color: '#0f172a', textTransform: 'capitalize' }}>
+                      Airvix {selectedInvoiceSlip.plan || 'Pro'} Automation Plan
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                      Instagram DM Automation, Follow-Gating &amp; Interactive Cards (1 Month)
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 0', textAlign: 'center', color: '#475569' }}>1</td>
+                  <td style={{ padding: '12px 0', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
+                    ₹{Math.round(selectedInvoiceSlip.amount / 1.18).toLocaleString('en-IN')}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Financial Breakdown */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+              <div style={{ width: '240px', fontSize: '12.5px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#64748b' }}>
+                  <span>Subtotal:</span>
+                  <span style={{ fontWeight: 600, color: '#0f172a' }}>₹{Math.round(selectedInvoiceSlip.amount / 1.18).toLocaleString('en-IN')}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#64748b' }}>
+                  <span>CGST (9%):</span>
+                  <span style={{ fontWeight: 600, color: '#0f172a' }}>₹{Math.round((selectedInvoiceSlip.amount / 1.18) * 0.09).toLocaleString('en-IN')}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#64748b' }}>
+                  <span>SGST (9%):</span>
+                  <span style={{ fontWeight: 600, color: '#0f172a' }}>₹{Math.round((selectedInvoiceSlip.amount / 1.18) * 0.09).toLocaleString('en-IN')}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '2px solid #0f172a', marginTop: '6px', fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                  <span>Total Paid:</span>
+                  <span>₹{Number(selectedInvoiceSlip.amount).toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Gateway Info */}
+            <div style={{ fontSize: '11px', color: '#64748b', borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginBottom: '20px' }}>
+              Paid via {selectedInvoiceSlip.gateway || 'Razorpay Online Payments'} • Transaction Ref: {selectedInvoiceSlip.gateway_payment_id || selectedInvoiceSlip.id}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="admin-btn-secondary"
+                onClick={() => setSelectedInvoiceSlip(null)}
+              >
+                Close Receipt
+              </button>
+
+              <button
+                type="button"
+                className="admin-btn-primary"
+                onClick={() => window.print()}
+              >
+                <Printer size={14} />
+                <span>Print / Download PDF</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
