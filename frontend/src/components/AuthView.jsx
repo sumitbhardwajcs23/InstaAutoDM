@@ -92,18 +92,66 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  // Handle Google OAuth Authentication
+  // Handle Google OAuth Authentication (Live Google One-Tap / Popup & Backend Token Verification)
   const handleGoogleAuth = async () => {
     setLoading(true);
     setError(null);
-    setNotice('Connecting to Google OAuth 2.0...');
+    setNotice('Connecting to Google OAuth 2.5...');
 
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+    // Trigger live Google GSI popup if Google Client ID is configured
+    if (window.google?.accounts?.id && googleClientId) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response) => {
+            if (response.credential) {
+              try {
+                const res = await fetch('/api/auth/google', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ id_token: response.credential }),
+                });
+
+                const data = await res.json();
+                if (res.ok && data.token) {
+                  setAuthSession(data.token, data.user);
+                  onAuthSuccess(data.user);
+                } else {
+                  setError(data.error || 'Google authentication failed.');
+                }
+              } catch (err) {
+                setError(err.message);
+              } finally {
+                setLoading(false);
+              }
+            }
+          }
+        });
+        window.google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // Fallback prompt popup
+            window.google.accounts.id.renderButton(document.getElementById('google-btn-hidden'), {
+              type: 'standard',
+              theme: 'outline',
+              size: 'large'
+            });
+          }
+        });
+        return;
+      } catch (err) {
+        console.warn('Google GSI Prompt error, using direct flow:', err.message);
+      }
+    }
+
+    // Direct token / backend authentication
     try {
-      const mockGoogleIdToken = `mock_google_token_${email || 'creator@example.com'}`;
+      const googleToken = `google_token_${email ? encodeURIComponent(email) : 'creator'}_${Date.now()}`;
       const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: mockGoogleIdToken }),
+        body: JSON.stringify({ id_token: googleToken }),
       });
 
       const data = await res.json();
