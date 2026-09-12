@@ -237,10 +237,11 @@ router.post('/login', authLimiter, async (req, res) => {
 });
 
 /**
- * EMAIL + PASSWORD SIGNUP
- * POST /api/auth/register
+/**
+ * EMAIL + PASSWORD SIGNUP: STEP 1 - REQUEST VERIFICATION OTP
+ * POST /api/auth/register-request
  */
-router.post('/register', authLimiter, async (req, res) => {
+router.post('/register-request', authLimiter, async (req, res) => {
   try {
     const { email, password, name } = req.body;
     if (!email || !password) {
@@ -251,24 +252,87 @@ router.post('/register', authLimiter, async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const existing = await db.prepare('SELECT id, password_hash FROM users WHERE email = ?').get(normalizedEmail);
+    const existing = await db.prepare('SELECT id, password_hash, email_verified FROM users WHERE email = ?').get(normalizedEmail);
 
-    if (existing && existing.password_hash) {
+    if (existing && existing.password_hash && existing.email_verified) {
       return res.status(409).json({ error: 'An account with this email already exists. Please log in.' });
     }
 
-    // UNIFIED ACCOUNT LINKING: Attach password auth to canonical user record
+    // Generate secure 6-digit OTP for signup verification
+    const { rawOtp, expiresAt } = await createOtpToken({
+      email: normalizedEmail,
+      purpose: 'signup_otp',
+      ttlMinutes: 10,
+    });
+
+    // Send verification OTP email via Resend
+    const sendResult = await sendEmailVerificationOtpEmail({
+      email: normalizedEmail,
+      otp: rawOtp,
+      name: name || normalizedEmail.split('@')[0],
+    });
+
+    res.json({
+      success: true,
+      message: `A 6-digit verification code has been sent to ${normalizedEmail}. Please enter the code to complete your registration.`,
+      expires_at: expiresAt,
+      ...(sendResult.simulated && process.env.NODE_ENV !== 'production' ? { dev_otp: rawOtp } : {})
+    });
+  } catch (err) {
+    console.error('[Auth] Register request error:', err.message);
+    res.status(400).json({ error: err.message || 'Failed to send verification code. Please try again.' });
+  }
+});
+
+/**
+ * EMAIL + PASSWORD SIGNUP: STEP 2 - VERIFY OTP & CREATE ACCOUNT
+ * POST /api/auth/register
+ */
+router.post('/register', authLimiter, async (req, res) => {
+  try {
+    const { email, password, name, otp } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // If OTP is supplied, verify it first before creating account
+    if (otp) {
+      const otpResult = await verifyOtpToken({
+        email: normalizedEmail,
+        purpose: 'signup_otp',
+        otp,
+      });
+
+      if (!otpResult.valid) {
+        return res.status(400).json({ error: otpResult.error });
+      }
+    }
+
+    const existing = await db.prepare('SELECT id, password_hash, email_verified FROM users WHERE email = ?').get(normalizedEmail);
+    if (existing && existing.password_hash && existing.email_verified) {
+      return res.status(409).json({ error: 'An account with this email already exists. Please log in.' });
+    }
+
+    // UNIFIED ACCOUNT LINKING: Create canonical user with verified status
     const user = await findOrCreateCanonicalUser({
       email: normalizedEmail,
       name,
       password,
-      emailVerified: 0,
+      emailVerified: 1,
       provider: 'password',
       providerAccountId: normalizedEmail,
     });
 
     const sessionBundle = await createUserSession(user, req);
-    res.status(201).json(sessionBundle);
+    res.status(201).json({
+      ...sessionBundle,
+      message: 'Account created and verified successfully!'
+    });
   } catch (err) {
     console.error('[Auth] Register error:', err.message);
     res.status(500).json({ error: err.message || 'Registration failed. Please try again.' });

@@ -15,7 +15,6 @@ import {
   X,
   KeyRound,
   Send,
-  Sparkles,
   RefreshCw
 } from 'lucide-react';
 import { setAuthSession } from '../api/client';
@@ -43,24 +42,24 @@ const GoogleIcon = () => (
 );
 
 export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackToLanding }) {
-  // Modes: 'login' | 'signup' | 'otp_request' | 'otp_verify' | 'forgot_password' | 'reset_password'
-  const [authMethod, setAuthMethod] = useState('otp'); // 'otp' or 'password'
-  const [mode, setMode] = useState(initialMode);
+  const [mode, setMode] = useState(initialMode); // 'login' or 'signup'
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [otpStep, setOtpStep] = useState('request'); // 'request' or 'verify'
+  
+  // 2-step Signup with OTP verification
+  const [signupStep, setSignupStep] = useState('form'); // 'form' or 'verify_otp'
+  const [signupOtp, setSignupOtp] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
 
   // Forgot Password Modal state
   const [showResetModal, setShowResetModal] = useState(false);
-  const [resetStep, setResetStep] = useState('request'); // 'request' | 'verify'
+  const [resetStep, setResetStep] = useState('request');
   const [resetEmail, setResetEmail] = useState('');
   const [resetOtp, setResetOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -89,7 +88,6 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
     setNotice('Connecting to Google OAuth 2.0...');
 
     try {
-      // Simulate/trigger Google OAuth credential or token exchange
       const mockGoogleIdToken = `mock_google_token_${email || 'creator@example.com'}`;
       const res = await fetch('/api/auth/google', {
         method: 'POST',
@@ -111,90 +109,18 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
     }
   };
 
-  // Handle Request Email OTP
-  const handleRequestOtp = async (e) => {
-    if (e) e.preventDefault();
-    if (!email) {
-      setError('Please enter your email address to receive an OTP code.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setNotice(null);
-
-    try {
-      const res = await fetch('/api/auth/email-otp/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setNotice(data.message || `A 6-digit code has been sent to ${email}`);
-        if (data.dev_otp) {
-          setOtp(data.dev_otp);
-        }
-        setOtpStep('verify');
-        setResendTimer(60);
-      } else {
-        throw new Error(data.error || 'Failed to send OTP code.');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle Verify Email OTP
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    if (!otp || otp.length < 6) {
-      setError('Please enter the full 6-digit verification code.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch('/api/auth/email-otp/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.token) {
-        setAuthSession(data.token, data.user);
-        onAuthSuccess(data.user);
-      } else {
-        throw new Error(data.error || 'Invalid or expired OTP code.');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle Traditional Email + Password Login / Signup
-  const handlePasswordSubmit = async (e) => {
+  // Handle Traditional Password Login
+  const handlePasswordLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setNotice(null);
 
-    const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-    const body = mode === 'login' ? { email, password } : { name, email, password };
-
     try {
-      const res = await fetch(endpoint, {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
@@ -203,6 +129,79 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
         onAuthSuccess(data.user);
       } else {
         throw new Error(data.message || data.error || 'Authentication failed.');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Signup Step 1: Submit Name, Email, Password -> Send Verification OTP
+  const handleSignupRequest = async (e) => {
+    if (e) e.preventDefault();
+    if (!name || !email || !password) {
+      setError('Name, email, and password are required for registration.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const res = await fetch('/api/auth/register-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setNotice(data.message || `A 6-digit verification code has been sent to ${email}`);
+        if (data.dev_otp) {
+          setSignupOtp(data.dev_otp);
+        }
+        setSignupStep('verify_otp');
+        setResendTimer(60);
+      } else {
+        throw new Error(data.error || 'Registration failed. Please check details and try again.');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Signup Step 2: Verify OTP & Complete Account Creation
+  const handleSignupVerify = async (e) => {
+    e.preventDefault();
+    if (!signupOtp || signupOtp.length < 6) {
+      setError('Please enter the 6-digit verification code sent to your email.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, otp: signupOtp }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.token) {
+        setAuthSession(data.token, data.user);
+        onAuthSuccess(data.user);
+      } else {
+        throw new Error(data.error || 'Invalid verification code. Please try again.');
       }
     } catch (err) {
       setError(err.message);
@@ -307,25 +306,27 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
             {mode === 'login' ? 'Welcome to Airvix' : 'Create your Airvix account'}
           </h1>
           <p className="auth-subtitle">
-            Single Unified Account per Creator. Connect seamlessly with Google, Email OTP, or Password.
+            {mode === 'login' 
+              ? 'Log in to manage your automated Instagram conversations.' 
+              : 'Join creators turning comments into customers.'}
           </p>
         </div>
 
-        {/* Auth Method Selector */}
+        {/* Tab Switcher: Sign In vs Create Account */}
         <div className="auth-tab-pill">
           <button
             type="button"
-            className={`auth-tab-btn ${authMethod === 'otp' ? 'active' : ''}`}
-            onClick={() => { setAuthMethod('otp'); setError(null); setNotice(null); }}
+            className={`auth-tab-btn ${mode === 'login' ? 'active' : ''}`}
+            onClick={() => { setMode('login'); setError(null); setNotice(null); setSignupStep('form'); }}
           >
-            Email OTP (Passwordless)
+            Sign In
           </button>
           <button
             type="button"
-            className={`auth-tab-btn ${authMethod === 'password' ? 'active' : ''}`}
-            onClick={() => { setAuthMethod('password'); setError(null); setNotice(null); }}
+            className={`auth-tab-btn ${mode === 'signup' ? 'active' : ''}`}
+            onClick={() => { setMode('signup'); setError(null); setNotice(null); setSignupStep('form'); }}
           >
-            Email + Password
+            Create Account
           </button>
         </div>
 
@@ -356,142 +357,29 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
           <span>or continue with email</span>
         </div>
 
-        {/* EMAIL OTP FLOW */}
-        {authMethod === 'otp' && (
-          <div>
-            {otpStep === 'request' ? (
-              <form onSubmit={handleRequestOtp} className="auth-form-fields">
-                <div className="auth-input-group">
-                  <label className="auth-input-label">Your Email Address</label>
-                  <div className="auth-input-box">
-                    <Mail size={16} className="auth-input-icon" />
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="name@company.com"
-                      className="auth-text-input"
-                      autoComplete="email"
-                    />
-                  </div>
-                </div>
-
-                <button type="submit" disabled={loading} className="auth-submit-btn">
-                  {loading ? (
-                    <span>Sending Code...</span>
-                  ) : (
-                    <>
-                      <span>Send 6-Digit Login Code</span>
-                      <Send size={15} />
-                    </>
-                  )}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyOtp} className="auth-form-fields">
-                <div className="auth-input-group">
-                  <div className="auth-input-label-row">
-                    <label className="auth-input-label">Enter 6-Digit OTP Code</label>
-                    <button
-                      type="button"
-                      onClick={() => setOtpStep('request')}
-                      style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '12px', cursor: 'pointer' }}
-                    >
-                      Change Email
-                    </button>
-                  </div>
-                  <div className="auth-input-box">
-                    <KeyRound size={16} className="auth-input-icon" />
-                    <input
-                      type="text"
-                      required
-                      maxLength={6}
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                      placeholder="123456"
-                      className="auth-text-input"
-                      style={{ letterSpacing: '4px', fontWeight: 'bold' }}
-                      autoFocus
-                    />
-                  </div>
-                </div>
-
-                <button type="submit" disabled={loading} className="auth-submit-btn">
-                  {loading ? (
-                    <span>Verifying Code...</span>
-                  ) : (
-                    <>
-                      <span>Verify & Sign In</span>
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
-
-                <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    disabled={resendTimer > 0 || loading}
-                    onClick={handleRequestOtp}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: resendTimer > 0 ? '#64748b' : '#818cf8',
-                      fontSize: '13px',
-                      cursor: resendTimer > 0 ? 'not-allowed' : 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <RefreshCw size={13} className={loading ? 'spin' : ''} />
-                    <span>{resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend OTP Code'}</span>
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        )}
-
-        {/* EMAIL + PASSWORD FLOW */}
-        {authMethod === 'password' && (
-          <form onSubmit={handlePasswordSubmit} className="auth-form-fields">
-            {mode === 'signup' && (
+        {/* SIGN IN vs CREATE ACCOUNT FORM */}
+        <div>
+          {mode === 'login' ? (
+            /* LOGIN FORM */
+            <form onSubmit={handlePasswordLogin} className="auth-form-fields">
               <div className="auth-input-group">
-                <label className="auth-input-label">Full Name</label>
+                <label className="auth-input-label">Email Address</label>
                 <div className="auth-input-box">
-                  <User size={16} className="auth-input-icon" />
+                  <Mail size={16} className="auth-input-icon" />
                   <input
-                    type="text"
+                    type="email"
                     required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Alex Rivera"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@company.com"
                     className="auth-text-input"
                   />
                 </div>
               </div>
-            )}
 
-            <div className="auth-input-group">
-              <label className="auth-input-label">Email Address</label>
-              <div className="auth-input-box">
-                <Mail size={16} className="auth-input-icon" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@company.com"
-                  className="auth-text-input"
-                />
-              </div>
-            </div>
-
-            <div className="auth-input-group">
-              <div className="auth-input-label-row">
-                <label className="auth-input-label">Password</label>
-                {mode === 'login' && (
+              <div className="auth-input-group">
+                <div className="auth-input-label-row">
+                  <label className="auth-input-label">Password</label>
                   <button
                     type="button"
                     onClick={handleForgotPasswordClick}
@@ -499,54 +387,204 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                   >
                     Forgot password?
                   </button>
-                )}
+                </div>
+                <div className="auth-input-box">
+                  <Lock size={16} className="auth-input-icon" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="auth-text-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="auth-eye-toggle"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
-              <div className="auth-input-box">
-                <Lock size={16} className="auth-input-icon" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="auth-text-input"
-                />
+
+              <button type="submit" disabled={loading} className="auth-submit-btn">
+                {loading ? (
+                  <span>Authenticating...</span>
+                ) : (
+                  <>
+                    <span>Sign In to Workspace</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+
+              <div style={{ textAlign: 'center', marginTop: '14px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="auth-eye-toggle"
+                  onClick={() => {
+                    setMode('signup');
+                    setSignupStep('form');
+                    setError(null);
+                    setNotice(null);
+                  }}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '13px', cursor: 'pointer' }}
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  Don't have an account? Create one
                 </button>
               </div>
-            </div>
+            </form>
+          ) : (
+            /* CREATE ACCOUNT FORM WITH EMAIL OTP VERIFICATION */
+            <div>
+              {signupStep === 'form' ? (
+                /* STEP 1: Enter Name, Email, Password -> Send Verification OTP */
+                <form onSubmit={handleSignupRequest} className="auth-form-fields">
+                  <div className="auth-input-group">
+                    <label className="auth-input-label">Full Name</label>
+                    <div className="auth-input-box">
+                      <User size={16} className="auth-input-icon" />
+                      <input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Alex Rivera"
+                        className="auth-text-input"
+                      />
+                    </div>
+                  </div>
 
-            <button type="submit" disabled={loading} className="auth-submit-btn">
-              {loading ? (
-                <span>Authenticating...</span>
+                  <div className="auth-input-group">
+                    <label className="auth-input-label">Email Address</label>
+                    <div className="auth-input-box">
+                      <Mail size={16} className="auth-input-icon" />
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="name@company.com"
+                        className="auth-text-input"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="auth-input-group">
+                    <label className="auth-input-label">Password</label>
+                    <div className="auth-input-box">
+                      <Lock size={16} className="auth-input-icon" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        minLength={6}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="At least 6 characters"
+                        className="auth-text-input"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="auth-eye-toggle"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={loading} className="auth-submit-btn">
+                    {loading ? (
+                      <span>Sending OTP Code...</span>
+                    ) : (
+                      <>
+                        <span>Create Account & Verify OTP</span>
+                        <Send size={15} />
+                      </>
+                    )}
+                  </button>
+
+                  <div style={{ textAlign: 'center', marginTop: '14px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('login');
+                        setError(null);
+                        setNotice(null);
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '13px', cursor: 'pointer' }}
+                    >
+                      Already have an account? Sign In
+                    </button>
+                  </div>
+                </form>
               ) : (
-                <>
-                  <span>{mode === 'login' ? 'Sign In to Workspace' : 'Create Free Account'}</span>
-                  <ArrowRight size={16} />
-                </>
-              )}
-            </button>
+                /* STEP 2: Enter 6-Digit Email Verification OTP */
+                <form onSubmit={handleSignupVerify} className="auth-form-fields">
+                  <div className="auth-input-group">
+                    <div className="auth-input-label-row">
+                      <label className="auth-input-label">Enter 6-Digit Verification Code</label>
+                      <button
+                        type="button"
+                        onClick={() => setSignupStep('form')}
+                        style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '12px', cursor: 'pointer' }}
+                      >
+                        Edit Details
+                      </button>
+                    </div>
+                    <div className="auth-input-box">
+                      <KeyRound size={16} className="auth-input-icon" />
+                      <input
+                        type="text"
+                        required
+                        maxLength={6}
+                        value={signupOtp}
+                        onChange={(e) => setSignupOtp(e.target.value.replace(/\D/g, ''))}
+                        placeholder="123456"
+                        className="auth-text-input"
+                        style={{ letterSpacing: '4px', fontWeight: 'bold' }}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
 
-            <div style={{ textAlign: 'center', marginTop: '14px' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode(mode === 'login' ? 'signup' : 'login');
-                  setError(null);
-                }}
-                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '13px', cursor: 'pointer' }}
-              >
-                {mode === 'login' ? "Don't have an account? Create one" : 'Already have an account? Sign In'}
-              </button>
+                  <button type="submit" disabled={loading} className="auth-submit-btn">
+                    {loading ? (
+                      <span>Verifying & Creating Account...</span>
+                    ) : (
+                      <>
+                        <span>Verify Code & Complete Registration</span>
+                        <ArrowRight size={16} />
+                      </>
+                    )}
+                  </button>
+
+                  <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      disabled={resendTimer > 0 || loading}
+                      onClick={handleSignupRequest}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: resendTimer > 0 ? '#64748b' : '#818cf8',
+                        fontSize: '13px',
+                        cursor: resendTimer > 0 ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <RefreshCw size={13} className={loading ? 'spin' : ''} />
+                      <span>{resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend Verification Code'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
-          </form>
-        )}
+          )}
+        </div>
 
         <div className="auth-trust-badges">
           <div className="auth-trust-item">
