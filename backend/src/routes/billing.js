@@ -68,7 +68,8 @@ async function resolvePlanPrice(planSlug, cycle) {
     const match = adminPlans.find(p =>
       (p.slug || '').toLowerCase().trim() === normSlug ||
       (p.name || '').toLowerCase().trim() === normSlug ||
-      (p.id || '').toLowerCase().trim() === normSlug
+      (p.id || '').toLowerCase().trim() === normSlug ||
+      (normSlug === 'enterprise' && ((p.slug || '').toLowerCase() === 'scale' || (p.badge || '').toUpperCase() === 'ENTERPRISE'))
     );
     if (match) {
       const monthly = Number(match.monthlyPrice) || 0;
@@ -240,10 +241,14 @@ const handleCreateOrder = async (req, res) => {
     const planKey = plan.toLowerCase();
 
     // Resolve price dynamically from admin configuration
-    const { price: priceInr, planName } = await resolvePlanPrice(planKey, cycle);
+    const { price: priceInr, planName, plan: matchedPlan } = await resolvePlanPrice(planKey, cycle);
     if (priceInr === 0 && planKey !== 'free' && planKey !== 'starter') {
       return res.status(400).json({ error: `Invalid plan selected: '${planKey}'. No pricing found.` });
     }
+
+    // Canonical plan slug for payment gateways (Razorpay / Stripe)
+    // Must be a valid pricing_plans.slug (e.g. 'scale' for enterprise tier)
+    const canonicalPlan = matchedPlan?.slug || (planKey === 'enterprise' ? 'scale' : planKey);
 
     // Apply promo coupon if provided (with 3NF relational validation)
     let appliedCoupon = null;
@@ -292,7 +297,7 @@ const handleCreateOrder = async (req, res) => {
             receipt: `rcpt_${userId.slice(0, 8)}_${Date.now().toString().slice(-6)}`,
             notes: {
               user_id: userId,
-              plan: planKey,
+              plan: canonicalPlan,
               cycle: cycle === 'yearly' ? 'yearly' : 'monthly',
               coupon_id: appliedCoupon?.id || '',
               coupon_code: appliedCoupon?.code || ''
@@ -363,7 +368,8 @@ router.post('/verify-payment', async (req, res) => {
     } = req.body;
 
     const planKey = plan.toLowerCase();
-    const { price: priceInr } = await resolvePlanPrice(planKey, cycle);
+    const { price: priceInr, plan: matchedPlan } = await resolvePlanPrice(planKey, cycle);
+    const canonicalPlan = matchedPlan?.slug || (planKey === 'enterprise' ? 'scale' : planKey);
     const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
     const isLiveConfigured = rzpKeySecret && !rzpKeySecret.includes('placeholder');
 
@@ -392,7 +398,7 @@ router.post('/verify-payment', async (req, res) => {
         amount: priceInr,
         notes: {
           user_id: userId,
-          plan: planKey,
+          plan: canonicalPlan,
           cycle: cycle === 'yearly' ? 'yearly' : 'monthly',
           coupon_id: coupon_id || null,
           coupon_code: coupon_code || null

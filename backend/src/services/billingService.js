@@ -168,8 +168,53 @@ class BillingService {
     const notes = paymentEntity.notes || subEntity.notes || payload.notes || {};
 
     const userId = notes.user_id || payload.user_id || payload.customer_id;
-    const plan = (notes.plan || payload.plan || 'pro').toLowerCase();
     const cycle = notes.cycle || payload.cycle || 'monthly';
+
+    // ── Plan validation against pricing_plans (SSOT for plan definitions) ──
+    // Prevents arbitrary plan values (e.g. 'custom-vip', 'enterprise') from
+    // being persisted to subscriptions.plan. Only valid pricing_plans slugs
+    // are accepted. Unknown values are rejected with an explicit warning and
+    // the event is logged as-is but not applied to the subscription.
+    const rawPlan = (notes.plan || payload.plan || '').toLowerCase().trim();
+    let plan = rawPlan;
+    if (rawPlan) {
+      try {
+        const validPlan = await db.prepare(
+          `SELECT slug FROM pricing_plans WHERE (slug = ? OR id = ?) AND is_active = 1 LIMIT 1`
+        ).get(rawPlan, rawPlan);
+        if (validPlan) {
+          plan = validPlan.slug;
+        } else {
+          // Plan slug not found in pricing_plans — reject and halt processing
+          console.error(
+            `[BillingWebhook] ❌ INVALID PLAN REJECTED: '${rawPlan}' is not a valid pricing_plans slug. ` +
+            `Event: ${idempotencyKey}, gateway: ${gateway}. ` +
+            `Valid slugs must exist in pricing_plans table. ` +
+            `Update notes.plan in the payment gateway to a valid slug before retrying.`
+          );
+          // Update webhook event status to reflect rejection
+          await db.prepare(
+            `UPDATE payment_webhook_events SET status = 'rejected', error_message = ? WHERE idempotency_key = ?`
+          ).run(`Invalid plan slug: '${rawPlan}' not in pricing_plans`, idempotencyKey).catch(() => {});
+          return {
+            duplicate: false,
+            processed: false,
+            error: `Invalid plan identifier: '${rawPlan}'. Must be a valid pricing_plans slug.`,
+            rejectionReason: 'plan_not_in_pricing_plans'
+          };
+        }
+      } catch (planValidationErr) {
+        // pricing_plans lookup failed (e.g. table not yet seeded) — use safe fallback
+        console.warn(
+          `[BillingWebhook] ⚠️ Could not validate plan '${rawPlan}' against pricing_plans: ${planValidationErr.message}. ` +
+          `Falling back to 'free'. Fix pricing_plans table or DB connection.`
+        );
+        plan = 'free';
+      }
+    } else {
+      // No plan in webhook notes — default to free
+      plan = 'free';
+    }
     
     let rawAmount = paymentEntity.amount !== undefined ? paymentEntity.amount : (payload.amount || PLAN_PRICES[plan]?.[cycle] || 1499);
     // Convert paise/cents to standard units if necessary
