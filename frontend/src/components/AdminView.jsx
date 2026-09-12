@@ -224,9 +224,8 @@ export default function AdminView({ user, onBackToApp }) {
   // Granular Permission Evaluation Helper
   const hasPermission = useCallback((powerKey) => {
     if (!user) return false;
-    // Superadmin or root administrative email has universal bypass
-    const ROOT_EMAILS = ['sumitbhardwaj2227@gmail.com'];
-    if (user.admin_role === 'superadmin' || ROOT_EMAILS.includes(user.email?.toLowerCase()?.trim())) return true;
+    // Superadmin or root administrative role has universal bypass directly from database
+    if (user.admin_role === 'superadmin' || user.is_root || user.is_immutable) return true;
     
     let perms = user.permissions || [];
     if (typeof perms === 'string') {
@@ -4974,12 +4973,12 @@ export default function AdminView({ user, onBackToApp }) {
                         </tr>
                       ) : (
                         subadminsList.map((adm) => {
-                          const isRoot = adm.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com';
+                          const isRoot = Boolean(adm.is_root || adm.is_immutable || (adm.role === 'superadmin' && !adm.created_by));
                           let perms = adm.permissions || [];
                           if (typeof perms === 'string') {
                             try { perms = JSON.parse(perms); } catch (e) { perms = []; }
                           }
-                          const isUniversal = adm.role === 'superadmin' || perms.includes('*');
+                          const isUniversal = isRoot || adm.role === 'superadmin' || perms.includes('*');
 
                           return (
                             <tr key={adm.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -6072,7 +6071,7 @@ export default function AdminView({ user, onBackToApp }) {
 
             <form onSubmit={subadminModalMode === 'create' ? handleCreateSubadmin : handleUpdateSubadmin}>
               <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {subadminModalMode === 'edit' && selectedSubadmin?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com' && (
+                {subadminModalMode === 'edit' && Boolean(selectedSubadmin?.is_root || selectedSubadmin?.is_immutable || (selectedSubadmin?.role === 'superadmin' && !selectedSubadmin?.created_by)) && (
                   <div style={{
                     padding: '12px 14px',
                     borderRadius: '8px',
@@ -6135,11 +6134,11 @@ export default function AdminView({ user, onBackToApp }) {
                   ) : (
                     <div className="admin-form-group">
                       <label className="admin-form-label">
-                        Account Status {selectedSubadmin?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com' ? '(Locked Active)' : ''}
+                        Account Status {Boolean(selectedSubadmin?.is_root || selectedSubadmin?.is_immutable) ? '(Locked Active)' : ''}
                       </label>
                       <select
                         className="admin-form-select"
-                        disabled={selectedSubadmin?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'}
+                        disabled={Boolean(selectedSubadmin?.is_root || selectedSubadmin?.is_immutable)}
                         value={subadminFormData.status || 'active'}
                         onChange={(e) => setSubadminFormData({ ...subadminFormData, status: e.target.value })}
                       >
@@ -6151,11 +6150,11 @@ export default function AdminView({ user, onBackToApp }) {
 
                   <div className="admin-form-group">
                     <label className="admin-form-label">
-                      Administrator Role Level {selectedSubadmin?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com' ? '(Locked Super Admin)' : ''}
+                      Administrator Role Level {Boolean(selectedSubadmin?.is_root || selectedSubadmin?.is_immutable) ? '(Locked Super Admin)' : ''}
                     </label>
                     <select
                       className="admin-form-select"
-                      disabled={selectedSubadmin?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'}
+                      disabled={Boolean(selectedSubadmin?.is_root || selectedSubadmin?.is_immutable)}
                       value={subadminFormData.role}
                       onChange={(e) => {
                         const newRole = e.target.value;
@@ -6306,7 +6305,7 @@ export default function AdminView({ user, onBackToApp }) {
                 <Lock size={20} color="#2563eb" />
                 <div>
                   <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
-                    {selectedSubadmin.role === 'superadmin' || selectedSubadmin.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'
+                    {selectedSubadmin.role === 'superadmin' || selectedSubadmin.is_root || selectedSubadmin.is_immutable
                       ? 'Reset Super Admin Password'
                       : 'Reset Administrator Password'}
                   </h3>
@@ -6321,7 +6320,7 @@ export default function AdminView({ user, onBackToApp }) {
             <form onSubmit={handleResetSubadminPassword}>
               <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>
-                  {selectedSubadmin.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'
+                  {Boolean(selectedSubadmin.is_root || selectedSubadmin.is_immutable)
                     ? 'Set a new password for the Root Super Administrator. The updated credential will be immediately synchronized to the database.'
                     : 'Set a new temporary or permanent password for this administrator. Their previous credentials will immediately cease functioning.'}
                 </div>
@@ -6373,7 +6372,7 @@ export default function AdminView({ user, onBackToApp }) {
                 <KeyRound size={20} color="#2563eb" />
                 <div>
                   <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
-                    {user?.admin_role === 'superadmin' || user?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'
+                    {user?.admin_role === 'superadmin' || user?.is_root || user?.is_immutable
                       ? 'Reset Super Admin Password'
                       : 'Change Administrator Password'}
                   </h3>
@@ -6407,7 +6406,7 @@ export default function AdminView({ user, onBackToApp }) {
 
                 <div className="admin-form-group">
                   <label className="admin-form-label">
-                    {user?.admin_role === 'superadmin' || user?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'
+                    {user?.admin_role === 'superadmin' || user?.is_root || user?.is_immutable
                       ? 'Current Password (Optional for Super Admin)'
                       : 'Current Password (Leave blank if none set)'}
                   </label>

@@ -21,7 +21,7 @@ import '../styles/admin-login.css';
 
 export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
   const [authMode, setAuthMode] = useState('otp'); // 'otp' | 'password'
-  const [email, setEmail] = useState('sumitbhardwaj2227@gmail.com');
+  const [email, setEmail] = useState(() => localStorage.getItem('admin_last_email') || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
@@ -147,6 +147,7 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
       const data = await res.json();
       if (res.ok && data.token && data.user) {
         setAuthSession(data.token, data.user);
+        try { localStorage.setItem('admin_last_email', email.trim()); } catch (e) {}
         setNotice('✅ Identity Verified! Redirecting to Admin Dashboard...');
         if (onAuthSuccess) {
           onAuthSuccess(data.user);
@@ -181,6 +182,7 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
       const data = await res.json();
       if (res.ok && data.token && data.user) {
         setAuthSession(data.token, data.user);
+        try { localStorage.setItem('admin_last_email', email.trim()); } catch (e) {}
         setNotice('✅ Credentials authenticated. Redirecting to Admin Dashboard...');
         if (onAuthSuccess) {
           onAuthSuccess(data.user);
@@ -502,21 +504,6 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
           </div>
         ) : (
           <>
-            {/* Quick Admin Email Presets */}
-            <div className="admin-quick-hints">
-              <span className="admin-quick-title">Authorized Super Admin:</span>
-              <div className="admin-quick-pills">
-                <button
-                  type="button"
-                  className={`admin-quick-pill ${email === 'sumitbhardwaj2227@gmail.com' ? 'active-pill' : ''}`}
-                  onClick={() => handlePillClick('sumitbhardwaj2227@gmail.com')}
-                  title="Click to select primary root admin email"
-                >
-                  sumitbhardwaj2227@gmail.com
-                </button>
-              </div>
-            </div>
-
             {/* 2. EMAIL OTP AUTHENTICATION */}
             {authMode === 'otp' && (
               <div className="admin-otp-flow">

@@ -573,37 +573,41 @@ if (pgPool) {
           CREATE INDEX IF NOT EXISTS idx_admin_users_role ON admin_users(role);
         `);
 
-        // Pre-seed primary Super Admin accounts with full permissions wildcard ["*"]
-        try {
-          const bcrypt = require('bcryptjs');
-          const defaultAdminPwdHash = await bcrypt.hash('Airvix@Admin2026!', 10);
-          const initialAdmins = [
-            { id: 'admin_super_001', email: 'sumitbhardwaj2227@gmail.com', name: 'Sumit Bhardwaj (Super Admin)' }
-          ];
+        // Ensure columns is_root and is_immutable exist in admin_users
+        await pgPool.query(`
+          ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS is_root BOOLEAN DEFAULT FALSE;
+          ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS is_immutable BOOLEAN DEFAULT FALSE;
+        `);
 
-          for (const sa of initialAdmins) {
-            const existing = await pgPool.query('SELECT id FROM admin_users WHERE email = $1', [sa.email]);
+        // Seed or sync primary root Super Admin from environment
+        try {
+          const configuredAdminEmail = (process.env.ADMIN_EMAIL || process.env.ADMIN_EMAILS || '')
+            .toLowerCase()
+            .split(',')[0]?.trim();
+
+          if (configuredAdminEmail) {
+            const bcrypt = require('bcryptjs');
+            const defaultAdminPwdHash = await bcrypt.hash('Airvix@Admin2026!', 10);
+            const existing = await pgPool.query('SELECT id FROM admin_users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))', [configuredAdminEmail]);
+            const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
             if (!existing.rows || existing.rows.length === 0) {
-              const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
               await pgPool.query(`
-                INSERT INTO admin_users (id, email, name, password_hash, role, permissions, status, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, 'superadmin', '["*"]', 'active', $5, $5)
-              `, [sa.id, sa.email, sa.name, defaultAdminPwdHash, nowStr]);
+                INSERT INTO admin_users (id, email, name, password_hash, role, permissions, status, is_root, is_immutable, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, 'superadmin', '["*"]', 'active', TRUE, TRUE, $5, $5)
+              `, [`admin_root_${Date.now()}`, configuredAdminEmail, configuredAdminEmail.split('@')[0], defaultAdminPwdHash, nowStr]);
+            } else {
+              await pgPool.query(`
+                UPDATE admin_users 
+                SET is_root = TRUE, is_immutable = TRUE, role = 'superadmin', permissions = '["*"]', status = 'active'
+                WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))
+              `, [configuredAdminEmail]);
             }
+
+            await pgPool.query("UPDATE users SET role = 'admin' WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))", [configuredAdminEmail]);
           }
         } catch (adminSeedErr) {
           console.error('[Admin Seed Error]', adminSeedErr.message);
-        }
-
-        // Ensure only primary owner email has root admin role in users table
-        const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com')
-          .toLowerCase()
-          .split(',')
-          .map(e => e.trim());
-        for (const aEmail of adminEmails) {
-          if (aEmail) {
-            await pgPool.query("UPDATE users SET role = 'admin' WHERE LOWER(email) = $1", [aEmail]);
-          }
         }
       } catch (migErr) {
         console.warn('[PostgreSQL] Migration notice:', migErr.message);

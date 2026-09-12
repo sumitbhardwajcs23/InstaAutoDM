@@ -45,7 +45,7 @@ export default function Sidebar({
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
-  const isAdmin = user?.role === 'admin' || user?.admin_role || (user?.email && ['sumitbhardwaj2227@gmail.com'].includes(user.email.toLowerCase().trim()));
+  const isAdmin = Boolean(user?.role === 'admin' || user?.admin_role || user?.is_root);
   if (isAdmin) {
     navItems.push({
       id: 'admin',

@@ -3,7 +3,7 @@ import { Instagram, Key, Shield, CheckCircle2, Copy, ExternalLink, RefreshCw, Ed
 import { apiFetch } from '../api/client';
 
 export default function SettingsView({ user, account, onOpenConnect, onDisconnectAccount, onRefresh }) {
-  const isAdmin = user && (user.role === 'admin' || user.admin_role || ['sumitbhardwaj2227@gmail.com'].includes(user?.email?.toLowerCase().trim()));
+  const isAdmin = Boolean(user && (user.role === 'admin' || user.admin_role || user.is_root));
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editHandle, setEditHandle] = useState('');

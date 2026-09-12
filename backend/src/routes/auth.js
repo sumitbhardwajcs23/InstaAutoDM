@@ -23,10 +23,11 @@ const {
 
 function isConfiguredAdminEmail(email) {
   if (!email) return false;
-  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com')
+  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || '')
     .toLowerCase()
     .split(',')
-    .map(e => e.trim());
+    .map(e => e.trim())
+    .filter(Boolean);
   return adminEmails.includes(email.toLowerCase().trim());
 }
 
@@ -778,14 +779,17 @@ router.get('/me', requireAuth, async (req, res) => {
 
     let adminRole = null;
     let permissions = [];
+    let isRoot = false;
     try {
       const adminRow = await db.prepare('SELECT * FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(user.email.toLowerCase().trim());
       if (adminRow && adminRow.status === 'active') {
         adminRole = adminRow.role;
+        isRoot = Boolean(adminRow.is_root || adminRow.is_immutable || (adminRow.role === 'superadmin' && !adminRow.created_by));
         permissions = JSON.parse(adminRow.permissions || '[]');
         user.role = 'admin';
       } else if (isConfiguredAdminEmail(user.email)) {
         adminRole = 'superadmin';
+        isRoot = true;
         permissions = ['*'];
         user.role = 'admin';
       }
@@ -806,6 +810,7 @@ router.get('/me', requireAuth, async (req, res) => {
       user: {
         ...user,
         admin_role: adminRole,
+        is_root: isRoot,
         permissions: permissions,
         linked_providers: (linkedProviders || []).map(p => p.provider)
       } 

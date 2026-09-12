@@ -25,9 +25,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(false);
 
-  // Admin emails with platform governance privileges
-  const ADMIN_EMAILS = ['sumitbhardwaj2227@gmail.com'];
-  const checkIsAdmin = (u) => Boolean(u?.role === 'admin' || u?.admin_role || (u?.email && ADMIN_EMAILS.includes(u.email.toLowerCase().trim())));
+  // Determine admin access dynamically from database role & permissions
+  const checkIsAdmin = (u) => Boolean(u?.role === 'admin' || u?.admin_role || u?.is_root);
 
   // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'admin-login' | 'admin-dashboard' | 'app'
   const [currentView, setCurrentView] = useState(() => {
