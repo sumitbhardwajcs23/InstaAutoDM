@@ -1258,147 +1258,145 @@ export default function AdminView({ user, onBackToApp }) {
           AIRVIX LEFT SIDEBAR
       ========================================================================= */}
       <aside className="admin-sidebar">
-        <div>
-          {/* Header Brand */}
-          <div className="admin-sidebar-header">
-            <a href="#admin" className="admin-sidebar-logo-brand">
-              <div className="admin-airvix-icon">
-                <Send size={18} />
-              </div>
-              <h1 className="admin-airvix-title">Airvix</h1>
-            </a>
+        {/* Header Brand */}
+        <div className="admin-sidebar-header">
+          <a href="#admin" className="admin-sidebar-logo-brand">
+            <div className="admin-airvix-icon">
+              <Send size={18} />
+            </div>
+            <h1 className="admin-airvix-title">Airvix</h1>
+          </a>
+        </div>
+
+        {/* Navigation Items */}
+        <div className="admin-sidebar-nav">
+          <div className="admin-sidebar-menu-group">
+            <div className="admin-sidebar-section-title">CORE PAGES</div>
+            
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'overview' ? 'active' : ''}`}
+              onClick={() => setActiveTab('overview')}
+            >
+              <TrendingUp size={16} />
+              <span>Overview</span>
+            </button>
+
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
+              onClick={() => setActiveTab('users')}
+            >
+              <Users size={16} />
+              <span>Users</span>
+            </button>
+
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'workspaces' ? 'active' : ''}`}
+              onClick={() => setActiveTab('workspaces')}
+            >
+              <Briefcase size={16} />
+              <span>Workspaces</span>
+            </button>
+
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'plans' ? 'active' : ''}`}
+              onClick={() => setActiveTab('plans')}
+            >
+              <CreditCard size={16} />
+              <span>Plans &amp; Billings</span>
+            </button>
+
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'landing_cms' ? 'active' : ''}`}
+              onClick={() => setActiveTab('landing_cms')}
+            >
+              <Globe size={16} />
+              <span>Landing Page CMS</span>
+            </button>
+
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'integrations' ? 'active' : ''}`}
+              onClick={() => setActiveTab('integrations')}
+            >
+              <Plug size={16} />
+              <span>Integrations</span>
+            </button>
+
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'safeguards' ? 'active' : ''}`}
+              onClick={() => setActiveTab('safeguards')}
+            >
+              <SlidersHorizontal size={16} />
+              <span>Automation Health</span>
+            </button>
+
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'analytics' ? 'active' : ''}`}
+              onClick={() => setActiveTab('analytics')}
+            >
+              <Activity size={16} />
+              <span>Analytics</span>
+            </button>
+
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'support' ? 'active' : ''}`}
+              onClick={() => setActiveTab('support')}
+            >
+              <HelpCircle size={16} />
+              <span>Support</span>
+            </button>
           </div>
 
-          {/* Navigation Items */}
-          <div className="admin-sidebar-nav">
-            <div className="admin-sidebar-menu-group">
-              <div className="admin-sidebar-section-title">CORE PAGES</div>
-              
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'overview' ? 'active' : ''}`}
-                onClick={() => setActiveTab('overview')}
-              >
-                <TrendingUp size={16} />
-                <span>Overview</span>
-              </button>
+          <div className="admin-sidebar-menu-group">
+            <div className="admin-sidebar-section-title">GOVERNANCE &amp; PRIVACY</div>
+            
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'security' ? 'active' : ''}`}
+              onClick={() => setActiveTab('security')}
+            >
+              <ShieldCheck size={16} />
+              <span>Security &amp; Privacy</span>
+            </button>
 
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
-                onClick={() => setActiveTab('users')}
-              >
-                <Users size={16} />
-                <span>Users</span>
-              </button>
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'audit' ? 'active' : ''}`}
+              onClick={() => setActiveTab('audit')}
+            >
+              <FileText size={16} />
+              <span>Audit Logs</span>
+            </button>
 
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'workspaces' ? 'active' : ''}`}
-                onClick={() => setActiveTab('workspaces')}
-              >
-                <Briefcase size={16} />
-                <span>Workspaces</span>
-              </button>
+            <button
+              type="button"
+              className={`admin-sidebar-item ${activeTab === 'status' ? 'active' : ''}`}
+              onClick={() => setActiveTab('status')}
+            >
+              <Radio size={16} />
+              <span>System Status</span>
+            </button>
+          </div>
 
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'plans' ? 'active' : ''}`}
-                onClick={() => setActiveTab('plans')}
-              >
-                <CreditCard size={16} />
-                <span>Plans &amp; Billings</span>
-              </button>
-
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'landing_cms' ? 'active' : ''}`}
-                onClick={() => setActiveTab('landing_cms')}
-              >
-                <Globe size={16} />
-                <span>Landing Page CMS</span>
-              </button>
-
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'integrations' ? 'active' : ''}`}
-                onClick={() => setActiveTab('integrations')}
-              >
-                <Plug size={16} />
-                <span>Integrations</span>
-              </button>
-
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'safeguards' ? 'active' : ''}`}
-                onClick={() => setActiveTab('safeguards')}
-              >
-                <SlidersHorizontal size={16} />
-                <span>Automation Health</span>
-              </button>
-
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'analytics' ? 'active' : ''}`}
-                onClick={() => setActiveTab('analytics')}
-              >
-                <Activity size={16} />
-                <span>Analytics</span>
-              </button>
-
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'support' ? 'active' : ''}`}
-                onClick={() => setActiveTab('support')}
-              >
-                <HelpCircle size={16} />
-                <span>Support</span>
-              </button>
-            </div>
-
-            <div className="admin-sidebar-menu-group">
-              <div className="admin-sidebar-section-title">GOVERNANCE &amp; PRIVACY</div>
-              
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'security' ? 'active' : ''}`}
-                onClick={() => setActiveTab('security')}
-              >
-                <ShieldCheck size={16} />
-                <span>Security &amp; Privacy</span>
-              </button>
-
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'audit' ? 'active' : ''}`}
-                onClick={() => setActiveTab('audit')}
-              >
-                <FileText size={16} />
-                <span>Audit Logs</span>
-              </button>
-
-              <button
-                type="button"
-                className={`admin-sidebar-item ${activeTab === 'status' ? 'active' : ''}`}
-                onClick={() => setActiveTab('status')}
-              >
-                <Radio size={16} />
-                <span>System Status</span>
-              </button>
-            </div>
-
-            {/* Privacy First Banner Card */}
-            <div className="admin-privacy-banner-card">
-              <h4>
-                <Shield size={14} />
-                <span>Privacy First</span>
-              </h4>
-              <p>We store minimal data necessary. User content is encrypted and access controlled.</p>
-              <a href="#security" onClick={(e) => { e.preventDefault(); setActiveTab('security'); }}>
-                <span>Learn more</span>
-                <ArrowRight size={12} />
-              </a>
-            </div>
+          {/* Privacy First Banner Card */}
+          <div className="admin-privacy-banner-card">
+            <h4>
+              <Shield size={14} />
+              <span>Privacy First</span>
+            </h4>
+            <p>We store minimal data necessary. User content is encrypted and access controlled.</p>
+            <a href="#security" onClick={(e) => { e.preventDefault(); setActiveTab('security'); }}>
+              <span>Learn more</span>
+              <ArrowRight size={12} />
+            </a>
           </div>
         </div>
 
