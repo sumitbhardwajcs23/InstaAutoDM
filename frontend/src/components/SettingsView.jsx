@@ -673,59 +673,7 @@ export default function SettingsView({ user, account, onOpenConnect, onDisconnec
           </div>
         )}
 
-        {/* Meta Webhook Configuration Card - Visible Exclusively to Super Admins */}
-        {isAdmin && (
-          <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
-              Meta Webhook Callback URL
-            </h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 16px 0' }}>
-              Paste this URL into your Meta App Dashboard under <strong>Instagram Graph API &gt; Webhooks</strong>.
-            </p>
 
-            <div style={{ display: 'flex', gap: '10px', maxWidth: '680px' }}>
-              <input
-                type="text"
-                readOnly
-                value={webhookUrl}
-                style={{
-                  flex: 1,
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-subtle)',
-                  fontFamily: 'monospace',
-                  fontSize: '13px',
-                  color: 'var(--text-main)',
-                }}
-              />
-              <button
-                type="button"
-                onClick={handleCopyWebhook}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '0 16px',
-                  borderRadius: '10px',
-                  background: 'var(--primary)',
-                  color: '#fff',
-                  border: 'none',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
-              >
-                {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-                <span>{copied ? 'Copied!' : 'Copy'}</span>
-              </button>
-            </div>
-
-            <div style={{ marginTop: '16px', fontSize: '12px', color: 'var(--text-light)' }}>
-              <strong>Verify Token:</strong> <code style={{ background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px' }}>instagram_autoreply_verify_token_2026</code>
-            </div>
-          </div>
-        )}
 
         {/* Data Privacy & GDPR Controls Card */}
         <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
