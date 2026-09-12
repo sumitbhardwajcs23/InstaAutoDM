@@ -2197,8 +2197,8 @@ router.put('/subadmins/:id', requirePermission('admins:manage'), async (req, res
       return res.status(404).json({ error: 'Administrator account not found' });
     }
 
-    // Root superadmins protection
-    const ROOT_SUPERADMINS = ['sumitbhardwaj2227@gmail.com', 'sumit.bhardwaj_cs23@gla.ac.in', 'admin@airvix.com'];
+    // Root superadmin protection
+    const ROOT_SUPERADMINS = ['sumitbhardwaj2227@gmail.com'];
     if (ROOT_SUPERADMINS.includes(existing.email.toLowerCase().trim())) {
       if (status && status !== 'active') {
         return res.status(403).json({ error: 'Root Super Administrator accounts cannot be deactivated' });
@@ -2281,7 +2281,7 @@ router.delete('/subadmins/:id', requirePermission('admins:manage'), async (req, 
       return res.status(404).json({ error: 'Administrator account not found' });
     }
 
-    const ROOT_SUPERADMINS = ['sumitbhardwaj2227@gmail.com', 'sumit.bhardwaj_cs23@gla.ac.in', 'admin@airvix.com'];
+    const ROOT_SUPERADMINS = ['sumitbhardwaj2227@gmail.com'];
     if (ROOT_SUPERADMINS.includes(existing.email.toLowerCase().trim())) {
       return res.status(403).json({ error: 'Cannot delete a root Super Administrator account' });
     }

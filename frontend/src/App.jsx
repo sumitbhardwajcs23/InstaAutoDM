@@ -26,7 +26,7 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
 
   // Admin emails with platform governance privileges
-  const ADMIN_EMAILS = ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com', 'sumit.bhardwaj_cs23@gla.ac.in'];
+  const ADMIN_EMAILS = ['sumitbhardwaj2227@gmail.com'];
   const checkIsAdmin = (u) => Boolean(u?.role === 'admin' || u?.admin_role || (u?.email && ADMIN_EMAILS.includes(u.email.toLowerCase().trim())));
 
   // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'admin-login' | 'admin-dashboard' | 'app'

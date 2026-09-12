@@ -12,7 +12,7 @@ const googleClient = googleClientId ? new OAuth2Client(googleClientId) : null;
 
 function isConfiguredAdminEmail(email) {
   if (!email) return false;
-  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com,admin@airvix.com,sumit.bhardwaj_cs23@gla.ac.in')
+  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com')
     .toLowerCase()
     .split(',')
     .map(e => e.trim());

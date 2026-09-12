@@ -422,7 +422,7 @@ export default function Topbar({
                 <span>Billing & Plans</span>
               </button>
 
-              {(user?.role === 'admin' || (user?.email && ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(user.email.toLowerCase().trim()))) && (
+              {(user?.role === 'admin' || user?.admin_role || (user?.email && ['sumitbhardwaj2227@gmail.com'].includes(user.email.toLowerCase().trim()))) && (
                 <button
                   type="button"
                   onClick={() => {

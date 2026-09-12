@@ -578,9 +578,7 @@ if (pgPool) {
           const bcrypt = require('bcryptjs');
           const defaultAdminPwdHash = await bcrypt.hash('Airvix@Admin2026!', 10);
           const initialAdmins = [
-            { id: 'admin_super_001', email: 'sumitbhardwaj2227@gmail.com', name: 'Sumit Bhardwaj (Super Admin)' },
-            { id: 'admin_super_002', email: 'sumit.bhardwaj_cs23@gla.ac.in', name: 'Sumit Bhardwaj GLA (Super Admin)' },
-            { id: 'admin_super_003', email: 'admin@airvix.com', name: 'Airvix Master Admin' },
+            { id: 'admin_super_001', email: 'sumitbhardwaj2227@gmail.com', name: 'Sumit Bhardwaj (Super Admin)' }
           ];
 
           for (const sa of initialAdmins) {

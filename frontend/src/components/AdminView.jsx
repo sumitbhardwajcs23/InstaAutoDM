@@ -224,8 +224,8 @@ export default function AdminView({ user, onBackToApp }) {
   // Granular Permission Evaluation Helper
   const hasPermission = useCallback((powerKey) => {
     if (!user) return false;
-    // Superadmin or root administrative emails have universal bypass
-    const ROOT_EMAILS = ['sumitbhardwaj2227@gmail.com', 'sumit.bhardwaj_cs23@gla.ac.in', 'admin@airvix.com'];
+    // Superadmin or root administrative email has universal bypass
+    const ROOT_EMAILS = ['sumitbhardwaj2227@gmail.com'];
     if (user.admin_role === 'superadmin' || ROOT_EMAILS.includes(user.email?.toLowerCase()?.trim())) return true;
     
     let perms = user.permissions || [];
@@ -4974,7 +4974,7 @@ export default function AdminView({ user, onBackToApp }) {
                         </tr>
                       ) : (
                         subadminsList.map((adm) => {
-                          const isRoot = ['sumitbhardwaj2227@gmail.com', 'sumit.bhardwaj_cs23@gla.ac.in', 'admin@airvix.com'].includes(adm.email?.toLowerCase());
+                          const isRoot = ['sumitbhardwaj2227@gmail.com'].includes(adm.email?.toLowerCase());
                           let perms = adm.permissions || [];
                           if (typeof perms === 'string') {
                             try { perms = JSON.parse(perms); } catch (e) { perms = []; }
