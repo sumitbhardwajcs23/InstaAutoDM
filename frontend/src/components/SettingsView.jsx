@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Instagram, Key, Shield, CheckCircle2, Copy, ExternalLink, RefreshCw, Edit3, Download, Trash2, ShieldCheck, Lock, AlertTriangle, CheckCircle, XCircle, Activity, Info, Zap } from 'lucide-react';
 import { apiFetch } from '../api/client';
 
-export default function SettingsView({ account, onOpenConnect, onDisconnectAccount, onRefresh }) {
+export default function SettingsView({ user, account, onOpenConnect, onDisconnectAccount, onRefresh }) {
+  const isAdmin = user && (user.role === 'admin' || ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(user?.email?.toLowerCase().trim()));
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editHandle, setEditHandle] = useState('');
@@ -672,57 +673,59 @@ export default function SettingsView({ account, onOpenConnect, onDisconnectAccou
           </div>
         )}
 
-        {/* Webhook Configuration Card */}
-        <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
-            Meta Webhook Callback URL
-          </h2>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 16px 0' }}>
-            Paste this URL into your Meta App Dashboard under <strong>Instagram Graph API &gt; Webhooks</strong>.
-          </p>
+        {/* Meta Webhook Configuration Card - Visible Exclusively to Super Admins */}
+        {isAdmin && (
+          <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
+              Meta Webhook Callback URL
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '0 0 16px 0' }}>
+              Paste this URL into your Meta App Dashboard under <strong>Instagram Graph API &gt; Webhooks</strong>.
+            </p>
 
-          <div style={{ display: 'flex', gap: '10px', maxWidth: '680px' }}>
-            <input
-              type="text"
-              readOnly
-              value={webhookUrl}
-              style={{
-                flex: 1,
-                padding: '10px 14px',
-                borderRadius: '10px',
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--bg-subtle)',
-                fontFamily: 'monospace',
-                fontSize: '13px',
-                color: 'var(--text-main)',
-              }}
-            />
-            <button
-              type="button"
-              onClick={handleCopyWebhook}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '0 16px',
-                borderRadius: '10px',
-                background: 'var(--primary)',
-                color: '#fff',
-                border: 'none',
-                fontWeight: 600,
-                fontSize: '13px',
-                cursor: 'pointer',
-              }}
-            >
-              {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-              <span>{copied ? 'Copied!' : 'Copy'}</span>
-            </button>
-          </div>
+            <div style={{ display: 'flex', gap: '10px', maxWidth: '680px' }}>
+              <input
+                type="text"
+                readOnly
+                value={webhookUrl}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-subtle)',
+                  fontFamily: 'monospace',
+                  fontSize: '13px',
+                  color: 'var(--text-main)',
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleCopyWebhook}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '0 16px',
+                  borderRadius: '10px',
+                  background: 'var(--primary)',
+                  color: '#fff',
+                  border: 'none',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                <span>{copied ? 'Copied!' : 'Copy'}</span>
+              </button>
+            </div>
 
-          <div style={{ marginTop: '16px', fontSize: '12px', color: 'var(--text-light)' }}>
-            <strong>Verify Token:</strong> <code style={{ background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px' }}>instagram_autoreply_verify_token_2026</code>
+            <div style={{ marginTop: '16px', fontSize: '12px', color: 'var(--text-light)' }}>
+              <strong>Verify Token:</strong> <code style={{ background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: '4px' }}>instagram_autoreply_verify_token_2026</code>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Data Privacy & GDPR Controls Card */}
         <div className="card" style={{ padding: '24px', borderRadius: '16px', background: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>

@@ -519,7 +519,7 @@ export default function App() {
           )}
 
           {activeTab === 'settings' && (
-            <SettingsView account={account} onOpenConnect={() => setIsConnectIgOpen(true)} onDisconnectAccount={handleDisconnectAccount} onRefresh={() => loadData()} />
+            <SettingsView user={user} account={account} onOpenConnect={() => setIsConnectIgOpen(true)} onDisconnectAccount={handleDisconnectAccount} onRefresh={() => loadData()} />
           )}
 
           {activeTab === 'templates' && (
