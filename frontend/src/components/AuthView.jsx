@@ -168,7 +168,7 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
     setError(null);
     setNotice('Connecting to Google...');
 
-    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '955250447660-vkts1brjtpkn9ph488l7ffp7sm20ft0t.apps.googleusercontent.com';
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '955250447660-e6rendb53k479p4iksau83vf8b4svrdl.apps.googleusercontent.com';
 
     // 1. Preferred modern Google OAuth 2.0 Token Client (Popup on button click)
     if (window.google?.accounts?.oauth2) {

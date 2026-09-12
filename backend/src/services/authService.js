@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { JWT_SECRET } = require('../middleware/auth');
 
-const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientId = process.env.GOOGLE_CLIENT_ID || '955250447660-e6rendb53k479p4iksau83vf8b4svrdl.apps.googleusercontent.com';
 const googleClient = googleClientId ? new OAuth2Client(googleClientId) : null;
 
 function isConfiguredAdminEmail(email) {
