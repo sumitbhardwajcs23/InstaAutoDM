@@ -1766,16 +1766,16 @@ export default function AdminView({ user, onBackToApp }) {
             <button
               type="button"
               className="admin-btn-secondary"
-              style={{ padding: '6px 12px', fontSize: '12px' }}
+              style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
               onClick={() => {
                 setChangePasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
                 setChangePasswordError('');
                 setIsChangePasswordOpen(true);
               }}
-              title="Change your administrator password"
+              title="Reset or change your administrator password"
             >
-              <Lock size={13} />
-              <span>Password</span>
+              <KeyRound size={13} />
+              <span>Reset Password</span>
             </button>
 
             <button
@@ -4974,7 +4974,7 @@ export default function AdminView({ user, onBackToApp }) {
                         </tr>
                       ) : (
                         subadminsList.map((adm) => {
-                          const isRoot = ['sumitbhardwaj2227@gmail.com'].includes(adm.email?.toLowerCase());
+                          const isRoot = adm.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com';
                           let perms = adm.permissions || [];
                           if (typeof perms === 'string') {
                             try { perms = JSON.parse(perms); } catch (e) { perms = []; }
@@ -5004,8 +5004,23 @@ export default function AdminView({ user, onBackToApp }) {
                                     <div style={{ fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                       <span>{adm.name || 'Administrator'}</span>
                                       {isRoot && (
-                                        <span style={{ fontSize: '10px', background: '#fef3c7', color: '#b45309', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                                          ROOT
+                                        <span 
+                                          style={{ 
+                                            fontSize: '10px', 
+                                            background: 'linear-gradient(135deg, #fef3c7, #fde68a)', 
+                                            color: '#92400e', 
+                                            padding: '2px 8px', 
+                                            borderRadius: '4px', 
+                                            fontWeight: 800,
+                                            border: '1px solid #fcd34d',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            boxShadow: '0 1px 2px rgba(180, 83, 9, 0.1)'
+                                          }}
+                                          title="Immutable Root Super Administrator: Permanent authority, protected from modification or suspension"
+                                        >
+                                          🛡️ IMMUTABLE ROOT
                                         </span>
                                       )}
                                       {adm.email === user?.email && (
@@ -5145,16 +5160,26 @@ export default function AdminView({ user, onBackToApp }) {
                                       <button
                                         type="button"
                                         className="admin-btn-secondary"
-                                        style={{ padding: '5px 8px', fontSize: '11px' }}
-                                        title="Reset Password"
+                                        style={{
+                                          padding: '5px 10px',
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          color: '#2563eb',
+                                          borderColor: '#bfdbfe',
+                                          background: '#eff6ff',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px'
+                                        }}
+                                        title={`Reset password for ${adm.email}`}
                                         onClick={() => {
                                           setSelectedSubadmin(adm);
                                           setSubadminPasswordInput('');
                                           setSubadminModalMode('reset-password');
                                         }}
                                       >
-                                        <Lock size={13} />
-                                        <span>Password</span>
+                                        <KeyRound size={13} />
+                                        <span>Reset Password</span>
                                       </button>
                                       {!isRoot && adm.email !== user?.email && (
                                         <button
@@ -6047,6 +6072,24 @@ export default function AdminView({ user, onBackToApp }) {
 
             <form onSubmit={subadminModalMode === 'create' ? handleCreateSubadmin : handleUpdateSubadmin}>
               <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {subadminModalMode === 'edit' && selectedSubadmin?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com' && (
+                  <div style={{
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    background: '#fef3c7',
+                    border: '1px solid #fde68a',
+                    color: '#92400e',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: 600
+                  }}>
+                    <ShieldCheck size={18} style={{ flexShrink: 0, color: '#d97706' }} />
+                    <span>This account is the Immutable Root Super Administrator. Account status is permanently Active and role is permanently Super Admin.</span>
+                  </div>
+                )}
+
                 {/* Name & Email */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="admin-form-group">
@@ -6091,9 +6134,12 @@ export default function AdminView({ user, onBackToApp }) {
                     </div>
                   ) : (
                     <div className="admin-form-group">
-                      <label className="admin-form-label">Account Status</label>
+                      <label className="admin-form-label">
+                        Account Status {selectedSubadmin?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com' ? '(Locked Active)' : ''}
+                      </label>
                       <select
                         className="admin-form-select"
+                        disabled={selectedSubadmin?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'}
                         value={subadminFormData.status || 'active'}
                         onChange={(e) => setSubadminFormData({ ...subadminFormData, status: e.target.value })}
                       >
@@ -6104,9 +6150,12 @@ export default function AdminView({ user, onBackToApp }) {
                   )}
 
                   <div className="admin-form-group">
-                    <label className="admin-form-label">Administrator Role Level</label>
+                    <label className="admin-form-label">
+                      Administrator Role Level {selectedSubadmin?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com' ? '(Locked Super Admin)' : ''}
+                    </label>
                     <select
                       className="admin-form-select"
+                      disabled={selectedSubadmin?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'}
                       value={subadminFormData.role}
                       onChange={(e) => {
                         const newRole = e.target.value;
@@ -6257,7 +6306,9 @@ export default function AdminView({ user, onBackToApp }) {
                 <Lock size={20} color="#2563eb" />
                 <div>
                   <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
-                    Reset Staff Password
+                    {selectedSubadmin.role === 'superadmin' || selectedSubadmin.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'
+                      ? 'Reset Super Admin Password'
+                      : 'Reset Administrator Password'}
                   </h3>
                   <span style={{ fontSize: '12px', color: '#64748b' }}>For {selectedSubadmin.email}</span>
                 </div>
@@ -6270,7 +6321,9 @@ export default function AdminView({ user, onBackToApp }) {
             <form onSubmit={handleResetSubadminPassword}>
               <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>
-                  Set a new temporary or permanent password for this administrator. Their previous credentials will immediately cease functioning.
+                  {selectedSubadmin.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'
+                    ? 'Set a new password for the Root Super Administrator. The updated credential will be immediately synchronized to the database.'
+                    : 'Set a new temporary or permanent password for this administrator. Their previous credentials will immediately cease functioning.'}
                 </div>
 
                 <div className="admin-form-group">
@@ -6320,7 +6373,9 @@ export default function AdminView({ user, onBackToApp }) {
                 <KeyRound size={20} color="#2563eb" />
                 <div>
                   <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
-                    Change Administrator Password
+                    {user?.admin_role === 'superadmin' || user?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'
+                      ? 'Reset Super Admin Password'
+                      : 'Change Administrator Password'}
                   </h3>
                   <span style={{ fontSize: '12px', color: '#64748b' }}>Account: {user?.email}</span>
                 </div>
@@ -6351,7 +6406,11 @@ export default function AdminView({ user, onBackToApp }) {
                 )}
 
                 <div className="admin-form-group">
-                  <label className="admin-form-label">Current Password (Leave blank if none set)</label>
+                  <label className="admin-form-label">
+                    {user?.admin_role === 'superadmin' || user?.email?.toLowerCase() === 'sumitbhardwaj2227@gmail.com'
+                      ? 'Current Password (Optional for Super Admin)'
+                      : 'Current Password (Leave blank if none set)'}
+                  </label>
                   <input
                     type="password"
                     className="admin-form-input"

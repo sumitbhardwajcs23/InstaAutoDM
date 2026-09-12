@@ -595,29 +595,8 @@ if (pgPool) {
           console.error('[Admin Seed Error]', adminSeedErr.message);
         }
 
-        // Ensure default admin user exists safely without hardcoded credentials
-        const existingAdmin = await pgPool.query("SELECT id, password_hash FROM users WHERE email = 'admin@airvix.com'");
-        if (!existingAdmin.rows || existingAdmin.rows.length === 0) {
-          const crypto = require('crypto');
-          const bcrypt = require('bcryptjs');
-          const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD || crypto.randomBytes(16).toString('hex');
-          const adminPasswordHash = await bcrypt.hash(bootstrapPassword, 12);
-          
-          await pgPool.query(`
-            INSERT INTO users (id, email, name, plan, role, status, password_hash, dm_usage_this_period, usage_period_start, created_at, updated_at)
-            VALUES ('admin-root-001', 'admin@airvix.com', 'Super Admin', 'agency', 'admin', 'active', $1, 0, to_char(CURRENT_DATE, 'YYYY-MM-DD'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-          `, [adminPasswordHash]);
-
-          if (!process.env.ADMIN_BOOTSTRAP_PASSWORD) {
-            console.log(`\n[Security] 🔑 New admin account created for admin@airvix.com with generated bootstrap password: ${bootstrapPassword}\n[Security] Set ADMIN_BOOTSTRAP_PASSWORD in environment to customize this initial credential.\n`);
-          }
-        } else {
-          // Keep existing password, simply ensure admin role and active status
-          await pgPool.query("UPDATE users SET role = 'admin', status = 'active' WHERE email = 'admin@airvix.com'");
-        }
-
-        // Ensure owner email also elevated to admin if registered
-        const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com,admin@airvix.com')
+        // Ensure only primary owner email has root admin role in users table
+        const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com')
           .toLowerCase()
           .split(',')
           .map(e => e.trim());

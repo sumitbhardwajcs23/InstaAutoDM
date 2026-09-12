@@ -32,7 +32,7 @@ async function logAuditEvent(actorId, actorEmail, action, targetResource, detail
     await db.prepare(`
       INSERT INTO audit_logs (id, actor_id, actor_email, action, target_resource, ip_address, details, created_at)
       VALUES (?, ?, ?, ?, ?, 'Protected (Internal API)', ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-    `).run(id, actorId || 'admin-system', actorEmail || 'admin@airvix.com', action, targetResource || 'system', details);
+    `).run(id, actorId || 'admin-system', actorEmail || 'sumitbhardwaj2227@gmail.com', action, targetResource || 'system', details);
   } catch (e) {
     console.error('[AuditLog] Error logging event:', e.message);
   }
@@ -2197,11 +2197,14 @@ router.put('/subadmins/:id', requirePermission('admins:manage'), async (req, res
       return res.status(404).json({ error: 'Administrator account not found' });
     }
 
-    // Root superadmin protection
+    // Root superadmin immutability protection for sumitbhardwaj2227@gmail.com
     const ROOT_SUPERADMINS = ['sumitbhardwaj2227@gmail.com'];
     if (ROOT_SUPERADMINS.includes(existing.email.toLowerCase().trim())) {
       if (status && status !== 'active') {
-        return res.status(403).json({ error: 'Root Super Administrator accounts cannot be deactivated' });
+        return res.status(403).json({ error: 'Root Super Administrator sumitbhardwaj2227@gmail.com is immutable and cannot be deactivated or suspended' });
+      }
+      if (role && role !== 'superadmin') {
+        return res.status(403).json({ error: 'Root Super Administrator sumitbhardwaj2227@gmail.com is immutable and role cannot be changed' });
       }
     }
 
@@ -2323,11 +2326,17 @@ router.post('/change-password', async (req, res) => {
       return res.status(404).json({ error: 'Administrator record not found' });
     }
 
-    // If oldPassword provided, check match
-    if (adminUser.password_hash) {
+    // If oldPassword provided, check match (mandatory for sub-admins, optional for root super admin)
+    const isSuperAdmin = adminUser.role === 'superadmin' || email === 'sumitbhardwaj2227@gmail.com';
+    if (adminUser.password_hash && !isSuperAdmin) {
       if (!oldPassword) {
         return res.status(400).json({ error: 'Current password is required to set a new password' });
       }
+      const isMatch = await bcrypt.compare(oldPassword, adminUser.password_hash);
+      if (!isMatch) {
+        return res.status(400).json({ error: 'Current password does not match. Verification failed.' });
+      }
+    } else if (oldPassword && adminUser.password_hash) {
       const isMatch = await bcrypt.compare(oldPassword, adminUser.password_hash);
       if (!isMatch) {
         return res.status(400).json({ error: 'Current password does not match. Verification failed.' });

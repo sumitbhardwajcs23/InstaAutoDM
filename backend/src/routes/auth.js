@@ -36,7 +36,7 @@ function isConfiguredAdminEmail(email) {
  * Supports:
  *   1. Google SSO (id_token / access_token / credential)
  *   2. Email OTP (email, otp)
- *   3. Email & Password / Master Key (email, password)
+ *   3. Email & Password (email, password)
  */
 router.post('/admin-login', authLimiter, async (req, res) => {
   try {
@@ -183,7 +183,7 @@ router.post('/admin-login', authLimiter, async (req, res) => {
 });
 
 /**
- * 0B. REQUEST SUPER ADMIN OTP
+ * 0B. REQUEST ADMIN OTP (FOR LOGIN OR PASSWORD RESET)
  * POST /api/auth/admin-otp/request
  */
 router.post('/admin-otp/request', authLimiter, async (req, res) => {
@@ -195,9 +195,17 @@ router.post('/admin-otp/request', authLimiter, async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    if (!isConfiguredAdminEmail(normalizedEmail)) {
+    // Fetch admin details directly from database
+    const adminRecord = await db.prepare('SELECT id, status FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(normalizedEmail);
+    if (!adminRecord && !isConfiguredAdminEmail(normalizedEmail)) {
       return res.status(403).json({ 
-        error: `Access Denied: ${normalizedEmail} is not authorized for Super Admin privileges.` 
+        error: `Access Denied: ${normalizedEmail} is not authorized for Administrator access.` 
+      });
+    }
+
+    if (adminRecord && (adminRecord.status === 'inactive' || adminRecord.status === 'suspended')) {
+      return res.status(403).json({
+        error: 'Access Denied: This administrator account is currently suspended.'
       });
     }
 
@@ -217,13 +225,61 @@ router.post('/admin-otp/request', authLimiter, async (req, res) => {
 
     res.json({
       success: true,
-      message: `A 6-digit Super Admin verification code has been sent to ${normalizedEmail}`,
+      message: `A 6-digit admin verification code has been sent to ${normalizedEmail}`,
       expires_at: expiresAt,
       ...(sendResult.simulated && process.env.NODE_ENV !== 'production' ? { dev_otp: rawOtp } : {})
     });
   } catch (err) {
     console.error('[Admin Auth] Request OTP error:', err.message);
     res.status(400).json({ error: err.message || 'Failed to send admin verification code.' });
+  }
+});
+
+/**
+ * 0C. RESET SUPER ADMIN / ADMIN PASSWORD VIA OTP
+ * POST /api/auth/admin-password/reset
+ */
+router.post('/admin-password/reset', authLimiter, async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ error: 'Email, verification code, and new password are required.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long.' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Verify administrator exists in database
+    const adminRecord = await db.prepare('SELECT id, email FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(normalizedEmail);
+    if (!adminRecord && !isConfiguredAdminEmail(normalizedEmail)) {
+      return res.status(403).json({ error: 'Access Denied: Unauthorized administrator email.' });
+    }
+
+    // Verify OTP
+    await verifyOtpToken({
+      email: normalizedEmail,
+      purpose: 'admin_login_otp',
+      otp: String(otp).trim(),
+    });
+
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const newHash = await bcrypt.hash(newPassword, 10);
+
+    if (adminRecord) {
+      await db.prepare('UPDATE admin_users SET password_hash = ?, updated_at = ? WHERE id = ?').run(newHash, nowStr, adminRecord.id);
+    }
+    await db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE LOWER(TRIM(email)) = ?').run(newHash, nowStr, normalizedEmail);
+
+    res.json({
+      success: true,
+      message: 'Password successfully reset! You can now log in with your new password.',
+    });
+  } catch (err) {
+    console.error('[Admin Auth] Password reset error:', err.message);
+    res.status(400).json({ error: err.message || 'Failed to reset password.' });
   }
 });
 
