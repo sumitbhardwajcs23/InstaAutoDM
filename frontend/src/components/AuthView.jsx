@@ -15,7 +15,8 @@ import {
   X,
   KeyRound,
   Send,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { setAuthSession } from '../api/client';
 import '../styles/auth.css';
@@ -283,6 +284,11 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
 
   return (
     <div className="auth-page-wrapper">
+      {/* Dynamic Ambient Glow Background Elements */}
+      <div className="auth-ambient-glow-1" />
+      <div className="auth-ambient-glow-2" />
+      <div className="auth-ambient-mesh" />
+
       <header className="auth-header-bar">
         {onBackToLanding ? (
           <button type="button" onClick={onBackToLanding} className="auth-back-link">
@@ -299,16 +305,26 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
 
       <main className="auth-clean-card">
         <div className="auth-brand-center">
+          <div className="auth-brand-pill">
+            <Sparkles size={12} className="auth-sparkle-icon" />
+            <span>INSTAGRAM AUTOMATION PLATFORM</span>
+          </div>
+
           <div className="auth-logo-box" onClick={onBackToLanding} style={{ cursor: onBackToLanding ? 'pointer' : 'default' }}>
+            <div className="auth-logo-glow" />
             <img src="/logo-icon.png" alt="Airvix Logo" />
           </div>
           <h1 className="auth-title">
-            {mode === 'login' ? 'Welcome to Airvix' : 'Create your Airvix account'}
+            {mode === 'login' ? (
+              <>Welcome back to <span className="auth-gradient-text">Airvix</span></>
+            ) : (
+              <>Join the future with <span className="auth-gradient-text">Airvix</span></>
+            )}
           </h1>
           <p className="auth-subtitle">
             {mode === 'login' 
               ? 'Log in to manage your automated Instagram conversations.' 
-              : 'Join creators turning comments into customers.'}
+              : 'Join top creators turning comments into automated revenue.'}
           </p>
         </div>
 
