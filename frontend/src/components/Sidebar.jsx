@@ -52,7 +52,7 @@ export default function Sidebar({
       label: 'Admin Panel',
       icon: Shield,
       badge: 'STAFF',
-      action: onOpenAdmin || (() => { window.location.hash = '#admin'; }),
+      action: onOpenAdmin || (() => { window.location.hash = '#admin-dashboard'; }),
     });
   }
 

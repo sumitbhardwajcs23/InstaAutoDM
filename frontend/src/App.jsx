@@ -29,19 +29,27 @@ export default function App() {
   const ADMIN_EMAILS = ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com', 'sumit.bhardwaj_cs23@gla.ac.in'];
   const checkIsAdmin = (u) => Boolean(u?.role === 'admin' || (u?.email && ADMIN_EMAILS.includes(u.email.toLowerCase().trim())));
 
-  // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'admin-login' | 'admin' | 'app'
+  // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'admin-login' | 'admin-dashboard' | 'app'
   const [currentView, setCurrentView] = useState(() => {
     const hash = window.location.hash.toLowerCase();
     const path = window.location.pathname.toLowerCase();
-    if (path.startsWith('/admin-login') || hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') return 'admin-login';
-    if (path === '/admin' || path.startsWith('/admin/') || hash === '#admin' || hash === '#/admin') {
-      const u = getCurrentUser();
-      return checkIsAdmin(u) ? 'admin' : 'admin-login';
+    const u = getCurrentUser();
+    const isAdmin = checkIsAdmin(u);
+
+    // 1. Admin Dashboard routes (/admin-dashboard, #admin-dashboard)
+    if (path === '/admin-dashboard' || path.startsWith('/admin-dashboard/') || path === '/admin/dashboard' || hash === '#admin-dashboard' || hash === '#/admin-dashboard') {
+      return isAdmin ? 'admin-dashboard' : 'admin-login';
     }
+
+    // 2. Admin Login Gateway routes (/admin, #admin, #admin-login)
+    if (path === '/admin' || path === '/admin/' || path === '/admin/login' || path.startsWith('/admin-login') || hash === '#admin' || hash === '#/admin' || hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') {
+      return isAdmin ? 'admin-dashboard' : 'admin-login';
+    }
+
     if (path === '/login' || hash === '#login') return 'auth-login';
     if (path === '/signup' || path === '/register' || hash === '#signup' || hash === '#register') return 'auth-signup';
     if (path === '/app' || hash === '#app') {
-      return getCurrentUser() ? 'app' : 'auth-login';
+      return u ? 'app' : 'auth-login';
     }
     // DEFAULT FOR FIRST-TIME VISITORS AND HOME: LANDING PAGE
     return 'landing';
@@ -68,22 +76,24 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.toLowerCase();
+      const path = window.location.pathname.toLowerCase();
       const currentUser = user || getCurrentUser();
       const isAdmin = checkIsAdmin(currentUser);
 
-      if (hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') {
-        setCurrentView(isAdmin ? 'admin' : 'admin-login');
+      if (hash === '#admin-dashboard' || hash === '#/admin-dashboard') {
+        setCurrentView(isAdmin ? 'admin-dashboard' : 'admin-login');
+      }
+      else if (hash === '#admin' || hash === '#/admin' || hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') {
+        setCurrentView(isAdmin ? 'admin-dashboard' : 'admin-login');
       }
       else if (hash === '#login') setCurrentView('auth-login');
       else if (hash === '#signup' || hash === '#register') setCurrentView('auth-signup');
-      else if (hash === '#admin' || hash === '#/admin') {
-        setCurrentView(isAdmin ? 'admin' : 'admin-login');
-      }
       else if (hash === '#app') setCurrentView(currentUser ? 'app' : 'auth-login');
       else if (hash === '#landing' || hash === '' || hash === '#') {
-        const path = window.location.pathname.toLowerCase();
-        if (path === '/admin' || path.startsWith('/admin/')) {
-          setCurrentView(isAdmin ? 'admin' : 'admin-login');
+        if (path === '/admin-dashboard' || path.startsWith('/admin-dashboard/') || path === '/admin/dashboard') {
+          setCurrentView(isAdmin ? 'admin-dashboard' : 'admin-login');
+        } else if (path === '/admin' || path.startsWith('/admin/')) {
+          setCurrentView(isAdmin ? 'admin-dashboard' : 'admin-login');
         } else {
           setCurrentView('landing');
         }
@@ -214,12 +224,15 @@ export default function App() {
     } else if (view === 'auth-signup') {
       window.location.hash = '#signup';
       setCurrentView('auth-signup');
-    } else if (view === 'admin-login') {
-      window.location.hash = '#admin-login';
-      setCurrentView('admin-login');
-    } else if (view === 'admin') {
+    } else if (view === 'admin-login' || view === 'admin') {
       window.location.hash = '#admin';
-      setCurrentView('admin');
+      setCurrentView('admin-login');
+    } else if (view === 'admin-dashboard') {
+      try {
+        window.history.pushState({}, '', '/admin-dashboard');
+      } catch (e) {}
+      window.location.hash = '#admin-dashboard';
+      setCurrentView('admin-dashboard');
     } else if (view === 'app') {
       window.location.hash = '#app';
       setCurrentView('app');
@@ -236,13 +249,16 @@ export default function App() {
     const hash = window.location.hash.toLowerCase();
     const isAdminIntent = 
       isAdmin && 
-      (path === '/admin' || path.startsWith('/admin/') || 
-       hash === '#admin' || hash === '#/admin' || hash === '#admin-login' || hash === '#admin/login' || 
-       currentView === 'admin-login' || currentView === 'admin');
+      (path === '/admin' || path.startsWith('/admin/') || path === '/admin-dashboard' || path.startsWith('/admin-dashboard/') ||
+       hash === '#admin' || hash === '#/admin' || hash === '#admin-login' || hash === '#admin/login' || hash === '#admin-dashboard' || hash === '#/admin-dashboard' ||
+       currentView === 'admin-login' || currentView === 'admin' || currentView === 'admin-dashboard');
 
     if (isAdminIntent) {
-      window.location.hash = '#admin';
-      setCurrentView('admin');
+      try {
+        window.history.pushState({}, '', '/admin-dashboard');
+      } catch (e) {}
+      window.location.hash = '#admin-dashboard';
+      setCurrentView('admin-dashboard');
     } else {
       window.location.hash = '#app';
       setCurrentView('app');
@@ -339,31 +355,52 @@ export default function App() {
     return <LandingView onNavigate={handleNavigate} user={user} />;
   }
 
-  // 1.5 Dedicated Super Admin Gateway
+  // 1.5 Dedicated Super Admin Gateway (/admin)
   if (currentView === 'admin-login') {
+    const activeAdmin = user || getCurrentUser();
+    const isAdmin = checkIsAdmin(activeAdmin);
+    if (isAdmin) {
+      try {
+        window.history.pushState({}, '', '/admin-dashboard');
+      } catch (e) {}
+      window.location.hash = '#admin-dashboard';
+      setCurrentView('admin-dashboard');
+      return null;
+    }
+
     return (
       <AdminLoginView
         onAuthSuccess={(adminUser) => {
           setUser(adminUser);
-          window.location.hash = '#admin';
-          setCurrentView('admin');
+          try {
+            window.history.pushState({}, '', '/admin-dashboard');
+          } catch (e) {}
+          window.location.hash = '#admin-dashboard';
+          setCurrentView('admin-dashboard');
         }}
         onBackToUserLogin={() => handleNavigate('auth-login')}
       />
     );
   }
 
-  // 1.8 Standalone Super Admin Panel (Separate Governance Portal)
-  if (currentView === 'admin') {
+  // 1.8 Standalone Super Admin Dashboard Panel (/admin-dashboard)
+  if (currentView === 'admin-dashboard' || currentView === 'admin') {
     const activeAdmin = user || getCurrentUser();
     const isAdmin = checkIsAdmin(activeAdmin);
     if (!isAdmin) {
+      try {
+        window.history.pushState({}, '', '/admin');
+      } catch (e) {}
+      window.location.hash = '#admin';
       return (
         <AdminLoginView
           onAuthSuccess={(adminUser) => {
             setUser(adminUser);
-            window.location.hash = '#admin';
-            setCurrentView('admin');
+            try {
+              window.history.pushState({}, '', '/admin-dashboard');
+            } catch (e) {}
+            window.location.hash = '#admin-dashboard';
+            setCurrentView('admin-dashboard');
           }}
           onBackToUserLogin={() => handleNavigate('auth-login')}
         />
@@ -401,7 +438,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         onOpenUpgrade={() => setIsUpgradeOpen(true)}
         onOpenConnect={() => setIsConnectIgOpen(true)}
-        onOpenAdmin={() => handleNavigate('admin')}
+        onOpenAdmin={() => handleNavigate('admin-dashboard')}
         onLogout={handleLogout}
         darkMode={darkMode}
         setDarkMode={setDarkMode}

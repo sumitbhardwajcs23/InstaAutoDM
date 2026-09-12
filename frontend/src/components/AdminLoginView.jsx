@@ -77,11 +77,14 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
                 const data = await res.json();
                 if (res.ok && data.token && data.user) {
                   setAuthSession(data.token, data.user);
-                  setNotice('✅ Super Admin clearance confirmed. Launching Control Center...');
+                  setNotice('✅ Super Admin clearance confirmed. Redirecting to Admin Dashboard...');
                   if (onAuthSuccess) {
                     onAuthSuccess(data.user);
                   }
-                  window.location.hash = '#admin';
+                  try {
+                    window.history.pushState({}, '', '/admin-dashboard');
+                  } catch (e) {}
+                  window.location.hash = '#admin-dashboard';
                 } else {
                   setError(data.error || 'Admin authorization failed. Ensure this Google account has admin rights.');
                 }
@@ -116,11 +119,14 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
                 const data = await res.json();
                 if (res.ok && data.token && data.user) {
                   setAuthSession(data.token, data.user);
-                  setNotice('✅ Super Admin clearance confirmed. Launching Control Center...');
+                  setNotice('✅ Super Admin clearance confirmed. Redirecting to Admin Dashboard...');
                   if (onAuthSuccess) {
                     onAuthSuccess(data.user);
                   }
-                  window.location.hash = '#admin';
+                  try {
+                    window.history.pushState({}, '', '/admin-dashboard');
+                  } catch (e) {}
+                  window.location.hash = '#admin-dashboard';
                 } else {
                   setError(data.error || 'Admin authorization failed.');
                 }
@@ -239,11 +245,14 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
       const data = await res.json();
       if (res.ok && data.token && data.user) {
         setAuthSession(data.token, data.user);
-        setNotice('✅ Identity Verified! Entering Super Admin Control Center...');
+        setNotice('✅ Identity Verified! Redirecting to Admin Dashboard...');
         if (onAuthSuccess) {
           onAuthSuccess(data.user);
         }
-        window.location.hash = '#admin';
+        try {
+          window.history.pushState({}, '', '/admin-dashboard');
+        } catch (e) {}
+        window.location.hash = '#admin-dashboard';
       } else {
         throw new Error(data.error || 'Invalid or expired code. Please try again.');
       }
@@ -270,11 +279,14 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
       const data = await res.json();
       if (res.ok && data.token && data.user) {
         setAuthSession(data.token, data.user);
-        setNotice('✅ Credentials authenticated. Initializing Control Center...');
+        setNotice('✅ Credentials authenticated. Redirecting to Admin Dashboard...');
         if (onAuthSuccess) {
           onAuthSuccess(data.user);
         }
-        window.location.hash = '#admin';
+        try {
+          window.history.pushState({}, '', '/admin-dashboard');
+        } catch (e) {}
+        window.location.hash = '#admin-dashboard';
       } else {
         throw new Error(data.error || 'Admin authentication failed. Access denied.');
       }
