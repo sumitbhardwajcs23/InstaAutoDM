@@ -631,33 +631,12 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
       {/* Forgot Password Reset Modal */}
       {showResetModal && (
         <div 
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(5, 7, 13, 0.85)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px'
-          }}
+          className="auth-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) setShowResetModal(false);
           }}
         >
-          <div 
-            style={{
-              width: '100%',
-              maxWidth: '420px',
-              backgroundColor: '#0f172a',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '16px',
-              padding: '28px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.65)',
-              position: 'relative'
-            }}
-          >
+          <div className="auth-modal-card">
             <button
               type="button"
               onClick={() => setShowResetModal(false)}
