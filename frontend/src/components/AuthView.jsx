@@ -52,6 +52,76 @@ const MetaIcon = () => (
   </svg>
 );
 
+function SixDigitOtpBoxes({ value, onChange, disabled }) {
+  const digits = String(value || '').padEnd(6, ' ').slice(0, 6).split('');
+  const inputRefs = React.useRef([]);
+
+  const handleChange = (e, index) => {
+    const val = e.target.value.replace(/\D/g, '');
+    const currentDigits = [...String(value || '').slice(0, 6).split('')];
+    while (currentDigits.length < 6) currentDigits.push('');
+
+    if (!val) {
+      currentDigits[index] = '';
+      onChange(currentDigits.join('').trim());
+      return;
+    }
+
+    const lastChar = val[val.length - 1];
+    currentDigits[index] = lastChar;
+    const newOtp = currentDigits.join('');
+    onChange(newOtp);
+
+    if (index < 5 && lastChar) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (e, index) => {
+    if (e.key === 'Backspace') {
+      const currentDigits = [...String(value || '').slice(0, 6).split('')];
+      if (!currentDigits[index] && index > 0) {
+        inputRefs.current[index - 1]?.focus();
+      }
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted) {
+      onChange(pasted);
+      const nextFocus = Math.min(pasted.length - 1, 5);
+      inputRefs.current[nextFocus]?.focus();
+    }
+  };
+
+  return (
+    <div className="auth-otp-grid">
+      {[0, 1, 2, 3, 4, 5].map((i) => {
+        const char = (value || '')[i] || '';
+        return (
+          <input
+            key={i}
+            ref={(el) => (inputRefs.current[i] = el)}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={1}
+            value={char}
+            onChange={(e) => handleChange(e, i)}
+            onKeyDown={(e) => handleKeyDown(e, i)}
+            onPaste={handlePaste}
+            disabled={disabled}
+            className="auth-otp-box"
+            autoFocus={i === 0}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackToLanding }) {
   const [mode, setMode] = useState(initialMode); // 'login' or 'signup'
   
@@ -354,7 +424,7 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
           <div className="auth-hero-header">
             <div className="auth-hero-brand" onClick={onBackToLanding} style={{ cursor: onBackToLanding ? 'pointer' : 'default' }}>
               <div className="auth-hero-logo">
-                <img src="/logo-icon.png" alt="Airvix Logo" />
+                <img src="/airvix-mark.png" alt="Airvix Logo" className="auth-hero-logo-img" />
               </div>
               <span className="auth-hero-title-text">Airvix</span>
             </div>
@@ -438,7 +508,9 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                   </div>
 
                   <div className="auth-reply-box">
-                    <div className="auth-airvix-avatar">A</div>
+                    <div className="auth-airvix-avatar" style={{ background: '#ffffff', padding: '2px' }}>
+                      <img src="/airvix-mark.png" alt="Airvix" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'contain' }} />
+                    </div>
                     <div className="auth-reply-content">
                       <div className="auth-reply-author">Airvix <span className="auth-comment-time">now</span></div>
                       <div className="auth-reply-text">Check your DM! 🚀</div>
@@ -446,7 +518,9 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                   </div>
 
                   <div className="auth-dm-box">
-                    <div className="auth-airvix-avatar">A</div>
+                    <div className="auth-airvix-avatar" style={{ background: '#ffffff', padding: '2px' }}>
+                      <img src="/airvix-mark.png" alt="Airvix" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'contain' }} />
+                    </div>
                     <div className="auth-reply-content">
                       <div className="auth-reply-author">Airvix <span className="auth-comment-time">now</span></div>
                       <div className="auth-reply-text">Hey! Thanks for your comment. Here is your link: <u>https://yourlink.com</u></div>
@@ -671,20 +745,7 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                           Edit Details
                         </button>
                       </div>
-                      <div className="auth-input-box">
-                        <KeyRound size={16} className="auth-input-icon" />
-                        <input
-                          type="text"
-                          required
-                          maxLength={6}
-                          value={signupOtp}
-                          onChange={(e) => setSignupOtp(e.target.value.replace(/\D/g, ''))}
-                          placeholder="123456"
-                          className="auth-text-input"
-                          style={{ letterSpacing: '4px', fontWeight: 'bold' }}
-                          autoFocus
-                        />
-                      </div>
+                      <SixDigitOtpBoxes value={signupOtp} onChange={setSignupOtp} disabled={loading} />
                     </div>
 
                     <button type="submit" disabled={loading} className="auth-submit-btn">
@@ -815,19 +876,7 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
 
                 <div className="auth-input-group">
                   <label className="auth-input-label">6-Digit OTP Code</label>
-                  <div className="auth-input-box">
-                    <KeyRound size={16} className="auth-input-icon" />
-                    <input
-                      type="text"
-                      required
-                      maxLength={6}
-                      value={resetOtp}
-                      onChange={(e) => setResetOtp(e.target.value.replace(/\D/g, ''))}
-                      placeholder="123456"
-                      className="auth-text-input"
-                      style={{ letterSpacing: '4px', fontWeight: 'bold' }}
-                    />
-                  </div>
+                  <SixDigitOtpBoxes value={resetOtp} onChange={setResetOtp} disabled={resetLoading} />
                 </div>
 
                 <div className="auth-input-group">

@@ -20,7 +20,7 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
     .map(
       (digit) => `
       <td align="center" style="padding: 0 4px;">
-        <div style="width: 46px; height: 56px; line-height: 56px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 26px; font-weight: 800; color: #0f172a; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+        <div style="width: 44px; height: 52px; line-height: 52px; background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 24px; font-weight: 800; color: #0f172a; text-align: center; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
           ${digit}
         </div>
       </td>`
@@ -36,18 +36,16 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
   <title>${title}</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f2ff; color: #0f172a; margin: 0; padding: 32px 16px;">
-  <div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 24px; border: 1px solid #e2e8f0; padding: 40px 36px; box-shadow: 0 12px 35px rgba(99, 102, 241, 0.08);">
+  <div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 20px; border: 1px solid #e2e8f0; padding: 40px 36px; box-shadow: 0 10px 30px rgba(99, 102, 241, 0.06);">
     
     <!-- Top Header / Logo Bar -->
-    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 32px;">
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 36px;">
       <tr>
         <td align="left">
           <table border="0" cellspacing="0" cellpadding="0">
             <tr>
               <td style="padding-right: 10px;">
-                <div style="width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #ffffff; font-weight: 900; font-size: 18px; text-align: center; line-height: 32px;">
-                  A
-                </div>
+                <img src="https://airvix.online/airvix-mark.png" alt="Airvix" width="32" height="32" style="display: block; width: 32px; height: 32px; border: 0; object-fit: contain;" />
               </td>
               <td style="font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">
                 Airvix
@@ -55,15 +53,15 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
             </tr>
           </table>
         </td>
-        <td align="right" style="font-size: 12.5px; color: #64748b; font-weight: 500;">
+        <td align="right" style="font-size: 13px; color: #64748b; font-weight: 500;">
           Automate &bull; Engage &bull; Grow
         </td>
       </tr>
     </table>
 
     <!-- Lock Icon Badge -->
-    <div style="text-align: center; margin-bottom: 20px;">
-      <div style="display: inline-block; width: 56px; height: 56px; border-radius: 18px; background-color: #f0eaff; text-align: center; line-height: 56px;">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <div style="display: inline-block; width: 56px; height: 56px; border-radius: 16px; background-color: #f0eaff; text-align: center; line-height: 56px;">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;">
           <rect x="5" y="11" width="14" height="10" rx="3" fill="#6366f1"/>
           <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"/>
@@ -94,7 +92,7 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
     </div>
 
     <!-- Security Info Box -->
-    <div style="background-color: #f8fafc; border: 1px solid #f1f5f9; border-radius: 14px; padding: 12px 18px; font-size: 13px; color: #64748b; text-align: center; margin-bottom: 32px;">
+    <div style="background-color: #f8fafc; border: 1px solid #f1f5f9; border-radius: 12px; padding: 12px 18px; font-size: 13px; color: #64748b; text-align: center; margin-bottom: 32px;">
       <span style="color: #6366f1; font-weight: 700;">&#9432;</span> ${messageNotice || "If you didn't request this code, you can safely ignore this email."}
     </div>
 
@@ -106,17 +104,75 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
     </div>
 
     <!-- Footer -->
-    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 8px;">
       <tr>
-        <td align="left">
-          <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 4px;">Airvix</div>
-          <div style="font-size: 11.5px; color: #94a3b8;">All-in-one Instagram automation for creators, brands and businesses.</div>
+        <td align="left" valign="top">
+          <table border="0" cellspacing="0" cellpadding="0">
+            <tr>
+              <td style="padding-right: 8px;">
+                <img src="https://airvix.online/airvix-mark.png" alt="Airvix" width="22" height="22" style="display: block; width: 22px; height: 22px; border: 0; object-fit: contain;" />
+              </td>
+              <td style="font-size: 16px; font-weight: 800; color: #0f172a;">
+                Airvix
+              </td>
+            </tr>
+          </table>
+          <div style="font-size: 12px; color: #64748b; margin-top: 6px; max-width: 280px; line-height: 1.4;">
+            All-in-one Instagram automation for creators, brands and businesses.
+          </div>
+        </td>
+        <td align="right" valign="top">
+          <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 8px;">Follow us</div>
+          <table border="0" cellspacing="0" cellpadding="0">
+            <tr>
+              <td style="padding-left: 8px;">
+                <a href="https://instagram.com" target="_blank" style="text-decoration: none;">
+                  <div style="width: 28px; height: 28px; border-radius: 50%; background-color: #f1f5f9; text-align: center; line-height: 28px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+                      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+                      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+                    </svg>
+                  </div>
+                </a>
+              </td>
+              <td style="padding-left: 8px;">
+                <a href="https://youtube.com" target="_blank" style="text-decoration: none;">
+                  <div style="width: 28px; height: 28px; border-radius: 50%; background-color: #f1f5f9; text-align: center; line-height: 28px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/>
+                      <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>
+                    </svg>
+                  </div>
+                </a>
+              </td>
+              <td style="padding-left: 8px;">
+                <a href="https://airvix.online" target="_blank" style="text-decoration: none;">
+                  <div style="width: 28px; height: 28px; border-radius: 50%; background-color: #f1f5f9; text-align: center; line-height: 28px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="2" y1="12" x2="22" y2="12"/>
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                  </div>
+                </a>
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
       <tr>
-        <td align="left" style="padding-top: 16px; font-size: 11.5px; color: #94a3b8;">
-          Need help? Reply directly to this email.<br>
-          &copy; ${new Date().getFullYear()} Airvix Inc. All rights reserved.
+        <td colspan="2" style="padding-top: 24px;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="border-top: 1px solid #f1f5f9; padding-top: 16px;">
+            <tr>
+              <td align="left" style="font-size: 11.5px; color: #94a3b8;">
+                Need help? Visit our <a href="http://localhost:5173" style="color: #4f46e5; text-decoration: underline;">Help Center</a> or reply to this email.
+              </td>
+              <td align="right" style="font-size: 11.5px; color: #94a3b8;">
+                &copy; ${new Date().getFullYear()} Airvix. All rights reserved.
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
     </table>

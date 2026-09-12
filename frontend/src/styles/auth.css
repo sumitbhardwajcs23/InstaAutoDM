@@ -8,7 +8,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #f4f2ff;
+  background: #ffffff;
   color: #0f172a;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   padding: 16px 20px;
@@ -23,14 +23,14 @@
   box-sizing: border-box;
 }
 
-/* Ambient Background Lighting Orbs */
+/* Ambient Background Lighting Orbs (Pure White Theme) */
 .auth-ambient-glow-1 {
   position: absolute;
   top: -160px;
   left: 20%;
   width: 700px;
   height: 500px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.18) 0%, rgba(99, 102, 241, 0.12) 45%, rgba(244, 242, 255, 0) 75%);
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.05) 0%, rgba(255, 255, 255, 0) 70%);
   filter: blur(90px);
   pointer-events: none;
   z-index: 0;
@@ -42,7 +42,7 @@
   right: 15%;
   width: 600px;
   height: 500px;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.16) 0%, rgba(139, 92, 246, 0.12) 50%, rgba(244, 242, 255, 0) 75%);
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.05) 0%, rgba(255, 255, 255, 0) 70%);
   filter: blur(90px);
   pointer-events: none;
   z-index: 0;
@@ -51,7 +51,7 @@
 .auth-ambient-mesh {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(rgba(99, 102, 241, 0.07) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(148, 163, 184, 0.12) 1px, transparent 1px);
   background-size: 32px 32px;
   pointer-events: none;
   z-index: 0;
@@ -67,9 +67,9 @@
   background: #ffffff;
   border-radius: 24px;
   box-shadow: 
-    0 25px 65px -15px rgba(99, 102, 241, 0.16),
-    0 10px 25px -5px rgba(15, 23, 42, 0.04),
-    0 0 0 1px rgba(226, 232, 240, 0.8);
+    0 20px 50px -10px rgba(15, 23, 42, 0.08),
+    0 4px 15px rgba(0, 0, 0, 0.03),
+    0 0 0 1px rgba(226, 232, 240, 0.9);
   overflow: hidden;
   position: relative;
   z-index: 2;
@@ -78,13 +78,13 @@
 
 /* LEFT HERO PANEL */
 .auth-hero-panel {
-  background: linear-gradient(145deg, #f7f4ff 0%, #ede7fe 50%, #ffffff 100%);
+  background: #ffffff;
   padding: 28px 34px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   position: relative;
-  border-right: 1px solid rgba(226, 232, 240, 0.7);
+  border-right: 1px solid #f1f5f9;
   overflow: hidden;
 }
 
@@ -102,22 +102,18 @@
 }
 
 .auth-hero-logo {
-  width: 32px;
   height: 32px;
-  border-radius: 9px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 5px;
-  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.15);
 }
 
-.auth-hero-logo img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+.auth-hero-logo img,
+.auth-hero-logo-img {
+  height: 32px !important;
+  max-height: 32px !important;
+  width: auto !important;
+  object-fit: contain !important;
 }
 
 .auth-hero-title-text {
@@ -738,6 +734,39 @@
   padding: 28px;
   box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.2);
   position: relative;
+}
+
+/* Dedicated 6-Digit OTP Box Grid (Zero Overflow) */
+.auth-otp-grid {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 10px 0;
+}
+
+.auth-otp-box {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  border-radius: 11px;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 800;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.auth-otp-box:focus {
+  border-color: #6366f1;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
 /* Responsive adjustments */
