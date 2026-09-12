@@ -166,12 +166,58 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
   const handleGoogleAuth = async () => {
     setLoading(true);
     setError(null);
-    setNotice('Connecting to Google OAuth 2.5...');
+    setNotice('Connecting to Google...');
 
-    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '955250447660-vkts1brjtpkn9ph488l7ffp7sm20ft0t.apps.googleusercontent.com';
 
-    // Trigger live Google GSI popup if Google Client ID is configured
-    if (window.google?.accounts?.id && googleClientId) {
+    // 1. Preferred modern Google OAuth 2.0 Token Client (Popup on button click)
+    if (window.google?.accounts?.oauth2) {
+      try {
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: googleClientId,
+          scope: 'openid email profile',
+          callback: async (tokenResponse) => {
+            if (tokenResponse.error) {
+              setLoading(false);
+              if (tokenResponse.error !== 'popup_closed_by_user') {
+                setError(tokenResponse.error_description || 'Google sign-in was cancelled.');
+              }
+              return;
+            }
+
+            if (tokenResponse.access_token) {
+              try {
+                const res = await fetch('/api/auth/google', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ access_token: tokenResponse.access_token }),
+                });
+
+                const data = await res.json();
+                if (res.ok && data.token) {
+                  setAuthSession(data.token, data.user);
+                  onAuthSuccess(data.user);
+                } else {
+                  setError(data.error || 'Google authentication failed.');
+                }
+              } catch (err) {
+                setError(err.message || 'Failed to authenticate with Google.');
+              } finally {
+                setLoading(false);
+              }
+            }
+          },
+        });
+
+        tokenClient.requestAccessToken({ prompt: 'select_account' });
+        return;
+      } catch (err) {
+        console.warn('[Google Auth] initTokenClient failed, trying GSI fallback:', err.message);
+      }
+    }
+
+    // 2. Fallback: Google Identity Services (GSI) One-Tap / ID token
+    if (window.google?.accounts?.id) {
       try {
         window.google.accounts.id.initialize({
           client_id: googleClientId,
@@ -192,50 +238,22 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                   setError(data.error || 'Google authentication failed.');
                 }
               } catch (err) {
-                setError(err.message);
+                setError(err.message || 'Failed to authenticate with Google.');
               } finally {
                 setLoading(false);
               }
             }
-          }
+          },
         });
-        window.google.accounts.id.prompt((notification) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // Fallback prompt popup
-            window.google.accounts.id.renderButton(document.getElementById('google-btn-hidden'), {
-              type: 'standard',
-              theme: 'outline',
-              size: 'large'
-            });
-          }
-        });
+        window.google.accounts.id.prompt();
         return;
       } catch (err) {
-        console.warn('Google GSI Prompt error, using direct flow:', err.message);
+        console.warn('[Google Auth] GSI prompt error:', err.message);
       }
     }
 
-    // Direct token / backend authentication
-    try {
-      const googleToken = `google_token_${email ? encodeURIComponent(email) : 'creator'}_${Date.now()}`;
-      const res = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: googleToken }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.token) {
-        setAuthSession(data.token, data.user);
-        onAuthSuccess(data.user);
-      } else {
-        throw new Error(data.error || 'Google authentication failed.');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
+    setError('Google Sign-In is initializing. Please check your internet connection or reload the page.');
   };
 
   // Handle Traditional Password Login

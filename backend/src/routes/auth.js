@@ -36,11 +36,11 @@ function isConfiguredAdminEmail(email) {
  */
 router.post('/google', authLimiter, async (req, res) => {
   try {
-    const { id_token, credential, code } = req.body;
-    const tokenToVerify = id_token || credential || code;
+    const { id_token, credential, code, access_token } = req.body;
+    const tokenToVerify = id_token || credential || code || access_token;
 
     if (!tokenToVerify) {
-      return res.status(400).json({ error: 'Google authentication credential or ID token is required' });
+      return res.status(400).json({ error: 'Google authentication credential, ID token, or access token is required' });
     }
 
     // Verify Google ID token and extract Google profile

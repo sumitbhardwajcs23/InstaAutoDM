@@ -152,7 +152,7 @@ async function linkAuthProviderToUser({ userId, provider, providerAccountId }) {
     await db.prepare(`
       UPDATE auth_accounts SET provider_account_id = ?, created_at = ?
       WHERE user_id = ? AND provider = ?
-    `).run(providerAccountId, nowStr, userId, provider);
+    `).run(String(providerAccountId), nowStr, userId, provider);
     return { success: true, message: `Updated ${provider} identity for your Airvix account.` };
   }
 
@@ -160,22 +160,36 @@ async function linkAuthProviderToUser({ userId, provider, providerAccountId }) {
   await db.prepare(`
     INSERT INTO auth_accounts (id, user_id, provider, provider_account_id, created_at)
     VALUES (?, ?, ?, ?, ?)
-  `).run(authAccId, userId, provider, providerAccountId, nowStr);
+  `).run(authAccId, userId, provider, String(providerAccountId), nowStr);
 
   return { success: true, message: `Successfully linked ${provider} to your Airvix account.` };
 }
 
 /**
- * Verify Google ID Token / OAuth Token
+ * Verify Google ID Token / OAuth Token / Access Token
  */
-async function verifyGoogleIdToken(idToken) {
-  if (!idToken) throw new Error('Google ID Token is required.');
+async function verifyGoogleIdToken(token) {
+  if (!token) throw new Error('Google token is required.');
 
-  // If google-auth-library is initialized with Client ID
-  if (googleClient && googleClientId) {
+  // For dev testing mode when token is simulated mock token
+  if (typeof token === 'string' && token.startsWith('mock_google_token_')) {
+    const mockEmail = token.replace('mock_google_token_', '');
+    return {
+      sub: `google_mock_sub_${mockEmail}`,
+      email: mockEmail,
+      email_verified: true,
+      name: mockEmail.split('@')[0],
+      picture: null,
+    };
+  }
+
+  const isJwt = typeof token === 'string' && token.split('.').length === 3;
+
+  // 1. If it's a JWT (ID Token), verify with google-auth-library
+  if (isJwt && googleClient && googleClientId) {
     try {
       const ticket = await googleClient.verifyIdToken({
-        idToken,
+        idToken: token,
         audience: googleClientId,
       });
       const payload = ticket.getPayload();
@@ -187,41 +201,72 @@ async function verifyGoogleIdToken(idToken) {
         picture: payload.picture,
       };
     } catch (err) {
-      console.warn('[Google OAuth] Local library verify error, trying Google HTTP verify API:', err.message);
+      console.warn('[Google OAuth] Local library verify error, trying HTTP verification:', err.message);
     }
   }
 
-  // Fallback: Verify via Google OpenID TokenInfo HTTP endpoint
-  try {
-    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-    if (!res.ok) {
-      throw new Error('Invalid or expired Google token');
+  // 2. If it's a JWT, verify via Google OpenID TokenInfo HTTP endpoint
+  if (isJwt) {
+    try {
+      const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.email) {
+          return {
+            sub: data.sub,
+            email: data.email,
+            email_verified: data.email_verified === 'true' || data.email_verified === true,
+            name: data.name || data.given_name || data.email.split('@')[0],
+            picture: data.picture,
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('[Google OAuth] ID tokeninfo endpoint failed:', err.message);
     }
-    const data = await res.json();
-    if (!data.email) {
-      throw new Error('Google token does not contain a valid email claim');
-    }
-    return {
-      sub: data.sub,
-      email: data.email,
-      email_verified: data.email_verified === 'true' || data.email_verified === true,
-      name: data.name || data.given_name || data.email.split('@')[0],
-      picture: data.picture,
-    };
-  } catch (httpErr) {
-    // For dev testing mode when token is simulated mock token
-    if (idToken.startsWith('mock_google_token_')) {
-      const mockEmail = idToken.replace('mock_google_token_', '');
-      return {
-        sub: `google_mock_sub_${mockEmail}`,
-        email: mockEmail,
-        email_verified: true,
-        name: mockEmail.split('@')[0],
-        picture: null,
-      };
-    }
-    throw new Error(`Google OAuth token verification failed: ${httpErr.message}`);
   }
+
+  // 3. If it's an OAuth access_token, verify via Google UserInfo API
+  try {
+    const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (userinfoRes.ok) {
+      const info = await userinfoRes.json();
+      if (info.email) {
+        return {
+          sub: info.sub,
+          email: info.email,
+          email_verified: info.email_verified === 'true' || info.email_verified === true,
+          name: info.name || info.given_name || info.email.split('@')[0],
+          picture: info.picture,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[Google OAuth] UserInfo API failed:', err.message);
+  }
+
+  // 4. Try access_token via tokeninfo endpoint
+  try {
+    const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`);
+    if (tokenInfoRes.ok) {
+      const data = await tokenInfoRes.json();
+      if (data.email) {
+        return {
+          sub: data.sub || data.user_id,
+          email: data.email,
+          email_verified: data.email_verified === 'true' || data.email_verified === true,
+          name: data.email.split('@')[0],
+          picture: null,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[Google OAuth] Access tokeninfo failed:', err.message);
+  }
+
+  throw new Error('Invalid or expired Google authentication token. Please sign in again.');
 }
 
 /**
