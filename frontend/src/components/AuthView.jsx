@@ -16,7 +16,11 @@ import {
   KeyRound,
   Send,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  MessageSquare,
+  BarChart3,
+  Users,
+  Heart
 } from 'lucide-react';
 import { setAuthSession } from '../api/client';
 import '../styles/auth.css';
@@ -39,6 +43,12 @@ const GoogleIcon = () => (
       d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
       fill="#EA4335"
     />
+  </svg>
+);
+
+const MetaIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="#0081FB">
+    <path d="M16.5 6c-1.8 0-3.3 1-4.5 2.5C10.8 7 9.3 6 7.5 6 4.5 6 2 8.5 2 11.5S4.5 17 7.5 17c1.8 0 3.3-1 4.5-2.5 1.2 1.5 2.7 2.5 4.5 2.5 3 0 5.5-2.5 5.5-5.5S19.5 6 16.5 6zm-9 9c-1.9 0-3.5-1.6-3.5-3.5S5.6 8 7.5 8s3.5 1.6 3.5 3.5S9.4 15 7.5 15zm9 0c-1.9 0-3.5-1.6-3.5-3.5S14.6 8 16.5 8s3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/>
   </svg>
 );
 
@@ -284,336 +294,389 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
 
   return (
     <div className="auth-page-wrapper">
-      {/* Dynamic Ambient Glow Background Elements */}
+      {/* Dynamic Ambient Mesh Background */}
       <div className="auth-ambient-glow-1" />
       <div className="auth-ambient-glow-2" />
       <div className="auth-ambient-mesh" />
 
-      <header className="auth-header-bar">
-        {onBackToLanding ? (
-          <button type="button" onClick={onBackToLanding} className="auth-back-link">
-            <ChevronLeft size={15} />
-            <span>Back to website</span>
-          </button>
-        ) : <div />}
-
-        <div className="auth-status-badge">
-          <span className="auth-status-dot" />
-          <span>Meta API Systems Operational</span>
-        </div>
-      </header>
-
-      <main className="auth-clean-card">
-        <div className="auth-brand-center">
-          <div className="auth-brand-pill">
-            <Sparkles size={12} className="auth-sparkle-icon" />
-            <span>INSTAGRAM AUTOMATION PLATFORM</span>
-          </div>
-
-          <div className="auth-logo-box" onClick={onBackToLanding} style={{ cursor: onBackToLanding ? 'pointer' : 'default' }}>
-            <div className="auth-logo-glow" />
-            <img src="/logo-icon.png" alt="Airvix Logo" />
-          </div>
-          <h1 className="auth-title">
-            {mode === 'login' ? (
-              <>Welcome back to <span className="auth-gradient-text">Airvix</span></>
-            ) : (
-              <>Join the future with <span className="auth-gradient-text">Airvix</span></>
-            )}
-          </h1>
-          <p className="auth-subtitle">
-            {mode === 'login' 
-              ? 'Log in to manage your automated Instagram conversations.' 
-              : 'Join top creators turning comments into automated revenue.'}
-          </p>
-        </div>
-
-        {/* Tab Switcher: Sign In vs Create Account */}
-        <div className="auth-tab-pill">
-          <button
-            type="button"
-            className={`auth-tab-btn ${mode === 'login' ? 'active' : ''}`}
-            onClick={() => { setMode('login'); setError(null); setNotice(null); setSignupStep('form'); }}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            className={`auth-tab-btn ${mode === 'signup' ? 'active' : ''}`}
-            onClick={() => { setMode('signup'); setError(null); setNotice(null); setSignupStep('form'); }}
-          >
-            Create Account
-          </button>
-        </div>
-
-        {/* Feedback Alerts */}
-        {error && (
-          <div className="auth-alert-box error" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <AlertCircle size={17} style={{ flexShrink: 0, marginTop: '2px' }} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-              <span>{error}</span>
+      {/* Main Split-Screen Container */}
+      <main className="auth-split-card">
+        {/* LEFT HERO PANEL */}
+        <div className="auth-hero-panel">
+          <div className="auth-hero-header">
+            <div className="auth-hero-brand" onClick={onBackToLanding} style={{ cursor: onBackToLanding ? 'pointer' : 'default' }}>
+              <div className="auth-hero-logo">
+                <img src="/logo-icon.png" alt="Airvix Logo" />
+              </div>
+              <span className="auth-hero-title-text">Airvix</span>
+            </div>
+            <div className="auth-hero-nav-bullets">
+              <span>Automate</span>
+              <span className="auth-bullet-dot">•</span>
+              <span>Engage</span>
+              <span className="auth-bullet-dot">•</span>
+              <span>Grow</span>
             </div>
           </div>
-        )}
 
-        {notice && (
-          <div className="auth-alert-box info">
-            <Info size={17} style={{ flexShrink: 0, marginTop: '2px' }} />
-            <span>{notice}</span>
+          <div className="auth-hero-content">
+            <div className="auth-hero-pill">
+              <Sparkles size={13} className="auth-sparkle-icon" />
+              <span>Made for Instagram Creators</span>
+            </div>
+
+            <h1 className="auth-hero-headline">
+              Less Manual Work, <br />
+              More <span className="auth-hero-highlight">Real Conversations.</span>
+            </h1>
+
+            <p className="auth-hero-subtext">
+              Automate comments, DMs and story replies — <br />
+              so you can focus on what you do best.
+            </p>
+
+            <div className="auth-hero-features">
+              <div className="auth-feature-chip">
+                <div className="auth-chip-icon purple">
+                  <MessageSquare size={16} />
+                </div>
+                <div>
+                  <div className="auth-chip-title">Auto Reply</div>
+                  <div className="auth-chip-desc">Comments, DMs & Story Replies</div>
+                </div>
+              </div>
+
+              <div className="auth-feature-chip">
+                <div className="auth-chip-icon blue">
+                  <BarChart3 size={16} />
+                </div>
+                <div>
+                  <div className="auth-chip-title">Save Time</div>
+                  <div className="auth-chip-desc">Do more with less effort</div>
+                </div>
+              </div>
+
+              <div className="auth-feature-chip">
+                <div className="auth-chip-icon green">
+                  <Users size={16} />
+                </div>
+                <div>
+                  <div className="auth-chip-title">Grow Faster</div>
+                  <div className="auth-chip-desc">Turn interactions into followers</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Mockup Graphic */}
+            <div className="auth-mockup-wrapper">
+              <div className="auth-mockup-card">
+                <div className="auth-mockup-header">
+                  <span className="auth-mockup-ig-title">Instagram</span>
+                  <div className="auth-mockup-actions">
+                    <Heart size={15} />
+                    <Send size={15} />
+                  </div>
+                </div>
+
+                <div className="auth-mockup-body">
+                  <div className="auth-comment-row">
+                    <div className="auth-user-avatar">
+                      <User size={14} />
+                    </div>
+                    <div className="auth-comment-content">
+                      <div className="auth-comment-author">user123 <span className="auth-comment-time">2m</span></div>
+                      <div className="auth-comment-text">Hi, can I get the link?</div>
+                    </div>
+                  </div>
+
+                  <div className="auth-reply-box">
+                    <div className="auth-airvix-avatar">A</div>
+                    <div className="auth-reply-content">
+                      <div className="auth-reply-author">Airvix <span className="auth-comment-time">now</span></div>
+                      <div className="auth-reply-text">Check your DM! 🚀</div>
+                    </div>
+                  </div>
+
+                  <div className="auth-dm-box">
+                    <div className="auth-airvix-avatar">A</div>
+                    <div className="auth-reply-content">
+                      <div className="auth-reply-author">Airvix <span className="auth-comment-time">now</span></div>
+                      <div className="auth-reply-text">Hey! Thanks for your comment. Here is your link: <u>https://yourlink.com</u></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="auth-annotation-badge">
+                <span>From comments to customers</span>
+                <svg className="auth-arrow-svg" viewBox="0 0 100 40">
+                  <path d="M10,20 Q50,0 90,30" fill="none" stroke="#a855f7" strokeWidth="2" strokeDasharray="3 3" />
+                  <polygon points="90,30 84,23 83,30" fill="#a855f7" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="auth-hero-footer">
+              <span>Trusted by creators, brands and agencies worldwide.</span>
+              <div className="auth-carousel-dots">
+                <span className="dot active" />
+                <span className="dot" />
+                <span className="dot" />
+                <span className="dot" />
+              </div>
+            </div>
           </div>
-        )}
-
-        {/* Continue with Google */}
-        <button type="button" onClick={handleGoogleAuth} disabled={loading} className="auth-google-btn">
-          <GoogleIcon />
-          <span>Continue with Google</span>
-        </button>
-
-        <div className="auth-divider">
-          <span>or continue with email</span>
         </div>
 
-        {/* SIGN IN vs CREATE ACCOUNT FORM */}
-        <div>
-          {mode === 'login' ? (
-            /* LOGIN FORM */
-            <form onSubmit={handlePasswordLogin} className="auth-form-fields">
-              <div className="auth-input-group">
-                <label className="auth-input-label">Email Address</label>
-                <div className="auth-input-box">
-                  <Mail size={16} className="auth-input-icon" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    className="auth-text-input"
-                  />
-                </div>
-              </div>
-
-              <div className="auth-input-group">
-                <div className="auth-input-label-row">
-                  <label className="auth-input-label">Password</label>
-                  <button
-                    type="button"
-                    onClick={handleForgotPasswordClick}
-                    className="auth-forgot-btn"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-                <div className="auth-input-box">
-                  <Lock size={16} className="auth-input-icon" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="auth-text-input"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="auth-eye-toggle"
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <button type="submit" disabled={loading} className="auth-submit-btn">
-                {loading ? (
-                  <span>Authenticating...</span>
-                ) : (
-                  <>
-                    <span>Sign In to Workspace</span>
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </button>
-
-              <div style={{ textAlign: 'center', marginTop: '14px' }}>
+        {/* RIGHT FORM PANEL */}
+        <div className="auth-form-panel">
+          <div className="auth-form-top-bar">
+            {mode === 'login' ? (
+              <div className="auth-switch-prompt">
+                Don't have an account?{' '}
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode('signup');
-                    setSignupStep('form');
-                    setError(null);
-                    setNotice(null);
-                  }}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '13px', cursor: 'pointer' }}
+                  onClick={() => { setMode('signup'); setError(null); setNotice(null); setSignupStep('form'); }}
+                  className="auth-switch-btn"
                 >
-                  Don't have an account? Create one
+                  Sign up
                 </button>
               </div>
-            </form>
-          ) : (
-            /* CREATE ACCOUNT FORM WITH EMAIL OTP VERIFICATION */
-            <div>
-              {signupStep === 'form' ? (
-                /* STEP 1: Enter Name, Email, Password -> Send Verification OTP */
-                <form onSubmit={handleSignupRequest} className="auth-form-fields">
-                  <div className="auth-input-group">
-                    <label className="auth-input-label">Full Name</label>
-                    <div className="auth-input-box">
-                      <User size={16} className="auth-input-icon" />
-                      <input
-                        type="text"
-                        required
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="e.g. Alex Rivera"
-                        className="auth-text-input"
-                      />
-                    </div>
-                  </div>
+            ) : (
+              <div className="auth-switch-prompt">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setError(null); setNotice(null); setSignupStep('form'); }}
+                  className="auth-switch-btn"
+                >
+                  Log in
+                </button>
+              </div>
+            )}
+          </div>
 
-                  <div className="auth-input-group">
-                    <label className="auth-input-label">Email Address</label>
-                    <div className="auth-input-box">
-                      <Mail size={16} className="auth-input-icon" />
-                      <input
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="name@company.com"
-                        className="auth-text-input"
-                      />
-                    </div>
-                  </div>
+          <div className="auth-form-main-content">
+            <h2 className="auth-form-title">
+              {mode === 'login' ? 'Welcome back' : 'Create an account'}
+            </h2>
+            <p className="auth-form-subtitle">
+              {mode === 'login' 
+                ? 'Log in to your Airvix account' 
+                : 'Start turning Instagram comments into customers'}
+            </p>
 
-                  <div className="auth-input-group">
-                    <label className="auth-input-label">Password</label>
-                    <div className="auth-input-box">
-                      <Lock size={16} className="auth-input-icon" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        minLength={6}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="At least 6 characters"
-                        className="auth-text-input"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="auth-eye-toggle"
-                      >
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <button type="submit" disabled={loading} className="auth-submit-btn">
-                    {loading ? (
-                      <span>Sending OTP Code...</span>
-                    ) : (
-                      <>
-                        <span>Create Account & Verify OTP</span>
-                        <Send size={15} />
-                      </>
-                    )}
-                  </button>
-
-                  <div style={{ textAlign: 'center', marginTop: '14px' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode('login');
-                        setError(null);
-                        setNotice(null);
-                      }}
-                      style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '13px', cursor: 'pointer' }}
-                    >
-                      Already have an account? Sign In
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                /* STEP 2: Enter 6-Digit Email Verification OTP */
-                <form onSubmit={handleSignupVerify} className="auth-form-fields">
-                  <div className="auth-input-group">
-                    <div className="auth-input-label-row">
-                      <label className="auth-input-label">Enter 6-Digit Verification Code</label>
-                      <button
-                        type="button"
-                        onClick={() => setSignupStep('form')}
-                        style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '12px', cursor: 'pointer' }}
-                      >
-                        Edit Details
-                      </button>
-                    </div>
-                    <div className="auth-input-box">
-                      <KeyRound size={16} className="auth-input-icon" />
-                      <input
-                        type="text"
-                        required
-                        maxLength={6}
-                        value={signupOtp}
-                        onChange={(e) => setSignupOtp(e.target.value.replace(/\D/g, ''))}
-                        placeholder="123456"
-                        className="auth-text-input"
-                        style={{ letterSpacing: '4px', fontWeight: 'bold' }}
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-
-                  <button type="submit" disabled={loading} className="auth-submit-btn">
-                    {loading ? (
-                      <span>Verifying & Creating Account...</span>
-                    ) : (
-                      <>
-                        <span>Verify Code & Complete Registration</span>
-                        <ArrowRight size={16} />
-                      </>
-                    )}
-                  </button>
-
-                  <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                    <button
-                      type="button"
-                      disabled={resendTimer > 0 || loading}
-                      onClick={handleSignupRequest}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: resendTimer > 0 ? '#64748b' : '#818cf8',
-                        fontSize: '13px',
-                        cursor: resendTimer > 0 ? 'not-allowed' : 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <RefreshCw size={13} className={loading ? 'spin' : ''} />
-                      <span>{resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend Verification Code'}</span>
-                    </button>
-                  </div>
-                </form>
-              )}
+            {/* SSO Buttons */}
+            <div className="auth-sso-group">
+              <button type="button" onClick={handleGoogleAuth} disabled={loading} className="auth-sso-btn">
+                <GoogleIcon />
+                <span>Continue with Google</span>
+              </button>
+              <button type="button" onClick={handleGoogleAuth} disabled={loading} className="auth-sso-btn">
+                <MetaIcon />
+                <span>Continue with Meta</span>
+              </button>
             </div>
-          )}
-        </div>
 
-        <div className="auth-trust-badges">
-          <div className="auth-trust-item">
-            <ShieldCheck size={14} />
-            <span>Meta Tech Compliant</span>
-          </div>
-          <div className="auth-trust-item">
-            <Lock size={13} />
-            <span>Single Canonical Account</span>
-          </div>
-          <div className="auth-trust-item">
-            <CheckCircle2 size={13} />
-            <span>Resend Secure OTP</span>
+            <div className="auth-divider">
+              <span>or</span>
+            </div>
+
+            {/* Feedback Alerts */}
+            {error && (
+              <div className="auth-alert-box error">
+                <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {notice && (
+              <div className="auth-alert-box info">
+                <Info size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <span>{notice}</span>
+              </div>
+            )}
+
+            {/* SIGN IN vs CREATE ACCOUNT FORMS */}
+            {mode === 'login' ? (
+              /* LOGIN FORM */
+              <form onSubmit={handlePasswordLogin} className="auth-form-fields">
+                <div className="auth-input-group">
+                  <label className="auth-input-label">Email address</label>
+                  <div className="auth-input-box">
+                    <Mail size={16} className="auth-input-icon" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="auth-text-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="auth-input-group">
+                  <label className="auth-input-label">Password</label>
+                  <div className="auth-input-box">
+                    <Lock size={16} className="auth-input-icon" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="auth-text-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="auth-eye-toggle"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <div style={{ textAlign: 'right', marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={handleForgotPasswordClick}
+                      className="auth-forgot-btn"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" disabled={loading} className="auth-submit-btn">
+                  {loading ? 'Logging in...' : 'Log in →'}
+                </button>
+              </form>
+            ) : (
+              /* SIGNUP FORM WITH 2-STEP OTP */
+              <div>
+                {signupStep === 'form' ? (
+                  <form onSubmit={handleSignupRequest} className="auth-form-fields">
+                    <div className="auth-input-group">
+                      <label className="auth-input-label">Full Name</label>
+                      <div className="auth-input-box">
+                        <User size={16} className="auth-input-icon" />
+                        <input
+                          type="text"
+                          required
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          placeholder="e.g. Alex Rivera"
+                          className="auth-text-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="auth-input-group">
+                      <label className="auth-input-label">Email address</label>
+                      <div className="auth-input-box">
+                        <Mail size={16} className="auth-input-icon" />
+                        <input
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          className="auth-text-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="auth-input-group">
+                      <label className="auth-input-label">Password</label>
+                      <div className="auth-input-box">
+                        <Lock size={16} className="auth-input-icon" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          minLength={6}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="At least 6 characters"
+                          className="auth-text-input"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="auth-eye-toggle"
+                        >
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button type="submit" disabled={loading} className="auth-submit-btn">
+                      {loading ? 'Sending Verification Code...' : 'Create Account →'}
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleSignupVerify} className="auth-form-fields">
+                    <div className="auth-input-group">
+                      <div className="auth-input-label-row">
+                        <label className="auth-input-label">Enter 6-Digit Code</label>
+                        <button
+                          type="button"
+                          onClick={() => setSignupStep('form')}
+                          style={{ background: 'none', border: 'none', color: '#4f46e5', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+                        >
+                          Edit Details
+                        </button>
+                      </div>
+                      <div className="auth-input-box">
+                        <KeyRound size={16} className="auth-input-icon" />
+                        <input
+                          type="text"
+                          required
+                          maxLength={6}
+                          value={signupOtp}
+                          onChange={(e) => setSignupOtp(e.target.value.replace(/\D/g, ''))}
+                          placeholder="123456"
+                          className="auth-text-input"
+                          style={{ letterSpacing: '4px', fontWeight: 'bold' }}
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
+                    <button type="submit" disabled={loading} className="auth-submit-btn">
+                      {loading ? 'Verifying...' : 'Verify Code & Create Account →'}
+                    </button>
+
+                    <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                      <button
+                        type="button"
+                        disabled={resendTimer > 0 || loading}
+                        onClick={handleSignupRequest}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: resendTimer > 0 ? '#94a3b8' : '#4f46e5',
+                          fontSize: '13px',
+                          cursor: resendTimer > 0 ? 'not-allowed' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontWeight: 500
+                        }}
+                      >
+                        <RefreshCw size={13} className={loading ? 'spin' : ''} />
+                        <span>{resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend Verification Code'}</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+
+            <div className="auth-secure-footer">
+              <ShieldCheck size={15} />
+              <span>Your data is secure with us.</span>
+            </div>
           </div>
         </div>
       </main>
