@@ -1,12 +1,14 @@
 // backend/src/services/emailService.js
 const { Resend } = require('resend');
 
-const resendApiKey = process.env.RESEND_API_KEY;
-const fromEmail = process.env.EMAIL_FROM || 'Airvix Auth <auth@airvix.com>';
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  return new Resend(apiKey);
+}
 
-let resend = null;
-if (resendApiKey) {
-  resend = new Resend(resendApiKey);
+function getFromEmail() {
+  return process.env.EMAIL_FROM || 'Airvix Auth <otp@airvix.online>';
 }
 
 /**
@@ -74,6 +76,9 @@ async function sendLoginOtpEmail({ email, otp, name }) {
     messageNotice: 'This code is valid for 10 minutes and can only be used once. If you did not request this code, please ignore this email.'
   });
 
+  const resend = getResendClient();
+  const fromEmail = getFromEmail();
+
   if (!resend) {
     console.log(`[EmailService] 📧 [DEV/TEST Fallback] Login OTP for ${email}: ${otp}`);
     return { success: true, simulated: true, otp };
@@ -86,6 +91,7 @@ async function sendLoginOtpEmail({ email, otp, name }) {
       subject: `${otp} is your Airvix login verification code`,
       html
     });
+    console.log(`[EmailService] ✉️ Real Resend OTP sent to ${email} (Message ID: ${data?.id || 'OK'})`);
     return { success: true, data };
   } catch (err) {
     console.error(`[EmailService] ❌ Resend error sending login OTP to ${email}:`, err.message);
@@ -105,6 +111,9 @@ async function sendPasswordResetOtpEmail({ email, otp, name }) {
     messageNotice: 'Enter this 6-digit code to choose a new password. This code expires in 10 minutes. If you did not request a password reset, your account is secure and you can disregard this message.'
   });
 
+  const resend = getResendClient();
+  const fromEmail = getFromEmail();
+
   if (!resend) {
     console.log(`[EmailService] 📧 [DEV/TEST Fallback] Password Reset OTP for ${email}: ${otp}`);
     return { success: true, simulated: true, otp };
@@ -117,6 +126,7 @@ async function sendPasswordResetOtpEmail({ email, otp, name }) {
       subject: `${otp} is your Airvix password reset code`,
       html
     });
+    console.log(`[EmailService] ✉️ Real Resend Password Reset OTP sent to ${email} (Message ID: ${data?.id || 'OK'})`);
     return { success: true, data };
   } catch (err) {
     console.error(`[EmailService] ❌ Resend error sending password reset OTP to ${email}:`, err.message);
@@ -136,6 +146,9 @@ async function sendEmailVerificationOtpEmail({ email, otp, name }) {
     messageNotice: 'Enter this 6-digit code on the Airvix verification screen to activate full account capabilities.'
   });
 
+  const resend = getResendClient();
+  const fromEmail = getFromEmail();
+
   if (!resend) {
     console.log(`[EmailService] 📧 [DEV/TEST Fallback] Email Verification OTP for ${email}: ${otp}`);
     return { success: true, simulated: true, otp };
@@ -148,6 +161,7 @@ async function sendEmailVerificationOtpEmail({ email, otp, name }) {
       subject: `${otp} is your Airvix email verification code`,
       html
     });
+    console.log(`[EmailService] ✉️ Real Resend Verification OTP sent to ${email} (Message ID: ${data?.id || 'OK'})`);
     return { success: true, data };
   } catch (err) {
     console.error(`[EmailService] ❌ Resend error sending email verification OTP to ${email}:`, err.message);
