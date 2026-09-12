@@ -48,52 +48,92 @@ if (pgPool) {
         if (CREATE_TABLES_PG_SQL) {
           await pgPool.query(CREATE_TABLES_PG_SQL);
         }
-        await pgPool.query('ALTER TABLE conversations ADD COLUMN IF NOT EXISTS name TEXT;');
-        await pgPool.query('ALTER TABLE conversations ADD COLUMN IF NOT EXISTS profile_pic_url TEXT;');
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS page_access_token_enc TEXT;');
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS long_lived_token_enc TEXT;');
-        await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS disclosure_message TEXT DEFAULT '⚡ [Automated Response] ';");
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS fb_page_name TEXT;');
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS fb_user_id TEXT;');
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS account_type TEXT;');
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS full_name TEXT;');
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;');
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_refreshed_at TEXT;');
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_revoked_at TEXT;');
-        await pgPool.query("ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_type TEXT DEFAULT 'ig_long_lived';");
-        await pgPool.query('ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS last_auth_error TEXT;');
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_mode TEXT DEFAULT 'both';");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_message TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS dm_reply_message TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_id TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_type TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_thumbnail TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_caption TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS require_follow INTEGER DEFAULT 0;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS follow_prompt_message TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS follow_comment_reply TEXT;");
-        await pgPool.query("ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS follower_status TEXT;");
-        await pgPool.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pending_follow_rule_id TEXT;");
-        await pgPool.query("ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS public_reply_sent TEXT;");
-        await pgPool.query("ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS meta_comment_reply_id TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_enabled INTEGER DEFAULT 0;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_title TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_subtitle TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_image_url TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_button_text TEXT;");
-        await pgPool.query("ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_button_url TEXT;");
-        await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';");
-        await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';");
-        await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_dm_limit INTEGER;");
-        await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_ig_limit INTEGER;");
-        await pgPool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_rules_limit INTEGER;");
+        await pgPool.query(`
+          ALTER TABLE conversations ADD COLUMN IF NOT EXISTS name TEXT;
+          ALTER TABLE conversations ADD COLUMN IF NOT EXISTS profile_pic_url TEXT;
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS page_access_token_enc TEXT;
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS long_lived_token_enc TEXT;
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS disclosure_message TEXT DEFAULT '⚡ [Automated Response] ';
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS fb_page_name TEXT;
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS fb_user_id TEXT;
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS account_type TEXT;
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS full_name TEXT;
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS followers_count INTEGER DEFAULT 0;
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_refreshed_at TEXT;
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_revoked_at TEXT;
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_type TEXT DEFAULT 'ig_long_lived';
+          ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS last_auth_error TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_mode TEXT DEFAULT 'both';
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS comment_reply_message TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS dm_reply_message TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_id TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_type TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_thumbnail TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS target_media_caption TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS require_follow INTEGER DEFAULT 0;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS follow_prompt_message TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS follow_comment_reply TEXT;
+          ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS follower_status TEXT;
+          ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pending_follow_rule_id TEXT;
+          ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS public_reply_sent TEXT;
+          ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS meta_comment_reply_id TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_enabled INTEGER DEFAULT 0;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_title TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_subtitle TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_image_url TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_button_text TEXT;
+          ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS card_button_url TEXT;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_dm_limit INTEGER;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_ig_limit INTEGER;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_rules_limit INTEGER;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified INTEGER DEFAULT 0;
+        `).catch(() => {});
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS auth_accounts (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            provider TEXT NOT NULL,
+            provider_account_id TEXT NOT NULL,
+            created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            CONSTRAINT unq_auth_provider_acc UNIQUE(provider, provider_account_id),
+            CONSTRAINT unq_user_provider UNIQUE(user_id, provider)
+          );
+        `).catch(() => {});
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS otp_tokens (
+            id TEXT PRIMARY KEY,
+            email TEXT NOT NULL,
+            otp_hash TEXT NOT NULL,
+            purpose TEXT NOT NULL,
+            attempts INTEGER DEFAULT 0,
+            max_attempts INTEGER DEFAULT 3,
+            expires_at TEXT NOT NULL,
+            consumed_at TEXT,
+            created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          );
+        `).catch(() => {});
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS user_sessions (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            token_hash TEXT NOT NULL,
+            ip_address TEXT DEFAULT 'masked',
+            user_agent TEXT,
+            is_revoked INTEGER DEFAULT 0,
+            expires_at TEXT NOT NULL,
+            created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            last_active_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          );
+        `).catch(() => {});
         await pgPool.query(`
           CREATE TABLE IF NOT EXISTS site_settings (
             key TEXT PRIMARY KEY,
             value TEXT,
             updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
           );
-        `);
+        `).catch(() => {});
         await pgPool.query(`
           CREATE TABLE IF NOT EXISTS pricing_plans (
             id TEXT PRIMARY KEY,

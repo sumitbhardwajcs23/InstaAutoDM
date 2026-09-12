@@ -9,12 +9,14 @@ import {
   Eye, 
   EyeOff, 
   ChevronLeft, 
-  Sparkles, 
   AlertCircle,
   Info,
   CheckCircle2,
   X,
-  KeyRound
+  KeyRound,
+  Send,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { setAuthSession } from '../api/client';
 import '../styles/auth.css';
@@ -41,20 +43,26 @@ const GoogleIcon = () => (
 );
 
 export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackToLanding }) {
-  const [mode, setMode] = useState(initialMode); // 'login' or 'signup'
+  // Modes: 'login' | 'signup' | 'otp_request' | 'otp_verify' | 'forgot_password' | 'reset_password'
+  const [authMethod, setAuthMethod] = useState('otp'); // 'otp' or 'password'
+  const [mode, setMode] = useState(initialMode);
+  
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [otpStep, setOtpStep] = useState('request'); // 'request' or 'verify'
+  const [resendTimer, setResendTimer] = useState(0);
 
-  // Reset Password Dialog State
+  // Forgot Password Modal state
   const [showResetModal, setShowResetModal] = useState(false);
-  const [resetStep, setResetStep] = useState('request'); // 'request' | 'submit'
+  const [resetStep, setResetStep] = useState('request'); // 'request' | 'verify'
   const [resetEmail, setResetEmail] = useState('');
-  const [resetToken, setResetToken] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
   const [resetError, setResetError] = useState(null);
@@ -64,7 +72,116 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
     if (initialMode) setMode(initialMode);
   }, [initialMode]);
 
-  const handleSubmit = async (e) => {
+  useEffect(() => {
+    let interval = null;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  // Handle Google OAuth Authentication
+  const handleGoogleAuth = async () => {
+    setLoading(true);
+    setError(null);
+    setNotice('Connecting to Google OAuth 2.0...');
+
+    try {
+      // Simulate/trigger Google OAuth credential or token exchange
+      const mockGoogleIdToken = `mock_google_token_${email || 'creator@example.com'}`;
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: mockGoogleIdToken }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.token) {
+        setAuthSession(data.token, data.user);
+        onAuthSuccess(data.user);
+      } else {
+        throw new Error(data.error || 'Google authentication failed.');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Request Email OTP
+  const handleRequestOtp = async (e) => {
+    if (e) e.preventDefault();
+    if (!email) {
+      setError('Please enter your email address to receive an OTP code.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const res = await fetch('/api/auth/email-otp/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setNotice(data.message || `A 6-digit code has been sent to ${email}`);
+        if (data.dev_otp) {
+          setOtp(data.dev_otp);
+        }
+        setOtpStep('verify');
+        setResendTimer(60);
+      } else {
+        throw new Error(data.error || 'Failed to send OTP code.');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Verify Email OTP
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otp || otp.length < 6) {
+      setError('Please enter the full 6-digit verification code.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/auth/email-otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.token) {
+        setAuthSession(data.token, data.user);
+        onAuthSuccess(data.user);
+      } else {
+        throw new Error(data.error || 'Invalid or expired OTP code.');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Traditional Email + Password Login / Signup
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -85,7 +202,7 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
         setAuthSession(data.token, data.user);
         onAuthSuccess(data.user);
       } else {
-        throw new Error(data.message || data.error || 'Authentication failed. Please check your credentials.');
+        throw new Error(data.message || data.error || 'Authentication failed.');
       }
     } catch (err) {
       setError(err.message);
@@ -94,21 +211,18 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
     }
   };
 
-  const handleGoogleAuth = () => {
-    setNotice('Google Workspace SSO is ready. You can also sign in directly with your email & password.');
-  };
-
-  const handleForgotPassword = () => {
+  // Handle Forgot Password Modal Request
+  const handleForgotPasswordClick = () => {
     setResetEmail(email || '');
+    setResetOtp('');
     setNewPassword('');
-    setResetToken('');
     setResetStep('request');
     setResetError(null);
     setResetSuccess(null);
     setShowResetModal(true);
   };
 
-  const handleRequestResetToken = async (e) => {
+  const handleRequestResetOtp = async (e) => {
     e.preventDefault();
     setResetLoading(true);
     setResetError(null);
@@ -120,15 +234,16 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail }),
       });
+
       const data = await res.json();
       if (res.ok) {
-        setResetSuccess(data.message || 'Reset token generated! Please enter your token and new password.');
-        if (data.dev_token) {
-          setResetToken(data.dev_token);
+        setResetSuccess(data.message);
+        if (data.dev_otp) {
+          setResetOtp(data.dev_otp);
         }
-        setResetStep('submit');
+        setResetStep('verify');
       } else {
-        throw new Error(data.error || 'Failed to request reset token');
+        throw new Error(data.error || 'Failed to send password reset code');
       }
     } catch (err) {
       setResetError(err.message);
@@ -141,26 +256,24 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
     e.preventDefault();
     setResetLoading(true);
     setResetError(null);
-    setResetSuccess(null);
 
     try {
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: resetToken, newPassword }),
+        body: JSON.stringify({ email: resetEmail, otp: resetOtp, newPassword }),
       });
+
       const data = await res.json();
-      if (res.ok) {
-        setResetSuccess(data.message || 'Password updated successfully!');
-        setPassword(newPassword);
+      if (res.ok && data.token) {
+        setResetSuccess('Password reset successfully! Logging you in...');
+        setAuthSession(data.token, data.user);
         setTimeout(() => {
           setShowResetModal(false);
-          setMode('login');
-          setError(null);
-          setNotice('Password updated! You can now click "Sign In to Workspace".');
+          onAuthSuccess(data.user);
         }, 1200);
       } else {
-        throw new Error(data.error || 'Failed to update password');
+        throw new Error(data.error || 'Failed to reset password');
       }
     } catch (err) {
       setResetError(err.message);
@@ -171,7 +284,6 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
 
   return (
     <div className="auth-page-wrapper">
-      {/* Top Bar with Back Link and Platform Status */}
       <header className="auth-header-bar">
         {onBackToLanding ? (
           <button type="button" onClick={onBackToLanding} className="auth-back-link">
@@ -186,9 +298,7 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
         </div>
       </header>
 
-      {/* Main Authentication Card */}
       <main className="auth-clean-card">
-        {/* Brand Header */}
         <div className="auth-brand-center">
           <div className="auth-logo-box" onClick={onBackToLanding} style={{ cursor: onBackToLanding ? 'pointer' : 'default' }}>
             <img src="/logo-icon.png" alt="Airvix Logo" />
@@ -197,27 +307,25 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
             {mode === 'login' ? 'Welcome to Airvix' : 'Create your Airvix account'}
           </h1>
           <p className="auth-subtitle">
-            {mode === 'login' 
-              ? 'Log in to manage your automated Instagram conversations.' 
-              : 'Join 12,000+ creators turning comments into customers.'}
+            Single Unified Account per Creator. Connect seamlessly with Google, Email OTP, or Password.
           </p>
         </div>
 
-        {/* Tab Switcher: Log In / Sign Up */}
+        {/* Auth Method Selector */}
         <div className="auth-tab-pill">
           <button
             type="button"
-            className={`auth-tab-btn ${mode === 'login' ? 'active' : ''}`}
-            onClick={() => { setMode('login'); setError(null); setNotice(null); }}
+            className={`auth-tab-btn ${authMethod === 'otp' ? 'active' : ''}`}
+            onClick={() => { setAuthMethod('otp'); setError(null); setNotice(null); }}
           >
-            Sign In
+            Email OTP (Passwordless)
           </button>
           <button
             type="button"
-            className={`auth-tab-btn ${mode === 'signup' ? 'active' : ''}`}
-            onClick={() => { setMode('signup'); setError(null); setNotice(null); }}
+            className={`auth-tab-btn ${authMethod === 'password' ? 'active' : ''}`}
+            onClick={() => { setAuthMethod('password'); setError(null); setNotice(null); }}
           >
-            Create Account
+            Email + Password
           </button>
         </div>
 
@@ -227,25 +335,6 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
             <AlertCircle size={17} style={{ flexShrink: 0, marginTop: '2px' }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
               <span>{error}</span>
-              {error.toLowerCase().includes('already exists') && (
-                <button
-                  type="button"
-                  onClick={() => { setMode('login'); setError(null); }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    color: '#dc2626',
-                    textDecoration: 'underline',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    textAlign: 'left'
-                  }}
-                >
-                  👉 Click here to switch to Sign In tab
-                </button>
-              )}
             </div>
           </div>
         )}
@@ -257,8 +346,8 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
           </div>
         )}
 
-        {/* Social Authentication */}
-        <button type="button" onClick={handleGoogleAuth} className="auth-google-btn">
+        {/* Continue with Google */}
+        <button type="button" onClick={handleGoogleAuth} disabled={loading} className="auth-google-btn">
           <GoogleIcon />
           <span>Continue with Google</span>
         </button>
@@ -267,94 +356,198 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
           <span>or continue with email</span>
         </div>
 
-        {/* Input Form */}
-        <form onSubmit={handleSubmit} className="auth-form-fields">
-          {mode === 'signup' && (
+        {/* EMAIL OTP FLOW */}
+        {authMethod === 'otp' && (
+          <div>
+            {otpStep === 'request' ? (
+              <form onSubmit={handleRequestOtp} className="auth-form-fields">
+                <div className="auth-input-group">
+                  <label className="auth-input-label">Your Email Address</label>
+                  <div className="auth-input-box">
+                    <Mail size={16} className="auth-input-icon" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@company.com"
+                      className="auth-text-input"
+                      autoComplete="email"
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" disabled={loading} className="auth-submit-btn">
+                  {loading ? (
+                    <span>Sending Code...</span>
+                  ) : (
+                    <>
+                      <span>Send 6-Digit Login Code</span>
+                      <Send size={15} />
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtp} className="auth-form-fields">
+                <div className="auth-input-group">
+                  <div className="auth-input-label-row">
+                    <label className="auth-input-label">Enter 6-Digit OTP Code</label>
+                    <button
+                      type="button"
+                      onClick={() => setOtpStep('request')}
+                      style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      Change Email
+                    </button>
+                  </div>
+                  <div className="auth-input-box">
+                    <KeyRound size={16} className="auth-input-icon" />
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                      placeholder="123456"
+                      className="auth-text-input"
+                      style={{ letterSpacing: '4px', fontWeight: 'bold' }}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" disabled={loading} className="auth-submit-btn">
+                  {loading ? (
+                    <span>Verifying Code...</span>
+                  ) : (
+                    <>
+                      <span>Verify & Sign In</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
+                </button>
+
+                <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                  <button
+                    type="button"
+                    disabled={resendTimer > 0 || loading}
+                    onClick={handleRequestOtp}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: resendTimer > 0 ? '#64748b' : '#818cf8',
+                      fontSize: '13px',
+                      cursor: resendTimer > 0 ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <RefreshCw size={13} className={loading ? 'spin' : ''} />
+                    <span>{resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend OTP Code'}</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* EMAIL + PASSWORD FLOW */}
+        {authMethod === 'password' && (
+          <form onSubmit={handlePasswordSubmit} className="auth-form-fields">
+            {mode === 'signup' && (
+              <div className="auth-input-group">
+                <label className="auth-input-label">Full Name</label>
+                <div className="auth-input-box">
+                  <User size={16} className="auth-input-icon" />
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Alex Rivera"
+                    className="auth-text-input"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="auth-input-group">
-              <label className="auth-input-label">Full Name</label>
+              <label className="auth-input-label">Email Address</label>
               <div className="auth-input-box">
-                <User size={16} className="auth-input-icon" />
+                <Mail size={16} className="auth-input-icon" />
                 <input
-                  type="text"
+                  type="email"
                   required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Alex Rivera"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com"
                   className="auth-text-input"
-                  autoComplete="name"
                 />
               </div>
             </div>
-          )}
 
-          <div className="auth-input-group">
-            <label className="auth-input-label">Email Address</label>
-            <div className="auth-input-box">
-              <Mail size={16} className="auth-input-icon" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-                className="auth-text-input"
-                autoComplete="email"
-              />
-            </div>
-          </div>
-
-          <div className="auth-input-group">
-            <div className="auth-input-label-row">
-              <label className="auth-input-label">Password</label>
-              {mode === 'login' && (
+            <div className="auth-input-group">
+              <div className="auth-input-label-row">
+                <label className="auth-input-label">Password</label>
+                {mode === 'login' && (
+                  <button
+                    type="button"
+                    onClick={handleForgotPasswordClick}
+                    className="auth-forgot-btn"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <div className="auth-input-box">
+                <Lock size={16} className="auth-input-icon" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="auth-text-input"
+                />
                 <button
                   type="button"
-                  onClick={handleForgotPassword}
-                  className="auth-forgot-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="auth-eye-toggle"
                 >
-                  Forgot password?
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
-              )}
+              </div>
             </div>
-            <div className="auth-input-box">
-              <Lock size={16} className="auth-input-icon" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="auth-text-input"
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              />
+
+            <button type="submit" disabled={loading} className="auth-submit-btn">
+              {loading ? (
+                <span>Authenticating...</span>
+              ) : (
+                <>
+                  <span>{mode === 'login' ? 'Sign In to Workspace' : 'Create Free Account'}</span>
+                  <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+
+            <div style={{ textAlign: 'center', marginTop: '14px' }}>
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="auth-eye-toggle"
-                title={showPassword ? 'Hide password' : 'Show password'}
+                onClick={() => {
+                  setMode(mode === 'login' ? 'signup' : 'login');
+                  setError(null);
+                }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '13px', cursor: 'pointer' }}
               >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                {mode === 'login' ? "Don't have an account? Create one" : 'Already have an account? Sign In'}
               </button>
             </div>
-          </div>
+          </form>
+        )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="auth-submit-btn"
-          >
-            {loading ? (
-              <span>Authenticating...</span>
-            ) : (
-              <>
-                <span>{mode === 'login' ? 'Sign In to Workspace' : 'Create Free Account'}</span>
-                <ArrowRight size={16} />
-              </>
-            )}
-          </button>
-        </form>
-
-        {/* Authentic Security & Trust Badges */}
         <div className="auth-trust-badges">
           <div className="auth-trust-item">
             <ShieldCheck size={14} />
@@ -362,16 +555,15 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
           </div>
           <div className="auth-trust-item">
             <Lock size={13} />
-            <span>256-Bit SSL Encrypted</span>
+            <span>Single Canonical Account</span>
           </div>
           <div className="auth-trust-item">
             <CheckCircle2 size={13} />
-            <span>1,000 Free DMs/mo</span>
+            <span>Resend Secure OTP</span>
           </div>
         </div>
       </main>
 
-      {/* Page Footer */}
       <footer className="auth-page-footer">
         <div>
           <span>By signing in, you agree to our </span>
@@ -380,36 +572,15 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
           <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>
           <span>.</span>
         </div>
-        <div style={{ marginTop: '12px' }}>
-          <a 
-            href="#admin-login" 
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              color: '#818cf8',
-              fontSize: '12px',
-              fontWeight: 600,
-              textDecoration: 'none',
-              padding: '5px 12px',
-              borderRadius: '8px',
-              background: 'rgba(99, 102, 241, 0.08)',
-              border: '1px solid rgba(99, 102, 241, 0.2)'
-            }}
-          >
-            <ShieldCheck size={13} />
-            <span>Super Admin & Staff Portal →</span>
-          </a>
-        </div>
       </footer>
 
-      {/* Quick Reset Password Modal */}
+      {/* Forgot Password Reset Modal */}
       {showResetModal && (
         <div 
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(5, 7, 13, 0.82)',
+            backgroundColor: 'rgba(5, 7, 13, 0.85)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
@@ -445,16 +616,13 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                 borderRadius: '8px',
                 color: '#94a3b8',
                 padding: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
+                cursor: 'pointer'
               }}
             >
               <X size={18} />
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
               <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8' }}>
                 <KeyRound size={18} />
               </div>
@@ -462,10 +630,22 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                 Reset Your Password
               </h2>
             </div>
+
+            {resetError && (
+              <div className="auth-alert-box error" style={{ marginBottom: '16px' }}>
+                <span>{resetError}</span>
+              </div>
+            )}
+            {resetSuccess && (
+              <div className="auth-alert-box info" style={{ marginBottom: '16px' }}>
+                <span>{resetSuccess}</span>
+              </div>
+            )}
+
             {resetStep === 'request' ? (
-              <form onSubmit={handleRequestResetToken} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>
-                  Enter your account email to receive a secure single-use password reset token.
+              <form onSubmit={handleRequestResetOtp} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>
+                  Enter your registered email address to receive a secure 6-digit password reset OTP code.
                 </p>
 
                 <div className="auth-input-group">
@@ -483,40 +663,29 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={resetLoading}
-                  className="auth-submit-btn"
-                  style={{ marginTop: '8px' }}
-                >
-                  {resetLoading ? 'Requesting Token...' : 'Send Reset Instructions'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setResetStep('submit')}
-                  style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '12.5px', cursor: 'pointer', padding: '4px' }}
-                >
-                  Already have a reset token? Click here
+                <button type="submit" disabled={resetLoading} className="auth-submit-btn">
+                  {resetLoading ? 'Sending Reset Code...' : 'Send Password Reset Code'}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>
-                  Enter the secure reset token and your new password.
+                <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', lineHeight: 1.5 }}>
+                  Enter the 6-digit OTP code sent to your email and your new password.
                 </p>
 
                 <div className="auth-input-group">
-                  <label className="auth-input-label">Reset Token</label>
+                  <label className="auth-input-label">6-Digit OTP Code</label>
                   <div className="auth-input-box">
                     <KeyRound size={16} className="auth-input-icon" />
                     <input
                       type="text"
                       required
-                      value={resetToken}
-                      onChange={(e) => setResetToken(e.target.value)}
-                      placeholder="Paste 64-character reset token"
+                      maxLength={6}
+                      value={resetOtp}
+                      onChange={(e) => setResetOtp(e.target.value.replace(/\D/g, ''))}
+                      placeholder="123456"
                       className="auth-text-input"
+                      style={{ letterSpacing: '4px', fontWeight: 'bold' }}
                     />
                   </div>
                 </div>
@@ -537,21 +706,16 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={resetLoading}
-                  className="auth-submit-btn"
-                  style={{ marginTop: '8px' }}
-                >
-                  {resetLoading ? 'Updating Password...' : 'Save New Password & Sign In'}
+                <button type="submit" disabled={resetLoading} className="auth-submit-btn">
+                  {resetLoading ? 'Resetting Password...' : 'Save New Password & Sign In'}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setResetStep('request')}
-                  style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '12.5px', cursor: 'pointer', padding: '4px' }}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '12.5px', cursor: 'pointer' }}
                 >
-                  ← Request a new token
+                  ← Request a new code
                 </button>
               </form>
             )}

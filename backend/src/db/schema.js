@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT DEFAULT 'Creator',
   avatar_url TEXT,
   password_hash TEXT,
+  email_verified INTEGER DEFAULT 0,
   plan TEXT DEFAULT 'free',
   role TEXT DEFAULT 'user',
   status TEXT DEFAULT 'active',
@@ -18,6 +19,40 @@ CREATE TABLE IF NOT EXISTS users (
   usage_period_start TEXT NOT NULL,
   created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
   updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS auth_accounts (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  provider TEXT NOT NULL,
+  provider_account_id TEXT NOT NULL,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  CONSTRAINT unq_auth_provider_acc UNIQUE(provider, provider_account_id),
+  CONSTRAINT unq_user_provider UNIQUE(user_id, provider)
+);
+
+CREATE TABLE IF NOT EXISTS otp_tokens (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  otp_hash TEXT NOT NULL,
+  purpose TEXT NOT NULL,
+  attempts INTEGER DEFAULT 0,
+  max_attempts INTEGER DEFAULT 3,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  token_hash TEXT NOT NULL,
+  ip_address TEXT DEFAULT 'masked',
+  user_agent TEXT,
+  is_revoked INTEGER DEFAULT 0,
+  expires_at TEXT NOT NULL,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  last_active_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
 
 CREATE TABLE IF NOT EXISTS site_settings (

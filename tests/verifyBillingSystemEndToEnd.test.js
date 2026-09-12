@@ -19,6 +19,8 @@ async function runEndToEndVerification() {
   console.log('🧪 Running End-to-End Billing & Plan Sync Verification');
   console.log('==================================================\n');
 
+  await db.ready();
+
   let passed = 0;
   let failed = 0;
 
@@ -76,6 +78,12 @@ async function runEndToEndVerification() {
     } else {
       await db.prepare("INSERT INTO site_settings (key, value, updated_at) VALUES ('custom_pricing_plans', ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))").run(serialized);
     }
+
+    await db.prepare(`
+      INSERT INTO pricing_plans (id, slug, name, description, monthly_price, annual_price, currency, dm_limit, ig_limit, rules_limit, badge_text, is_popular, is_active, sort_order, features)
+      VALUES (?, ?, ?, ?, ?, ?, 'INR', ?, ?, ?, ?, 0, 1, 10, ?)
+      ON CONFLICT (id) DO UPDATE SET monthly_price = EXCLUDED.monthly_price, annual_price = EXCLUDED.annual_price, dm_limit = EXCLUDED.dm_limit
+    `).run(testPlanId, testPlanSlug, testPlanName, 'Ultra high-throughput DM automation for top creators.', 2499, 1999, 75000, 4, 40, '⚡ ULTRA', JSON.stringify(['75,000 DMs/mo', '4 IG accounts', '40 Active rules']));
 
     await refreshPlanLimitsCache();
   });

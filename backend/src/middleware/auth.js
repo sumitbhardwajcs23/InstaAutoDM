@@ -12,7 +12,7 @@ const PUBLIC_PATHS = [
   '/site/public-settings',
 ];
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const header = req.headers['authorization'] || req.headers['Authorization'];
   let token = null;
   if (header && header.startsWith('Bearer ')) {
@@ -24,7 +24,13 @@ function requireAuth(req, res, next) {
   if (token) {
     try {
       const payload = jwt.verify(token, JWT_SECRET);
-      req.user = payload; // { id, email, name, plan }
+      // Check session revocation in database
+      const crypto = require('crypto');
+      const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+      const revokedSession = await getDb().prepare('SELECT is_revoked FROM user_sessions WHERE token_hash = ?').get(tokenHash);
+      if (!revokedSession || !revokedSession.is_revoked) {
+        req.user = payload; // { id, email, name, plan }
+      }
     } catch (err) {}
   }
 
@@ -34,7 +40,7 @@ function requireAuth(req, res, next) {
   }
 
   if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized: missing token' });
+    return res.status(401).json({ error: 'Unauthorized: missing or invalid token' });
   }
 
   next();
