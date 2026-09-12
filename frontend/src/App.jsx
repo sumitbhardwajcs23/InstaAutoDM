@@ -27,7 +27,7 @@ export default function App() {
 
   // Admin emails with platform governance privileges
   const ADMIN_EMAILS = ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com', 'sumit.bhardwaj_cs23@gla.ac.in'];
-  const checkIsAdmin = (u) => Boolean(u?.role === 'admin' || (u?.email && ADMIN_EMAILS.includes(u.email.toLowerCase().trim())));
+  const checkIsAdmin = (u) => Boolean(u?.role === 'admin' || u?.admin_role || (u?.email && ADMIN_EMAILS.includes(u.email.toLowerCase().trim())));
 
   // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'admin-login' | 'admin-dashboard' | 'app'
   const [currentView, setCurrentView] = useState(() => {

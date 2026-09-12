@@ -205,13 +205,123 @@ function InlineCMSField({
   );
 }
 
+export const ALL_ADMIN_POWERS = [
+  { id: 'cms:manage', label: 'Landing Page CMS', desc: 'Hero, Features, FAQs, Testimonials, Badges & Custom Templates', category: 'Content' },
+  { id: 'users:view', label: 'View Customer Accounts', desc: 'Browse user directory, inspect usage tokens & account profile info', category: 'Customers' },
+  { id: 'users:manage', label: 'Manage Customer Details', desc: 'Edit customer plans, adjust custom DM/IG limits, activate/suspend', category: 'Customers' },
+  { id: 'users:delete', label: 'Delete Customer Accounts', desc: 'Permanently wipe customer records, associated workspaces & automations', category: 'Customers' },
+  { id: 'workspaces:manage', label: 'Workspaces & IG Channels', desc: 'Inspect connected Instagram accounts, channel health & metadata', category: 'Platform' },
+  { id: 'plans:manage', label: 'Pricing Plans & Quotas', desc: 'Create, modify, and adjust subscription pricing tiers & quotas', category: 'Monetization' },
+  { id: 'coupons:manage', label: 'Coupons & Promo Codes', desc: 'Generate discount promo codes, set redemption caps & toggle active', category: 'Monetization' },
+  { id: 'billing:manage', label: 'Invoices & Payments', desc: 'Review customer transactions, manual invoice generation & GST info', category: 'Monetization' },
+  { id: 'integrations:manage', label: 'API Integrations & Keys', desc: 'Manage OpenAI, Gemini, Meta Graph & Razorpay API credentials', category: 'Security' },
+  { id: 'safeguards:manage', label: 'Kill Switches & Security', desc: 'Control emergency automation pause, resolve abuse flags & audit logs', category: 'Security' },
+  { id: 'analytics:view', label: 'Analytics & Financials', desc: 'Inspect live revenue charts, DM delivery volumes & tenant API cost', category: 'Intelligence' },
+  { id: 'admins:manage', label: 'Manage Sub-Admins', desc: 'Create sub-admins, reset passwords, grant & revoke granular powers', category: 'Governance' },
+];
+
 export default function AdminView({ user, onBackToApp }) {
-  // Navigation Tabs: 'overview' | 'users' | 'workspaces' | 'plans' | 'integrations' | 'safeguards' | 'analytics' | 'support' | 'security' | 'audit' | 'status'
-  const [activeTab, setActiveTab] = useState('overview');
+  // Granular Permission Evaluation Helper
+  const hasPermission = useCallback((powerKey) => {
+    if (!user) return false;
+    // Superadmin or root administrative emails have universal bypass
+    const ROOT_EMAILS = ['sumitbhardwaj2227@gmail.com', 'sumit.bhardwaj_cs23@gla.ac.in', 'admin@airvix.com'];
+    if (user.admin_role === 'superadmin' || ROOT_EMAILS.includes(user.email?.toLowerCase()?.trim())) return true;
+    
+    let perms = user.permissions || [];
+    if (typeof perms === 'string') {
+      try {
+        perms = JSON.parse(perms);
+      } catch (e) {
+        perms = [];
+      }
+    }
+    if (Array.isArray(perms)) {
+      if (perms.includes('*')) return true;
+      return perms.includes(powerKey);
+    }
+    return false;
+  }, [user]);
+
+  // Specific Permission Gates for Navigation Tabs
+  const canOverview = hasPermission('analytics:view') || hasPermission('users:view') || user?.admin_role === 'superadmin';
+  const canCms = hasPermission('cms:manage');
+  const canUsers = hasPermission('users:view');
+  const canWorkspaces = hasPermission('workspaces:manage');
+  const canPlans = hasPermission('plans:manage') || hasPermission('billing:manage') || hasPermission('coupons:manage');
+  const canIntegrations = hasPermission('integrations:manage');
+  const canSafeguards = hasPermission('safeguards:manage');
+  const canAnalytics = hasPermission('analytics:view');
+  const canSupport = hasPermission('safeguards:manage') || hasPermission('users:view');
+  const canSecurity = hasPermission('safeguards:manage');
+  const canAudit = hasPermission('safeguards:manage');
+  const canStatus = hasPermission('safeguards:manage');
+  const canSubAdmins = hasPermission('admins:manage');
+
+  // Compute default active tab for user based on permitted powers
+  const getDefaultTab = useCallback(() => {
+    if (canOverview) return 'overview';
+    if (canCms) return 'landing_cms';
+    if (canUsers) return 'users';
+    if (canWorkspaces) return 'workspaces';
+    if (canPlans) return 'plans';
+    if (canIntegrations) return 'integrations';
+    if (canSafeguards) return 'safeguards';
+    if (canAnalytics) return 'analytics';
+    if (canSubAdmins) return 'subadmins';
+    return 'overview';
+  }, [canOverview, canCms, canUsers, canWorkspaces, canPlans, canIntegrations, canSafeguards, canAnalytics, canSubAdmins]);
+
+  // Navigation Tabs: 'overview' | 'users' | 'workspaces' | 'plans' | 'landing_cms' | 'integrations' | 'safeguards' | 'analytics' | 'support' | 'security' | 'audit' | 'status' | 'subadmins'
+  const [activeTab, setActiveTab] = useState(getDefaultTab);
+
+  // Auto-switch to authorized tab if activeTab becomes invalid or is unauthorized
+  useEffect(() => {
+    const isAllowed = 
+      (activeTab === 'overview' && canOverview) ||
+      (activeTab === 'users' && canUsers) ||
+      (activeTab === 'workspaces' && canWorkspaces) ||
+      (activeTab === 'plans' && canPlans) ||
+      (activeTab === 'landing_cms' && canCms) ||
+      (activeTab === 'integrations' && canIntegrations) ||
+      (activeTab === 'safeguards' && canSafeguards) ||
+      (activeTab === 'analytics' && canAnalytics) ||
+      (activeTab === 'support' && canSupport) ||
+      (activeTab === 'security' && canSecurity) ||
+      (activeTab === 'audit' && canAudit) ||
+      (activeTab === 'status' && canStatus) ||
+      (activeTab === 'subadmins' && canSubAdmins);
+
+    if (!isAllowed) {
+      setActiveTab(getDefaultTab());
+    }
+  }, [activeTab, canOverview, canUsers, canWorkspaces, canPlans, canCms, canIntegrations, canSafeguards, canAnalytics, canSupport, canSecurity, canAudit, canStatus, canSubAdmins, getDefaultTab]);
+
   const [chartMetric, setChartMetric] = useState('users'); // 'users' | 'messages' | 'workspaces' | 'revenue'
   const [chartTimeframe, setChartTimeframe] = useState('30d'); // '7d' | '30d'
   const [loading, setLoading] = useState(false);
   const [successToast, setSuccessToast] = useState(null);
+
+  // Sub-Admins Management State
+  const [subadminsList, setSubadminsList] = useState([]);
+  const [loadingSubadmins, setLoadingSubadmins] = useState(false);
+  const [subadminModalMode, setSubadminModalMode] = useState(null); // 'create' | 'edit' | 'reset-password'
+  const [selectedSubadmin, setSelectedSubadmin] = useState(null);
+  const [subadminFormData, setSubadminFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'subadmin',
+    permissions: [],
+  });
+  const [subadminPasswordInput, setSubadminPasswordInput] = useState('');
+  const [subadminSaving, setSubadminSaving] = useState(false);
+
+  // Change Own Password Modal State
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [changePasswordData, setChangePasswordData] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+  const [changePasswordSaving, setChangePasswordSaving] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState('');
 
   // Overview State
   const [overview, setOverview] = useState(null);
@@ -895,6 +1005,164 @@ export default function AdminView({ user, onBackToApp }) {
     }
   };
 
+  // Fetch Sub-Administrators List
+  const loadSubadmins = useCallback(async () => {
+    try {
+      setLoadingSubadmins(true);
+      const res = await apiFetch('/admin/subadmins');
+      if (res.ok) {
+        const data = await res.json();
+        setSubadminsList(data.subadmins || []);
+      }
+    } catch (err) {
+      console.error('Failed to load subadmins:', err);
+    } finally {
+      setLoadingSubadmins(false);
+    }
+  }, []);
+
+  // Create New Sub-Admin
+  const handleCreateSubadmin = async (e) => {
+    e.preventDefault();
+    if (!subadminFormData.email || !subadminFormData.password) {
+      alert('Email and password are required');
+      return;
+    }
+    setSubadminSaving(true);
+    try {
+      const res = await apiFetch('/admin/subadmins', {
+        method: 'POST',
+        body: JSON.stringify(subadminFormData),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('✅ Sub-Administrator created successfully!');
+        setSubadminModalMode(null);
+        setSubadminFormData({ name: '', email: '', password: '', role: 'subadmin', permissions: [] });
+        loadSubadmins();
+      } else {
+        alert(`Failed: ${data.error || 'Could not create sub-admin'}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubadminSaving(false);
+    }
+  };
+
+  // Update Existing Sub-Admin
+  const handleUpdateSubadmin = async (e) => {
+    e.preventDefault();
+    if (!selectedSubadmin) return;
+    setSubadminSaving(true);
+    try {
+      const res = await apiFetch(`/admin/subadmins/${selectedSubadmin.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: subadminFormData.name,
+          permissions: subadminFormData.permissions,
+          status: subadminFormData.status,
+          role: subadminFormData.role,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('✅ Administrator powers updated successfully!');
+        setSubadminModalMode(null);
+        setSelectedSubadmin(null);
+        loadSubadmins();
+      } else {
+        alert(`Failed: ${data.error || 'Could not update administrator'}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubadminSaving(false);
+    }
+  };
+
+  // Reset Sub-Admin Password
+  const handleResetSubadminPassword = async (e) => {
+    e.preventDefault();
+    if (!selectedSubadmin || !subadminPasswordInput || subadminPasswordInput.length < 6) {
+      alert('Password must be at least 6 characters');
+      return;
+    }
+    setSubadminSaving(true);
+    try {
+      const res = await apiFetch(`/admin/subadmins/${selectedSubadmin.id}/password`, {
+        method: 'PUT',
+        body: JSON.stringify({ password: subadminPasswordInput }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`✅ Password reset for ${selectedSubadmin.email}`);
+        setSubadminModalMode(null);
+        setSelectedSubadmin(null);
+        setSubadminPasswordInput('');
+      } else {
+        alert(`Failed: ${data.error || 'Could not reset password'}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubadminSaving(false);
+    }
+  };
+
+  // Delete Sub-Admin
+  const handleDeleteSubadmin = async (subadmin) => {
+    if (!window.confirm(`Are you sure you want to delete administrator ${subadmin.email}?`)) return;
+    try {
+      const res = await apiFetch(`/admin/subadmins/${subadmin.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`✅ Administrator ${subadmin.email} removed`);
+        loadSubadmins();
+      } else {
+        alert(`Failed: ${data.error || 'Could not remove administrator'}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // Change Own Password
+  const handleChangeOwnPassword = async (e) => {
+    e.preventDefault();
+    setChangePasswordError('');
+    if (!changePasswordData.newPassword || changePasswordData.newPassword.length < 6) {
+      setChangePasswordError('New password must be at least 6 characters');
+      return;
+    }
+    if (changePasswordData.newPassword !== changePasswordData.confirmPassword) {
+      setChangePasswordError('New passwords do not match');
+      return;
+    }
+    setChangePasswordSaving(true);
+    try {
+      const res = await apiFetch('/admin/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          oldPassword: changePasswordData.oldPassword,
+          newPassword: changePasswordData.newPassword,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('✅ Your password has been changed successfully!');
+        setIsChangePasswordOpen(false);
+        setChangePasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      } else {
+        setChangePasswordError(data.error || 'Failed to change password');
+      }
+    } catch (err) {
+      setChangePasswordError(err.message || 'Failed to change password');
+    } finally {
+      setChangePasswordSaving(false);
+    }
+  };
+
   // Lazy-load data when active tab changes (avoids firing 13 requests at once)
   useEffect(() => {
     switch (activeTab) {
@@ -942,10 +1210,13 @@ export default function AdminView({ user, onBackToApp }) {
       case 'status':
         loadSystemStatus();
         break;
+      case 'subadmins':
+        loadSubadmins();
+        break;
       default:
         break;
     }
-  }, [activeTab, loadOverview, loadUsers, loadWorkspaces, loadPlans, loadPayments, loadSiteSettings, loadIntegrations, loadSafeguards, loadAnalytics, loadSupport, loadSecurityPrivacy, loadKillSwitches, loadAbuseFlags, loadCostReport, loadSessions, loadAuditLogs, loadSystemStatus]);
+  }, [activeTab, loadOverview, loadUsers, loadWorkspaces, loadPlans, loadPayments, loadSiteSettings, loadIntegrations, loadSafeguards, loadAnalytics, loadSupport, loadSecurityPrivacy, loadKillSwitches, loadAbuseFlags, loadCostReport, loadSessions, loadAuditLogs, loadSystemStatus, loadSubadmins]);
 
   // Debounced search / filter for users tab
   useEffect(() => {
@@ -1273,117 +1544,152 @@ export default function AdminView({ user, onBackToApp }) {
           <div className="admin-sidebar-menu-group">
             <div className="admin-sidebar-section-title">CORE PAGES</div>
             
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'overview' ? 'active' : ''}`}
-              onClick={() => setActiveTab('overview')}
-            >
-              <TrendingUp size={16} />
-              <span>Overview</span>
-            </button>
+            {canOverview && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'overview' ? 'active' : ''}`}
+                onClick={() => setActiveTab('overview')}
+              >
+                <TrendingUp size={16} />
+                <span>Overview</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
-              onClick={() => setActiveTab('users')}
-            >
-              <Users size={16} />
-              <span>Users</span>
-            </button>
+            {canUsers && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'users' ? 'active' : ''}`}
+                onClick={() => setActiveTab('users')}
+              >
+                <Users size={16} />
+                <span>Users</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'workspaces' ? 'active' : ''}`}
-              onClick={() => setActiveTab('workspaces')}
-            >
-              <Briefcase size={16} />
-              <span>Workspaces</span>
-            </button>
+            {canWorkspaces && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'workspaces' ? 'active' : ''}`}
+                onClick={() => setActiveTab('workspaces')}
+              >
+                <Briefcase size={16} />
+                <span>Workspaces</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'plans' ? 'active' : ''}`}
-              onClick={() => setActiveTab('plans')}
-            >
-              <CreditCard size={16} />
-              <span>Plans &amp; Billings</span>
-            </button>
+            {canPlans && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'plans' ? 'active' : ''}`}
+                onClick={() => setActiveTab('plans')}
+              >
+                <CreditCard size={16} />
+                <span>Plans &amp; Billings</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'landing_cms' ? 'active' : ''}`}
-              onClick={() => setActiveTab('landing_cms')}
-            >
-              <Globe size={16} />
-              <span>Landing Page CMS</span>
-            </button>
+            {canCms && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'landing_cms' ? 'active' : ''}`}
+                onClick={() => setActiveTab('landing_cms')}
+              >
+                <Globe size={16} />
+                <span>Landing Page CMS</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'integrations' ? 'active' : ''}`}
-              onClick={() => setActiveTab('integrations')}
-            >
-              <Plug size={16} />
-              <span>Integrations</span>
-            </button>
+            {canIntegrations && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'integrations' ? 'active' : ''}`}
+                onClick={() => setActiveTab('integrations')}
+              >
+                <Plug size={16} />
+                <span>Integrations</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'safeguards' ? 'active' : ''}`}
-              onClick={() => setActiveTab('safeguards')}
-            >
-              <SlidersHorizontal size={16} />
-              <span>Automation Health</span>
-            </button>
+            {canSafeguards && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'safeguards' ? 'active' : ''}`}
+                onClick={() => setActiveTab('safeguards')}
+              >
+                <SlidersHorizontal size={16} />
+                <span>Automation Health</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'analytics' ? 'active' : ''}`}
-              onClick={() => setActiveTab('analytics')}
-            >
-              <Activity size={16} />
-              <span>Analytics</span>
-            </button>
+            {canAnalytics && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'analytics' ? 'active' : ''}`}
+                onClick={() => setActiveTab('analytics')}
+              >
+                <Activity size={16} />
+                <span>Analytics</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'support' ? 'active' : ''}`}
-              onClick={() => setActiveTab('support')}
-            >
-              <HelpCircle size={16} />
-              <span>Support</span>
-            </button>
+            {canSupport && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'support' ? 'active' : ''}`}
+                onClick={() => setActiveTab('support')}
+              >
+                <HelpCircle size={16} />
+                <span>Support</span>
+              </button>
+            )}
           </div>
 
           <div className="admin-sidebar-menu-group">
-            <div className="admin-sidebar-section-title">GOVERNANCE &amp; PRIVACY</div>
+            <div className="admin-sidebar-section-title">GOVERNANCE &amp; TEAM</div>
             
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'security' ? 'active' : ''}`}
-              onClick={() => setActiveTab('security')}
-            >
-              <ShieldCheck size={16} />
-              <span>Security &amp; Privacy</span>
-            </button>
+            {canSubAdmins && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'subadmins' ? 'active' : ''}`}
+                onClick={() => setActiveTab('subadmins')}
+              >
+                <KeyRound size={16} />
+                <span>Team &amp; Sub-Admins</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'audit' ? 'active' : ''}`}
-              onClick={() => setActiveTab('audit')}
-            >
-              <FileText size={16} />
-              <span>Audit Logs</span>
-            </button>
+            {canSecurity && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'security' ? 'active' : ''}`}
+                onClick={() => setActiveTab('security')}
+              >
+                <ShieldCheck size={16} />
+                <span>Security &amp; Privacy</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              className={`admin-sidebar-item ${activeTab === 'status' ? 'active' : ''}`}
-              onClick={() => setActiveTab('status')}
-            >
-              <Radio size={16} />
-              <span>System Status</span>
-            </button>
+            {canAudit && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'audit' ? 'active' : ''}`}
+                onClick={() => setActiveTab('audit')}
+              >
+                <FileText size={16} />
+                <span>Audit Logs</span>
+              </button>
+            )}
+
+            {canStatus && (
+              <button
+                type="button"
+                className={`admin-sidebar-item ${activeTab === 'status' ? 'active' : ''}`}
+                onClick={() => setActiveTab('status')}
+              >
+                <Radio size={16} />
+                <span>System Status</span>
+              </button>
+            )}
           </div>
 
           {/* Privacy First Banner Card */}
@@ -1430,6 +1736,7 @@ export default function AdminView({ user, onBackToApp }) {
               {activeTab === 'security' && 'Security & Privacy'}
               {activeTab === 'audit' && 'Audit Logs'}
               {activeTab === 'status' && 'System Status'}
+              {activeTab === 'subadmins' && 'Team & Sub-Admins'}
             </h1>
           </div>
 
@@ -1452,9 +1759,24 @@ export default function AdminView({ user, onBackToApp }) {
               </div>
               <div className="admin-profile-text">
                 <span className="admin-profile-name">{user?.name || user?.email?.split('@')[0] || 'Admin'}</span>
-                <span className="admin-profile-role">{user?.role === 'admin' ? 'Super Admin' : 'Admin'}</span>
+                <span className="admin-profile-role">{user?.admin_role === 'superadmin' ? 'Super Admin' : (user?.admin_role === 'subadmin' ? 'Sub-Admin' : 'Admin')}</span>
               </div>
             </div>
+
+            <button
+              type="button"
+              className="admin-btn-secondary"
+              style={{ padding: '6px 12px', fontSize: '12px' }}
+              onClick={() => {
+                setChangePasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+                setChangePasswordError('');
+                setIsChangePasswordOpen(true);
+              }}
+              title="Change your administrator password"
+            >
+              <Lock size={13} />
+              <span>Password</span>
+            </button>
 
             <button
               type="button"
@@ -4511,6 +4833,354 @@ export default function AdminView({ user, onBackToApp }) {
           {activeTab === 'landing_cms' && (
             <LandingPageEditor user={user} onBackToApp={onBackToApp} showToast={showToast} />
           )}
+
+          {/* =========================================================================
+              TAB: TEAM & SUB-ADMINISTRATORS MANAGEMENT
+          ========================================================================= */}
+          {activeTab === 'subadmins' && (
+            <div className="admin-tab-content">
+              {/* Top Banner / Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <ShieldCheck size={24} color="#2563eb" />
+                    <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#0f172a' }}>
+                      Administrator Roles &amp; Granular Permissions
+                    </h2>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                    Provision sub-admins with fine-grained power delegation across CMS, users, billing, safeguards, and platform APIs.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    className="admin-btn-secondary"
+                    onClick={loadSubadmins}
+                    disabled={loadingSubadmins}
+                    title="Refresh administrator list"
+                  >
+                    <RefreshCw size={14} className={loadingSubadmins ? 'spin-anim' : ''} />
+                    <span>Refresh</span>
+                  </button>
+                  {hasPermission('admins:manage') && (
+                    <button
+                      type="button"
+                      className="admin-btn-primary"
+                      onClick={() => {
+                        setSubadminFormData({
+                          name: '',
+                          email: '',
+                          password: '',
+                          role: 'subadmin',
+                          status: 'active',
+                          permissions: ['cms:manage'],
+                        });
+                        setSubadminModalMode('create');
+                      }}
+                      style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)' }}
+                    >
+                      <Plus size={16} />
+                      <span>Create Sub-Admin</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="admin-kpi-grid" style={{ marginBottom: '24px' }}>
+                <div className="admin-kpi-card">
+                  <div className="admin-kpi-header">
+                    <span className="admin-kpi-title">Total Staff Admins</span>
+                    <Users size={18} color="#2563eb" />
+                  </div>
+                  <div className="admin-kpi-value">{subadminsList.length}</div>
+                  <span className="admin-kpi-subtitle">Registered in admin directory</span>
+                </div>
+
+                <div className="admin-kpi-card">
+                  <div className="admin-kpi-header">
+                    <span className="admin-kpi-title">Super Admins</span>
+                    <Shield size={18} color="#8b5cf6" />
+                  </div>
+                  <div className="admin-kpi-value" style={{ color: '#8b5cf6' }}>
+                    {subadminsList.filter((s) => s.role === 'superadmin').length}
+                  </div>
+                  <span className="admin-kpi-subtitle">Unrestricted universal control</span>
+                </div>
+
+                <div className="admin-kpi-card">
+                  <div className="admin-kpi-header">
+                    <span className="admin-kpi-title">Granular Sub-Admins</span>
+                    <Lock size={18} color="#0284c7" />
+                  </div>
+                  <div className="admin-kpi-value" style={{ color: '#0284c7' }}>
+                    {subadminsList.filter((s) => s.role === 'subadmin').length}
+                  </div>
+                  <span className="admin-kpi-subtitle">Scoped by security policies</span>
+                </div>
+
+                <div className="admin-kpi-card">
+                  <div className="admin-kpi-header">
+                    <span className="admin-kpi-title">Granular Modules</span>
+                    <Sparkles size={18} color="#10b981" />
+                  </div>
+                  <div className="admin-kpi-value" style={{ color: '#10b981' }}>
+                    {ALL_ADMIN_POWERS.length}
+                  </div>
+                  <span className="admin-kpi-subtitle">Individual power flags defined</span>
+                </div>
+              </div>
+
+              {/* Sub-Admins Directory Table */}
+              <div className="admin-card">
+                <div className="admin-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="admin-card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Shield size={18} color="#2563eb" />
+                    <span>Administrator Directory</span>
+                    <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', fontWeight: 600 }}>
+                      {subadminsList.length} {subadminsList.length === 1 ? 'account' : 'accounts'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#475569' }}>ADMINISTRATOR</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#475569' }}>ROLE</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#475569' }}>STATUS</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#475569' }}>ASSIGNED POWERS</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#475569' }}>LAST ACTIVE / CREATED</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: 700, color: '#475569', textAlign: 'right' }}>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subadminsList.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '48px 16px', textAlign: 'center', color: '#64748b' }}>
+                            {loadingSubadmins ? (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                <RefreshCw size={16} className="spin-anim" /> Loading administrators...
+                              </div>
+                            ) : (
+                              <div>
+                                <ShieldAlert size={36} color="#94a3b8" style={{ marginBottom: '8px' }} />
+                                <div>No administrators found in directory.</div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ) : (
+                        subadminsList.map((adm) => {
+                          const isRoot = ['sumitbhardwaj2227@gmail.com', 'sumit.bhardwaj_cs23@gla.ac.in', 'admin@airvix.com'].includes(adm.email?.toLowerCase());
+                          let perms = adm.permissions || [];
+                          if (typeof perms === 'string') {
+                            try { perms = JSON.parse(perms); } catch (e) { perms = []; }
+                          }
+                          const isUniversal = adm.role === 'superadmin' || perms.includes('*');
+
+                          return (
+                            <tr key={adm.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '14px 16px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <div style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '10px',
+                                    background: isUniversal ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+                                    color: '#fff',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 800,
+                                    fontSize: '14px',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                  }}>
+                                    {(adm.name || adm.email || 'A')[0].toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span>{adm.name || 'Administrator'}</span>
+                                      {isRoot && (
+                                        <span style={{ fontSize: '10px', background: '#fef3c7', color: '#b45309', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                          ROOT
+                                        </span>
+                                      )}
+                                      {adm.email === user?.email && (
+                                        <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#047857', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                                          YOU
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#64748b' }}>{adm.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 16px' }}>
+                                {isUniversal ? (
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    background: '#f3e8ff',
+                                    color: '#7e22ce',
+                                    border: '1px solid #d8b4fe'
+                                  }}>
+                                    <Shield size={12} /> Super Admin
+                                  </span>
+                                ) : (
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    background: '#e0f2fe',
+                                    color: '#0369a1',
+                                    border: '1px solid #bae6fd'
+                                  }}>
+                                    <Lock size={12} /> Sub-Admin
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '14px 16px' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  background: adm.status === 'active' ? '#ecfdf5' : '#fef2f2',
+                                  color: adm.status === 'active' ? '#047857' : '#b91c1c'
+                                }}>
+                                  {adm.status === 'active' ? '● Active' : '○ Suspended'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '14px 16px', maxWidth: '380px' }}>
+                                {isUniversal ? (
+                                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#6b21a8' }}>
+                                    ⚡ All 12 Modules (Universal Master Control)
+                                  </span>
+                                ) : perms.length === 0 ? (
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
+                                    No powers granted
+                                  </span>
+                                ) : (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                    {perms.slice(0, 4).map((p) => {
+                                      const meta = ALL_ADMIN_POWERS.find((item) => item.id === p);
+                                      return (
+                                        <span
+                                          key={p}
+                                          title={meta?.desc || p}
+                                          style={{
+                                            fontSize: '11px',
+                                            padding: '2px 7px',
+                                            borderRadius: '4px',
+                                            background: '#f1f5f9',
+                                            color: '#334155',
+                                            border: '1px solid #e2e8f0',
+                                            fontWeight: 600
+                                          }}
+                                        >
+                                          {meta?.label || p}
+                                        </span>
+                                      );
+                                    })}
+                                    {perms.length > 4 && (
+                                      <span style={{
+                                        fontSize: '11px',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        background: '#eff6ff',
+                                        color: '#2563eb',
+                                        fontWeight: 700
+                                      }}>
+                                        +{perms.length - 4} more
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ padding: '14px 16px', fontSize: '12px', color: '#64748b' }}>
+                                <div>{adm.created_at ? new Date(adm.created_at).toLocaleDateString() : 'N/A'}</div>
+                                {adm.last_login_at && (
+                                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                                    Login: {new Date(adm.last_login_at).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                  {hasPermission('admins:manage') && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="admin-btn-secondary"
+                                        style={{ padding: '5px 8px', fontSize: '11px' }}
+                                        title="Configure Powers"
+                                        onClick={() => {
+                                          setSelectedSubadmin(adm);
+                                          setSubadminFormData({
+                                            name: adm.name || '',
+                                            email: adm.email || '',
+                                            role: adm.role || 'subadmin',
+                                            status: adm.status || 'active',
+                                            permissions: Array.isArray(perms) ? perms : [],
+                                          });
+                                          setSubadminModalMode('edit');
+                                        }}
+                                      >
+                                        <Edit3 size={13} />
+                                        <span>Powers</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="admin-btn-secondary"
+                                        style={{ padding: '5px 8px', fontSize: '11px' }}
+                                        title="Reset Password"
+                                        onClick={() => {
+                                          setSelectedSubadmin(adm);
+                                          setSubadminPasswordInput('');
+                                          setSubadminModalMode('reset-password');
+                                        }}
+                                      >
+                                        <Lock size={13} />
+                                        <span>Password</span>
+                                      </button>
+                                      {!isRoot && adm.email !== user?.email && (
+                                        <button
+                                          type="button"
+                                          className="admin-btn-secondary"
+                                          style={{ padding: '5px 8px', fontSize: '11px', color: '#dc2626', borderColor: '#fecaca' }}
+                                          title="Delete Admin"
+                                          onClick={() => handleDeleteSubadmin(adm)}
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
 
@@ -5348,6 +6018,393 @@ export default function AdminView({ user, onBackToApp }) {
                 <span>Print / Download PDF</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: CREATE OR EDIT SUB-ADMIN & GRANULAR POWERS
+      ========================================================================= */}
+      {(subadminModalMode === 'create' || subadminModalMode === 'edit') && (
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSubadminModalMode(null); }}>
+          <div className="admin-modal-box" style={{ maxWidth: '780px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="admin-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ShieldCheck size={22} color="#2563eb" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                    {subadminModalMode === 'create' ? 'Provision New Sub-Administrator' : `Edit Powers: ${selectedSubadmin?.email}`}
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>
+                    {subadminModalMode === 'create' ? 'Create a staff login and configure granular module permissions' : 'Adjust administrative permissions and account active status'}
+                  </span>
+                </div>
+              </div>
+              <button type="button" onClick={() => setSubadminModalMode(null)} className="admin-modal-close-btn">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={subadminModalMode === 'create' ? handleCreateSubadmin : handleUpdateSubadmin}>
+              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Name & Email */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Full Name / Label</label>
+                    <input
+                      type="text"
+                      className="admin-form-input"
+                      placeholder="e.g. Content Lead Sarah"
+                      value={subadminFormData.name}
+                      onChange={(e) => setSubadminFormData({ ...subadminFormData, name: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Email Address *</label>
+                    <input
+                      type="email"
+                      required
+                      disabled={subadminModalMode === 'edit'}
+                      className="admin-form-input"
+                      placeholder="e.g. staff@airvix.com"
+                      value={subadminFormData.email}
+                      onChange={(e) => setSubadminFormData({ ...subadminFormData, email: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Password & Role */}
+                <div style={{ display: 'grid', gridTemplateColumns: subadminModalMode === 'create' ? '1fr 1fr' : '1fr 1fr', gap: '16px' }}>
+                  {subadminModalMode === 'create' ? (
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Initial Password *</label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        className="admin-form-input"
+                        placeholder="At least 6 characters"
+                        value={subadminFormData.password}
+                        onChange={(e) => setSubadminFormData({ ...subadminFormData, password: e.target.value })}
+                      />
+                    </div>
+                  ) : (
+                    <div className="admin-form-group">
+                      <label className="admin-form-label">Account Status</label>
+                      <select
+                        className="admin-form-select"
+                        value={subadminFormData.status || 'active'}
+                        onChange={(e) => setSubadminFormData({ ...subadminFormData, status: e.target.value })}
+                      >
+                        <option value="active">Active (Permitted to Log In)</option>
+                        <option value="suspended">Suspended (Access Blocked)</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="admin-form-group">
+                    <label className="admin-form-label">Administrator Role Level</label>
+                    <select
+                      className="admin-form-select"
+                      value={subadminFormData.role}
+                      onChange={(e) => {
+                        const newRole = e.target.value;
+                        setSubadminFormData({
+                          ...subadminFormData,
+                          role: newRole,
+                          permissions: newRole === 'superadmin' ? ['*'] : subadminFormData.permissions.filter((p) => p !== '*'),
+                        });
+                      }}
+                    >
+                      <option value="subadmin">Sub-Admin (Granular Access Scoped Below)</option>
+                      <option value="superadmin">Super Admin (Universal Access to All Features)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Granular Powers Grid */}
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+                        Granular Module Powers ({subadminFormData.role === 'superadmin' ? 'Universal *' : `${(subadminFormData.permissions || []).length} / ${ALL_ADMIN_POWERS.length} Active`})
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>
+                        {subadminFormData.role === 'superadmin'
+                          ? 'Super Admins possess root universal permissions across all administrative tools.'
+                          : 'Select specifically which modules this sub-administrator is authorized to view & edit.'}
+                      </div>
+                    </div>
+                    {subadminFormData.role !== 'superadmin' && (
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          className="admin-btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '11px' }}
+                          onClick={() => setSubadminFormData({ ...subadminFormData, permissions: ALL_ADMIN_POWERS.map((p) => p.id) })}
+                        >
+                          Select All
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '11px' }}
+                          onClick={() => setSubadminFormData({ ...subadminFormData, permissions: [] })}
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {subadminFormData.role === 'superadmin' ? (
+                    <div style={{ padding: '16px', borderRadius: '10px', background: '#f5f3ff', border: '1px solid #ddd6fe', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <Shield size={24} color="#7c3aed" />
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#5b21b6' }}>Universal Permissions Granted</div>
+                        <div style={{ fontSize: '12px', color: '#6d28d9' }}>This administrator has full read and write access to all 12 modules, financial data, and security settings.</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
+                      {ALL_ADMIN_POWERS.map((power) => {
+                        const isChecked = (subadminFormData.permissions || []).includes(power.id);
+                        return (
+                          <div
+                            key={power.id}
+                            onClick={() => {
+                              const current = Array.isArray(subadminFormData.permissions) ? subadminFormData.permissions : [];
+                              if (isChecked) {
+                                setSubadminFormData({ ...subadminFormData, permissions: current.filter((p) => p !== power.id) });
+                              } else {
+                                setSubadminFormData({ ...subadminFormData, permissions: [...current, power.id] });
+                              }
+                            }}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: '8px',
+                              border: isChecked ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                              background: isChecked ? '#eff6ff' : '#ffffff',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '10px',
+                              transition: 'all 0.15s ease',
+                              boxShadow: isChecked ? '0 2px 8px rgba(37, 99, 235, 0.15)' : 'none'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}} // handled by parent div
+                              style={{ marginTop: '2px', accentColor: '#2563eb', cursor: 'pointer' }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '12px', fontWeight: 700, color: isChecked ? '#1d4ed8' : '#0f172a' }}>
+                                  {power.label}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', lineHeight: 1.3 }}>
+                                {power.desc}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="admin-modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="admin-btn-secondary"
+                  onClick={() => setSubadminModalMode(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={subadminSaving}
+                  className="admin-btn-primary"
+                  style={{ minWidth: '140px' }}
+                >
+                  {subadminSaving ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <RefreshCw size={14} className="spin-anim" /> Saving...
+                    </span>
+                  ) : (
+                    <span>{subadminModalMode === 'create' ? 'Create Administrator' : 'Save Changes'}</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: RESET SUB-ADMIN PASSWORD
+      ========================================================================= */}
+      {subadminModalMode === 'reset-password' && selectedSubadmin && (
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSubadminModalMode(null); }}>
+          <div className="admin-modal-box" style={{ maxWidth: '460px' }}>
+            <div className="admin-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Lock size={20} color="#2563eb" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
+                    Reset Staff Password
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>For {selectedSubadmin.email}</span>
+                </div>
+              </div>
+              <button type="button" onClick={() => setSubadminModalMode(null)} className="admin-modal-close-btn">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleResetSubadminPassword}>
+              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>
+                  Set a new temporary or permanent password for this administrator. Their previous credentials will immediately cease functioning.
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">New Password (Min. 6 Characters) *</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    autoFocus
+                    className="admin-form-input"
+                    placeholder="Enter new password"
+                    value={subadminPasswordInput}
+                    onChange={(e) => setSubadminPasswordInput(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="admin-btn-secondary"
+                  onClick={() => setSubadminModalMode(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={subadminSaving || subadminPasswordInput.length < 6}
+                  className="admin-btn-primary"
+                >
+                  {subadminSaving ? 'Updating...' : 'Set Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: CHANGE OWN PASSWORD (SELF-SERVICE)
+      ========================================================================= */}
+      {isChangePasswordOpen && (
+        <div className="admin-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsChangePasswordOpen(false); }}>
+          <div className="admin-modal-box" style={{ maxWidth: '480px' }}>
+            <div className="admin-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <KeyRound size={20} color="#2563eb" />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
+                    Change Administrator Password
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Account: {user?.email}</span>
+                </div>
+              </div>
+              <button type="button" onClick={() => setIsChangePasswordOpen(false)} className="admin-modal-close-btn">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangeOwnPassword}>
+              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {changePasswordError && (
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#dc2626',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <AlertCircle size={16} />
+                    <span>{changePasswordError}</span>
+                  </div>
+                )}
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">Current Password (Leave blank if none set)</label>
+                  <input
+                    type="password"
+                    className="admin-form-input"
+                    placeholder="Enter current password"
+                    value={changePasswordData.oldPassword}
+                    onChange={(e) => setChangePasswordData({ ...changePasswordData, oldPassword: e.target.value })}
+                  />
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">New Password *</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    className="admin-form-input"
+                    placeholder="Minimum 6 characters"
+                    value={changePasswordData.newPassword}
+                    onChange={(e) => setChangePasswordData({ ...changePasswordData, newPassword: e.target.value })}
+                  />
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">Confirm New Password *</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    className="admin-form-input"
+                    placeholder="Re-type new password"
+                    value={changePasswordData.confirmPassword}
+                    onChange={(e) => setChangePasswordData({ ...changePasswordData, confirmPassword: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="admin-btn-secondary"
+                  onClick={() => setIsChangePasswordOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={changePasswordSaving}
+                  className="admin-btn-primary"
+                >
+                  {changePasswordSaving ? 'Saving...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

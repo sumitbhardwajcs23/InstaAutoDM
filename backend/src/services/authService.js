@@ -279,12 +279,30 @@ async function createUserSession(user, req = {}) {
   const userAgent = (req.headers && req.headers['user-agent']) || 'Airvix Client';
   const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
+  // Check admin role and permissions if admin or present in admin_users
+  let adminRole = user.admin_role;
+  let permissions = user.permissions;
+  if (!adminRole && (user.role === 'admin' || user.email)) {
+    try {
+      const adminRow = await db.prepare('SELECT * FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(user.email?.toLowerCase()?.trim());
+      if (adminRow && adminRow.status === 'active') {
+        adminRole = adminRow.role;
+        permissions = JSON.parse(adminRow.permissions || '[]');
+      } else if (user.role === 'admin') {
+        adminRole = 'superadmin';
+        permissions = ['*'];
+      }
+    } catch (e) {}
+  }
+
   const payload = {
     id: user.id,
     email: user.email,
     name: user.name,
     plan: user.plan || 'free',
     role: user.role || 'user',
+    admin_role: adminRole,
+    permissions: permissions,
     session_id: sessionId,
     status: user.status || 'active',
   };
@@ -304,6 +322,8 @@ async function createUserSession(user, req = {}) {
     avatar_url: user.avatar_url,
     plan: user.plan,
     role: user.role,
+    admin_role: adminRole,
+    permissions: permissions,
     status: user.status,
     email_verified: user.email_verified || 0,
   };

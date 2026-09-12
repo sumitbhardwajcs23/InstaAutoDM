@@ -40,85 +40,98 @@ function isConfiguredAdminEmail(email) {
  */
 router.post('/admin-login', authLimiter, async (req, res) => {
   try {
-    const { email, password, otp, id_token, credential, code, access_token } = req.body;
-    const googleToken = id_token || credential || code || access_token;
-
+    const { email, password, otp } = req.body;
     let targetEmail = email ? email.toLowerCase().trim() : null;
-    let verifiedName = null;
-
-    // 1. Google SSO Authentication Flow for Admin
-    if (googleToken) {
-      const googleProfile = await verifyGoogleIdToken(googleToken);
-      if (!googleProfile.email) {
-        return res.status(400).json({ error: 'Could not extract a verified email from Google identity.' });
-      }
-      targetEmail = googleProfile.email.toLowerCase().trim();
-      verifiedName = googleProfile.name;
-    }
 
     if (!targetEmail) {
-      return res.status(400).json({ error: 'Email address or Google authentication is required.' });
+      return res.status(400).json({ error: 'Administrator email address is required.' });
+    }
+
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    // 1. Check admin_users table
+    let adminRecord = await db.prepare('SELECT * FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(targetEmail);
+
+    // If not found in admin_users, check if they are a configured Super Admin to auto-seed
+    if (!adminRecord && isConfiguredAdminEmail(targetEmail)) {
+      const { v4: uuidv4 } = require('uuid');
+      const newAdminId = `adm-${uuidv4().slice(0, 8)}`;
+      // Default hash for initial seed if not yet set
+      const defaultHash = await bcrypt.hash('Airvix@Admin2026!', 10);
+      await db.prepare(`
+        INSERT INTO admin_users (id, email, name, password_hash, role, permissions, status, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, 'superadmin', '["*"]', 'active', 'system', ?, ?)
+      `).run(newAdminId, targetEmail, targetEmail.split('@')[0], defaultHash, nowStr, nowStr);
+      adminRecord = await db.prepare('SELECT * FROM admin_users WHERE id = ?').get(newAdminId);
     }
 
     // Verify Admin Authorization
-    if (!isConfiguredAdminEmail(targetEmail)) {
+    if (!adminRecord) {
       return res.status(403).json({ 
-        error: `Access Denied: ${targetEmail} is not authorized for Super Admin privileges.` 
+        error: `Access Denied: ${targetEmail} is not authorized for Administrator access.` 
       });
     }
 
-    // 2. If OTP is provided, verify OTP
+    // Check account status
+    if (adminRecord.status === 'inactive' || adminRecord.status === 'suspended') {
+      return res.status(403).json({ 
+        error: 'Access Denied: This administrator account is currently deactivated or suspended. Please contact Super Admin.' 
+      });
+    }
+
+    // 2. Authenticate: via OTP or Password (NO STATIC MASTER KEY BYPASS)
     if (otp) {
       await verifyOtpToken({
         email: targetEmail,
         purpose: 'admin_login_otp',
         otp: String(otp).trim(),
       });
-    } 
-    // 3. If password is provided, verify password or admin master key
-    else if (password && !googleToken) {
-      const masterKey = process.env.ADMIN_MASTER_KEY || 'Airvix@Admin2026!';
-      const isMasterKey = (password === masterKey);
-
-      let existingUser = await db.prepare('SELECT * FROM users WHERE email = ?').get(targetEmail);
+    } else if (password) {
       let isDbPasswordMatch = false;
-
-      if (existingUser && (existingUser.password_hash || existingUser.password)) {
-        isDbPasswordMatch = await bcrypt.compare(password, existingUser.password_hash || existingUser.password);
+      if (adminRecord.password_hash) {
+        isDbPasswordMatch = await bcrypt.compare(password, adminRecord.password_hash);
       }
 
-      if (!isMasterKey && !isDbPasswordMatch) {
+      // Secondary check against users table if password was updated there
+      if (!isDbPasswordMatch) {
+        const existingUser = await db.prepare('SELECT * FROM users WHERE email = ?').get(targetEmail);
+        if (existingUser && (existingUser.password_hash || existingUser.password)) {
+          isDbPasswordMatch = await bcrypt.compare(password, existingUser.password_hash || existingUser.password);
+          if (isDbPasswordMatch) {
+            // Synchronize password hash into admin_users
+            const newHash = existingUser.password_hash || await bcrypt.hash(password, 10);
+            await db.prepare('UPDATE admin_users SET password_hash = ?, updated_at = ? WHERE id = ?').run(newHash, nowStr, adminRecord.id);
+          }
+        }
+      }
+
+      if (!isDbPasswordMatch) {
         return res.status(401).json({ error: 'Invalid admin credentials. Access denied.' });
       }
-    } 
-    // 4. If neither Google token, OTP, nor Password was verified
-    else if (!googleToken) {
+    } else {
       return res.status(400).json({ error: 'Password or 6-digit verification code is required to authenticate.' });
     }
 
-    // Find or create the canonical user and ensure role is 'admin' and plan is 'enterprise'
-    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    // 3. Find or sync the canonical user in users table
     let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(targetEmail);
 
     if (!user) {
       const { v4: uuidv4 } = require('uuid');
       const userId = uuidv4();
-      const pwdHash = password ? await bcrypt.hash(password, 10) : null;
       await db.prepare(`
         INSERT INTO users (id, email, name, role, plan, status, password_hash, email_verified, dm_usage_this_period, usage_period_start, created_at, updated_at)
         VALUES (?, ?, ?, 'admin', 'enterprise', 'active', ?, 1, 0, ?, ?, ?)
       `).run(
         userId,
         targetEmail,
-        verifiedName || targetEmail.split('@')[0],
-        pwdHash,
+        adminRecord.name || targetEmail.split('@')[0],
+        adminRecord.password_hash,
         nowStr,
         nowStr,
         nowStr
       );
       user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     } else {
-      // Ensure user has admin privileges
       await db.prepare(`
         UPDATE users 
         SET role = 'admin', plan = 'enterprise', email_verified = 1, updated_at = ?
@@ -128,6 +141,10 @@ router.post('/admin-login', authLimiter, async (req, res) => {
       user.plan = 'enterprise';
       user.email_verified = 1;
     }
+
+    const parsedPermissions = JSON.parse(adminRecord.permissions || '[]');
+    user.admin_role = adminRecord.role;
+    user.permissions = parsedPermissions;
 
     // Create session bundle
     const sessionBundle = await createUserSession(user, req);
@@ -153,6 +170,8 @@ router.post('/admin-login', authLimiter, async (req, res) => {
       user: {
         ...sessionBundle.user,
         role: 'admin',
+        admin_role: adminRecord.role,
+        permissions: parsedPermissions,
         plan: 'enterprise',
       },
       sessionId: sessionBundle.sessionId,
@@ -701,6 +720,21 @@ router.get('/me', requireAuth, async (req, res) => {
 
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    let adminRole = null;
+    let permissions = [];
+    try {
+      const adminRow = await db.prepare('SELECT * FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(user.email.toLowerCase().trim());
+      if (adminRow && adminRow.status === 'active') {
+        adminRole = adminRow.role;
+        permissions = JSON.parse(adminRow.permissions || '[]');
+        user.role = 'admin';
+      } else if (isConfiguredAdminEmail(user.email)) {
+        adminRole = 'superadmin';
+        permissions = ['*'];
+        user.role = 'admin';
+      }
+    } catch (e) {}
+
     if (isConfiguredAdminEmail(user.email) && user.role !== 'admin') {
       user.role = 'admin';
       await db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
@@ -715,6 +749,8 @@ router.get('/me', requireAuth, async (req, res) => {
     res.json({ 
       user: {
         ...user,
+        admin_role: adminRole,
+        permissions: permissions,
         linked_providers: (linkedProviders || []).map(p => p.provider)
       } 
     });

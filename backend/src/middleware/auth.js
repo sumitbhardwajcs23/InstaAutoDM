@@ -65,10 +65,33 @@ async function requireAdmin(req, res, next) {
     .map(e => e.trim());
 
   const isEmailAdmin = req.user.email && adminEmails.includes(req.user.email.toLowerCase().trim());
-  const isRoleAdmin = req.user.role === 'admin';
+  let isRoleAdmin = req.user.role === 'admin' || req.user.admin_role;
+
+  // Check admin_users table in DB if not determined by token
+  try {
+    const adminRow = await getDb().prepare('SELECT * FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(req.user.email?.toLowerCase()?.trim());
+    if (adminRow) {
+      if (adminRow.status === 'inactive' || adminRow.status === 'suspended') {
+        return res.status(403).json({ error: 'Forbidden: Admin account is inactive or suspended' });
+      }
+      isRoleAdmin = true;
+      req.user.admin_role = adminRow.role;
+      req.user.permissions = JSON.parse(adminRow.permissions || '[]');
+    }
+  } catch (err) {
+    console.warn('[AuthMiddleware] admin_users lookup note:', err.message);
+  }
 
   if (!isRoleAdmin && !isEmailAdmin) {
     return res.status(403).json({ error: 'Forbidden: Admin privileges required' });
+  }
+
+  // Ensure default superadmin permissions for root admins
+  if (!req.user.permissions || !req.user.admin_role) {
+    if (isEmailAdmin || req.user.role === 'admin') {
+      req.user.admin_role = req.user.admin_role || 'superadmin';
+      req.user.permissions = req.user.permissions || ['*'];
+    }
   }
 
   // Session revocation validation if session_id is encoded in token
@@ -113,8 +136,41 @@ async function requireAdmin(req, res, next) {
 }
 
 /**
+ * Granular Permission Enforcement middleware
+ * Checks if the admin has the specific power or is a superadmin/wildcard
+ */
+function requirePermission(permissionKey) {
+  return async (req, res, next) => {
+    requireAdmin(req, res, () => {
+      const userRole = req.user.admin_role || (req.user.role === 'admin' ? 'superadmin' : null);
+      let permissions = req.user.permissions || [];
+      if (typeof permissions === 'string') {
+        try {
+          permissions = JSON.parse(permissions);
+        } catch (e) {
+          permissions = [];
+        }
+      }
+
+      // Super Admin or wildcard permission has universal access
+      if (userRole === 'superadmin' || permissions.includes('*')) {
+        return next();
+      }
+
+      if (permissionKey && permissions.includes(permissionKey)) {
+        return next();
+      }
+
+      return res.status(403).json({ 
+        error: `Forbidden: You do not have permission to access this resource. Required power: [${permissionKey}]. Please contact your Super Admin.` 
+      });
+    });
+  };
+}
+
+/**
  * Granular Role-Based Access Control (RBAC) middleware for admin operations
- * Supported roles: 'superadmin', 'admin', 'support', 'auditor'
+ * Supported roles: 'superadmin', 'subadmin', 'admin', 'support', 'auditor'
  */
 function requireAdminRole(...allowedRoles) {
   return async (req, res, next) => {
@@ -175,6 +231,7 @@ module.exports = {
   requireAuth,
   requireAdmin,
   requireAdminRole,
+  requirePermission,
   sanitizeInput,
   sanitizeParamsMiddleware,
   JWT_SECRET

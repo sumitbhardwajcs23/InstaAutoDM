@@ -554,6 +554,49 @@ if (pgPool) {
           );
           CREATE INDEX IF NOT EXISTS idx_error_events_fp ON error_events(error_fingerprint);
         `);
+
+        // Sub-Admin Governance & 12 Granular Powers Migration
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS admin_users (
+            id TEXT PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'subadmin',
+            permissions TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'active',
+            created_by TEXT,
+            created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          );
+          CREATE INDEX IF NOT EXISTS idx_admin_users_email ON admin_users(email);
+          CREATE INDEX IF NOT EXISTS idx_admin_users_role ON admin_users(role);
+        `);
+
+        // Pre-seed primary Super Admin accounts with full permissions wildcard ["*"]
+        try {
+          const bcrypt = require('bcryptjs');
+          const defaultAdminPwdHash = await bcrypt.hash('Airvix@Admin2026!', 10);
+          const initialAdmins = [
+            { id: 'admin_super_001', email: 'sumitbhardwaj2227@gmail.com', name: 'Sumit Bhardwaj (Super Admin)' },
+            { id: 'admin_super_002', email: 'sumit.bhardwaj_cs23@gla.ac.in', name: 'Sumit Bhardwaj GLA (Super Admin)' },
+            { id: 'admin_super_003', email: 'admin@airvix.com', name: 'Airvix Master Admin' },
+          ];
+
+          for (const sa of initialAdmins) {
+            const existing = await pgPool.query('SELECT id FROM admin_users WHERE email = $1', [sa.email]);
+            if (!existing.rows || existing.rows.length === 0) {
+              const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+              await pgPool.query(`
+                INSERT INTO admin_users (id, email, name, password_hash, role, permissions, status, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, 'superadmin', '["*"]', 'active', $5, $5)
+              `, [sa.id, sa.email, sa.name, defaultAdminPwdHash, nowStr]);
+            }
+          }
+        } catch (adminSeedErr) {
+          console.error('[Admin Seed Error]', adminSeedErr.message);
+        }
+
         // Ensure default admin user exists safely without hardcoded credentials
         const existingAdmin = await pgPool.query("SELECT id, password_hash FROM users WHERE email = 'admin@airvix.com'");
         if (!existingAdmin.rows || existingAdmin.rows.length === 0) {

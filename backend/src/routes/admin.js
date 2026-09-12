@@ -4,7 +4,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
-const { requireAuth, requireAdmin, requireAdminRole } = require('../middleware/auth');
+const { requireAuth, requireAdmin, requireAdminRole, requirePermission } = require('../middleware/auth');
 const { DEFAULT_TEMPLATES } = require('../constants/defaultTemplates');
 const { DEFAULT_SITE_SETTINGS, mergeSettingsWithEnvDefaults } = require('./site');
 const { dmLimitFor, igLimitFor, rulesLimitFor, refreshPlanLimitsCache } = require('../constants/planLimits');
@@ -260,7 +260,7 @@ router.get('/overview', async (req, res) => {
 
 
 // ── GET /api/admin/users ─────────────────────────────────────────────
-router.get('/users', async (req, res) => {
+router.get('/users', requirePermission('users:view'), async (req, res) => {
   try {
     const { search = '', plan = '', status = '', role = '', limit = 50, offset = 0 } = req.query;
 
@@ -376,7 +376,7 @@ router.get('/users', async (req, res) => {
 });
 
 // ── PATCH /api/admin/users/:id ───────────────────────────────────────
-router.patch('/users/:id', async (req, res) => {
+router.patch('/users/:id', requirePermission('users:manage'), async (req, res) => {
   try {
     const { id } = req.params;
     const { plan, role, status, name, reset_dm_usage, custom_dm_limit, custom_ig_limit, custom_rules_limit } = req.body;
@@ -519,7 +519,7 @@ router.post('/users/:id/reset-password', async (req, res) => {
 });
 
 // ── GET /api/admin/settings ──────────────────────────────────────────
-router.get('/settings', async (req, res) => {
+router.get('/settings', requirePermission('cms:manage'), async (req, res) => {
   try {
     const rows = await db.prepare('SELECT key, value FROM site_settings').all();
     const settingsMap = {};
@@ -541,7 +541,7 @@ router.get('/settings', async (req, res) => {
 });
 
 // ── PUT /api/admin/settings ──────────────────────────────────────────
-router.put('/settings', async (req, res) => {
+router.put('/settings', requirePermission('cms:manage'), async (req, res) => {
   try {
     const settings = req.body;
     if (!settings || typeof settings !== 'object') {
@@ -568,7 +568,7 @@ router.put('/settings', async (req, res) => {
 });
 
 // ── DELETE /api/admin/users/:id ──────────────────────────────────────
-router.delete('/users/:id', async (req, res) => {
+router.delete('/users/:id', requirePermission('users:delete'), async (req, res) => {
   try {
     const { id } = req.params;
     if (req.user.id === id) {
@@ -637,7 +637,7 @@ router.post('/users/:id/reset-password', async (req, res) => {
 });
 
 // ── GET /api/admin/users/:id/details ─────────────────────────────────
-router.get('/users/:id/details', async (req, res) => {
+router.get('/users/:id/details', requirePermission('users:view'), async (req, res) => {
   try {
     const { id } = req.params;
     const user = await db.prepare('SELECT id, email, name, avatar_url, plan, role, status, custom_dm_limit, custom_ig_limit, custom_rules_limit, dm_usage_this_period, usage_period_start, created_at, updated_at FROM users WHERE id = ?').get(id);
@@ -887,7 +887,7 @@ async function saveStoredPlans(plans) {
 }
 
 // GET /api/admin/plans
-router.get('/plans', async (_req, res) => {
+router.get('/plans', requirePermission('plans:manage'), async (_req, res) => {
   try {
     const plans = await getStoredPlans();
     res.json({ plans });
@@ -898,7 +898,7 @@ router.get('/plans', async (_req, res) => {
 });
 
 // POST /api/admin/plans
-router.post('/plans', async (req, res) => {
+router.post('/plans', requirePermission('plans:manage'), async (req, res) => {
   try {
     const planData = req.body;
     if (!planData.name || planData.monthlyPrice === undefined) {
@@ -935,7 +935,7 @@ router.post('/plans', async (req, res) => {
 });
 
 // PUT /api/admin/plans/:id
-router.put('/plans/:id', async (req, res) => {
+router.put('/plans/:id', requirePermission('plans:manage'), async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -980,7 +980,7 @@ router.put('/plans/:id', async (req, res) => {
 });
 
 // DELETE /api/admin/plans/:id
-router.delete('/plans/:id', async (req, res) => {
+router.delete('/plans/:id', requirePermission('plans:manage'), async (req, res) => {
   try {
     const { id } = req.params;
     let plans = await getStoredPlans();
@@ -1009,7 +1009,7 @@ router.delete('/plans/:id', async (req, res) => {
 });
 
 // POST /api/admin/plans/reset
-router.post('/plans/reset', async (_req, res) => {
+router.post('/plans/reset', requirePermission('plans:manage'), async (_req, res) => {
   try {
     try {
       await db.prepare('DELETE FROM pricing_plans').run();
@@ -1026,7 +1026,7 @@ router.post('/plans/reset', async (_req, res) => {
 // ── COUPONS MANAGEMENT CRUD ──────────────────────────────────────────
 
 // GET /api/admin/coupons
-router.get('/coupons', async (_req, res) => {
+router.get('/coupons', requirePermission('coupons:manage'), async (_req, res) => {
   try {
     const coupons = await db.prepare('SELECT * FROM coupons ORDER BY created_at DESC').all().catch(() => []) || [];
     res.json({ coupons });
@@ -1037,7 +1037,7 @@ router.get('/coupons', async (_req, res) => {
 });
 
 // POST /api/admin/coupons
-router.post('/coupons', async (req, res) => {
+router.post('/coupons', requirePermission('coupons:manage'), async (req, res) => {
   try {
     const { code, discount_percent, discount_amount, plan_slug, max_uses, expires_at, description } = req.body;
     if (!code) return res.status(400).json({ error: 'Coupon code is required' });
@@ -1073,7 +1073,7 @@ router.post('/coupons', async (req, res) => {
 });
 
 // PATCH /api/admin/coupons/:id
-router.patch('/coupons/:id', async (req, res) => {
+router.patch('/coupons/:id', requirePermission('coupons:manage'), async (req, res) => {
   try {
     const { id } = req.params;
     const { is_active, max_uses, expires_at, description } = req.body;
@@ -1113,7 +1113,7 @@ router.patch('/coupons/:id', async (req, res) => {
 });
 
 // DELETE /api/admin/coupons/:id
-router.delete('/coupons/:id', async (req, res) => {
+router.delete('/coupons/:id', requirePermission('coupons:manage'), async (req, res) => {
   try {
     const { id } = req.params;
     await db.prepare('DELETE FROM coupons WHERE id = ?').run(id);
@@ -1128,7 +1128,7 @@ router.delete('/coupons/:id', async (req, res) => {
 // ── INVOICES MANAGEMENT CRUD ─────────────────────────────────────────
 
 // GET /api/admin/invoices
-router.get('/invoices', async (_req, res) => {
+router.get('/invoices', requirePermission('billing:manage'), async (_req, res) => {
   try {
     const rows = await db.prepare(`
       SELECT i.*, u.name as user_name, u.email as user_email, u.plan as user_plan
@@ -1153,7 +1153,7 @@ router.get('/invoices', async (_req, res) => {
 });
 
 // POST /api/admin/invoices (Generate / Record Manual Invoice)
-router.post('/invoices', async (req, res) => {
+router.post('/invoices', requirePermission('billing:manage'), async (req, res) => {
   try {
     const { user_id, user_email, billing_name, amount, plan, currency, gateway, status, gst_number } = req.body;
     if (!amount) return res.status(400).json({ error: 'Invoice amount is required' });
@@ -1200,7 +1200,7 @@ router.post('/invoices', async (req, res) => {
 });
 
 // PATCH /api/admin/invoices/:id
-router.patch('/invoices/:id', async (req, res) => {
+router.patch('/invoices/:id', requirePermission('billing:manage'), async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -1222,7 +1222,7 @@ router.patch('/invoices/:id', async (req, res) => {
 });
 
 // DELETE /api/admin/invoices/:id
-router.delete('/invoices/:id', async (req, res) => {
+router.delete('/invoices/:id', requirePermission('billing:manage'), async (req, res) => {
   try {
     const { id } = req.params;
     await db.prepare('DELETE FROM invoices WHERE id = ?').run(id);
@@ -1236,7 +1236,7 @@ router.delete('/invoices/:id', async (req, res) => {
 
 // ── GET /api/admin/payments ──────────────────────────────────────────
 // ── GET /api/admin/settings (CMS Settings for Landing Page) ───────────
-router.get('/settings', async (_req, res) => {
+router.get('/settings', requirePermission('cms:manage'), async (_req, res) => {
   try {
     const rows = await db.prepare('SELECT key, value FROM site_settings').all();
     const settingsMap = {};
@@ -1256,7 +1256,7 @@ router.get('/settings', async (_req, res) => {
 });
 
 // ── PUT /api/admin/settings (Update Landing Page CMS Settings) ─────────
-router.put('/settings', async (req, res) => {
+router.put('/settings', requirePermission('cms:manage'), async (req, res) => {
   try {
     const updates = req.body;
     if (!updates || typeof updates !== 'object') {
@@ -1305,7 +1305,7 @@ async function saveStoredTemplates(templates) {
 }
 
 // ── GET /api/admin/templates ─────────────────────────────────────────
-router.get('/templates', async (_req, res) => {
+router.get('/templates', requirePermission('cms:manage'), async (_req, res) => {
   try {
     const templates = await getStoredTemplates();
     res.json({ templates });
@@ -1316,7 +1316,7 @@ router.get('/templates', async (_req, res) => {
 });
 
 // ── POST /api/admin/templates ────────────────────────────────────────
-router.post('/templates', async (req, res) => {
+router.post('/templates', requirePermission('cms:manage'), async (req, res) => {
   try {
     const templateData = req.body;
     if (!templateData.name || !templateData.trigger_keyword) {
@@ -1359,7 +1359,7 @@ router.post('/templates', async (req, res) => {
 });
 
 // ── PUT /api/admin/templates/:id ─────────────────────────────────────
-router.put('/templates/:id', async (req, res) => {
+router.put('/templates/:id', requirePermission('cms:manage'), async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -1386,7 +1386,7 @@ router.put('/templates/:id', async (req, res) => {
 });
 
 // ── DELETE /api/admin/templates/:id ──────────────────────────────────
-router.delete('/templates/:id', async (req, res) => {
+router.delete('/templates/:id', requirePermission('cms:manage'), async (req, res) => {
   try {
     const { id } = req.params;
     let templates = await getStoredTemplates();
@@ -1405,7 +1405,7 @@ router.delete('/templates/:id', async (req, res) => {
 });
 
 // ── GET /api/admin/workspaces ─────────────────────────────────────────
-router.get('/workspaces', async (_req, res) => {
+router.get('/workspaces', requirePermission('workspaces:manage'), async (_req, res) => {
   try {
     // 1. Fetch real workspace records if table exists
     let rawWorkspaces = [];
@@ -1554,7 +1554,7 @@ router.get('/system-status', async (_req, res) => {
 });
 
 // ── GET /api/admin/integrations (100% REAL LIVE INTEGRATION STATUS) ────
-router.get('/integrations', async (req, res) => {
+router.get('/integrations', requirePermission('integrations:manage'), async (req, res) => {
   try {
     const data = await integrationService.getIntegrations(req);
     res.json(data);
@@ -1565,7 +1565,7 @@ router.get('/integrations', async (req, res) => {
 });
 
 // ── POST /api/admin/integrations/:id/configure ───────────────────────
-router.post('/integrations/:id/configure', async (req, res) => {
+router.post('/integrations/:id/configure', requirePermission('integrations:manage'), async (req, res) => {
   try {
     const result = await integrationService.configureIntegration(req.params.id, req.body);
     await logAuditEvent(
@@ -1583,7 +1583,7 @@ router.post('/integrations/:id/configure', async (req, res) => {
 });
 
 // ── POST /api/admin/integrations/:id/test ────────────────────────────
-router.post('/integrations/:id/test', async (req, res) => {
+router.post('/integrations/:id/test', requirePermission('integrations:manage'), async (req, res) => {
   try {
     const result = await integrationService.testIntegration(req.params.id, req.body);
     res.json(result);
@@ -1594,7 +1594,7 @@ router.post('/integrations/:id/test', async (req, res) => {
 });
 
 // ── POST /api/admin/integrations/:id/disconnect ──────────────────────
-router.post('/integrations/:id/disconnect', async (req, res) => {
+router.post('/integrations/:id/disconnect', requirePermission('integrations:manage'), async (req, res) => {
   try {
     const result = await integrationService.disconnectIntegration(req.params.id);
     await logAuditEvent(
@@ -1612,7 +1612,7 @@ router.post('/integrations/:id/disconnect', async (req, res) => {
 });
 
 // ── GET /api/admin/payments ──────────────────────────────────────────
-router.get('/payments', async (_req, res) => {
+router.get('/payments', requirePermission('billing:manage'), async (_req, res) => {
   try {
     const realInvoices = await db.prepare(`
       SELECT i.id, i.user_id, i.subscription_id, i.invoice_number, i.amount, i.currency, i.status, i.gateway, i.created_at, i.paid_at,
@@ -1684,7 +1684,7 @@ router.get('/support', async (_req, res) => {
 });
 
 // ── GET /api/admin/safeguards ─────────────────────────────────────────
-router.get('/safeguards', async (_req, res) => {
+router.get('/safeguards', requirePermission('safeguards:manage'), async (_req, res) => {
   try {
     const rulesRow = await db.prepare('SELECT COUNT(*) as count FROM automation_rules').get();
     const totalRules = parseInt(rulesRow?.count || 0, 10);
@@ -1712,7 +1712,7 @@ router.get('/safeguards', async (_req, res) => {
 });
 
 // ── GET /api/admin/analytics ──────────────────────────────────────────
-router.get('/analytics', async (_req, res) => {
+router.get('/analytics', requirePermission('analytics:view'), async (_req, res) => {
   try {
     const usersCount = parseInt((await db.prepare('SELECT COUNT(*) as c FROM users').get())?.c || 0, 10);
     const igCount = parseInt((await db.prepare('SELECT COUNT(*) as c FROM instagram_accounts').get())?.c || 0, 10);
@@ -1946,7 +1946,7 @@ router.get('/audit-logs', async (req, res) => {
 // ── EMERGENCY KILL SWITCHES & ABUSE PREVENTION ───────────────────────
 
 // POST /api/admin/kill-switch/global (Pause or resume ALL system automation)
-router.post('/kill-switch/global', async (req, res) => {
+router.post('/kill-switch/global', requirePermission('safeguards:manage'), async (req, res) => {
   try {
     const { isActive, reason } = req.body;
     const activeVal = isActive === true || isActive === 1 || isActive === 'true';
@@ -1960,7 +1960,7 @@ router.post('/kill-switch/global', async (req, res) => {
 });
 
 // POST /api/admin/kill-switch/account/:id (Pause or resume specific account automation)
-router.post('/kill-switch/account/:id', async (req, res) => {
+router.post('/kill-switch/account/:id', requirePermission('safeguards:manage'), async (req, res) => {
   try {
     const { isActive, reason } = req.body;
     const activeVal = isActive === true || isActive === 1 || isActive === 'true';
@@ -1974,7 +1974,7 @@ router.post('/kill-switch/account/:id', async (req, res) => {
 });
 
 // POST /api/admin/kill-switch/rule/:id (Pause or resume specific automation rule)
-router.post('/kill-switch/rule/:id', async (req, res) => {
+router.post('/kill-switch/rule/:id', requirePermission('safeguards:manage'), async (req, res) => {
   try {
     const { isActive, reason } = req.body;
     const activeVal = isActive === true || isActive === 1 || isActive === 'true';
@@ -1988,7 +1988,7 @@ router.post('/kill-switch/rule/:id', async (req, res) => {
 });
 
 // GET /api/admin/kill-switch/status (View all currently active kill switches)
-router.get('/kill-switch/status', async (_req, res) => {
+router.get('/kill-switch/status', requirePermission('safeguards:manage'), async (_req, res) => {
   try {
     const activeSwitches = await abuseDetection.getKillSwitchStatus();
     res.json({ kill_switches: activeSwitches });
@@ -1999,7 +1999,7 @@ router.get('/kill-switch/status', async (_req, res) => {
 });
 
 // GET /api/admin/abuse-flags (List abuse flags)
-router.get('/abuse-flags', async (req, res) => {
+router.get('/abuse-flags', requirePermission('safeguards:manage'), async (req, res) => {
   try {
     const resolved = req.query.resolved === '1' || req.query.resolved === 'true' ? 1 : 0;
     const flags = await abuseDetection.getAbuseFlags(resolved);
@@ -2011,7 +2011,7 @@ router.get('/abuse-flags', async (req, res) => {
 });
 
 // POST /api/admin/abuse-flags/:id/resolve (Mark abuse flag resolved)
-router.post('/abuse-flags/:id/resolve', async (req, res) => {
+router.post('/abuse-flags/:id/resolve', requirePermission('safeguards:manage'), async (req, res) => {
   try {
     const result = await abuseDetection.resolveAbuseFlag(req.params.id, req.user.email);
     await logAuditEvent(req.user.id, req.user.email, 'ABUSE_FLAG_RESOLVED', 'abuse_flags', `Resolved flag ${req.params.id}`);
@@ -2025,7 +2025,7 @@ router.post('/abuse-flags/:id/resolve', async (req, res) => {
 // ── COST REPORTING & PER-TENANT USAGE TRACKING ──────────────────────
 
 // GET /api/admin/cost-report (System-wide API consumption breakdown)
-router.get('/cost-report', async (_req, res) => {
+router.get('/cost-report', requirePermission('analytics:view'), async (_req, res) => {
   try {
     const pool = db.getPgPool();
     if (!pool) return res.status(503).json({ error: 'Database unavailable' });
@@ -2062,7 +2062,7 @@ router.get('/cost-report', async (_req, res) => {
 });
 
 // GET /api/admin/cost-report/:userId (Per-tenant detailed cost drilldown)
-router.get('/cost-report/:userId', async (req, res) => {
+router.get('/cost-report/:userId', requirePermission('analytics:view'), async (req, res) => {
   try {
     const pool = db.getPgPool();
     if (!pool) return res.status(503).json({ error: 'Database unavailable' });
@@ -2083,6 +2083,269 @@ router.get('/cost-report/:userId', async (req, res) => {
   } catch (err) {
     console.error('[Admin] Tenant cost drilldown error:', err.message);
     res.status(500).json({ error: 'Failed to generate tenant cost report' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// ── SUB-ADMIN & ACCESS CONTROL MANAGEMENT (admins:manage) ─────────────
+// ══════════════════════════════════════════════════════════════════════
+
+// ── GET /api/admin/subadmins ──────────────────────────────────────────
+router.get('/subadmins', requirePermission('admins:manage'), async (_req, res) => {
+  try {
+    const rows = await db.prepare(`
+      SELECT id, email, name, role, permissions, status, created_by, created_at, updated_at
+      FROM admin_users
+      ORDER BY created_at ASC
+    `).all();
+
+    const formatted = (rows || []).map(r => ({
+      ...r,
+      permissions: typeof r.permissions === 'string' ? JSON.parse(r.permissions || '[]') : (r.permissions || []),
+    }));
+
+    res.json({ success: true, subadmins: formatted });
+  } catch (err) {
+    console.error('[Admin] Get subadmins error:', err);
+    res.status(500).json({ error: 'Failed to fetch administrator accounts' });
+  }
+});
+
+// ── POST /api/admin/subadmins ─────────────────────────────────────────
+router.post('/subadmins', requirePermission('admins:manage'), async (req, res) => {
+  try {
+    const { email, name, password, role = 'subadmin', permissions = [] } = req.body;
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'A valid email address is required' });
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check if already exists in admin_users
+    const existingAdmin = await db.prepare('SELECT id FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(normalizedEmail);
+    if (existingAdmin) {
+      return res.status(400).json({ error: 'An administrator account with this email already exists' });
+    }
+
+    const newId = `adm-${uuidv4().slice(0, 8)}`;
+    const passwordHash = await bcrypt.hash(password, 10);
+    const validPermissions = Array.isArray(permissions) ? permissions : [];
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    await db.prepare(`
+      INSERT INTO admin_users (id, email, name, password_hash, role, permissions, status, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+    `).run(
+      newId,
+      normalizedEmail,
+      name || normalizedEmail.split('@')[0],
+      passwordHash,
+      role === 'superadmin' ? 'superadmin' : 'subadmin',
+      JSON.stringify(validPermissions),
+      req.user?.email || 'superadmin',
+      nowStr,
+      nowStr
+    );
+
+    // Sync into users table so foreign keys and general session lookups work seamlessly
+    let userRow = await db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
+    if (!userRow) {
+      const newUserId = uuidv4();
+      await db.prepare(`
+        INSERT INTO users (id, email, name, role, plan, status, password_hash, email_verified, dm_usage_this_period, usage_period_start, created_at, updated_at)
+        VALUES (?, ?, ?, 'admin', 'enterprise', 'active', ?, 1, 0, ?, ?, ?)
+      `).run(newUserId, normalizedEmail, name || normalizedEmail.split('@')[0], passwordHash, nowStr, nowStr, nowStr);
+    } else {
+      await db.prepare(`
+        UPDATE users SET role = 'admin', plan = 'enterprise', password_hash = ?, updated_at = ? WHERE id = ?
+      `).run(passwordHash, nowStr, userRow.id);
+    }
+
+    await logAuditEvent(req.user?.id, req.user?.email, 'Created Administrator Account', normalizedEmail, `Role: ${role}, Permissions: ${validPermissions.join(', ')}`);
+
+    res.json({
+      success: true,
+      subadmin: {
+        id: newId,
+        email: normalizedEmail,
+        name: name || normalizedEmail.split('@')[0],
+        role: role === 'superadmin' ? 'superadmin' : 'subadmin',
+        permissions: validPermissions,
+        status: 'active',
+        created_by: req.user?.email || 'superadmin',
+        created_at: nowStr,
+      }
+    });
+  } catch (err) {
+    console.error('[Admin] Create subadmin error:', err);
+    res.status(500).json({ error: 'Failed to create administrator account: ' + err.message });
+  }
+});
+
+// ── PUT /api/admin/subadmins/:id ──────────────────────────────────────
+router.put('/subadmins/:id', requirePermission('admins:manage'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, permissions, status, role } = req.body;
+
+    const existing = await db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Administrator account not found' });
+    }
+
+    // Root superadmins protection
+    const ROOT_SUPERADMINS = ['sumitbhardwaj2227@gmail.com', 'sumit.bhardwaj_cs23@gla.ac.in', 'admin@airvix.com'];
+    if (ROOT_SUPERADMINS.includes(existing.email.toLowerCase().trim())) {
+      if (status && status !== 'active') {
+        return res.status(403).json({ error: 'Root Super Administrator accounts cannot be deactivated' });
+      }
+    }
+
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const updatedName = name !== undefined ? name : existing.name;
+    const updatedStatus = status !== undefined ? status : existing.status;
+    const updatedRole = role !== undefined ? role : existing.role;
+    const updatedPermissions = permissions !== undefined ? JSON.stringify(permissions) : existing.permissions;
+
+    await db.prepare(`
+      UPDATE admin_users
+      SET name = ?, role = ?, permissions = ?, status = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updatedName, updatedRole, updatedPermissions, updatedStatus, nowStr, id);
+
+    // Sync status with users table
+    await db.prepare('UPDATE users SET name = ?, status = ?, updated_at = ? WHERE email = ?')
+      .run(updatedName, updatedStatus === 'active' ? 'active' : 'inactive', nowStr, existing.email);
+
+    await logAuditEvent(req.user?.id, req.user?.email, 'Updated Administrator Account', existing.email, `Status: ${updatedStatus}, Role: ${updatedRole}`);
+
+    res.json({
+      success: true,
+      message: 'Administrator account updated successfully',
+      subadmin: {
+        id,
+        email: existing.email,
+        name: updatedName,
+        role: updatedRole,
+        permissions: JSON.parse(updatedPermissions || '[]'),
+        status: updatedStatus,
+        updated_at: nowStr,
+      }
+    });
+  } catch (err) {
+    console.error('[Admin] Update subadmin error:', err);
+    res.status(500).json({ error: 'Failed to update administrator account' });
+  }
+});
+
+// ── PUT /api/admin/subadmins/:id/password ─────────────────────────────
+router.put('/subadmins/:id/password', requirePermission('admins:manage'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+    }
+
+    const existing = await db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Administrator account not found' });
+    }
+
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const newHash = await bcrypt.hash(password, 10);
+
+    await db.prepare('UPDATE admin_users SET password_hash = ?, updated_at = ? WHERE id = ?').run(newHash, nowStr, id);
+    await db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE email = ?').run(newHash, nowStr, existing.email);
+
+    await logAuditEvent(req.user?.id, req.user?.email, 'Reset Admin Password', existing.email, 'Super Admin password reset applied');
+
+    res.json({ success: true, message: `Password successfully updated for ${existing.email}` });
+  } catch (err) {
+    console.error('[Admin] Reset password error:', err);
+    res.status(500).json({ error: 'Failed to reset administrator password' });
+  }
+});
+
+// ── DELETE /api/admin/subadmins/:id ───────────────────────────────────
+router.delete('/subadmins/:id', requirePermission('admins:manage'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await db.prepare('SELECT * FROM admin_users WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Administrator account not found' });
+    }
+
+    const ROOT_SUPERADMINS = ['sumitbhardwaj2227@gmail.com', 'sumit.bhardwaj_cs23@gla.ac.in', 'admin@airvix.com'];
+    if (ROOT_SUPERADMINS.includes(existing.email.toLowerCase().trim())) {
+      return res.status(403).json({ error: 'Cannot delete a root Super Administrator account' });
+    }
+
+    if (req.user?.email && req.user.email.toLowerCase().trim() === existing.email.toLowerCase().trim()) {
+      return res.status(400).json({ error: 'Cannot delete your own administrator account' });
+    }
+
+    await db.prepare('DELETE FROM admin_users WHERE id = ?').run(id);
+
+    // Demote role in users table to regular user
+    await db.prepare("UPDATE users SET role = 'user' WHERE email = ?").run(existing.email);
+
+    await logAuditEvent(req.user?.id, req.user?.email, 'Deleted Administrator Account', existing.email);
+
+    res.json({ success: true, message: `Administrator ${existing.email} has been removed` });
+  } catch (err) {
+    console.error('[Admin] Delete subadmin error:', err);
+    res.status(500).json({ error: 'Failed to remove administrator account' });
+  }
+});
+
+// ── POST /api/admin/change-password (Self-service password update) ────
+router.post('/change-password', async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+    }
+
+    const email = req.user?.email?.toLowerCase()?.trim();
+    if (!email) {
+      return res.status(401).json({ error: 'Unauthorized: missing administrator email' });
+    }
+
+    const adminUser = await db.prepare('SELECT * FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(email);
+    if (!adminUser) {
+      return res.status(404).json({ error: 'Administrator record not found' });
+    }
+
+    // If oldPassword provided, check match
+    if (adminUser.password_hash) {
+      if (!oldPassword) {
+        return res.status(400).json({ error: 'Current password is required to set a new password' });
+      }
+      const isMatch = await bcrypt.compare(oldPassword, adminUser.password_hash);
+      if (!isMatch) {
+        return res.status(400).json({ error: 'Current password does not match. Verification failed.' });
+      }
+    }
+
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const newHash = await bcrypt.hash(newPassword, 10);
+
+    await db.prepare('UPDATE admin_users SET password_hash = ?, updated_at = ? WHERE id = ?').run(newHash, nowStr, adminUser.id);
+    await db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE email = ?').run(newHash, nowStr, email);
+
+    await logAuditEvent(req.user?.id, email, 'Changed Own Admin Password', email, 'Self-service password update');
+
+    res.json({ success: true, message: 'Your password has been changed successfully!' });
+  } catch (err) {
+    console.error('[Admin] Change own password error:', err);
+    res.status(500).json({ error: 'Failed to update password: ' + err.message });
   }
 });
 
