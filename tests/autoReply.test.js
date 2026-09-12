@@ -215,8 +215,8 @@ async function runTests() {
 
   // 7. Test Free Plan DM Cap Enforcement
   await test('Free plan cap enforcement halts sends and logs usage_capped', async () => {
-    // Current cap is set to 5 for test
-    await db.prepare('UPDATE users SET dm_usage_this_period = 5 WHERE id = ?').run(userId);
+    // Current cap is set to 1000 for free plan test
+    await db.prepare('UPDATE users SET dm_usage_this_period = 1000 WHERE id = ?').run(userId);
 
     const commentId = `comment_cap_test_${Date.now()}`;
     queue.enqueue({

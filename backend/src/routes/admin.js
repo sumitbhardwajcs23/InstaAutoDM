@@ -853,7 +853,12 @@ router.put('/plans/:id', async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
     let plans = await getStoredPlans();
-    const idx = plans.findIndex(p => p.id === id || p.slug === id);
+    const searchStr = (id || '').toLowerCase().trim();
+    const idx = plans.findIndex(p =>
+      (p.id || '').toLowerCase().trim() === searchStr ||
+      (p.slug || '').toLowerCase().trim() === searchStr ||
+      (p.name || '').toLowerCase().trim() === searchStr
+    );
 
     if (idx === -1) {
       return res.status(404).json({ error: 'Pricing plan not found' });
@@ -862,18 +867,24 @@ router.put('/plans/:id', async (req, res) => {
     plans[idx] = {
       ...plans[idx],
       ...updates,
+      name: updates.name ? updates.name.trim() : plans[idx].name,
+      slug: updates.slug ? updates.slug.toLowerCase().trim() : plans[idx].slug,
       monthlyPrice: updates.monthlyPrice !== undefined ? (Number(updates.monthlyPrice) || 0) : plans[idx].monthlyPrice,
       annualPrice: updates.annualPrice !== undefined ? (Number(updates.annualPrice) || 0) : plans[idx].annualPrice,
       dmLimit: updates.dmLimit !== undefined ? (Number(updates.dmLimit) || 0) : plans[idx].dmLimit,
       igLimit: updates.igLimit !== undefined ? (Number(updates.igLimit) || 1) : plans[idx].igLimit,
       rulesLimit: updates.rulesLimit !== undefined ? (Number(updates.rulesLimit) || 5) : plans[idx].rulesLimit,
+      badge: updates.badge !== undefined ? updates.badge : plans[idx].badge,
+      popular: updates.popular !== undefined ? Boolean(updates.popular) : plans[idx].popular,
+      description: updates.description !== undefined ? updates.description : plans[idx].description,
       features: Array.isArray(updates.features) ? updates.features : (typeof updates.features === 'string' ? updates.features.split('\n').map(s => s.trim()).filter(Boolean) : plans[idx].features),
+      active: updates.active !== undefined ? Boolean(updates.active) : plans[idx].active,
       id: plans[idx].id, // preserve ID
       updated_at: new Date().toISOString()
     };
 
     await saveStoredPlans(plans);
-    refreshPlanLimitsCache().catch(() => {});
+    await refreshPlanLimitsCache();
     res.json({ success: true, message: 'Pricing plan updated successfully', plan: plans[idx] });
   } catch (err) {
     console.error('[Admin] Update plan error:', err);
@@ -886,14 +897,19 @@ router.delete('/plans/:id', async (req, res) => {
   try {
     const { id } = req.params;
     let plans = await getStoredPlans();
-    const filtered = plans.filter(p => p.id !== id && p.slug !== id);
+    const searchStr = (id || '').toLowerCase().trim();
+    const filtered = plans.filter(p =>
+      (p.id || '').toLowerCase().trim() !== searchStr &&
+      (p.slug || '').toLowerCase().trim() !== searchStr &&
+      (p.name || '').toLowerCase().trim() !== searchStr
+    );
 
     if (filtered.length === plans.length) {
       return res.status(404).json({ error: 'Pricing plan not found' });
     }
 
     await saveStoredPlans(filtered);
-    refreshPlanLimitsCache().catch(() => {});
+    await refreshPlanLimitsCache();
     res.json({ success: true, message: 'Pricing plan deleted successfully' });
   } catch (err) {
     console.error('[Admin] Delete plan error:', err);

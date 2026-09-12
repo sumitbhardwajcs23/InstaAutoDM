@@ -44,17 +44,27 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
           data.plans.forEach(p => {
             const key = p.slug || p.name.toLowerCase().replace(/[^a-z0-9]/g, '');
             if (key === 'free' || key === 'starter') return; // Skip free tiers from upgrade modal
+            let feats = Array.isArray(p.features) && p.features.length > 0 ? p.features : [];
+            if (feats.length === 0) {
+              feats = [
+                (p.dmLimit >= 500000 || p.dmLimit === 0) ? 'Unlimited automated DMs & comments' : `Up to ${(p.dmLimit || 1000).toLocaleString()} automated DMs / month`,
+                `Up to ${p.igLimit || 1} connected Instagram account${(p.igLimit || 1) > 1 ? 's' : ''}`,
+                `Up to ${p.rulesLimit || 5} active keyword automation rules`,
+                'Dedicated Meta Graph API queue',
+                '18% GST Input Tax Credit (ITC) invoice'
+              ];
+            }
             mapped[key] = {
               name: p.name,
               badge: p.badge || '',
               monthlyPrice: Number(p.monthlyPrice) || 0,
               yearlyPrice: Number(p.annualPrice) || 0,
-              annualTotal: Number(p.annualTotal) || 0,
+              annualTotal: Number(p.annualTotal) || (Number(p.annualPrice) * 12 || 0),
               savingsPct: Number(p.savingsPct) || 0,
               dmLimit: p.dmLimit,
               igLimit: p.igLimit,
               rulesLimit: p.rulesLimit,
-              features: Array.isArray(p.features) ? p.features : []
+              features: feats
             };
           });
           if (Object.keys(mapped).length > 0) {

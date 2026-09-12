@@ -32,23 +32,25 @@ async function getAdminStoredPlans() {
 // Resolve price (monthly or yearly) for a plan slug from admin settings, falling back to static
 async function resolvePlanPrice(planSlug, cycle) {
   const isYearly = cycle === 'yearly';
+  const normSlug = (planSlug || '').toLowerCase().trim();
   const adminPlans = await getAdminStoredPlans();
-  if (adminPlans) {
+  if (adminPlans && adminPlans.length > 0) {
     const match = adminPlans.find(p =>
-      (p.slug || '').toLowerCase() === planSlug ||
-      (p.name || '').toLowerCase() === planSlug ||
-      (p.id || '').toLowerCase() === planSlug
+      (p.slug || '').toLowerCase().trim() === normSlug ||
+      (p.name || '').toLowerCase().trim() === normSlug ||
+      (p.id || '').toLowerCase().trim() === normSlug
     );
     if (match) {
-      const price = isYearly
-        ? (Number(match.annualPrice) || Number(match.monthlyPrice) * 12 || 0)
-        : (Number(match.monthlyPrice) || 0);
+      const monthly = Number(match.monthlyPrice) || 0;
+      const annualRate = Number(match.annualPrice) || 0;
+      const annualTotal = Number(match.annualTotal) || (annualRate > 0 ? annualRate * 12 : monthly * 12);
+      const price = isYearly ? annualTotal : monthly;
       return { price, planName: match.name, plan: match };
     }
   }
   // Fallback to static prices
-  const fallback = PLAN_PRICES_FALLBACK[planSlug] || PLAN_PRICES_FALLBACK.pro;
-  return { price: isYearly ? fallback.yearly : fallback.monthly, planName: planSlug, plan: null };
+  const fallback = PLAN_PRICES_FALLBACK[normSlug] || PLAN_PRICES_FALLBACK.pro;
+  return { price: isYearly ? fallback.yearly : fallback.monthly, planName: normSlug, plan: null };
 }
 
 // GET /api/billing/subscription — Get current user's subscription details & usage

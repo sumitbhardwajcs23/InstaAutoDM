@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
+const { rulesLimitFor } = require('../constants/planLimits');
 
 async function getAccountForUser(userId, accountId) {
   if (!userId) return null;
@@ -93,6 +94,26 @@ router.post('/', async (req, res) => {
   }
   const account = await getAccountForUser(req.user.id, req.body.account_id || req.query.account_id);
   if (!account) return res.status(400).json({ error: 'No Instagram account connected' });
+
+  // Enforce active keyword automation rules limit based on user's plan
+  if (is_active && req.user && req.user.id) {
+    const userRow = await db.prepare('SELECT plan, custom_rules_limit FROM users WHERE id = ?').get(req.user.id);
+    const maxRules = rulesLimitFor(userRow?.plan, userRow?.custom_rules_limit);
+
+    const activeCountRow = await db.prepare(`
+      SELECT COUNT(*) as count
+      FROM automation_rules r
+      JOIN instagram_accounts a ON r.instagram_account_id = a.id
+      WHERE a.user_id = ? AND r.is_active = 1
+    `).get(req.user.id);
+
+    const activeCount = parseInt(activeCountRow?.count || 0, 10);
+    if (activeCount >= maxRules) {
+      return res.status(403).json({
+        error: `Active automation rules limit reached (${activeCount}/${maxRules} active rules). Please upgrade your subscription plan to enable more keyword rules.`
+      });
+    }
+  }
 
   const id = uuidv4();
   const now = new Date().toISOString();
@@ -209,6 +230,24 @@ router.get('/:id', requireRuleOwner, async (req, res) => {
 
 router.patch('/:id/toggle', requireRuleOwner, async (req, res) => {
   const newStatus = req.rule.is_active ? 0 : 1;
+  if (newStatus === 1 && req.user && req.user.id) {
+    const userRow = await db.prepare('SELECT plan, custom_rules_limit FROM users WHERE id = ?').get(req.user.id);
+    const maxRules = rulesLimitFor(userRow?.plan, userRow?.custom_rules_limit);
+
+    const activeCountRow = await db.prepare(`
+      SELECT COUNT(*) as count
+      FROM automation_rules r
+      JOIN instagram_accounts a ON r.instagram_account_id = a.id
+      WHERE a.user_id = ? AND r.is_active = 1 AND r.id != ?
+    `).get(req.user.id, req.params.id);
+
+    const activeCount = parseInt(activeCountRow?.count || 0, 10);
+    if (activeCount >= maxRules) {
+      return res.status(403).json({
+        error: `Active automation rules limit reached (${activeCount}/${maxRules} active rules). Please upgrade your subscription plan to enable more keyword rules.`
+      });
+    }
+  }
   await db.prepare("UPDATE automation_rules SET is_active = ?, updated_at = datetime('now') WHERE id = ?").run(newStatus, req.params.id);
   const updated = await db.prepare('SELECT * FROM automation_rules WHERE id = ?').get(req.params.id);
   res.json({ success: true, rule: { ...updated, is_active: Boolean(updated?.is_active) } });

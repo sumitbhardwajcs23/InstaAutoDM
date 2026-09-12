@@ -51,17 +51,17 @@ async function loadDynamicPlanCache() {
         const cache = {};
         for (const plan of plans) {
           const keys = [
-            (plan.slug || '').toLowerCase(),
-            (plan.name || '').toLowerCase(),
-            (plan.id || '').toLowerCase()
+            (plan.slug || '').toLowerCase().trim(),
+            (plan.name || '').toLowerCase().trim(),
+            (plan.id || '').toLowerCase().trim()
           ].filter(Boolean);
+          const dmLimit = (plan.dmLimit !== undefined && plan.dmLimit !== null && plan.dmLimit !== '' && !isNaN(Number(plan.dmLimit))) ? Number(plan.dmLimit) : null;
+          const igLimit = (plan.igLimit !== undefined && plan.igLimit !== null && plan.igLimit !== '' && !isNaN(Number(plan.igLimit))) ? Number(plan.igLimit) : null;
+          const rulesLimit = (plan.rulesLimit !== undefined && plan.rulesLimit !== null && plan.rulesLimit !== '' && !isNaN(Number(plan.rulesLimit))) ? Number(plan.rulesLimit) : null;
+
           for (const key of keys) {
             if (key) {
-              cache[key] = {
-                dmLimit: Number(plan.dmLimit) || null,
-                igLimit: Number(plan.igLimit) || null,
-                rulesLimit: Number(plan.rulesLimit) || null
-              };
+              cache[key] = { dmLimit, igLimit, rulesLimit };
             }
           }
         }
@@ -127,7 +127,7 @@ function dmLimitFor(plan, customLimit = null) {
 
   // Try dynamic cache (synchronous — cache should be pre-warmed by server startup)
   const cached = getCachedPlanSync(normalized);
-  if (cached && cached.dmLimit) return cached.dmLimit;
+  if (cached && cached.dmLimit !== null && cached.dmLimit !== undefined) return cached.dmLimit;
 
   // Static fallback
   if (normalized in PLAN_LIMITS) {
@@ -156,7 +156,7 @@ function igLimitFor(plan, customLimit = null) {
   const normalized = (plan || 'free').toLowerCase().trim();
 
   const cached = getCachedPlanSync(normalized);
-  if (cached && cached.igLimit) return cached.igLimit;
+  if (cached && cached.igLimit !== null && cached.igLimit !== undefined) return cached.igLimit;
 
   return PLAN_IG_LIMITS[normalized] || PLAN_IG_LIMITS.free;
 }
@@ -178,7 +178,7 @@ function rulesLimitFor(plan, customLimit = null) {
   const normalized = (plan || 'free').toLowerCase().trim();
 
   const cached = getCachedPlanSync(normalized);
-  if (cached && cached.rulesLimit) return cached.rulesLimit;
+  if (cached && cached.rulesLimit !== null && cached.rulesLimit !== undefined) return cached.rulesLimit;
 
   return PLAN_RULES_LIMITS[normalized] || PLAN_RULES_LIMITS.free;
 }

@@ -265,12 +265,16 @@ class EventQueueWorker {
       break;
     }
 
-    if (jobIndex === -1) {
+    if (jobIndex < 0 || jobIndex >= this.queue.length) {
       this.scheduleNext();
       return;
     }
 
     const [job] = this.queue.splice(jobIndex, 1);
+    if (!job) {
+      this.scheduleNext();
+      return;
+    }
     this.activeWorkers++;
 
     const accId = job.event?.accountId;

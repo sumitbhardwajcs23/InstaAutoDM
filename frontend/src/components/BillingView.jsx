@@ -36,18 +36,39 @@ export default function BillingView({ user, onUpgrade }) {
   }, [currentPlan]);
 
   // Augment with current-plan metadata
-  const displayPlans = plans.map(p => ({
-    ...p,
-    current: (p.slug || p.id || '').toLowerCase() === currentPlan,
-    buttonText: (p.slug || p.id || '').toLowerCase() === currentPlan
-      ? 'Current Active Plan'
-      : (p.monthlyPrice === 0 ? 'Downgrade to Free' : `Upgrade to ${p.name}`),
-    monthlyPriceLabel: `₹${(p.monthlyPrice || 0).toLocaleString('en-IN')}`,
-    yearlyPriceLabel: `₹${(p.annualPrice || p.monthlyPrice || 0).toLocaleString('en-IN')}`,
-    annualBilledText: p.savingsPct > 0
-      ? `₹${((p.annualPrice || 0) * 12).toLocaleString('en-IN')} billed annually (Save ${p.savingsPct}%)`
-      : undefined,
-  }));
+  const normCurrent = (currentPlan || 'free').toLowerCase().trim();
+  const displayPlans = plans.map(p => {
+    const pSlug = (p.slug || '').toLowerCase().trim();
+    const pId = (p.id || '').toLowerCase().trim();
+    const pName = (p.name || '').toLowerCase().trim();
+    const isCurrent = pSlug === normCurrent || pId === normCurrent || pName === normCurrent;
+
+    let featuresList = Array.isArray(p.features) && p.features.length > 0 ? p.features : [];
+    if (featuresList.length === 0) {
+      featuresList = [
+        (p.dmLimit >= 500000 || p.dmLimit === 0) ? 'Unlimited automated DMs & comments' : `Up to ${(p.dmLimit || 1000).toLocaleString()} automated DMs / month`,
+        `Up to ${p.igLimit || 1} connected Instagram Account${(p.igLimit || 1) > 1 ? 's' : ''}`,
+        `Up to ${p.rulesLimit || 5} active keyword automation rules`,
+        'Instant Meta Graph API trigger response',
+        'Full conversation logs & thread analytics',
+        'GST invoice with 18% Input Credit'
+      ];
+    }
+
+    return {
+      ...p,
+      features: featuresList,
+      current: isCurrent,
+      buttonText: isCurrent
+        ? 'Current Active Plan'
+        : (p.monthlyPrice === 0 ? 'Downgrade to Free' : `Upgrade to ${p.name}`),
+      monthlyPriceLabel: `₹${(p.monthlyPrice || 0).toLocaleString('en-IN')}`,
+      yearlyPriceLabel: `₹${(p.annualPrice || p.monthlyPrice || 0).toLocaleString('en-IN')}`,
+      annualBilledText: p.savingsPct > 0
+        ? `₹${((p.annualPrice || 0) * 12).toLocaleString('en-IN')} billed annually (Save ${p.savingsPct}%)`
+        : undefined,
+    };
+  });
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
@@ -135,8 +156,8 @@ export default function BillingView({ user, onUpgrade }) {
         </div>
       </div>
 
-      {/* 3-Column Plan Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', alignItems: 'stretch' }}>
+      {/* Dynamic Responsive Plan Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'stretch' }}>
         {displayPlans.map((plan) => {
           const displayPrice = billingCycle === 'yearly' ? plan.yearlyPriceLabel : plan.monthlyPriceLabel;
           return (
