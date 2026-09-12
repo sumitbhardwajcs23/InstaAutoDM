@@ -13,7 +13,6 @@ import {
   KeyRound, 
   ShieldCheck,
   RefreshCw,
-  Sparkles,
   Command,
   Fingerprint
 } from 'lucide-react';
@@ -21,7 +20,7 @@ import { setAuthSession, apiFetch } from '../api/client';
 import '../styles/admin-login.css';
 
 export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
-  const [authMode, setAuthMode] = useState('google'); // 'google' | 'otp' | 'password'
+  const [authMode, setAuthMode] = useState('otp'); // 'otp' | 'password'
   const [email, setEmail] = useState('sumitbhardwaj2227@gmail.com');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -36,8 +35,6 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
 
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '955250447660-e6rendb53k479p4iksau83vf8b4svrdl.apps.googleusercontent.com';
-
   // Cooldown countdown timer for OTP
   useEffect(() => {
     let timer;
@@ -46,108 +43,6 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
     }
     return () => clearInterval(timer);
   }, [resendCooldown]);
-
-  // Handle Google Admin SSO Authentication
-  const handleGoogleAdminLogin = async () => {
-    setLoading(true);
-    setError(null);
-    setNotice('Connecting to Google Admin Identity...');
-
-    if (window.google?.accounts?.oauth2) {
-      try {
-        const tokenClient = window.google.accounts.oauth2.initTokenClient({
-          client_id: googleClientId,
-          scope: 'openid email profile',
-          callback: async (tokenResponse) => {
-            if (tokenResponse.error) {
-              setLoading(false);
-              if (tokenResponse.error !== 'popup_closed_by_user') {
-                setError(tokenResponse.error_description || 'Google sign-in was cancelled.');
-              }
-              return;
-            }
-
-            if (tokenResponse.access_token) {
-              try {
-                const res = await apiFetch('/auth/admin-login', {
-                  method: 'POST',
-                  body: JSON.stringify({ access_token: tokenResponse.access_token }),
-                });
-
-                const data = await res.json();
-                if (res.ok && data.token && data.user) {
-                  setAuthSession(data.token, data.user);
-                  setNotice('✅ Super Admin clearance confirmed. Redirecting to Admin Dashboard...');
-                  if (onAuthSuccess) {
-                    onAuthSuccess(data.user);
-                  }
-                  try {
-                    window.history.pushState({}, '', '/admin-dashboard');
-                  } catch (e) {}
-                  window.location.hash = '#admin-dashboard';
-                } else {
-                  setError(data.error || 'Admin authorization failed. Ensure this Google account has admin rights.');
-                }
-              } catch (err) {
-                setError(err.message || 'Failed to authenticate with Google Admin gateway.');
-              } finally {
-                setLoading(false);
-              }
-            }
-          },
-        });
-
-        tokenClient.requestAccessToken({ prompt: 'select_account' });
-        return;
-      } catch (err) {
-        console.warn('[Google Admin Auth] Token client error:', err.message);
-      }
-    }
-
-    // Fallback: Google Identity Services
-    if (window.google?.accounts?.id) {
-      try {
-        window.google.accounts.id.initialize({
-          client_id: googleClientId,
-          callback: async (response) => {
-            if (response.credential) {
-              try {
-                const res = await apiFetch('/auth/admin-login', {
-                  method: 'POST',
-                  body: JSON.stringify({ id_token: response.credential }),
-                });
-                const data = await res.json();
-                if (res.ok && data.token && data.user) {
-                  setAuthSession(data.token, data.user);
-                  setNotice('✅ Super Admin clearance confirmed. Redirecting to Admin Dashboard...');
-                  if (onAuthSuccess) {
-                    onAuthSuccess(data.user);
-                  }
-                  try {
-                    window.history.pushState({}, '', '/admin-dashboard');
-                  } catch (e) {}
-                  window.location.hash = '#admin-dashboard';
-                } else {
-                  setError(data.error || 'Admin authorization failed.');
-                }
-              } catch (err) {
-                setError(err.message);
-              } finally {
-                setLoading(false);
-              }
-            }
-          }
-        });
-        window.google.accounts.id.prompt();
-        return;
-      } catch (err) {
-        console.warn('Google GSI error:', err.message);
-      }
-    }
-
-    setLoading(false);
-    setError('Google Sign-In is initializing. Please check your internet connection or try Email OTP.');
-  };
 
   // Handle Email OTP Request
   const handleRequestOtp = async (e) => {
@@ -337,19 +232,11 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
         <div className="admin-auth-tabs">
           <button
             type="button"
-            className={`admin-auth-tab ${authMode === 'google' ? 'active' : ''}`}
-            onClick={() => { setAuthMode('google'); setError(null); }}
-          >
-            <Sparkles size={14} />
-            <span>Google SSO</span>
-          </button>
-          <button
-            type="button"
             className={`admin-auth-tab ${authMode === 'otp' ? 'active' : ''}`}
             onClick={() => { setAuthMode('otp'); setError(null); }}
           >
             <Mail size={14} />
-            <span>Email OTP</span>
+            <span>Login by Email & OTP</span>
           </button>
           <button
             type="button"
@@ -357,7 +244,7 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
             onClick={() => { setAuthMode('password'); setError(null); }}
           >
             <Lock size={14} />
-            <span>Password</span>
+            <span>Login by Email & Password</span>
           </button>
         </div>
 
@@ -398,41 +285,6 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
             </button>
           </div>
         </div>
-
-        {/* 1. GOOGLE SSO AUTHENTICATION */}
-        {authMode === 'google' && (
-          <div className="admin-google-flow">
-            <p className="admin-flow-desc">
-              Sign in instantly using your verified Google administrator identity.
-            </p>
-            <button
-              type="button"
-              onClick={handleGoogleAdminLogin}
-              disabled={loading}
-              className="admin-google-btn"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                />
-              </svg>
-              <span>{loading ? 'Authenticating with Google...' : 'Continue with Google as Admin'}</span>
-            </button>
-          </div>
-        )}
 
         {/* 2. EMAIL OTP AUTHENTICATION */}
         {authMode === 'otp' && (
