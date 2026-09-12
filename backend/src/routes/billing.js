@@ -171,6 +171,62 @@ router.get('/plans', async (_req, res) => {
   }
 });
 
+// POST /api/billing/validate-coupon — Preview coupon discount before checkout
+router.post('/validate-coupon', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { code, plan = 'pro', cycle = 'monthly' } = req.body;
+    if (!code) return res.status(400).json({ error: 'Coupon code is required' });
+
+    const cleanCode = String(code).trim().toUpperCase();
+    const coupon = await db.prepare("SELECT * FROM coupons WHERE UPPER(code) = ? AND is_active = 1").get(cleanCode);
+
+    if (!coupon) {
+      return res.status(400).json({ valid: false, error: 'Invalid or inactive coupon code' });
+    }
+    if (coupon.expires_at && new Date(coupon.expires_at).getTime() < Date.now()) {
+      return res.status(400).json({ valid: false, error: 'This coupon has expired' });
+    }
+    if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
+      return res.status(400).json({ valid: false, error: 'Coupon usage limit has been reached' });
+    }
+
+    // 3NF check: 1 redemption per user in coupon_redemptions
+    const redeemed = await db.prepare("SELECT id FROM coupon_redemptions WHERE coupon_id = ? AND user_id = ?").get(coupon.id, userId);
+    if (redeemed) {
+      return res.status(400).json({ valid: false, error: 'You have already redeemed this promo code' });
+    }
+
+    const planKey = (plan || 'pro').toLowerCase();
+    if (coupon.plan_slug && coupon.plan_slug !== 'all' && coupon.plan_slug.toLowerCase() !== planKey) {
+      return res.status(400).json({ valid: false, error: `Coupon is only valid for the ${coupon.plan_slug.toUpperCase()} plan` });
+    }
+
+    const { price: originalPrice } = await resolvePlanPrice(planKey, cycle);
+    let discount = 0;
+    if (coupon.discount_percent > 0) {
+      discount = Math.round((originalPrice * coupon.discount_percent) / 100);
+    } else if (coupon.discount_amount > 0) {
+      discount = Math.min(originalPrice, coupon.discount_amount);
+    }
+
+    res.json({
+      valid: true,
+      coupon_id: coupon.id,
+      code: coupon.code,
+      discount_percent: coupon.discount_percent,
+      discount_amount: discount,
+      original_price: originalPrice,
+      final_price: Math.max(0, originalPrice - discount),
+      description: coupon.description || `${coupon.discount_percent}% off`
+    });
+  } catch (err) {
+    res.status(500).json({ valid: false, error: err.message });
+  }
+});
+
 // POST /api/billing/create-checkout (and /create-order) — Initialize Razorpay Order
 const handleCreateOrder = async (req, res) => {
   try {
@@ -180,7 +236,7 @@ const handleCreateOrder = async (req, res) => {
     const user = await db.prepare("SELECT id, email, name FROM users WHERE id = ?").get(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const { plan = 'pro', cycle = 'monthly' } = req.body;
+    const { plan = 'pro', cycle = 'monthly', coupon_code } = req.body;
     const planKey = plan.toLowerCase();
 
     // Resolve price dynamically from admin configuration
@@ -188,7 +244,32 @@ const handleCreateOrder = async (req, res) => {
     if (priceInr === 0 && planKey !== 'free' && planKey !== 'starter') {
       return res.status(400).json({ error: `Invalid plan selected: '${planKey}'. No pricing found.` });
     }
-    const amountInPaise = priceInr * 100;
+
+    // Apply promo coupon if provided (with 3NF relational validation)
+    let appliedCoupon = null;
+    let discountAmount = 0;
+    if (coupon_code) {
+      const cleanCoupon = String(coupon_code).trim().toUpperCase();
+      const coupon = await db.prepare("SELECT * FROM coupons WHERE UPPER(code) = ? AND is_active = 1").get(cleanCoupon);
+      if (coupon) {
+        const isExpired = coupon.expires_at && new Date(coupon.expires_at).getTime() < Date.now();
+        const isMaxed = coupon.max_uses && coupon.used_count >= coupon.max_uses;
+        const alreadyRedeemed = await db.prepare("SELECT id FROM coupon_redemptions WHERE coupon_id = ? AND user_id = ?").get(coupon.id, userId);
+        const planMatch = !coupon.plan_slug || coupon.plan_slug === 'all' || coupon.plan_slug.toLowerCase() === planKey;
+
+        if (!isExpired && !isMaxed && !alreadyRedeemed && planMatch) {
+          if (coupon.discount_percent > 0) {
+            discountAmount = Math.round((priceInr * coupon.discount_percent) / 100);
+          } else if (coupon.discount_amount > 0) {
+            discountAmount = Math.min(priceInr, coupon.discount_amount);
+          }
+          appliedCoupon = coupon;
+        }
+      }
+    }
+
+    const finalPriceInr = Math.max(0, priceInr - discountAmount);
+    const amountInPaise = finalPriceInr * 100;
 
     const rzpKeyId = process.env.RAZORPAY_KEY_ID || '';
     const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
@@ -212,7 +293,9 @@ const handleCreateOrder = async (req, res) => {
             notes: {
               user_id: userId,
               plan: planKey,
-              cycle: cycle === 'yearly' ? 'yearly' : 'monthly'
+              cycle: cycle === 'yearly' ? 'yearly' : 'monthly',
+              coupon_id: appliedCoupon?.id || '',
+              coupon_code: appliedCoupon?.code || ''
             }
           })
         });
@@ -234,7 +317,10 @@ const handleCreateOrder = async (req, res) => {
       key_id: isLiveConfigured ? rzpKeyId : (rzpKeyId || 'rzp_test_placeholder'),
       order_id: orderId,
       amount: amountInPaise,
-      amount_inr: priceInr,
+      amount_inr: finalPriceInr,
+      original_amount_inr: priceInr,
+      discount_amount_inr: discountAmount,
+      coupon_applied: appliedCoupon ? { id: appliedCoupon.id, code: appliedCoupon.code, discount_percent: appliedCoupon.discount_percent } : null,
       currency: 'INR',
       plan: planKey,
       cycle: cycle === 'yearly' ? 'yearly' : 'monthly',
@@ -269,6 +355,8 @@ router.post('/verify-payment', async (req, res) => {
       razorpay_signature,
       plan = 'pro',
       cycle = 'monthly',
+      coupon_code,
+      coupon_id,
       billing_name,
       billing_email,
       gst_number
@@ -294,7 +382,7 @@ router.post('/verify-payment', async (req, res) => {
 
     const paymentId = razorpay_payment_id || `pay_${uuidv4().replace(/-/g, '').slice(0, 14)}`;
 
-    // Process upgrade via billingService (updates subscriptions, users table, and records GST invoice)
+    // Process upgrade via billingService (updates subscriptions, users table, usage_counters, and records GST invoice)
     const webhookResult = await billingService.processPaymentWebhook(
       'razorpay',
       'payment.captured',
@@ -305,7 +393,9 @@ router.post('/verify-payment', async (req, res) => {
         notes: {
           user_id: userId,
           plan: planKey,
-          cycle: cycle === 'yearly' ? 'yearly' : 'monthly'
+          cycle: cycle === 'yearly' ? 'yearly' : 'monthly',
+          coupon_id: coupon_id || null,
+          coupon_code: coupon_code || null
         },
         billing_name: billing_name || user.name || 'Valued Creator',
         billing_email: billing_email || user.email,

@@ -239,6 +239,19 @@ class BillingService {
           WHERE id = ?
         `).run(plan, periodStart.slice(0, 10), user.id);
 
+        // Reset normalized usage_counters table in sync
+        await db.prepare(`
+          INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, updated_at)
+          VALUES (?, ?, NOW(), NOW() + INTERVAL '30 days', 0, NOW())
+          ON CONFLICT (user_id) DO UPDATE SET
+            dms_sent = 0,
+            comments_processed = 0,
+            stories_replied = 0,
+            period_start = NOW(),
+            period_end = NOW() + INTERVAL '30 days',
+            updated_at = NOW()
+        `).run(`cnt_${user.id}`, user.id).catch(e => console.warn('[BillingService] usage_counters reset error:', e.message));
+
         // Record paid invoice with GST tax calculation
         const invoiceId = `inv_${uuidv4().slice(0, 12)}`;
         const invoiceNum = `INV-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -251,6 +264,27 @@ class BillingService {
           invoiceId, user.id, sub.id, invoiceNum, amount, tax, gateway, paymentEntity.id || `pay_${uuidv4().slice(0, 8)}`,
           payload.billing_name || user.name || 'Valued Creator', payload.billing_email || user.email, payload.gst_number || null
         );
+
+        // 3NF Normalization: Track coupon redemption in junction table
+        const appliedCouponId = notes.coupon_id || payload.coupon_id;
+        const appliedCouponCode = notes.coupon_code || payload.coupon_code;
+        if (appliedCouponId || appliedCouponCode) {
+          try {
+            const couponRow = appliedCouponId
+              ? await db.prepare("SELECT id FROM coupons WHERE id = ?").get(appliedCouponId)
+              : await db.prepare("SELECT id FROM coupons WHERE UPPER(code) = ?").get(appliedCouponCode.trim().toUpperCase());
+            if (couponRow) {
+              await db.prepare(`
+                INSERT INTO coupon_redemptions (id, coupon_id, user_id, invoice_id, redeemed_at)
+                VALUES (?, ?, ?, ?, NOW())
+                ON CONFLICT (coupon_id, user_id) DO NOTHING
+              `).run(`rdm_${uuidv4().slice(0, 12)}`, couponRow.id, user.id, invoiceId);
+              await db.prepare("UPDATE coupons SET used_count = used_count + 1 WHERE id = ?").run(couponRow.id);
+            }
+          } catch (cRdmErr) {
+            console.warn('[BillingService] coupon_redemptions recording notice:', cRdmErr.message);
+          }
+        }
 
         console.log(`[BillingService] ✅ Subscription activated for user ${user.id} (${plan}, ${cycle}). Invoice: ${invoiceNum}`);
         return { duplicate: false, processed: true, plan, status: 'active', invoiceNumber: invoiceNum };

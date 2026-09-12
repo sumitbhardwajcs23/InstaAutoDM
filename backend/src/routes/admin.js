@@ -1028,7 +1028,12 @@ router.post('/plans/reset', requirePermission('plans:manage'), async (_req, res)
 // GET /api/admin/coupons
 router.get('/coupons', requirePermission('coupons:manage'), async (_req, res) => {
   try {
-    const coupons = await db.prepare('SELECT * FROM coupons ORDER BY created_at DESC').all().catch(() => []) || [];
+    const coupons = await db.prepare(`
+      SELECT c.*, 
+        COALESCE((SELECT COUNT(*) FROM coupon_redemptions cr WHERE cr.coupon_id = c.id), c.used_count) as redemptions_count
+      FROM coupons c 
+      ORDER BY c.created_at DESC
+    `).all().catch(() => []) || [];
     res.json({ coupons });
   } catch (err) {
     console.error('[Admin] Get coupons error:', err);

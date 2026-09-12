@@ -27,8 +27,13 @@ router.get('/', async (req, res) => {
   const totalSentReplies = account ? (await db.prepare("SELECT COUNT(*) as c FROM comment_replies WHERE status='sent' AND instagram_account_id=?").get(account.id))?.c || 0 : 0;
   const totalSentDMs = account ? (await db.prepare("SELECT COUNT(*) as c FROM messages WHERE direction='outbound' AND status='sent' AND conversation_id IN (SELECT id FROM conversations WHERE instagram_account_id=?)").get(account.id))?.c || 0 : 0;
   
+  let counter = null;
+  try {
+    counter = await db.prepare("SELECT dms_sent, period_start, period_end FROM usage_counters WHERE user_id = ? LIMIT 1").get(req.user.id);
+  } catch (_) {}
+
   const planLimit = dmLimitFor(user?.plan);
-  const usageCount = user?.dm_usage_this_period || 0;
+  const usageCount = counter?.dms_sent !== undefined ? Number(counter.dms_sent) : (user?.dm_usage_this_period || 0);
   const usagePercent = Math.min(100, Math.round((usageCount / (planLimit || 1)) * 100));
 
   const slidingWindows = account ? queue.getRateLimitStatus(account.id) : {

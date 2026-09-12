@@ -17,29 +17,53 @@ router.get('/', async (req, res) => {
   const account = await getAccountForUser(req.user.id, req.query.account_id);
   if (!account) return res.json({ rules: [], count: 0 });
   const rows = await db.prepare('SELECT * FROM automation_rules WHERE instagram_account_id = ? ORDER BY created_at DESC').all(account.id);
-  const rules = rows.map(r => ({
-    ...r,
-    is_active: Boolean(r.is_active),
-    action_type: r.type === 'comment_to_dm' ? 'comment' : (r.type === 'story_reply' ? 'story' : 'dm'),
-    reply_text: r.dm_reply_message || r.reply_message,
-    comment_reply_mode: r.comment_reply_mode || 'both',
-    comment_reply_message: r.comment_reply_message || '',
-    dm_reply_message: r.dm_reply_message || r.reply_message || '',
-    target_media_id: r.target_media_id || null,
-    target_media_type: r.target_media_type || (r.type === 'story_reply' ? 'story' : 'all'),
-    target_media_thumbnail: r.target_media_thumbnail || null,
-    target_media_caption: r.target_media_caption || null,
-    require_follow: r.require_follow ? 1 : 0,
-    follow_prompt_message: r.follow_prompt_message || '',
-    follow_comment_reply: r.follow_comment_reply || '',
-    card_enabled: r.card_enabled ? 1 : 0,
-    card_title: r.card_title || '',
-    card_subtitle: r.card_subtitle || '',
-    card_image_url: r.card_image_url || '',
-    card_button_text: r.card_button_text || '',
-    card_button_url: r.card_button_url || '',
-    name: r.name || (r.trigger_keyword ? `${r.trigger_keyword} Auto Reply` : 'Auto Reply Rule')
-  }));
+  
+  // Relational 3NF: Fetch attached cards from rule_card_attachments
+  let cardMap = {};
+  const ruleIds = (rows || []).map(r => r.id);
+  if (ruleIds.length > 0) {
+    try {
+      const placeholders = ruleIds.map(() => '?').join(',');
+      const cards = await db.prepare(`SELECT * FROM rule_card_attachments WHERE rule_id IN (${placeholders}) ORDER BY card_order ASC`).all(...ruleIds);
+      if (Array.isArray(cards)) {
+        for (const c of cards) {
+          if (!cardMap[c.rule_id]) cardMap[c.rule_id] = [];
+          cardMap[c.rule_id].push(c);
+        }
+      }
+    } catch (_) {}
+  }
+
+  const rules = rows.map(r => {
+    const attachedCards = cardMap[r.id] || [];
+    const primaryCard = attachedCards[0];
+    const isCardEnabled = (r.card_enabled == 1 || attachedCards.length > 0) ? 1 : 0;
+
+    return {
+      ...r,
+      is_active: Boolean(r.is_active),
+      action_type: r.type === 'comment_to_dm' ? 'comment' : (r.type === 'story_reply' ? 'story' : 'dm'),
+      reply_text: r.dm_reply_message || r.reply_message,
+      comment_reply_mode: r.comment_reply_mode || 'both',
+      comment_reply_message: r.comment_reply_message || '',
+      dm_reply_message: r.dm_reply_message || r.reply_message || '',
+      target_media_id: r.target_media_id || null,
+      target_media_type: r.target_media_type || (r.type === 'story_reply' ? 'story' : 'all'),
+      target_media_thumbnail: r.target_media_thumbnail || null,
+      target_media_caption: r.target_media_caption || null,
+      require_follow: r.require_follow ? 1 : 0,
+      follow_prompt_message: r.follow_prompt_message || '',
+      follow_comment_reply: r.follow_comment_reply || '',
+      card_enabled: isCardEnabled,
+      card_title: primaryCard?.title || r.card_title || '',
+      card_subtitle: primaryCard?.subtitle || r.card_subtitle || '',
+      card_image_url: primaryCard?.image_url || r.card_image_url || '',
+      card_button_text: primaryCard?.button_text || r.card_button_text || '',
+      card_button_url: primaryCard?.button_url || r.card_button_url || '',
+      cards: attachedCards,
+      name: r.name || (r.trigger_keyword ? `${r.trigger_keyword} Auto Reply` : 'Auto Reply Rule')
+    };
+  });
   res.json({ rules, count: rules.length });
 });
 
@@ -155,6 +179,29 @@ router.post('/', async (req, res) => {
     now
   );
 
+  // 3NF Normalization: persist card attachment to rule_card_attachments
+  let cards = [];
+  if (card_title) {
+    const cardId = `card_${id}`;
+    try {
+      await db.prepare(`
+        INSERT INTO rule_card_attachments (
+          id, rule_id, card_order, title, subtitle, image_url, button_text, button_url, created_at, updated_at
+        ) VALUES (?, ?, 0, ?, ?, ?, ?, ?, NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          title = EXCLUDED.title,
+          subtitle = EXCLUDED.subtitle,
+          image_url = EXCLUDED.image_url,
+          button_text = EXCLUDED.button_text,
+          button_url = EXCLUDED.button_url,
+          updated_at = NOW()
+      `).run(cardId, id, card_title, card_subtitle, card_image_url, card_button_text || 'View Link 🚀', card_button_url);
+      cards = [{ id: cardId, rule_id: id, card_order: 0, title: card_title, subtitle: card_subtitle, image_url: card_image_url, button_text: card_button_text || 'View Link 🚀', button_url: card_button_url }];
+    } catch (cErr) {
+      console.warn('[Rules] Error writing rule_card_attachment:', cErr.message);
+    }
+  }
+
   const rule = await db.prepare('SELECT * FROM automation_rules WHERE id = ?').get(id);
   const formatted = { 
     ...rule, 
@@ -171,12 +218,13 @@ router.post('/', async (req, res) => {
     require_follow: rule?.require_follow ? 1 : 0,
     follow_prompt_message: rule?.follow_prompt_message || '',
     follow_comment_reply: rule?.follow_comment_reply || '',
-    card_enabled: rule?.card_enabled ? 1 : 0,
-    card_title: rule?.card_title || '',
-    card_subtitle: rule?.card_subtitle || '',
-    card_image_url: rule?.card_image_url || '',
-    card_button_text: rule?.card_button_text || '',
-    card_button_url: rule?.card_button_url || '',
+    card_enabled: (rule?.card_enabled || cards.length > 0) ? 1 : 0,
+    card_title: cards[0]?.title || rule?.card_title || '',
+    card_subtitle: cards[0]?.subtitle || rule?.card_subtitle || '',
+    card_image_url: cards[0]?.image_url || rule?.card_image_url || '',
+    card_button_text: cards[0]?.button_text || rule?.card_button_text || '',
+    card_button_url: cards[0]?.button_url || rule?.card_button_url || '',
+    cards,
     name: req.body.name || (rule?.trigger_keyword ? `${rule.trigger_keyword} Auto Reply` : 'Auto Reply Rule')
   };
   res.status(201).json({ success: true, rule: formatted, id: formatted.id, ...formatted });
@@ -202,6 +250,12 @@ async function requireRuleOwner(req, res, next) {
 // GET /api/rules/:id — fetch single rule with tenant ownership check
 router.get('/:id', requireRuleOwner, async (req, res) => {
   const rule = req.rule;
+  let cards = [];
+  try {
+    cards = await db.prepare('SELECT * FROM rule_card_attachments WHERE rule_id = ? ORDER BY card_order ASC').all(rule.id) || [];
+  } catch (_) {}
+  const primaryCard = cards[0];
+
   const formatted = {
     ...rule,
     is_active: Boolean(rule?.is_active),
@@ -217,12 +271,13 @@ router.get('/:id', requireRuleOwner, async (req, res) => {
     require_follow: rule?.require_follow ? 1 : 0,
     follow_prompt_message: rule?.follow_prompt_message || '',
     follow_comment_reply: rule?.follow_comment_reply || '',
-    card_enabled: rule?.card_enabled ? 1 : 0,
-    card_title: rule?.card_title || '',
-    card_subtitle: rule?.card_subtitle || '',
-    card_image_url: rule?.card_image_url || '',
-    card_button_text: rule?.card_button_text || '',
-    card_button_url: rule?.card_button_url || '',
+    card_enabled: (rule?.card_enabled || cards.length > 0) ? 1 : 0,
+    card_title: primaryCard?.title || rule?.card_title || '',
+    card_subtitle: primaryCard?.subtitle || rule?.card_subtitle || '',
+    card_image_url: primaryCard?.image_url || rule?.card_image_url || '',
+    card_button_text: primaryCard?.button_text || rule?.card_button_text || '',
+    card_button_url: primaryCard?.button_url || rule?.card_button_url || '',
+    cards,
     name: rule?.name || (rule?.trigger_keyword ? `${rule.trigger_keyword} Auto Reply` : 'Auto Reply Rule')
   };
   res.json({ success: true, rule: formatted });
@@ -253,7 +308,7 @@ router.patch('/:id/toggle', requireRuleOwner, async (req, res) => {
   res.json({ success: true, rule: { ...updated, is_active: Boolean(updated?.is_active) } });
 });
 
-router.put('/:id', requireRuleOwner, async (req, res) => {
+async function handleUpdateRule(req, res) {
   const { 
     trigger_keyword, match_mode, reply_message, reply_text,
     comment_reply_mode, comment_reply_message, dm_reply_message, is_active,
@@ -312,6 +367,57 @@ router.put('/:id', requireRuleOwner, async (req, res) => {
     is_active !== undefined ? (is_active ? 1 : 0) : null,
     req.params.id
   );
+
+  // 3NF Normalization: sync card attachment in rule_card_attachments
+  try {
+    if (card_enabled === 0 || card_enabled === false) {
+      await db.prepare('DELETE FROM rule_card_attachments WHERE rule_id = ?').run(req.params.id);
+    } else if (card_title || card_button_url || card_image_url) {
+      const existingCard = await db.prepare('SELECT id FROM rule_card_attachments WHERE rule_id = ? ORDER BY card_order ASC LIMIT 1').get(req.params.id);
+      if (existingCard) {
+        await db.prepare(`
+          UPDATE rule_card_attachments SET
+            title = COALESCE(?, title),
+            subtitle = COALESCE(?, subtitle),
+            image_url = COALESCE(?, image_url),
+            button_text = COALESCE(?, button_text),
+            button_url = COALESCE(?, button_url),
+            updated_at = NOW()
+          WHERE id = ?
+        `).run(
+          card_title ? card_title.trim() : null,
+          card_subtitle !== undefined ? (card_subtitle ? card_subtitle.trim() : null) : null,
+          card_image_url !== undefined ? (card_image_url ? card_image_url.trim() : null) : null,
+          card_button_text !== undefined ? (card_button_text ? card_button_text.trim() : null) : null,
+          card_button_url !== undefined ? (card_button_url ? card_button_url.trim() : null) : null,
+          existingCard.id
+        );
+      } else if (card_title) {
+        await db.prepare(`
+          INSERT INTO rule_card_attachments (
+            id, rule_id, card_order, title, subtitle, image_url, button_text, button_url, created_at, updated_at
+          ) VALUES (?, ?, 0, ?, ?, ?, ?, ?, NOW(), NOW())
+        `).run(
+          `card_${req.params.id}`,
+          req.params.id,
+          card_title.trim(),
+          card_subtitle ? card_subtitle.trim() : null,
+          card_image_url ? card_image_url.trim() : null,
+          card_button_text ? card_button_text.trim() : 'View Link 🚀',
+          card_button_url ? card_button_url.trim() : null
+        );
+      }
+    }
+  } catch (cardSyncErr) {
+    console.warn('[Rules] rule_card_attachments sync notice:', cardSyncErr.message);
+  }
+
+  let cards = [];
+  try {
+    cards = await db.prepare('SELECT * FROM rule_card_attachments WHERE rule_id = ? ORDER BY card_order ASC').all(req.params.id) || [];
+  } catch (_) {}
+  const primaryCard = cards[0];
+
   const updated = await db.prepare('SELECT * FROM automation_rules WHERE id = ?').get(req.params.id);
   const formatted = {
     ...updated,
@@ -328,102 +434,20 @@ router.put('/:id', requireRuleOwner, async (req, res) => {
     require_follow: updated?.require_follow ? 1 : 0,
     follow_prompt_message: updated?.follow_prompt_message || '',
     follow_comment_reply: updated?.follow_comment_reply || '',
-    card_enabled: updated?.card_enabled ? 1 : 0,
-    card_title: updated?.card_title || '',
-    card_subtitle: updated?.card_subtitle || '',
-    card_image_url: updated?.card_image_url || '',
-    card_button_text: updated?.card_button_text || '',
-    card_button_url: updated?.card_button_url || '',
+    card_enabled: (updated?.card_enabled || cards.length > 0) ? 1 : 0,
+    card_title: primaryCard?.title || updated?.card_title || '',
+    card_subtitle: primaryCard?.subtitle || updated?.card_subtitle || '',
+    card_image_url: primaryCard?.image_url || updated?.card_image_url || '',
+    card_button_text: primaryCard?.button_text || updated?.card_button_text || '',
+    card_button_url: primaryCard?.button_url || updated?.card_button_url || '',
+    cards,
     name: updated?.trigger_keyword ? `${updated.trigger_keyword} Auto Reply` : 'Auto Reply Rule'
   };
   res.json({ success: true, rule: formatted });
-});
+}
 
-router.patch('/:id', requireRuleOwner, async (req, res) => {
-  const { 
-    trigger_keyword, match_mode, reply_message, reply_text,
-    comment_reply_mode, comment_reply_message, dm_reply_message, is_active,
-    target_media_id, target_media_type, target_media_thumbnail, target_media_caption,
-    require_follow, follow_prompt_message, follow_comment_reply,
-    card_enabled, card_title, card_subtitle, card_image_url, card_button_text, card_button_url
-  } = req.body;
-  const finalDmReply = dm_reply_message !== undefined ? dm_reply_message : (reply_message !== undefined ? reply_message : (reply_text !== undefined ? reply_text : null));
-  const finalCommentReply = comment_reply_message !== undefined ? comment_reply_message : null;
-  const finalLegacyReply = finalDmReply || finalCommentReply || null;
-
-  await db.prepare(`
-    UPDATE automation_rules SET
-      trigger_keyword = COALESCE(?, trigger_keyword),
-      match_mode = COALESCE(?, match_mode),
-      reply_message = COALESCE(?, reply_message),
-      comment_reply_mode = COALESCE(?, comment_reply_mode),
-      comment_reply_message = COALESCE(?, comment_reply_message),
-      dm_reply_message = COALESCE(?, dm_reply_message),
-      target_media_id = COALESCE(?, target_media_id),
-      target_media_type = COALESCE(?, target_media_type),
-      target_media_thumbnail = COALESCE(?, target_media_thumbnail),
-      target_media_caption = COALESCE(?, target_media_caption),
-      require_follow = COALESCE(?, require_follow),
-      follow_prompt_message = COALESCE(?, follow_prompt_message),
-      follow_comment_reply = COALESCE(?, follow_comment_reply),
-      card_enabled = COALESCE(?, card_enabled),
-      card_title = COALESCE(?, card_title),
-      card_subtitle = COALESCE(?, card_subtitle),
-      card_image_url = COALESCE(?, card_image_url),
-      card_button_text = COALESCE(?, card_button_text),
-      card_button_url = COALESCE(?, card_button_url),
-      is_active = COALESCE(?, is_active),
-      updated_at = datetime('now')
-    WHERE id = ?
-  `).run(
-    trigger_keyword ? trigger_keyword.trim().toUpperCase() : null,
-    match_mode ?? null,
-    finalLegacyReply ? finalLegacyReply.trim() : null,
-    comment_reply_mode ?? null,
-    finalCommentReply ? finalCommentReply.trim() : null,
-    finalDmReply ? finalDmReply.trim() : null,
-    target_media_id ?? null,
-    target_media_type ?? null,
-    target_media_thumbnail ?? null,
-    target_media_caption ? target_media_caption.slice(0, 200) : null,
-    require_follow !== undefined ? (require_follow ? 1 : 0) : null,
-    follow_prompt_message !== undefined ? (follow_prompt_message ? follow_prompt_message.trim() : '') : null,
-    follow_comment_reply !== undefined ? (follow_comment_reply ? follow_comment_reply.trim() : '') : null,
-    card_enabled !== undefined ? (card_enabled ? 1 : 0) : null,
-    card_title !== undefined ? (card_title ? card_title.trim() : '') : null,
-    card_subtitle !== undefined ? (card_subtitle ? card_subtitle.trim() : '') : null,
-    card_image_url !== undefined ? (card_image_url ? card_image_url.trim() : '') : null,
-    card_button_text !== undefined ? (card_button_text ? card_button_text.trim() : '') : null,
-    card_button_url !== undefined ? (card_button_url ? card_button_url.trim() : '') : null,
-    is_active !== undefined ? (is_active ? 1 : 0) : null,
-    req.params.id
-  );
-  const updated = await db.prepare('SELECT * FROM automation_rules WHERE id = ?').get(req.params.id);
-  const formatted = {
-    ...updated,
-    is_active: Boolean(updated?.is_active),
-    action_type: updated?.type === 'comment_to_dm' ? 'comment' : (updated?.type === 'story_reply' ? 'story' : 'dm'),
-    reply_text: updated?.dm_reply_message || updated?.reply_message,
-    comment_reply_mode: updated?.comment_reply_mode || 'both',
-    comment_reply_message: updated?.comment_reply_message || '',
-    dm_reply_message: updated?.dm_reply_message || updated?.reply_message || '',
-    target_media_id: updated?.target_media_id || null,
-    target_media_type: updated?.target_media_type || (updated?.type === 'story_reply' ? 'story' : 'all'),
-    target_media_thumbnail: updated?.target_media_thumbnail || null,
-    target_media_caption: updated?.target_media_caption || null,
-    require_follow: updated?.require_follow ? 1 : 0,
-    follow_prompt_message: updated?.follow_prompt_message || '',
-    follow_comment_reply: updated?.follow_comment_reply || '',
-    card_enabled: updated?.card_enabled ? 1 : 0,
-    card_title: updated?.card_title || '',
-    card_subtitle: updated?.card_subtitle || '',
-    card_image_url: updated?.card_image_url || '',
-    card_button_text: updated?.card_button_text || '',
-    card_button_url: updated?.card_button_url || '',
-    name: updated?.trigger_keyword ? `${updated.trigger_keyword} Auto Reply` : 'Auto Reply Rule'
-  };
-  res.json({ success: true, rule: formatted });
-});
+router.put('/:id', requireRuleOwner, handleUpdateRule);
+router.patch('/:id', requireRuleOwner, handleUpdateRule);
 
 router.delete('/:id', requireRuleOwner, async (req, res) => {
   await db.prepare('DELETE FROM automation_rules WHERE id = ?').run(req.params.id);

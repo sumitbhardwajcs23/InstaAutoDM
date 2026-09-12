@@ -50,7 +50,11 @@ router.get('/stats', async (req, res) => {
     });
   }
 
-  const totalDmsSent = user.dm_usage_this_period || 0;
+  let counter = null;
+  try {
+    counter = await db.prepare("SELECT dms_sent FROM usage_counters WHERE user_id = ? LIMIT 1").get(userId);
+  } catch (_) {}
+  const totalDmsSent = counter?.dms_sent !== undefined ? Number(counter.dms_sent) : (user.dm_usage_this_period || 0);
 
   const commentsThisMonth = (await db.prepare(`
     SELECT COUNT(*) as count FROM comment_replies 

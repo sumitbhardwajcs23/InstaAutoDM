@@ -776,7 +776,7 @@ class EventQueueWorker {
 
         if (isSimulated) {
           metaMessageId = `sim_dm_${uuidv4().slice(0, 8)}`;
-          await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
+          await this.recordDmUsage(user.id);
           const cId = await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
           await loopDetection.recordAutomatedDmSent(cId);
           if (cardPayload) {
@@ -794,7 +794,7 @@ class EventQueueWorker {
               card: cardPayload
             });
             metaMessageId = dmResp?.message_id || null;
-            await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
+            await this.recordDmUsage(user.id);
             const cId = await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
             await loopDetection.recordAutomatedDmSent(cId);
             console.log(`[Worker] ✅ Private DM ${cardPayload ? 'Card ' : ''}sent for comment ${commentId} to @${commenterUsername || 'user'}`);
@@ -1128,7 +1128,7 @@ class EventQueueWorker {
       // Outbound auto-reply timestamp: 1 second after the inbound event to ensure correct ordering
       const outboundCreatedAt = new Date(eventTime + 1000).toISOString();
       await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'sent', resp.message_id, outboundCreatedAt);
-      await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
+      await this.recordDmUsage(user.id);
       await db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
       await loopDetection.recordAutomatedDmSent(convId);
       await this.updateActivityLog(account.id, 'dm');
@@ -1170,6 +1170,22 @@ class EventQueueWorker {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(id, accountId, igUserId, username, name || username, profilePic || null, username, lastMessage, direction, status, nowIso, nowIso, nowIso);
       return id;
+    }
+  }
+
+  async recordDmUsage(userId) {
+    if (!userId) return;
+    try {
+      await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(userId);
+      await db.prepare(`
+        INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, updated_at)
+        VALUES (?, ?, NOW(), NOW() + INTERVAL '30 days', 1, NOW())
+        ON CONFLICT (user_id) DO UPDATE SET
+          dms_sent = usage_counters.dms_sent + 1,
+          updated_at = NOW()
+      `).run(`cnt_${userId}`, userId);
+    } catch (err) {
+      console.warn('[Queue] DM usage recording notice:', err.message);
     }
   }
 

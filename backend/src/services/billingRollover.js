@@ -19,6 +19,19 @@ async function rolloverBillingCycles() {
         AND usage_period_start <= date('now', '-30 days')
     `).run();
 
+    // Rollover normalized usage_counters table in sync
+    await db.prepare(`
+      UPDATE usage_counters
+      SET dms_sent = 0,
+          comments_processed = 0,
+          stories_replied = 0,
+          period_start = NOW(),
+          period_end = NOW() + INTERVAL '30 days',
+          updated_at = NOW()
+      WHERE period_start IS NOT NULL 
+        AND period_start <= NOW() - INTERVAL '30 days'
+    `).run().catch(e => console.warn('[BillingRollover] usage_counters rollover notice:', e.message));
+
     const count = result?.rowCount || result?.changes || 0;
     if (count > 0) {
       console.log(`[BillingRollover] 🔄 Rolled over usage counter for ${count} user(s) past 30-day billing cycle.`);

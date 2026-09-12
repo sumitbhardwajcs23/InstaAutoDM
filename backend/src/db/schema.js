@@ -503,6 +503,40 @@ CREATE TABLE IF NOT EXISTS admin_users (
 
 CREATE INDEX IF NOT EXISTS idx_admin_users_email ON admin_users(email);
 CREATE INDEX IF NOT EXISTS idx_admin_users_role ON admin_users(role);
+
+CREATE TABLE IF NOT EXISTS rule_card_attachments (
+  id TEXT PRIMARY KEY,
+  rule_id TEXT NOT NULL REFERENCES automation_rules(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  image_url TEXT,
+  button_text TEXT,
+  button_url TEXT,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+CREATE INDEX IF NOT EXISTS idx_rule_card_attachments_rule ON rule_card_attachments(rule_id, sort_order);
+
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+  id TEXT PRIMARY KEY,
+  coupon_id TEXT NOT NULL REFERENCES coupons(id) ON DELETE RESTRICT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  invoice_id TEXT REFERENCES invoices(id) ON DELETE SET NULL,
+  discount_applied INTEGER NOT NULL DEFAULT 0,
+  redeemed_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  CONSTRAINT uq_user_coupon UNIQUE(coupon_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_user ON coupon_redemptions(user_id);
+
+CREATE TABLE IF NOT EXISTS usage_counters (
+  id TEXT PRIMARY KEY,
+  user_id TEXT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  period_start TEXT NOT NULL,
+  dms_sent INTEGER NOT NULL DEFAULT 0,
+  comments_replied INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+CREATE INDEX IF NOT EXISTS idx_usage_counters_user ON usage_counters(user_id);
 `;
 
 module.exports = {

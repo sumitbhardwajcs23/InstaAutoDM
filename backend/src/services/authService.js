@@ -102,6 +102,28 @@ async function findOrCreateCanonicalUser({ email, name, password, emailVerified 
     `).run(userId, normalizedEmail, displayName, initialRole, passwordHash, isVerified, todayStr, nowStr, nowStr);
 
     user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+
+    // Normalize: ensure new user has a canonical workspace, usage_counter, and subscription
+    const wsId = `ws_${userId.replace(/-/g, '').slice(0, 12)}`;
+    await db.prepare(`
+      INSERT INTO workspaces (id, name, owner_id, status, created_at, updated_at)
+      VALUES (?, ?, ?, 'active', ?, ?)
+      ON CONFLICT (id) DO NOTHING
+    `).run(wsId, `${displayName}'s Workspace`, userId, nowStr, nowStr).catch(() => {});
+
+    await db.prepare(`
+      INSERT INTO usage_counters (id, user_id, period_start, dms_sent, comments_replied, updated_at)
+      VALUES (?, ?, ?, 0, 0, ?)
+      ON CONFLICT (user_id) DO NOTHING
+    `).run(`uc_${userId}`, userId, todayStr, nowStr).catch(() => {});
+
+    const subId = `sub_${userId.replace(/-/g, '').slice(0, 12)}`;
+    const periodEndStr = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+    await db.prepare(`
+      INSERT INTO subscriptions (id, user_id, plan, status, billing_cycle, current_period_start, current_period_end, created_at, updated_at)
+      VALUES (?, ?, 'free', 'active', 'monthly', ?, ?, ?, ?)
+      ON CONFLICT DO NOTHING
+    `).run(subId, userId, nowStr, periodEndStr, nowStr, nowStr).catch(() => {});
   }
 
   // Link provider in `auth_accounts` if provider is specified
