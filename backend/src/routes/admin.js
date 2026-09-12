@@ -779,6 +779,42 @@ const DEFAULT_PLANS = [
 ];
 
 async function getStoredPlans() {
+  try {
+    const rows = await db.prepare("SELECT * FROM pricing_plans ORDER BY sort_order ASC, created_at ASC").all();
+    if (Array.isArray(rows) && rows.length > 0) {
+      return rows.map(r => {
+        let parsedFeatures = [];
+        try {
+          if (r.features) parsedFeatures = typeof r.features === 'string' ? JSON.parse(r.features) : r.features;
+        } catch (_) {
+          parsedFeatures = typeof r.features === 'string' ? r.features.split('\n').filter(Boolean) : [];
+        }
+        return {
+          id: r.id,
+          slug: r.slug || r.id,
+          name: r.name,
+          description: r.description || '',
+          monthlyPrice: Number(r.monthly_price) || 0,
+          annualPrice: Number(r.annual_price) || 0,
+          currency: r.currency || 'INR',
+          dmLimit: Number(r.dm_limit) || 1000,
+          igLimit: Number(r.ig_limit) || 1,
+          rulesLimit: Number(r.rules_limit) || 5,
+          badge: r.badge_text || '',
+          popular: Boolean(r.is_popular),
+          active: r.is_active !== undefined ? Boolean(r.is_active) : true,
+          sort_order: Number(r.sort_order) || 0,
+          features: Array.isArray(parsedFeatures) ? parsedFeatures : [],
+          created_at: r.created_at,
+          updated_at: r.updated_at
+        };
+      });
+    }
+  } catch (err) {
+    console.warn('[Admin] Failed to query pricing_plans table, falling back:', err.message);
+  }
+
+  // Fallback to site_settings or DEFAULT_PLANS
   const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
   if (row && row.value) {
     try {
@@ -790,6 +826,57 @@ async function getStoredPlans() {
 }
 
 async function saveStoredPlans(plans) {
+  // 1. Save to dedicated pricing_plans PostgreSQL table
+  try {
+    for (let i = 0; i < plans.length; i++) {
+      const p = plans[i];
+      const planId = p.id || `plan-${Date.now()}-${i}`;
+      const slug = (p.slug || p.id || p.name || 'plan').toLowerCase().trim();
+      const featuresStr = JSON.stringify(Array.isArray(p.features) ? p.features : []);
+      const sortOrder = p.sort_order !== undefined ? Number(p.sort_order) : i + 1;
+
+      await db.prepare(`
+        INSERT INTO pricing_plans (id, slug, name, description, monthly_price, annual_price, currency, dm_limit, ig_limit, rules_limit, badge_text, is_popular, is_active, sort_order, features, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+        ON CONFLICT (id) DO UPDATE SET
+          slug = EXCLUDED.slug,
+          name = EXCLUDED.name,
+          description = EXCLUDED.description,
+          monthly_price = EXCLUDED.monthly_price,
+          annual_price = EXCLUDED.annual_price,
+          currency = EXCLUDED.currency,
+          dm_limit = EXCLUDED.dm_limit,
+          ig_limit = EXCLUDED.ig_limit,
+          rules_limit = EXCLUDED.rules_limit,
+          badge_text = EXCLUDED.badge_text,
+          is_popular = EXCLUDED.is_popular,
+          is_active = EXCLUDED.is_active,
+          sort_order = EXCLUDED.sort_order,
+          features = EXCLUDED.features,
+          updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS');
+      `).run(
+        planId,
+        slug,
+        p.name || 'Custom Plan',
+        p.description || '',
+        Number(p.monthlyPrice) || 0,
+        Number(p.annualPrice) || 0,
+        p.currency || 'INR',
+        Number(p.dmLimit) || 1000,
+        Number(p.igLimit) || 1,
+        Number(p.rulesLimit) || 5,
+        p.badge || null,
+        p.popular ? 1 : 0,
+        p.active !== false ? 1 : 0,
+        sortOrder,
+        featuresStr
+      );
+    }
+  } catch (err) {
+    console.error('[Admin] Error saving to pricing_plans table:', err);
+  }
+
+  // 2. Also save to site_settings for backwards compatibility
   const serialized = JSON.stringify(plans);
   const existing = await db.prepare("SELECT key FROM site_settings WHERE key = 'custom_pricing_plans'").get();
   if (existing) {
@@ -908,6 +995,10 @@ router.delete('/plans/:id', async (req, res) => {
       return res.status(404).json({ error: 'Pricing plan not found' });
     }
 
+    try {
+      await db.prepare('DELETE FROM pricing_plans WHERE id = ? OR LOWER(slug) = ? OR LOWER(name) = ?').run(id, searchStr, searchStr);
+    } catch (_) {}
+
     await saveStoredPlans(filtered);
     await refreshPlanLimitsCache();
     res.json({ success: true, message: 'Pricing plan deleted successfully' });
@@ -920,8 +1011,11 @@ router.delete('/plans/:id', async (req, res) => {
 // POST /api/admin/plans/reset
 router.post('/plans/reset', async (_req, res) => {
   try {
+    try {
+      await db.prepare('DELETE FROM pricing_plans').run();
+    } catch (_) {}
     await saveStoredPlans([...DEFAULT_PLANS]);
-    refreshPlanLimitsCache().catch(() => {});
+    await refreshPlanLimitsCache();
     res.json({ success: true, message: 'Pricing plans reset to defaults', plans: DEFAULT_PLANS });
   } catch (err) {
     console.error('[Admin] Reset plans error:', err);

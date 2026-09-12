@@ -95,6 +95,117 @@ if (pgPool) {
           );
         `);
         await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS pricing_plans (
+            id TEXT PRIMARY KEY,
+            slug TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            monthly_price INTEGER NOT NULL DEFAULT 0,
+            annual_price INTEGER NOT NULL DEFAULT 0,
+            currency TEXT DEFAULT 'INR',
+            dm_limit INTEGER DEFAULT 1000,
+            ig_limit INTEGER DEFAULT 1,
+            rules_limit INTEGER DEFAULT 5,
+            badge_text TEXT,
+            is_popular INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            features TEXT,
+            created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          );
+        `);
+
+        // Auto-seed default pricing plans if table is empty
+        const plansCountRes = await pgPool.query('SELECT COUNT(*) as count FROM pricing_plans');
+        if (parseInt(plansCountRes.rows[0]?.count || '0', 10) === 0) {
+          const defaultPlans = [
+            {
+              id: 'free',
+              slug: 'free',
+              name: 'Starter / Free',
+              description: 'Ideal for creators testing automated DM responses on real traffic.',
+              monthly_price: 0,
+              annual_price: 0,
+              currency: 'INR',
+              dm_limit: 1000,
+              ig_limit: 1,
+              rules_limit: 5,
+              badge_text: null,
+              is_popular: 0,
+              is_active: 1,
+              sort_order: 1,
+              features: JSON.stringify([
+                'Up to 1,000 automated DMs / month',
+                'Up to 5 active keyword rules',
+                'Comment-to-DM auto response',
+                'Instant keyword triggers',
+                'Standard Instagram delivery speed',
+                'Community support'
+              ])
+            },
+            {
+              id: 'pro',
+              slug: 'pro',
+              name: 'Pro Creator',
+              description: 'Built for fast-growing Indian creators, coaches, and D2C brands.',
+              monthly_price: 1499,
+              annual_price: 1099,
+              currency: 'INR',
+              dm_limit: -1,
+              ig_limit: 3,
+              rules_limit: -1,
+              badge_text: 'MOST POPULAR IN INDIA',
+              is_popular: 1,
+              is_active: 1,
+              sort_order: 2,
+              features: JSON.stringify([
+                'Unlimited automated DMs & comments',
+                'Unlimited active automation rules',
+                'Dynamic {username} personalization',
+                'Lead capture & email collector sequences',
+                'Dedicated high-priority Meta queue',
+                'Full conversation logs & thread analytics',
+                'Priority WhatsApp & email support',
+                'GST invoice with 18% Input Tax Credit'
+              ])
+            },
+            {
+              id: 'scale',
+              slug: 'scale',
+              name: 'Scale / Enterprise',
+              description: 'For large agencies, multi-brand creators, and enterprise teams.',
+              monthly_price: 4999,
+              annual_price: 3499,
+              currency: 'INR',
+              dm_limit: -1,
+              ig_limit: 10,
+              rules_limit: -1,
+              badge_text: 'ENTERPRISE',
+              is_popular: 0,
+              is_active: 1,
+              sort_order: 3,
+              features: JSON.stringify([
+                'Everything in Pro Creator',
+                'Up to 10 connected Instagram accounts',
+                'Custom Webhooks & CRM Integration',
+                'Dedicated Account Manager',
+                'Custom SLA & 99.9% Uptime Guarantee'
+              ])
+            }
+          ];
+
+          for (const plan of defaultPlans) {
+            await pgPool.query(
+              `INSERT INTO pricing_plans (id, slug, name, description, monthly_price, annual_price, currency, dm_limit, ig_limit, rules_limit, badge_text, is_popular, is_active, sort_order, features)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+               ON CONFLICT (id) DO NOTHING;`,
+              [plan.id, plan.slug, plan.name, plan.description, plan.monthly_price, plan.annual_price, plan.currency, plan.dm_limit, plan.ig_limit, plan.rules_limit, plan.badge_text, plan.is_popular, plan.is_active, plan.sort_order, plan.features]
+            );
+          }
+          console.log('[PostgreSQL] 🛒 Default pricing plans auto-seeded into pricing_plans table.');
+        }
+        await pgPool.query(`
           CREATE TABLE IF NOT EXISTS password_resets (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -483,16 +594,19 @@ const db = {
     const pgSql = toPgSql(sql);
     return {
       async get(...args) {
+        if (dbInitPromise) await dbInitPromise;
         const params = normalizeParams(args).map(p => (p === undefined ? null : p));
         const res = await pgPool.query(pgSql, params);
         return res.rows[0] ? formatRow(res.rows[0]) : undefined;
       },
       async all(...args) {
+        if (dbInitPromise) await dbInitPromise;
         const params = normalizeParams(args).map(p => (p === undefined ? null : p));
         const res = await pgPool.query(pgSql, params);
         return (res.rows || []).map(formatRow);
       },
       async run(...args) {
+        if (dbInitPromise) await dbInitPromise;
         const params = normalizeParams(args).map(p => (p === undefined ? null : p));
         const res = await pgPool.query(pgSql, params);
         return { changes: res.rowCount, rowCount: res.rowCount };

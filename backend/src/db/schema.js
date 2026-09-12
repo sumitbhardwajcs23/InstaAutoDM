@@ -26,6 +26,26 @@ CREATE TABLE IF NOT EXISTS site_settings (
   updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
 
+CREATE TABLE IF NOT EXISTS pricing_plans (
+  id TEXT PRIMARY KEY,
+  slug TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  monthly_price INTEGER NOT NULL DEFAULT 0,
+  annual_price INTEGER NOT NULL DEFAULT 0,
+  currency TEXT DEFAULT 'INR',
+  dm_limit INTEGER DEFAULT 1000,
+  ig_limit INTEGER DEFAULT 1,
+  rules_limit INTEGER DEFAULT 5,
+  badge_text TEXT,
+  is_popular INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1,
+  sort_order INTEGER DEFAULT 0,
+  features TEXT,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
 CREATE TABLE IF NOT EXISTS password_resets (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,

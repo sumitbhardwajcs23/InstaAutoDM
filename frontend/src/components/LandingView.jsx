@@ -432,11 +432,36 @@ export default function LandingView({
   const [isScrolled, setIsScrolled] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState('monthly'); // 'monthly' | 'yearly'
   const [internalSettings, setInternalSettings] = useState(null);
+  const [dynamicPlans, setDynamicPlans] = useState([]);
   const [activeDocKey, setActiveDocKey] = useState(null); // string key into CONTENT_DOCS | null
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [testimonialIndex, setTestimonialIndex] = useState(0);
 
   const siteSettings = siteSettingsOverride || internalSettings;
+
+  useEffect(() => {
+    fetch('/api/billing/plans')
+      .then(res => res.json())
+      .then(data => {
+        if (data && Array.isArray(data.plans) && data.plans.length > 0) {
+          setDynamicPlans(data.plans.filter(p => p.active !== false));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!siteSettingsOverride) {
+      fetch('/api/site/settings')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.settings) {
+            setInternalSettings(data.settings);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [siteSettingsOverride]);
 
   useEffect(() => {
     if (isPreview && activeSectionHighlight) {
@@ -1016,88 +1041,134 @@ export default function LandingView({
             </div>
           </div>
 
-          {/* 3 Pricing Cards Strictly in Indian Rupees (₹) */}
+          {/* Pricing Cards Rendered Dynamically from Database Schema */}
           <div className="airvix-pricing-deck">
-            
-            {/* Card 1: Starter */}
-            <div className="airvix-price-card">
-              <div className="airvix-tier-name">{siteSettings?.plan_1_name || 'Starter'}</div>
-              <div className="airvix-tier-desc">{siteSettings?.plan_1_desc || 'Perfect for individuals'}</div>
-              
-              <div className="airvix-tier-price">
-                <span className="airvix-currency-symbol">₹</span>
-                <span className="airvix-price-num">{siteSettings?.price_starter !== undefined ? siteSettings.price_starter : 0}</span>
-                <span className="airvix-price-freq">/month</span>
-              </div>
+            {dynamicPlans.length > 0 ? (
+              dynamicPlans.map((plan) => {
+                const monthlyPrice = Number(plan.monthlyPrice) || 0;
+                const annualRate = Number(plan.annualPrice) || monthlyPrice;
+                const currentPrice = billingPeriod === 'yearly' ? annualRate : monthlyPrice;
+                const isPopular = plan.popular || Boolean(plan.badge && plan.badge.toLowerCase().includes('popular'));
 
-              <ul className="airvix-tier-features">
-                {(siteSettings?.plan_1_features || '1 Instagram account\n{limit_starter} automated replies/month\nBasic templates\nEmail support')
-                  .split('\n').filter(f => f.trim()).map((feat, i) => (
-                    <li key={i}><Check size={16} color="#059669" /> {feat.replace('{limit_starter}', siteSettings?.limit_starter || '1,000')}</li>
-                  ))}
-              </ul>
+                return (
+                  <div key={plan.id || plan.slug} className={`airvix-price-card ${isPopular ? 'airvix-card-popular' : ''}`}>
+                    {plan.badge && (
+                      <div className="airvix-popular-pill">{plan.badge}</div>
+                    )}
+                    
+                    <div className="airvix-tier-name">{plan.name}</div>
+                    <div className="airvix-tier-desc">{plan.description || 'Instagram DM Automation Plan'}</div>
+                    
+                    <div className="airvix-tier-price">
+                      <span className="airvix-currency-symbol">₹</span>
+                      <span className="airvix-price-num">{currentPrice.toLocaleString()}</span>
+                      <span className="airvix-price-freq">/month</span>
+                    </div>
 
-              <button className="airvix-btn-outline airvix-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
-                {siteSettings?.plan_1_btn || 'Get started'}
-              </button>
-            </div>
+                    {billingPeriod === 'yearly' && monthlyPrice > 0 && (
+                      <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '-4px', marginBottom: '8px' }}>
+                        ₹{(annualRate * 12).toLocaleString()} billed annually
+                      </div>
+                    )}
 
-            {/* Card 2: Pro (Most Popular) */}
-            <div className="airvix-price-card airvix-card-popular">
-              <div className="airvix-popular-pill">{siteSettings?.plan_2_badge || 'Most popular'}</div>
-              
-              <div className="airvix-tier-name">{siteSettings?.plan_2_name || 'Pro'}</div>
-              <div className="airvix-tier-desc">{siteSettings?.plan_2_desc || 'For growing creators & brands'}</div>
-              
-              <div className="airvix-tier-price">
-                <span className="airvix-currency-symbol">₹</span>
-                <span className="airvix-price-num">
-                  {billingPeriod === 'monthly' 
-                    ? (siteSettings?.price_creator ? Number(siteSettings.price_creator).toLocaleString() : '1,499')
-                    : Math.round((Number(siteSettings?.price_creator) || 1499) * 0.8).toLocaleString()}
-                </span>
-                <span className="airvix-price-freq">/month</span>
-              </div>
+                    <ul className="airvix-tier-features">
+                      {(Array.isArray(plan.features) ? plan.features : [])
+                        .map((feat, i) => (
+                          <li key={i}><Check size={16} color="#059669" /> {feat}</li>
+                        ))}
+                    </ul>
 
-              <ul className="airvix-tier-features">
-                {(siteSettings?.plan_2_features || '3 Instagram accounts\n{limit_creator} automated replies/month\nAdvanced templates & spinning\nAnalytics & insights\nPriority support & GST invoice')
-                  .split('\n').filter(f => f.trim()).map((feat, i) => (
-                    <li key={i}><Check size={16} color="#059669" /> {feat.replace('{limit_creator}', siteSettings?.limit_creator || '25,000')}</li>
-                  ))}
-              </ul>
+                    <button
+                      className={isPopular ? "airvix-btn-primary airvix-btn-block" : "airvix-btn-outline airvix-btn-block"}
+                      onClick={() => onNavigate(user ? 'app' : 'auth-signup')}
+                    >
+                      {monthlyPrice === 0 ? 'Get Started Free' : 'Choose Plan'}
+                    </button>
+                  </div>
+                );
+              })
+            ) : (
+              <>
+                {/* Fallback Card 1: Starter */}
+                <div className="airvix-price-card">
+                  <div className="airvix-tier-name">{siteSettings?.plan_1_name || 'Starter'}</div>
+                  <div className="airvix-tier-desc">{siteSettings?.plan_1_desc || 'Perfect for individuals'}</div>
+                  
+                  <div className="airvix-tier-price">
+                    <span className="airvix-currency-symbol">₹</span>
+                    <span className="airvix-price-num">{siteSettings?.price_starter !== undefined ? siteSettings.price_starter : 0}</span>
+                    <span className="airvix-price-freq">/month</span>
+                  </div>
 
-              <button className="airvix-btn-primary airvix-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
-                {siteSettings?.plan_2_btn || 'Start 14-day free trial'}
-              </button>
-            </div>
+                  <ul className="airvix-tier-features">
+                    {(siteSettings?.plan_1_features || '1 Instagram account\n{limit_starter} automated replies/month\nBasic templates\nEmail support')
+                      .split('\n').filter(f => f.trim()).map((feat, i) => (
+                        <li key={i}><Check size={16} color="#059669" /> {feat.replace('{limit_starter}', siteSettings?.limit_starter || '1,000')}</li>
+                      ))}
+                  </ul>
 
-            {/* Card 3: Agency */}
-            <div className="airvix-price-card">
-              <div className="airvix-tier-name">{siteSettings?.plan_3_name || 'Agency'}</div>
-              <div className="airvix-tier-desc">{siteSettings?.plan_3_desc || 'For teams & agencies'}</div>
-              
-              <div className="airvix-tier-price">
-                <span className="airvix-currency-symbol">₹</span>
-                <span className="airvix-price-num">
-                  {billingPeriod === 'monthly' 
-                    ? (siteSettings?.price_agency ? Number(siteSettings.price_agency).toLocaleString() : '3,999')
-                    : Math.round((Number(siteSettings?.price_agency) || 3999) * 0.8).toLocaleString()}
-                </span>
-                <span className="airvix-price-freq">/month</span>
-              </div>
+                  <button className="airvix-btn-outline airvix-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+                    {siteSettings?.plan_1_btn || 'Get started'}
+                  </button>
+                </div>
 
-              <ul className="airvix-tier-features">
-                {(siteSettings?.plan_3_features || '10 Instagram accounts\n{limit_agency} automated replies/month\nMulti-user team workspace\nCustom webhooks & API access\nDedicated account manager')
-                  .split('\n').filter(f => f.trim()).map((feat, i) => (
-                    <li key={i}><Check size={16} color="#059669" /> {feat.replace('{limit_agency}', siteSettings?.limit_agency || '100,000')}</li>
-                  ))}
-              </ul>
+                {/* Fallback Card 2: Pro (Most Popular) */}
+                <div className="airvix-price-card airvix-card-popular">
+                  <div className="airvix-popular-pill">{siteSettings?.plan_2_badge || 'Most popular'}</div>
+                  
+                  <div className="airvix-tier-name">{siteSettings?.plan_2_name || 'Pro'}</div>
+                  <div className="airvix-tier-desc">{siteSettings?.plan_2_desc || 'For growing creators & brands'}</div>
+                  
+                  <div className="airvix-tier-price">
+                    <span className="airvix-currency-symbol">₹</span>
+                    <span className="airvix-price-num">
+                      {billingPeriod === 'monthly' 
+                        ? (siteSettings?.price_creator ? Number(siteSettings.price_creator).toLocaleString() : '1,499')
+                        : Math.round((Number(siteSettings?.price_creator) || 1499) * 0.8).toLocaleString()}
+                    </span>
+                    <span className="airvix-price-freq">/month</span>
+                  </div>
 
-              <button className="airvix-btn-outline airvix-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
-                {siteSettings?.plan_3_btn || 'Get started'}
-              </button>
-            </div>
+                  <ul className="airvix-tier-features">
+                    {(siteSettings?.plan_2_features || '3 Instagram accounts\n{limit_creator} automated replies/month\nAdvanced templates & spinning\nAnalytics & insights\nPriority support & GST invoice')
+                      .split('\n').filter(f => f.trim()).map((feat, i) => (
+                        <li key={i}><Check size={16} color="#059669" /> {feat.replace('{limit_creator}', siteSettings?.limit_creator || '25,000')}</li>
+                      ))}
+                  </ul>
 
+                  <button className="airvix-btn-primary airvix-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+                    {siteSettings?.plan_2_btn || 'Start 14-day free trial'}
+                  </button>
+                </div>
+
+                {/* Fallback Card 3: Agency */}
+                <div className="airvix-price-card">
+                  <div className="airvix-tier-name">{siteSettings?.plan_3_name || 'Agency'}</div>
+                  <div className="airvix-tier-desc">{siteSettings?.plan_3_desc || 'For teams & agencies'}</div>
+                  
+                  <div className="airvix-tier-price">
+                    <span className="airvix-currency-symbol">₹</span>
+                    <span className="airvix-price-num">
+                      {billingPeriod === 'monthly' 
+                        ? (siteSettings?.price_agency ? Number(siteSettings.price_agency).toLocaleString() : '3,999')
+                        : Math.round((Number(siteSettings?.price_agency) || 3999) * 0.8).toLocaleString()}
+                    </span>
+                    <span className="airvix-price-freq">/month</span>
+                  </div>
+
+                  <ul className="airvix-tier-features">
+                    {(siteSettings?.plan_3_features || '10 Instagram accounts\n{limit_agency} automated replies/month\nMulti-user team workspace\nCustom webhooks & API access\nDedicated account manager')
+                      .split('\n').filter(f => f.trim()).map((feat, i) => (
+                        <li key={i}><Check size={16} color="#059669" /> {feat.replace('{limit_agency}', siteSettings?.limit_agency || '100,000')}</li>
+                      ))}
+                  </ul>
+
+                  <button className="airvix-btn-outline airvix-btn-block" onClick={() => onNavigate(user ? 'app' : 'auth-signup')}>
+                    {siteSettings?.plan_3_btn || 'Get started'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="airvix-pricing-guarantee">

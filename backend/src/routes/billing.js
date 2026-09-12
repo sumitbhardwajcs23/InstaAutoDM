@@ -17,8 +17,38 @@ const PLAN_PRICES_FALLBACK = {
   enterprise: { monthly: 7999, yearly: 71988 }
 };
 
-// Load admin-configured plans from site_settings.custom_pricing_plans
+// Load admin-configured plans from pricing_plans table or site_settings
 async function getAdminStoredPlans() {
+  try {
+    const rows = await db.prepare("SELECT * FROM pricing_plans WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC").all();
+    if (Array.isArray(rows) && rows.length > 0) {
+      return rows.map(r => {
+        let features = [];
+        try {
+          if (r.features) features = typeof r.features === 'string' ? JSON.parse(r.features) : r.features;
+        } catch (_) {
+          features = typeof r.features === 'string' ? r.features.split('\n').filter(Boolean) : [];
+        }
+        return {
+          id: r.id,
+          slug: r.slug || r.id,
+          name: r.name,
+          description: r.description || '',
+          monthlyPrice: Number(r.monthly_price) || 0,
+          annualPrice: Number(r.annual_price) || 0,
+          currency: r.currency || 'INR',
+          dmLimit: Number(r.dm_limit) || 1000,
+          igLimit: Number(r.ig_limit) || 1,
+          rulesLimit: Number(r.rules_limit) || 5,
+          badge: r.badge_text || '',
+          popular: Boolean(r.is_popular),
+          active: r.is_active !== 0,
+          features
+        };
+      });
+    }
+  } catch (e) {}
+
   try {
     const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
     if (row && row.value) {

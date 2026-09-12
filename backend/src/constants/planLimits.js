@@ -42,32 +42,61 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes auto-refresh
  */
 async function loadDynamicPlanCache() {
   try {
-    // Lazy-require db to avoid circular dependencies at module load time
     const db = require('../db');
-    const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
-    if (row && row.value) {
-      const plans = JSON.parse(row.value);
-      if (Array.isArray(plans) && plans.length > 0) {
-        const cache = {};
-        for (const plan of plans) {
+    const cache = {};
+
+    // 1. Primary Source: Query pricing_plans PostgreSQL table
+    try {
+      const rows = await db.prepare("SELECT * FROM pricing_plans WHERE is_active = 1 ORDER BY sort_order ASC").all();
+      if (Array.isArray(rows) && rows.length > 0) {
+        for (const plan of rows) {
           const keys = [
             (plan.slug || '').toLowerCase().trim(),
             (plan.name || '').toLowerCase().trim(),
             (plan.id || '').toLowerCase().trim()
           ].filter(Boolean);
-          const dmLimit = (plan.dmLimit !== undefined && plan.dmLimit !== null && plan.dmLimit !== '' && !isNaN(Number(plan.dmLimit))) ? Number(plan.dmLimit) : null;
-          const igLimit = (plan.igLimit !== undefined && plan.igLimit !== null && plan.igLimit !== '' && !isNaN(Number(plan.igLimit))) ? Number(plan.igLimit) : null;
-          const rulesLimit = (plan.rulesLimit !== undefined && plan.rulesLimit !== null && plan.rulesLimit !== '' && !isNaN(Number(plan.rulesLimit))) ? Number(plan.rulesLimit) : null;
+          const dmLimit = (plan.dm_limit !== undefined && plan.dm_limit !== null && plan.dm_limit !== '' && !isNaN(Number(plan.dm_limit))) ? Number(plan.dm_limit) : null;
+          const igLimit = (plan.ig_limit !== undefined && plan.ig_limit !== null && plan.ig_limit !== '' && !isNaN(Number(plan.ig_limit))) ? Number(plan.ig_limit) : null;
+          const rulesLimit = (plan.rules_limit !== undefined && plan.rules_limit !== null && plan.rules_limit !== '' && !isNaN(Number(plan.rules_limit))) ? Number(plan.rules_limit) : null;
 
           for (const key of keys) {
             if (key) {
-              cache[key] = { dmLimit, igLimit, rulesLimit };
+              cache[key] = { dmLimit, igLimit, rulesLimit, monthlyPrice: plan.monthly_price, annualPrice: plan.annual_price };
             }
           }
         }
-        _dynamicPlanCache = cache;
-        _cacheLoadedAt = Date.now();
       }
+    } catch (_) {}
+
+    // 2. Secondary Fallback Source: site_settings custom_pricing_plans
+    try {
+      const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
+      if (row && row.value) {
+        const plans = JSON.parse(row.value);
+        if (Array.isArray(plans) && plans.length > 0) {
+          for (const plan of plans) {
+            const keys = [
+              (plan.slug || '').toLowerCase().trim(),
+              (plan.name || '').toLowerCase().trim(),
+              (plan.id || '').toLowerCase().trim()
+            ].filter(Boolean);
+            const dmLimit = (plan.dmLimit !== undefined && plan.dmLimit !== null && plan.dmLimit !== '' && !isNaN(Number(plan.dmLimit))) ? Number(plan.dmLimit) : null;
+            const igLimit = (plan.igLimit !== undefined && plan.igLimit !== null && plan.igLimit !== '' && !isNaN(Number(plan.igLimit))) ? Number(plan.igLimit) : null;
+            const rulesLimit = (plan.rulesLimit !== undefined && plan.rulesLimit !== null && plan.rulesLimit !== '' && !isNaN(Number(plan.rulesLimit))) ? Number(plan.rulesLimit) : null;
+
+            for (const key of keys) {
+              if (key && !cache[key]) {
+                cache[key] = { dmLimit, igLimit, rulesLimit };
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (Object.keys(cache).length > 0) {
+      _dynamicPlanCache = cache;
+      _cacheLoadedAt = Date.now();
     }
   } catch (e) {
     // DB not ready yet or first startup — use static defaults silently

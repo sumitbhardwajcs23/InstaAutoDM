@@ -5,6 +5,7 @@ const { spawn } = require('child_process');
 process.env.NODE_ENV = 'test';
 
 const testFiles = [
+  'unifiedBillingSchema.test.js',
   'adminPlanSyncAndLimits.test.js',
   'verifyBillingSystemEndToEnd.test.js',
   'planLimits.test.js',
