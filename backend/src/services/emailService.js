@@ -12,9 +12,21 @@ function getFromEmail() {
 }
 
 /**
- * Render branded HTML template for Airvix OTP emails
+ * Render branded HTML template for Airvix OTP emails matching user reference design
  */
 function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName }) {
+  const otpDigits = String(otp || '123456').split('');
+  const digitBoxesHtml = otpDigits
+    .map(
+      (digit) => `
+      <td align="center" style="padding: 0 4px;">
+        <div style="width: 46px; height: 56px; line-height: 56px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 26px; font-weight: 800; color: #0f172a; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+          ${digit}
+        </div>
+      </td>`
+    )
+    .join('');
+
   return `
 <!DOCTYPE html>
 <html>
@@ -22,42 +34,93 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; }
-    .container { max-width: 540px; margin: 40px auto; background: #1e293b; border-radius: 16px; border: 1px solid #334155; padding: 40px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
-    .logo { text-align: center; margin-bottom: 24px; }
-    .logo-text { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.5px; }
-    .header { text-align: center; margin-bottom: 32px; }
-    .title { font-size: 22px; font-weight: 700; color: #ffffff; margin-bottom: 8px; }
-    .subtitle { font-size: 14px; color: #94a3b8; line-height: 1.5; }
-    .otp-box { background: #0f172a; border: 2px dashed #6366f1; border-radius: 12px; padding: 24px; text-align: center; margin: 32px 0; letter-spacing: 8px; }
-    .otp-code { font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 900; color: #818cf8; letter-spacing: 12px; margin-left: 12px; }
-    .notice { font-size: 13px; color: #64748b; text-align: center; line-height: 1.6; border-top: 1px solid #334155; padding-top: 24px; margin-top: 32px; }
-    .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #475569; }
-  </style>
 </head>
-<body>
-  <div class="container">
-    <div class="logo">
-      <span class="logo-text">Airvix</span>
-    </div>
-    <div class="header">
-      <div class="title">${title}</div>
-      <div class="subtitle">Hello ${recipientName || 'Creator'}, ${subtitle}</div>
-    </div>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f2ff; color: #0f172a; margin: 0; padding: 32px 16px;">
+  <div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 24px; border: 1px solid #e2e8f0; padding: 40px 36px; box-shadow: 0 12px 35px rgba(99, 102, 241, 0.08);">
     
-    <div class="otp-box">
-      <div class="otp-code">${otp}</div>
+    <!-- Top Header / Logo Bar -->
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 32px;">
+      <tr>
+        <td align="left">
+          <table border="0" cellspacing="0" cellpadding="0">
+            <tr>
+              <td style="padding-right: 10px;">
+                <div style="width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #ffffff; font-weight: 900; font-size: 18px; text-align: center; line-height: 32px;">
+                  A
+                </div>
+              </td>
+              <td style="font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">
+                Airvix
+              </td>
+            </tr>
+          </table>
+        </td>
+        <td align="right" style="font-size: 12.5px; color: #64748b; font-weight: 500;">
+          Automate &bull; Engage &bull; Grow
+        </td>
+      </tr>
+    </table>
+
+    <!-- Lock Icon Badge -->
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="display: inline-block; width: 56px; height: 56px; border-radius: 18px; background-color: #f0eaff; text-align: center; line-height: 56px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;">
+          <rect x="5" y="11" width="14" height="10" rx="3" fill="#6366f1"/>
+          <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+      </div>
     </div>
 
-    <div class="notice">
-      ${messageNotice || 'This verification code expires in 10 minutes. For security, never share this code with anyone.'}
+    <!-- Title & Subtitle -->
+    <div style="text-align: center; margin-bottom: 28px;">
+      <h1 style="font-size: 24px; font-weight: 800; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.02em;">
+        ${title || 'Your Verification Code'}
+      </h1>
+      <p style="font-size: 14px; color: #64748b; margin: 0 auto; max-width: 380px; line-height: 1.5;">
+        ${subtitle || 'Use the code below to verify your email address and continue with Airvix.'}
+      </p>
     </div>
-    
-    <div class="footer">
-      &copy; ${new Date().getFullYear()} Airvix Inc. All rights reserved.<br>
-      Automate Instagram DMs & Reel Comments with AI.
+
+    <!-- Digit Grid -->
+    <table align="center" border="0" cellspacing="0" cellpadding="0" style="margin: 0 auto 24px auto;">
+      <tr>
+        ${digitBoxesHtml}
+      </tr>
+    </table>
+
+    <!-- Expiry Notice -->
+    <div style="text-align: center; font-size: 13.5px; color: #475569; margin-bottom: 24px;">
+      This code will expire in <strong style="color: #4f46e5;">10 minutes</strong>.
     </div>
+
+    <!-- Security Info Box -->
+    <div style="background-color: #f8fafc; border: 1px solid #f1f5f9; border-radius: 14px; padding: 12px 18px; font-size: 13px; color: #64748b; text-align: center; margin-bottom: 32px;">
+      <span style="color: #6366f1; font-weight: 700;">&#9432;</span> ${messageNotice || "If you didn't request this code, you can safely ignore this email."}
+    </div>
+
+    <!-- Signature Block -->
+    <div style="font-size: 13.5px; color: #64748b; line-height: 1.6; margin-bottom: 32px; border-bottom: 1px solid #f1f5f9; padding-bottom: 28px;">
+      Cheers,<br>
+      <strong style="color: #0f172a; font-size: 14.5px;">The Airvix Team</strong><br>
+      <span style="color: #8b5cf6; font-size: 12.5px; font-weight: 600;">Automate. Engage. Grow.</span>
+    </div>
+
+    <!-- Footer -->
+    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+      <tr>
+        <td align="left">
+          <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 4px;">Airvix</div>
+          <div style="font-size: 11.5px; color: #94a3b8;">All-in-one Instagram automation for creators, brands and businesses.</div>
+        </td>
+      </tr>
+      <tr>
+        <td align="left" style="padding-top: 16px; font-size: 11.5px; color: #94a3b8;">
+          Need help? Reply directly to this email.<br>
+          &copy; ${new Date().getFullYear()} Airvix Inc. All rights reserved.
+        </td>
+      </tr>
+    </table>
+
   </div>
 </body>
 </html>
