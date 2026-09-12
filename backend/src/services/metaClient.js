@@ -757,8 +757,32 @@ class MetaClient {
 
 
   async getAccountMedia({ igUserId, accessToken, limit = 30, after = null }) {
-    if (!accessToken) {
-      return { data: [], paging: { cursors: {}, has_next: false } };
+    if (this.mockMode || !accessToken) {
+      const pageOffset = after ? (parseInt(String(after).replace('cursor_after_', ''), 10) || 30) : 0;
+      const mockItems = Array.from({ length: limit }).map((_, i) => {
+        const itemIdx = pageOffset + i + 1;
+        return {
+          id: `media_mock_${itemIdx}`,
+          caption: `Mock Media Post #${itemIdx} #automation`,
+          media_type: itemIdx % 3 === 0 ? 'VIDEO' : 'IMAGE',
+          media_product_type: itemIdx % 3 === 0 ? 'REELS' : 'FEED',
+          media_url: `https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500`,
+          thumbnail_url: `https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500`,
+          permalink: `https://instagram.com/p/mock_${itemIdx}`,
+          timestamp: new Date(Date.now() - itemIdx * 3600000).toISOString(),
+          like_count: 120 + itemIdx,
+          comments_count: 15 + itemIdx
+        };
+      });
+      const nextAfter = `cursor_after_${pageOffset + limit}`;
+      return {
+        data: mockItems,
+        paging: {
+          cursors: { after: nextAfter },
+          has_next: true,
+          next_cursor: nextAfter
+        }
+      };
     }
 
     const fields = 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count';
@@ -801,8 +825,25 @@ class MetaClient {
   }
 
   async getAccountStories({ igUserId, accessToken }) {
-    if (!accessToken) {
-      return [];
+    if (this.mockMode || !accessToken) {
+      return [
+        {
+          id: 'story_mock_1',
+          caption: '24h Flash Sale Story 🔥',
+          media_type: 'IMAGE',
+          media_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500',
+          permalink: 'https://instagram.com/stories/mock_1',
+          timestamp: new Date().toISOString()
+        },
+        {
+          id: 'story_mock_2',
+          caption: 'Behind the Scenes Reel Story 🎥',
+          media_type: 'VIDEO',
+          media_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500',
+          permalink: 'https://instagram.com/stories/mock_2',
+          timestamp: new Date().toISOString()
+        }
+      ];
     }
 
     const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp';
