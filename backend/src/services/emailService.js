@@ -12,29 +12,16 @@ function getFromEmail() {
   return process.env.EMAIL_FROM || 'Airvix Auth <otp@airvix.online>';
 }
 
-// Load attached Airvix Logo as Data URI for 100% reliable email client rendering
-let cachedLogoBase64 = null;
-function getAirvixLogoBase64() {
-  if (cachedLogoBase64) return cachedLogoBase64;
-  try {
-    const logoPath = path.join(__dirname, '../../../frontend/public/airvix-logo.png');
-    if (fs.existsSync(logoPath)) {
-      const buf = fs.readFileSync(logoPath);
-      cachedLogoBase64 = `data:image/png;base64,${buf.toString('base64')}`;
-      return cachedLogoBase64;
-    }
-  } catch (err) {
-    console.error('[EmailService] Warning reading logo file:', err.message);
-  }
-  return 'https://airvix.online/airvix-logo.png';
+function getAirvixLogoUrl() {
+  return process.env.EMAIL_LOGO_URL || 'https://raw.githubusercontent.com/sumitbhardwajcs23/InstaAutoDM/main/frontend/public/airvix-logo.png';
 }
 
 /**
- * Render branded HTML template for Airvix OTP emails matching user reference design (Pure White Theme)
+ * Render branded HTML template for Airvix OTP emails matching user reference design
  */
 function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName }) {
   const otpDigits = String(otp || '123456').split('');
-  const logoUrl = getAirvixLogoBase64();
+  const logoUrl = getAirvixLogoUrl();
   
   const digitBoxesHtml = otpDigits
     .map(
@@ -84,7 +71,13 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
     a {
       text-decoration: none;
     }
-    /* Force light mode in dark mode email clients */
+    u + #body .email-bg {
+      background-color: #f5f7fb !important;
+    }
+    u + #body .email-card {
+      background-color: #ffffff !important;
+      color: #121a33 !important;
+    }
     [data-ogsc] .email-card,
     [data-ogsb] .email-card {
       background-color: #ffffff !important;
@@ -149,17 +142,17 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
     }
   </style>
 </head>
-<body style="background-color: #f5f7fb !important; margin: 0; padding: 0;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; background:#f5f7fb !important;">
+<body id="body" style="background-color: #f5f7fb !important; margin: 0; padding: 0;">
+  <table class="email-bg" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f5f7fb" style="width:100%; background:#f5f7fb !important;">
     <tr>
       <td align="center" class="email-wrapper" style="padding:40px 15px;">
         
         <!-- CARD -->
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" class="email-card" style="width:100%; max-width:560px; background:#ffffff !important; border-radius:18px; overflow:hidden; box-shadow:0 8px 30px rgba(30,40,80,0.08);">
+        <table class="email-card" role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:100%; max-width:560px; background:#ffffff !important; border-radius:18px; overflow:hidden; box-shadow:0 8px 30px rgba(30,40,80,0.08);">
           
           <!-- HEADER -->
           <tr>
-            <td class="header" style="padding:26px 32px; border-bottom:1px solid #edf0f6;">
+            <td class="header" style="padding:26px 32px; border-bottom:1px solid #edf0f6; background:#ffffff !important;">
               <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                 <tr>
                   <td>
@@ -172,10 +165,10 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
 
           <!-- CONTENT -->
           <tr>
-            <td align="center" class="content" style="padding:42px 40px 35px;">
+            <td align="center" class="content" style="padding:42px 40px 35px; background:#ffffff !important;">
               
               <!-- ICON -->
-              <div style="width:60px; height:60px; line-height:60px; margin:0 auto 20px; background:#eef0ff; border-radius:18px; font-size:27px; text-align:center;">
+              <div style="width:60px; height:60px; line-height:60px; margin:0 auto 20px; background:#eef0ff !important; border-radius:18px; font-size:27px; text-align:center;">
                 🔐
               </div>
 
