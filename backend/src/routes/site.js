@@ -269,20 +269,140 @@ router.get('/settings', async (_req, res) => {
 router.get('/templates', async (_req, res) => {
   try {
     const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_templates'").get();
+    let customTemplates = [];
     if (row && row.value) {
       try {
-        const customTemplates = JSON.parse(row.value);
-        if (Array.isArray(customTemplates) && customTemplates.length > 0) {
-          return res.json({ templates: customTemplates });
-        }
+        customTemplates = JSON.parse(row.value);
       } catch (parseErr) {
         console.warn('[Site] Failed to parse custom_templates from DB:', parseErr.message);
       }
     }
-    res.json({ templates: DEFAULT_TEMPLATES });
+    
+    // Merge system DEFAULT_TEMPLATES with user custom/edited templates (user items overwrite defaults if matching ID)
+    const templatesMap = new Map();
+    (DEFAULT_TEMPLATES || []).forEach(t => templatesMap.set(t.id, t));
+    if (Array.isArray(customTemplates)) {
+      customTemplates.forEach(t => templatesMap.set(t.id, t));
+    }
+
+    res.json({ templates: Array.from(templatesMap.values()) });
   } catch (err) {
     console.warn('[Site] Get templates fallback:', err.message);
     res.json({ templates: DEFAULT_TEMPLATES });
+  }
+});
+
+// POST /api/site/templates (Save / Create a new custom template or update existing)
+router.post('/templates', async (req, res) => {
+  try {
+    const tplData = req.body;
+    if (!tplData || !tplData.name) {
+      return res.status(400).json({ error: 'Template name is required.' });
+    }
+
+    const templateId = tplData.id || `custom_tpl_${Date.now()}`;
+    const newTemplate = {
+      ...tplData,
+      id: templateId,
+      card_enabled: 1,
+      updated_at: new Date().toISOString()
+    };
+
+    // Load existing custom templates from DB
+    const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_templates'").get();
+    let customTemplates = [];
+    if (row && row.value) {
+      try {
+        customTemplates = JSON.parse(row.value);
+      } catch (e) {}
+    }
+
+    // Upsert template
+    const existingIndex = customTemplates.findIndex(t => t.id === templateId);
+    if (existingIndex >= 0) {
+      customTemplates[existingIndex] = newTemplate;
+    } else {
+      customTemplates.unshift(newTemplate);
+    }
+
+    await db.prepare(`
+      INSERT INTO site_settings (key, value, updated_at)
+      VALUES ('custom_templates', ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+    `).run(JSON.stringify(customTemplates));
+
+    res.json({ success: true, template: newTemplate });
+  } catch (err) {
+    console.error('[Site] Error saving template:', err);
+    res.status(500).json({ error: 'Failed to save template' });
+  }
+});
+
+// PUT /api/site/templates/:id (Update existing custom template)
+router.put('/templates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tplData = req.body;
+
+    const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_templates'").get();
+    let customTemplates = [];
+    if (row && row.value) {
+      try {
+        customTemplates = JSON.parse(row.value);
+      } catch (e) {}
+    }
+
+    const updatedTemplate = {
+      ...tplData,
+      id,
+      card_enabled: 1,
+      updated_at: new Date().toISOString()
+    };
+
+    const existingIndex = customTemplates.findIndex(t => t.id === id);
+    if (existingIndex >= 0) {
+      customTemplates[existingIndex] = updatedTemplate;
+    } else {
+      customTemplates.unshift(updatedTemplate);
+    }
+
+    await db.prepare(`
+      INSERT INTO site_settings (key, value, updated_at)
+      VALUES ('custom_templates', ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+    `).run(JSON.stringify(customTemplates));
+
+    res.json({ success: true, template: updatedTemplate });
+  } catch (err) {
+    console.error('[Site] Error updating template:', err);
+    res.status(500).json({ error: 'Failed to update template' });
+  }
+});
+
+// DELETE /api/site/templates/:id (Delete a custom template)
+router.delete('/templates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_templates'").get();
+    let customTemplates = [];
+    if (row && row.value) {
+      try {
+        customTemplates = JSON.parse(row.value);
+      } catch (e) {}
+    }
+
+    customTemplates = customTemplates.filter(t => t.id !== id);
+
+    await db.prepare(`
+      INSERT INTO site_settings (key, value, updated_at)
+      VALUES ('custom_templates', ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+    `).run(JSON.stringify(customTemplates));
+
+    res.json({ success: true, message: 'Template deleted' });
+  } catch (err) {
+    console.error('[Site] Error deleting template:', err);
+    res.status(500).json({ error: 'Failed to delete template' });
   }
 });
 

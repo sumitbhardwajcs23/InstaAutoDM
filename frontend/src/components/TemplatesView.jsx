@@ -22,9 +22,12 @@ import {
   ArrowRight,
   Layers,
   Heart,
-  ChevronRight
+  ChevronRight,
+  Edit3,
+  Plus
 } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import TemplateEditorModal from './TemplateEditorModal';
 
 export const TEMPLATES_DATA = [
   // --- 1. E-COMMERCE & RETAIL (7 Templates) ---
@@ -614,19 +617,24 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
   const [copiedId, setCopiedId] = useState(null);
   const [previewTemplate, setPreviewTemplate] = useState(null);
 
+  // Template Editor Modal State
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+
+  const loadDynamicTemplates = async () => {
+    try {
+      const res = await apiFetch('/site/templates');
+      const data = await res.json();
+      if (data && Array.isArray(data.templates) && data.templates.length > 0) {
+        setTemplatesList(data.templates);
+      }
+    } catch (err) {
+      // fallback to default TEMPLATES_DATA silently
+    }
+  };
+
   // Load custom/updated templates from backend API
   useEffect(() => {
-    async function loadDynamicTemplates() {
-      try {
-        const res = await apiFetch('/site/templates');
-        const data = await res.json();
-        if (data && Array.isArray(data.templates) && data.templates.length > 0) {
-          setTemplatesList(data.templates);
-        }
-      } catch (err) {
-        // fallback to default TEMPLATES_DATA silently
-      }
-    }
     loadDynamicTemplates();
   }, []);
 
@@ -815,6 +823,18 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
               <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>Ready to Launch</div>
             </div>
           </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setEditingTemplate(null);
+              setIsEditorOpen(true);
+            }}
+            style={{ padding: '10px 16px', fontSize: '13.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Plus size={16} />
+            <span>Create New Template</span>
+          </button>
           <button
             type="button"
             className="btn btn-primary"
@@ -1547,6 +1567,32 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
                     <span>Preview</span>
                   </button>
 
+                  {/* Edit Template Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingTemplate(template);
+                      setIsEditorOpen(true);
+                    }}
+                    title="Edit template image, headline, button & keyword"
+                    style={{
+                      padding: '7px 11px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      background: 'var(--bg-card)',
+                      color: 'var(--text-main)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <Edit3 size={13} color="var(--primary)" />
+                    <span>Edit</span>
+                  </button>
+
                   {/* Copy Card Copy Button */}
                   <button
                     type="button"
@@ -2232,6 +2278,21 @@ export default function TemplatesView({ onOpenCreateRule, account }) {
           </div>
         </div>
       )}
+
+      {/* TEMPLATE EDITOR & BUILDER MODAL */}
+      <TemplateEditorModal
+        isOpen={isEditorOpen}
+        onClose={() => {
+          setIsEditorOpen(false);
+          setEditingTemplate(null);
+        }}
+        templateToEdit={editingTemplate}
+        onTemplateSaved={() => {
+          loadDynamicTemplates();
+        }}
+        onOpenCreateRule={onOpenCreateRule}
+        accountId={account?.id}
+      />
     </div>
   );
 }
