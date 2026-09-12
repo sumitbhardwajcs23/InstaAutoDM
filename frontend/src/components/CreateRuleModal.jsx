@@ -5,18 +5,20 @@ import {
   Zap, 
   Send, 
   MessageCircle, 
-  MessageSquare, 
+  Clock, 
   Sparkles, 
   Check, 
-  Layers, 
-  Film, 
-  Clock, 
-  HelpCircle,
   AlertCircle,
-  UserCheck,
-  Lock
+  Lock,
+  Smile,
+  ArrowDown,
+  Eye,
+  CheckCircle2,
+  Film
 } from 'lucide-react';
 import { apiFetch } from '../api/client';
+
+const QUICK_EMOJIS = ['🚀', '📩', '✨', '🔥', '💎', '🎁', '✅', '👇', '❤️', '⚡', '🎉', '👉'];
 
 export default function CreateRuleModal({ 
   isOpen, 
@@ -33,16 +35,21 @@ export default function CreateRuleModal({
   const [actionType, setActionType] = useState('comment'); // 'comment' | 'story' | 'dm'
   const [targetMedia, setTargetMedia] = useState(null);
 
-  const [commentReplyMode, setCommentReplyMode] = useState('both'); // 'both', 'dm_only', 'comment_only'
-  const [commentReplyMessage, setCommentReplyMessage] = useState('Check your DM! 🚀 | Sent you the link! 📩');
-  const [dmReplyMessage, setDmReplyMessage] = useState('Hey {username}! Thanks for your comment. Here is what you requested: https://');
+  // Checkbox states for Step 3 (when actionType === 'comment')
+  const [enablePublicReply, setEnablePublicReply] = useState(true);
+  const [enablePrivateDm, setEnablePrivateDm] = useState(true);
+
+  const [commentReplyMessage, setCommentReplyMessage] = useState('Check your DM! 🚀');
+  const [dmReplyMessage, setDmReplyMessage] = useState('Hey {username}! Thanks for your comment. Here is what you requested: https://yourlink.com');
   const [dmText, setDmText] = useState('Hey {username}! Thanks for reaching out. How can I help you today?');
+  
   const [requireFollow, setRequireFollow] = useState(false);
   const [followPromptMessage, setFollowPromptMessage] = useState("Hey {username}! Please follow @ourpage first to get your access link! Tap \"✅ I've Followed\" below once done 🚀");
   const [followCommentReply, setFollowCommentReply] = useState("Almost there! Follow @ourpage and check your DMs to unlock 🚀");
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [activeEmojiTarget, setActiveEmojiTarget] = useState(null);
 
   // Sync state whenever modal opens or props change
   useEffect(() => {
@@ -58,12 +65,15 @@ export default function CreateRuleModal({
       else if (isComment) setActionType('comment');
       else setActionType('dm');
 
-      setCommentReplyMode(ruleToEdit.comment_reply_mode || 'both');
-      setCommentReplyMessage(ruleToEdit.comment_reply_message || 'Check your DM! 🚀 | Sent you the link! 📩');
+      const mode = ruleToEdit.comment_reply_mode || 'both';
+      setEnablePublicReply(mode === 'both' || mode === 'comment_only');
+      setEnablePrivateDm(mode === 'both' || mode === 'dm_only');
+
+      setCommentReplyMessage(ruleToEdit.comment_reply_message || 'Check your DM! 🚀');
       
       const existingDm = ruleToEdit.dm_reply_message || ruleToEdit.reply_text || ruleToEdit.reply_message || '';
       if (isComment || isStory) {
-        setDmReplyMessage(existingDm || 'Hey {username}! Thanks for reaching out. Here is what you requested: https://');
+        setDmReplyMessage(existingDm || 'Hey {username}! Thanks for your comment. Here is what you requested: https://yourlink.com');
       } else {
         setDmText(existingDm || 'Hey {username}! Thanks for reaching out. How can I help you today?');
       }
@@ -80,31 +90,27 @@ export default function CreateRuleModal({
           thumbnail: ruleToEdit.target_media_thumbnail || null,
           caption: ruleToEdit.target_media_caption || (ruleToEdit.target_media_type === 'next_upload' ? '🚀 Next Uploaded Reel/Post' : null),
         });
-        // Targeted media cannot have a Direct Message (DM) inbox trigger
-        if (!isStory) {
-          setActionType('comment');
-        }
+        if (!isStory) setActionType('comment');
       } else {
         setTargetMedia(null);
       }
 
       setIsActive(ruleToEdit.is_active !== undefined ? Boolean(ruleToEdit.is_active) : true);
     } else if (preselectedMedia) {
-      // Triggered from clicking "Automate this Reel" in MediaView
       const isReel = preselectedMedia.media_product_type === 'REELS' || preselectedMedia.media_type === 'VIDEO';
       const isStory = preselectedMedia.media_product_type === 'STORY';
       
       if (isStory) {
         setActionType('story');
         setTriggerKeyword('HI');
-        setDmReplyMessage('Hey {username}! Thanks for replying to my story! Here is your access link: https://');
+        setDmReplyMessage('Hey {username}! Thanks for replying to my story! Here is your link: https://yourlink.com');
       } else {
         setActionType('comment');
-        setCommentReplyMode('both');
-        setCommentReplyMessage('Check your DM! 🚀 | Sent you the link in inbox! 📩');
-        setDmReplyMessage('Hey {username}! Thanks for your comment on my Reel. Here is the link you wanted: https://');
+        setEnablePublicReply(true);
+        setEnablePrivateDm(true);
+        setCommentReplyMessage('Check your DM! 🚀');
+        setDmReplyMessage('Hey {username}! Thanks for your comment on my Reel. Here is what you requested: https://yourlink.com');
 
-        // Extract potential keyword from caption (e.g. comment "LINK" or 'PRICE')
         const caption = preselectedMedia.caption || '';
         const match = caption.match(/comment\s+["']?([A-Z0-9_]+)["']?/i);
         if (match && match[1]) {
@@ -130,15 +136,16 @@ export default function CreateRuleModal({
       setMatchMode('contains');
       setIsActive(true);
     } else {
-      // Clean default
-      setName('');
-      setTriggerKeyword('');
+      // Clean default matching mockup
+      setName('Hi Auto Reply');
+      setTriggerKeyword('Hi');
       setMatchMode('contains');
       setActionType('comment');
       setTargetMedia(null);
-      setCommentReplyMode('both');
-      setCommentReplyMessage('Check your DM! 🚀 | Sent you the link! 📩');
-      setDmReplyMessage('Hey {username}! Thanks for your comment. Here is what you requested: https://');
+      setEnablePublicReply(true);
+      setEnablePrivateDm(true);
+      setCommentReplyMessage('Check your DM! 🚀');
+      setDmReplyMessage('Hey {username}! Thanks for your comment. Here is what you requested: https://yourlink.com');
       setDmText('Hey {username}! Thanks for reaching out. How can I help you today?');
       setRequireFollow(false);
       setFollowPromptMessage("Hey {username}! Please follow @ourpage first to get your access link! Tap \"✅ I've Followed\" below once done 🚀");
@@ -148,7 +155,6 @@ export default function CreateRuleModal({
     setError(null);
   }, [ruleToEdit, preselectedMedia, isOpen]);
 
-  // When targeting a specific media / next upload, trigger cannot be Direct Message (DM)
   useEffect(() => {
     if (targetMedia && actionType === 'dm') {
       setActionType(targetMedia.type === 'story' ? 'story' : 'comment');
@@ -156,6 +162,11 @@ export default function CreateRuleModal({
   }, [targetMedia, actionType]);
 
   if (!isOpen) return null;
+
+  // Determine commentReplyMode from checkboxes
+  const calculatedMode = enablePublicReply && enablePrivateDm ? 'both' 
+    : (enablePublicReply ? 'comment_only' 
+    : (enablePrivateDm ? 'dm_only' : 'none'));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -167,7 +178,6 @@ export default function CreateRuleModal({
     const finalDmReply = isComment || isStory ? dmReplyMessage.trim() : dmText.trim();
     const finalCommentReply = isComment ? commentReplyMessage.trim() : '';
 
-    // Validation
     if (!triggerKeyword.trim()) {
       setError('Trigger keyword is required. (Use "*" for any message or comment)');
       setLoading(false);
@@ -175,24 +185,24 @@ export default function CreateRuleModal({
     }
 
     if (isComment) {
-      if (commentReplyMode === 'comment_only' && !finalCommentReply) {
-        setError('Please enter a public comment reply message');
+      if (!enablePublicReply && !enablePrivateDm) {
+        setError('Please select at least one action: Public Reply or Private DM.');
         setLoading(false);
         return;
       }
-      if (commentReplyMode === 'dm_only' && !finalDmReply) {
-        setError('Please enter a private DM message');
+      if (enablePublicReply && !finalCommentReply) {
+        setError('Please enter a public comment reply message.');
         setLoading(false);
         return;
       }
-      if (commentReplyMode === 'both' && !finalCommentReply && !finalDmReply) {
-        setError('Please provide at least a public comment reply or a private DM message');
+      if (enablePrivateDm && !finalDmReply) {
+        setError('Please enter a private DM message.');
         setLoading(false);
         return;
       }
     } else {
       if (!finalDmReply) {
-        setError('Please enter an automated DM reply message');
+        setError('Please enter an automated DM reply message.');
         setLoading(false);
         return;
       }
@@ -207,9 +217,9 @@ export default function CreateRuleModal({
       match_mode: matchMode,
       type: ruleType,
       action_type: actionType,
-      comment_reply_mode: isComment ? commentReplyMode : null,
-      comment_reply_message: isComment && (commentReplyMode === 'both' || commentReplyMode === 'comment_only') ? finalCommentReply : null,
-      dm_reply_message: (!isComment || commentReplyMode === 'both' || commentReplyMode === 'dm_only') ? finalDmReply : null,
+      comment_reply_mode: isComment ? calculatedMode : null,
+      comment_reply_message: isComment && enablePublicReply ? finalCommentReply : null,
+      dm_reply_message: (!isComment || enablePrivateDm) ? finalDmReply : null,
       reply_message: finalDmReply || finalCommentReply,
       reply_text: finalDmReply || finalCommentReply,
       target_media_id: targetMedia ? targetMedia.id : null,
@@ -251,6 +261,38 @@ export default function CreateRuleModal({
     }
   };
 
+  const insertEmoji = (emoji) => {
+    if (activeEmojiTarget === 'commentReply') {
+      setCommentReplyMessage(prev => prev + emoji);
+    } else if (activeEmojiTarget === 'dmReply') {
+      if (actionType === 'comment' || actionType === 'story') {
+        setDmReplyMessage(prev => prev + emoji);
+      } else {
+        setDmText(prev => prev + emoji);
+      }
+    }
+    setActiveEmojiTarget(null);
+  };
+
+  // Helper text for summary banner
+  const getSummaryText = () => {
+    const kw = triggerKeyword ? `"${triggerKeyword}"` : '"keyword"';
+    if (actionType === 'comment') {
+      if (enablePublicReply && enablePrivateDm) {
+        return `This rule will reply to comments containing ${kw} with a public reply and a private DM.`;
+      } else if (enablePublicReply) {
+        return `This rule will reply to comments containing ${kw} with a public reply only.`;
+      } else if (enablePrivateDm) {
+        return `This rule will reply to comments containing ${kw} with a private DM only.`;
+      }
+      return `Select an action for comments containing ${kw}.`;
+    } else if (actionType === 'story') {
+      return `This rule will reply to story responses containing ${kw} with a private DM.`;
+    } else {
+      return `This rule will reply to direct messages containing ${kw} with a private DM.`;
+    }
+  };
+
   return (
     <div style={{
       position: 'fixed',
@@ -258,55 +300,56 @@ export default function CreateRuleModal({
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.65)',
-      backdropFilter: 'blur(4px)',
+      backgroundColor: 'rgba(15, 23, 42, 0.65)',
+      backdropFilter: 'blur(8px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 1000,
+      zIndex: 2000,
       padding: '20px',
       overflowY: 'auto'
     }}>
       <div style={{
-        background: 'var(--bg-card)',
-        borderRadius: '20px',
+        background: '#ffffff',
+        borderRadius: '24px',
         width: '100%',
-        maxWidth: '580px',
+        maxWidth: '1020px',
         maxHeight: '92vh',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)',
-        border: '1px solid var(--border-light)',
+        boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35), 0 0 1px rgba(0, 0, 0, 0.1)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        border: '1px solid rgba(226, 232, 240, 0.8)',
       }}>
         {/* Modal Header */}
         <div style={{
-          padding: '18px 24px',
-          borderBottom: '1px solid var(--border-light)',
+          padding: '20px 28px',
+          borderBottom: '1px solid #f1f5f9',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'var(--bg-card)',
+          background: '#ffffff',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              background: 'var(--primary-light)',
-              color: 'var(--primary)',
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
+              color: '#4f46e5',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(79, 70, 229, 0.12)'
             }}>
-              <Zap size={19} />
+              <Zap size={22} />
             </div>
             <div>
-              <h2 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
                 {ruleToEdit && !ruleToEdit.isTemplate ? 'Edit Automation Rule' : (ruleToEdit?.isTemplate ? 'Create Rule from Template' : (targetMedia ? 'Automate Specific Content' : 'Create Automation Rule'))}
               </h2>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {targetMedia ? `Targeting specific ${targetMedia.type === 'reel' ? 'Reel' : (targetMedia.type === 'story' ? 'Story' : 'Post')}` : 'Automate Reel comments, Story replies & DMs'}
+              <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px', fontWeight: 500 }}>
+                Automate comments, story replies & DMs
               </div>
             </div>
           </div>
@@ -316,682 +359,1136 @@ export default function CreateRuleModal({
             onClick={onClose}
             style={{
               border: 'none',
-              background: 'var(--bg-subtle)',
-              color: 'var(--text-light)',
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
+              background: '#f8fafc',
+              color: '#64748b',
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
+              transition: 'all 0.15s ease',
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#0f172a'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#64748b'; }}
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
-        {/* Modal Form Content */}
+        {/* Modal Main Grid: 2 Columns */}
         <form onSubmit={handleSubmit} style={{ 
-          padding: '20px 24px', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '16px',
-          overflowY: 'auto'
+          display: 'grid',
+          gridTemplateColumns: '1.25fr 1fr',
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
         }}>
-          {error && (
-            <div style={{
-              padding: '10px 14px',
-              borderRadius: '10px',
-              background: '#fef2f2',
-              color: '#dc2626',
-              fontSize: '13px',
-              fontWeight: 500,
-              border: '1px solid #fecaca',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <AlertCircle size={16} />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Target Media Banner (if attached to specific media or next upload) */}
-          {targetMedia ? (
-            <div style={{
-              padding: '12px 14px',
-              borderRadius: '12px',
-              background: targetMedia.type === 'next_upload'
-                ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(99, 102, 241, 0.12))'
-                : 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(236, 72, 153, 0.08))',
-              border: targetMedia.type === 'next_upload' ? '1.5px solid #bfdbfe' : '1px solid rgba(99, 102, 241, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px'
-            }}>
-              {targetMedia.thumbnail ? (
-                <img 
-                  src={targetMedia.thumbnail} 
-                  alt="Target preview" 
-                  referrerPolicy="no-referrer"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                  style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
-                />
-              ) : targetMedia.type === 'next_upload' ? (
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '10px',
-                  background: '#2563eb',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(37,99,235,0.25)'
-                }}>
-                  <Film size={20} />
-                </div>
-              ) : null}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                  <span style={{
-                    fontSize: '10.5px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    padding: '2px 7px',
-                    borderRadius: '4px',
-                    background: targetMedia.type === 'next_upload' ? '#2563eb' : '#6366f1',
-                    color: '#fff'
-                  }}>
-                    {targetMedia.type === 'next_upload' 
-                      ? '🚀 Target: Next Reel / Post Upload' 
-                      : (targetMedia.type === 'reel' ? '🎬 Specific Reel' : (targetMedia.type === 'story' ? '⏳ Specific Story' : '📸 Specific Post'))}
-                  </span>
-                  {targetMedia.id && (
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      ID: {targetMedia.id?.slice(-8)}
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
-                  {targetMedia.caption || (targetMedia.type === 'next_upload' ? 'Will automatically attach to your next Instagram upload' : 'No caption')}
-                </div>
+          {/* Left Column: Input Form */}
+          <div style={{
+            padding: '24px 28px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '22px',
+            overflowY: 'auto',
+            borderRight: '1px solid #f1f5f9',
+          }}>
+            {error && (
+              <div style={{
+                padding: '12px 16px',
+                borderRadius: '12px',
+                background: '#fef2f2',
+                color: '#dc2626',
+                fontSize: '13.5px',
+                fontWeight: 600,
+                border: '1px solid #fecaca',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}>
+                <AlertCircle size={18} />
+                <span>{error}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setTargetMedia(null)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  fontSize: '11.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textDecoration: 'underline'
-                }}
-              >
-                Change Target
-              </button>
-            </div>
-          ) : (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              background: 'var(--bg-subtle)',
-              border: '1px solid var(--border-light)',
-              fontSize: '12px',
-              color: 'var(--text-muted)'
-            }}>
-              <span>🎯 <b>Scope:</b> Global (triggers on all Reels & Posts)</span>
-              <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Tip: Use Media Hub to target a specific Reel</span>
-            </div>
-          )}
+            )}
 
-          {/* Trigger Event Type Tabs */}
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>
-              Select Trigger Type:
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: targetMedia ? '1fr 1fr' : '1fr 1fr 1fr', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setActionType('comment')}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  padding: '10px 8px',
-                  borderRadius: '10px',
-                  border: '1.5px solid',
-                  borderColor: actionType === 'comment' ? 'var(--primary)' : 'var(--border-subtle)',
-                  background: actionType === 'comment' ? 'var(--primary-light)' : 'transparent',
-                  color: actionType === 'comment' ? 'var(--primary)' : 'var(--text-muted)',
-                  fontWeight: 600,
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  textAlign: 'center'
-                }}
-              >
-                <MessageCircle size={18} />
-                <span>Reel / Post Comment</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActionType('story')}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  padding: '10px 8px',
-                  borderRadius: '10px',
-                  border: '1.5px solid',
-                  borderColor: actionType === 'story' ? '#ec4899' : 'var(--border-subtle)',
-                  background: actionType === 'story' ? 'rgba(236, 72, 153, 0.12)' : 'transparent',
-                  color: actionType === 'story' ? '#ec4899' : 'var(--text-muted)',
-                  fontWeight: 600,
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  textAlign: 'center'
-                }}
-              >
-                <Clock size={18} />
-                <span>Story Reply / Mention</span>
-              </button>
-
-              {/* Direct Message (DM) is only for global inbox rules, NOT when targeting a specific Reel/Post or Next Upload */}
-              {!targetMedia && (
-                <button
-                  type="button"
-                  onClick={() => setActionType('dm')}
-                  style={{
+            {/* Target Media Banner (if attached to specific media or next upload) */}
+            {targetMedia && (
+              <div style={{
+                padding: '12px 14px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.06), rgba(236, 72, 153, 0.06))',
+                border: '1px solid rgba(79, 70, 229, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                {targetMedia.thumbnail ? (
+                  <img 
+                    src={targetMedia.thumbnail} 
+                    alt="Target preview" 
+                    referrerPolicy="no-referrer"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '10px',
+                    background: '#4f46e5',
+                    color: '#ffffff',
                     display: 'flex',
-                    flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '4px',
-                    padding: '10px 8px',
-                    borderRadius: '10px',
-                    border: '1.5px solid',
-                    borderColor: actionType === 'dm' ? '#06b6d4' : 'var(--border-subtle)',
-                    background: actionType === 'dm' ? 'rgba(6, 182, 212, 0.12)' : 'transparent',
-                    color: actionType === 'dm' ? '#06b6d4' : 'var(--text-muted)',
-                    fontWeight: 600,
-                    fontSize: '12px',
+                  }}>
+                    <Film size={20} />
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#4f46e5' }}>
+                    {targetMedia.type === 'next_upload' ? '🚀 Target: Next Reel / Post Upload' : `🎬 Target: Specific ${targetMedia.type.toUpperCase()}`}
+                  </div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {targetMedia.caption || 'Attached Content'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTargetMedia(null)}
+                  style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '12px', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
+            {/* Rule Name Field */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                  Rule Name
+                </label>
+                <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 500 }}>
+                  {name.length}/50
+                </span>
+              </div>
+              <input
+                type="text"
+                value={name}
+                maxLength={50}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Hi Auto Reply"
+                style={{
+                  width: '100%',
+                  padding: '11px 14px',
+                  borderRadius: '12px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#0f172a',
+                  outline: 'none',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                  transition: 'border-color 0.15s ease',
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#4f46e5'}
+                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+              />
+            </div>
+
+            {/* Step 1: When should this rule run? */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  background: '#4f46e5',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  1
+                </div>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                  When should this rule run?
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                {/* Option 1: Comment */}
+                <button
+                  type="button"
+                  onClick={() => setActionType('comment')}
+                  style={{
+                    padding: '14px 12px',
+                    borderRadius: '14px',
+                    border: actionType === 'comment' ? '2px solid #4f46e5' : '1px solid #e2e8f0',
+                    background: actionType === 'comment' ? '#faf5ff' : '#ffffff',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                    position: 'relative',
                     cursor: 'pointer',
-                    textAlign: 'center'
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease',
+                    boxShadow: actionType === 'comment' ? '0 4px 12px rgba(79,70,229,0.08)' : 'none',
                   }}
                 >
-                  <Send size={18} />
-                  <span>Direct Message (DM)</span>
+                  {actionType === 'comment' && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '10px',
+                      right: '10px',
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: '#4f46e5',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Check size={12} strokeWidth={3} />
+                    </div>
+                  )}
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: actionType === 'comment' ? '#e0e7ff' : '#f8fafc',
+                    color: actionType === 'comment' ? '#4f46e5' : '#64748b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <MessageCircle size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>Comment</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', lineHeight: 1.3 }}>
+                      When someone comments on your posts
+                    </div>
+                  </div>
                 </button>
-              )}
-            </div>
-          </div>
 
-          {/* Trigger Keyword and Match Mode */}
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
-                  Trigger Keyword(s)
-                </label>
+                {/* Option 2: Story Reply */}
+                <button
+                  type="button"
+                  onClick={() => setActionType('story')}
+                  style={{
+                    padding: '14px 12px',
+                    borderRadius: '14px',
+                    border: actionType === 'story' ? '2px solid #4f46e5' : '1px solid #e2e8f0',
+                    background: actionType === 'story' ? '#faf5ff' : '#ffffff',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease',
+                    boxShadow: actionType === 'story' ? '0 4px 12px rgba(79,70,229,0.08)' : 'none',
+                  }}
+                >
+                  {actionType === 'story' && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '10px',
+                      right: '10px',
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: '#4f46e5',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Check size={12} strokeWidth={3} />
+                    </div>
+                  )}
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: actionType === 'story' ? '#e0e7ff' : '#f8fafc',
+                    color: actionType === 'story' ? '#4f46e5' : '#64748b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Clock size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>Story Reply</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', lineHeight: 1.3 }}>
+                      When someone replies to your story
+                    </div>
+                  </div>
+                </button>
+
+                {/* Option 3: Direct Message */}
+                <button
+                  type="button"
+                  disabled={Boolean(targetMedia)}
+                  onClick={() => setActionType('dm')}
+                  style={{
+                    padding: '14px 12px',
+                    borderRadius: '14px',
+                    border: actionType === 'dm' ? '2px solid #4f46e5' : '1px solid #e2e8f0',
+                    background: actionType === 'dm' ? '#faf5ff' : '#ffffff',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                    position: 'relative',
+                    cursor: targetMedia ? 'not-allowed' : 'pointer',
+                    opacity: targetMedia ? 0.5 : 1,
+                    textAlign: 'left',
+                    transition: 'all 0.15s ease',
+                    boxShadow: actionType === 'dm' ? '0 4px 12px rgba(79,70,229,0.08)' : 'none',
+                  }}
+                >
+                  {actionType === 'dm' && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '10px',
+                      right: '10px',
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      background: '#4f46e5',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Check size={12} strokeWidth={3} />
+                    </div>
+                  )}
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: actionType === 'dm' ? '#e0e7ff' : '#f8fafc',
+                    color: actionType === 'dm' ? '#4f46e5' : '#64748b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Send size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>Direct Message</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', lineHeight: 1.3 }}>
+                      When someone sends you a DM
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Step 2: What should the person say? */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  background: '#4f46e5',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  2
+                </div>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                  What should the person say?
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <input
                   type="text"
                   required
                   value={triggerKeyword}
                   onChange={(e) => setTriggerKeyword(e.target.value)}
-                  placeholder="e.g. LINK, PRICE, HI, HELLO, *"
+                  placeholder="e.g. Hi"
                   style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-subtle)',
-                    fontSize: '13.5px',
-                    fontWeight: 600,
+                    flex: 1,
+                    padding: '11px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    color: '#0f172a',
                     outline: 'none',
-                    textTransform: 'uppercase',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
                   }}
                 />
-              </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '6px' }}>
-                  Match Mode
-                </label>
                 <select
                   value={matchMode}
                   onChange={(e) => setMatchMode(e.target.value)}
                   style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-subtle)',
-                    fontSize: '13px',
-                    color: 'var(--text-main)',
+                    padding: '11px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    color: '#0f172a',
                     outline: 'none',
                     cursor: 'pointer',
                   }}
                 >
-                  <option value="contains">Contains Keyword</option>
-                  <option value="exact">Exact Match</option>
-                  <option value="starts_with">Starts With</option>
+                  <option value="contains">Contains keyword</option>
+                  <option value="exact">Exact match</option>
+                  <option value="starts_with">Starts with</option>
                 </select>
               </div>
-            </div>
 
-            {/* Keyword Preset Helpers */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Quick Keywords:</span>
-              {['LINK', 'PRICE', 'HI', 'HELLO', '* (Any)'].map(kw => {
-                const val = kw.startsWith('*') ? '*' : kw;
-                return (
+              {/* Quick Add Chips */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
+                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>Quick add:</span>
+                {['Hi', 'Hello', 'Link', 'Price'].map((chip) => (
                   <button
-                    key={kw}
+                    key={chip}
                     type="button"
-                    onClick={() => setTriggerKeyword(val)}
+                    onClick={() => setTriggerKeyword(chip)}
                     style={{
-                      padding: '2px 8px',
-                      borderRadius: '6px',
-                      background: 'var(--bg-subtle)',
-                      border: '1px solid var(--border-light)',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: 'var(--text-muted)',
-                      cursor: 'pointer'
+                      padding: '4px 12px',
+                      borderRadius: '8px',
+                      background: '#f1f5f9',
+                      border: '1px solid #e2e8f0',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      color: '#475569',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
                     }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
                   >
-                    +{kw}
+                    + {chip}
                   </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Action Configuration for Comments */}
-          {actionType === 'comment' && (
-            <div style={{
-              padding: '14px',
-              borderRadius: '12px',
-              background: 'var(--bg-subtle)',
-              border: '1px solid var(--border-light)',
-            }}>
-              <label style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px', 
-                fontSize: '13px', 
-                fontWeight: 700, 
-                color: 'var(--text-main)', 
-                marginBottom: '10px' 
-              }}>
-                <Layers size={15} color="var(--primary)" />
-                What should happen when someone comments?
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                {[
-                  { id: 'both', label: '🚀 Both (Comment + DM)', desc: 'Public reply + private link in DM' },
-                  { id: 'comment_only', label: '💬 Comment Only', desc: 'Public reply on Reel only' },
-                  { id: 'dm_only', label: '✉️ DM Only', desc: 'Direct message only' },
-                ].map((mode) => {
-                  const isSelected = commentReplyMode === mode.id;
-                  return (
-                    <button
-                      key={mode.id}
-                      type="button"
-                      onClick={() => setCommentReplyMode(mode.id)}
-                      style={{
-                        padding: '10px 8px',
-                        borderRadius: '10px',
-                        border: '1.5px solid',
-                        borderColor: isSelected ? 'var(--primary)' : 'var(--border-subtle)',
-                        background: isSelected ? 'var(--bg-card)' : 'transparent',
-                        color: isSelected ? 'var(--primary)' : 'var(--text-main)',
-                        boxShadow: isSelected ? '0 2px 8px rgba(99,102,241,0.18)' : 'none',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <div style={{ fontSize: '12px', fontWeight: 700 }}>{mode.label}</div>
-                      <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '2px' }}>{mode.desc}</div>
-                    </button>
-                  );
-                })}
+                ))}
               </div>
             </div>
-          )}
 
-          {/* 1. Public Comment Reply Field (For Comments) */}
-          {actionType === 'comment' && (commentReplyMode === 'both' || commentReplyMode === 'comment_only') && (
-            <div style={{
-              padding: '14px',
-              borderRadius: '12px',
-              border: '1px solid #fbcfe8',
-              background: 'rgba(236, 72, 153, 0.05)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 700, color: '#ec4899', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <MessageCircle size={15} />
-                  Public Reply under Reel Comment
-                </label>
-                <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Visible on Reel</span>
-              </div>
-              <textarea
-                required
-                rows={2}
-                value={commentReplyMessage}
-                onChange={(e) => setCommentReplyMessage(e.target.value)}
-                placeholder="Check your DM! 🚀 | Sent you the link! 📩 | In your inbox! ✨"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #f472b6',
-                  background: 'var(--bg-card)',
+            {/* Step 3: What should happen? */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  background: '#4f46e5',
+                  color: '#ffffff',
                   fontSize: '13px',
-                  outline: 'none',
-                  resize: 'vertical',
-                  color: 'var(--text-main)',
-                }}
-              />
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                💡 <b>Anti-Spam Shield:</b> Separate multiple reply options with <code>|</code> to rotate replies automatically.
-              </div>
-            </div>
-          )}
-
-          {/* 2. Direct Message (DM) Reply Field */}
-          {(actionType === 'story' || actionType === 'dm' || (actionType === 'comment' && (commentReplyMode === 'both' || commentReplyMode === 'dm_only'))) && (
-            <div style={{
-              padding: '14px',
-              borderRadius: '12px',
-              border: '1px solid #c7d2fe',
-              background: 'rgba(99, 102, 241, 0.05)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Send size={15} />
-                  {actionType === 'story' ? 'Instant DM for Story Reply' : 'Automated Private DM Response'}
-                </label>
-                <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Delivered to Inbox</span>
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  3
+                </div>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                  What should happen?
+                </span>
               </div>
 
-              <textarea
-                required
-                rows={3}
-                value={actionType === 'comment' || actionType === 'story' ? dmReplyMessage : dmText}
-                onChange={(e) => {
-                  if (actionType === 'comment' || actionType === 'story') setDmReplyMessage(e.target.value);
-                  else setDmText(e.target.value);
-                }}
-                placeholder="Hey {username}! Thanks for reaching out. Here is your link: https://..."
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #818cf8',
-                  background: 'var(--bg-card)',
-                  fontSize: '13px',
-                  outline: 'none',
-                  resize: 'vertical',
-                  color: 'var(--text-main)',
-                }}
-              />
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                💡 Use <code>{'{username}'}</code> to automatically mention the follower's name.
-              </div>
-            </div>
-          )}
-
-          {/* Follower Check (Follow-to-Unlock) Section */}
-          {actionType === 'comment' && (
-            <div style={{
-              padding: '14px',
-              borderRadius: '12px',
-              border: requireFollow ? '1.5px solid #6366f1' : '1px solid var(--border-light)',
-              background: requireFollow ? 'rgba(99, 102, 241, 0.04)' : 'var(--bg-subtle)',
-              transition: 'all 0.2s ease',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* Checkboxes & Fields based on Action Type */}
+              {actionType === 'comment' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Action Option 1: Reply to the comment (Public) */}
                   <div style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '8px',
-                    background: requireFollow ? 'var(--primary)' : 'var(--border-subtle)',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '13px'
+                    padding: '14px 16px',
+                    borderRadius: '14px',
+                    border: '1px solid #e2e8f0',
+                    background: '#f8fafc',
                   }}>
-                    <Lock size={15} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      Follower Check (Follow-to-Unlock)
-                      <span style={{ 
-                        fontSize: '10px', 
-                        fontWeight: 700, 
-                        padding: '2px 6px', 
-                        borderRadius: '999px', 
-                        background: requireFollow ? '#dbeafe' : 'var(--bg-card)', 
-                        color: requireFollow ? '#1d4ed8' : 'var(--text-dim)',
-                        border: '1px solid var(--border-light)'
-                      }}>
-                        {requireFollow ? 'ACTIVATED' : 'OPTIONAL'}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: enablePublicReply ? '10px' : 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={enablePublicReply}
+                        onChange={(e) => setEnablePublicReply(e.target.checked)}
+                        style={{ width: '18px', height: '18px', accentColor: '#4f46e5', cursor: 'pointer' }}
+                      />
+                      <MessageCircle size={18} color="#ec4899" />
+                      <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a' }}>
+                        Reply to the comment (Public)
                       </span>
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      Only send the link/reward if the commenter follows your Instagram account!
-                    </div>
+                    </label>
+
+                    {enablePublicReply && (
+                      <div style={{ position: 'relative', marginTop: '8px' }}>
+                        <input
+                          type="text"
+                          required={enablePublicReply}
+                          value={commentReplyMessage}
+                          onChange={(e) => setCommentReplyMessage(e.target.value)}
+                          placeholder="Check your DM! 🚀"
+                          style={{
+                            width: '100%',
+                            padding: '10px 40px 10px 14px',
+                            borderRadius: '10px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            fontSize: '13.5px',
+                            fontWeight: 500,
+                            color: '#0f172a',
+                            outline: 'none',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setActiveEmojiTarget(activeEmojiTarget === 'commentReply' ? null : 'commentReply')}
+                          style={{
+                            position: 'absolute',
+                            right: '10px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            color: '#64748b',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Smile size={18} />
+                        </button>
+
+                        {/* Emoji Quick Bar */}
+                        {activeEmojiTarget === 'commentReply' && (
+                          <div style={{
+                            position: 'absolute',
+                            right: 0,
+                            bottom: '100%',
+                            marginBottom: '6px',
+                            background: '#ffffff',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '12px',
+                            padding: '8px',
+                            display: 'flex',
+                            gap: '6px',
+                            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                            zIndex: 10,
+                          }}>
+                            {QUICK_EMOJIS.map(em => (
+                              <button
+                                key={em}
+                                type="button"
+                                onClick={() => insertEmoji(em)}
+                                style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer' }}
+                              >
+                                {em}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Option 2: Send a private DM */}
+                  <div style={{
+                    padding: '14px 16px',
+                    borderRadius: '14px',
+                    border: '1px solid #e2e8f0',
+                    background: '#f8fafc',
+                  }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: enablePrivateDm ? '10px' : 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={enablePrivateDm}
+                        onChange={(e) => setEnablePrivateDm(e.target.checked)}
+                        style={{ width: '18px', height: '18px', accentColor: '#4f46e5', cursor: 'pointer' }}
+                      />
+                      <Send size={18} color="#4f46e5" />
+                      <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a' }}>
+                        Send a private DM
+                      </span>
+                    </label>
+
+                    {enablePrivateDm && (
+                      <div style={{ position: 'relative', marginTop: '8px' }}>
+                        <textarea
+                          rows={3}
+                          required={enablePrivateDm}
+                          value={dmReplyMessage}
+                          onChange={(e) => setDmReplyMessage(e.target.value)}
+                          placeholder="Hey {username}! Thanks for your comment. Here is what you requested: https://yourlink.com"
+                          style={{
+                            width: '100%',
+                            padding: '10px 40px 10px 14px',
+                            borderRadius: '10px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            fontSize: '13.5px',
+                            fontWeight: 500,
+                            color: '#0f172a',
+                            outline: 'none',
+                            resize: 'vertical',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setActiveEmojiTarget(activeEmojiTarget === 'dmReply' ? null : 'dmReply')}
+                          style={{
+                            position: 'absolute',
+                            right: '10px',
+                            top: '12px',
+                            background: 'none',
+                            border: 'none',
+                            color: '#64748b',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Smile size={18} />
+                        </button>
+
+                        {/* Emoji Quick Bar */}
+                        {activeEmojiTarget === 'dmReply' && (
+                          <div style={{
+                            position: 'absolute',
+                            right: 0,
+                            bottom: '100%',
+                            marginBottom: '6px',
+                            background: '#ffffff',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '12px',
+                            padding: '8px',
+                            display: 'flex',
+                            gap: '6px',
+                            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                            zIndex: 10,
+                          }}>
+                            {QUICK_EMOJIS.map(em => (
+                              <button
+                                key={em}
+                                type="button"
+                                onClick={() => insertEmoji(em)}
+                                style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer' }}
+                              >
+                                {em}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span>💡 Use <code>{'{username}'}</code> to mention the follower's name.</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                <label style={{ position: 'relative', display: 'inline-block', width: '40px', height: '22px', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={requireFollow}
-                    onChange={(e) => setRequireFollow(e.target.checked)}
-                    style={{ opacity: 0, width: 0, height: 0 }}
-                  />
-                  <span style={{
-                    position: 'absolute',
-                    cursor: 'pointer',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: requireFollow ? 'var(--primary)' : '#cbd5e1',
-                    transition: '0.2s',
-                    borderRadius: '22px',
-                  }}>
-                    <span style={{
-                      position: 'absolute',
-                      content: '""',
-                      height: '16px',
-                      width: '16px',
-                      left: requireFollow ? '21px' : '3px',
-                      bottom: '3px',
-                      backgroundColor: 'white',
-                      transition: '0.2s',
-                      borderRadius: '50%',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                    }} />
-                  </span>
-                </label>
-              </div>
-
-              {requireFollow && (
-                <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px dashed #cbd5e1', paddingTop: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
-                      Follow Prompt DM (Sent to Non-Followers)
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={followPromptMessage}
-                      onChange={(e) => setFollowPromptMessage(e.target.value)}
-                      placeholder="Hey {username}! Please follow @ourpage first to get your access link! Tap &quot;✅ I've Followed&quot; below once done 🚀"
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-subtle)',
-                        background: 'var(--bg-card)',
-                        fontSize: '12.5px',
-                        outline: 'none',
-                        resize: 'vertical',
-                        color: 'var(--text-main)',
-                      }}
-                    />
-
-                    {/* Interactive DM Button Preview */}
-                    <div style={{
-                      marginTop: '8px',
-                      background: 'rgba(99, 102, 241, 0.04)',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      border: '1px dashed #cbd5e1'
-                    }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <Sparkles size={13} color="var(--primary)" />
-                        Interactive DM Quick Reply Buttons (Attached automatically):
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <span style={{
-                          fontSize: '11.5px',
-                          fontWeight: 600,
-                          padding: '4px 10px',
-                          borderRadius: '20px',
-                          background: '#ffffff',
-                          border: '1px solid var(--border-subtle)',
-                          color: 'var(--text-main)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-                        }}>
-                          👉 Follow Profile
-                        </span>
-                        <span style={{
-                          fontSize: '11.5px',
-                          fontWeight: 700,
-                          padding: '4px 10px',
-                          borderRadius: '20px',
-                          background: '#ecfdf5',
-                          border: '1px solid #a7f3d0',
-                          color: '#059669',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          boxShadow: '0 1px 3px rgba(16, 185, 129, 0.15)'
-                        }}>
-                          ✅ I've Followed
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.4 }}>
-                        💡 Airvix automatically sends interactive buttons. Non-followers simply tap <b>"✅ I've Followed"</b> inside Instagram to verify and unlock the link instantly without typing!
-                      </div>
-                    </div>
+              ) : (
+                /* For Story Reply or DM */
+                <div style={{
+                  padding: '14px 16px',
+                  borderRadius: '14px',
+                  border: '1px solid #e2e8f0',
+                  background: '#f8fafc',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <Send size={18} color="#4f46e5" />
+                    <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a' }}>
+                      {actionType === 'story' ? 'Automated DM for Story Reply' : 'Automated DM Response'}
+                    </span>
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
-                      Public Reel Comment for Non-Followers
-                    </label>
-                    <input
-                      type="text"
-                      value={followCommentReply}
-                      onChange={(e) => setFollowCommentReply(e.target.value)}
-                      placeholder="Almost there! Follow @ourpage and check your DMs to unlock 🚀"
+                  <div style={{ position: 'relative' }}>
+                    <textarea
+                      rows={3}
+                      required
+                      value={actionType === 'story' ? dmReplyMessage : dmText}
+                      onChange={(e) => {
+                        if (actionType === 'story') setDmReplyMessage(e.target.value);
+                        else setDmText(e.target.value);
+                      }}
+                      placeholder="Hey {username}! Thanks for reaching out..."
                       style={{
                         width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-subtle)',
-                        background: 'var(--bg-card)',
-                        fontSize: '12.5px',
+                        padding: '10px 40px 10px 14px',
+                        borderRadius: '10px',
+                        border: '1px solid #cbd5e1',
+                        background: '#ffffff',
+                        fontSize: '13.5px',
+                        fontWeight: 500,
+                        color: '#0f172a',
                         outline: 'none',
-                        color: 'var(--text-main)',
+                        resize: 'vertical',
                       }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setActiveEmojiTarget(activeEmojiTarget === 'dmReply' ? null : 'dmReply')}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '12px',
+                        background: 'none',
+                        border: 'none',
+                        color: '#64748b',
+                        cursor: 'pointer',
+                        padding: '4px',
+                      }}
+                    >
+                      <Smile size={18} />
+                    </button>
+                    <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '6px' }}>
+                      💡 Use <code>{'{username}'}</code> to mention the follower's name.
+                    </div>
                   </div>
                 </div>
               )}
             </div>
-          )}
 
-          {/* Rule Name (Optional) */}
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>
-              Rule Label (Optional)
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. VIP Pricing Funnel"
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--bg-subtle)',
-                fontSize: '12.5px',
-                outline: 'none',
-                color: 'var(--text-main)',
-              }}
-            />
+            {/* Step 4: Follow-to-Unlock (Optional) */}
+            {actionType === 'comment' && (
+              <div style={{
+                padding: '14px 16px',
+                borderRadius: '14px',
+                border: '1px solid #e2e8f0',
+                background: '#f8fafc',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      background: '#4f46e5',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      4
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+                        Follow-to-Unlock <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>(Optional)</span>
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                        Only send the link if they follow your Instagram.
+                      </div>
+                    </div>
+                  </div>
+
+                  <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={requireFollow}
+                      onChange={(e) => setRequireFollow(e.target.checked)}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span style={{
+                      position: 'absolute',
+                      cursor: 'pointer',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: requireFollow ? '#4f46e5' : '#cbd5e1',
+                      transition: '0.2s',
+                      borderRadius: '24px',
+                    }}>
+                      <span style={{
+                        position: 'absolute',
+                        content: '""',
+                        height: '18px',
+                        width: '18px',
+                        left: requireFollow ? '23px' : '3px',
+                        bottom: '3px',
+                        backgroundColor: 'white',
+                        transition: '0.2s',
+                        borderRadius: '50%',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                      }} />
+                    </span>
+                  </label>
+                </div>
+
+                {requireFollow && (
+                  <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', display: 'block', marginBottom: '4px' }}>
+                        Follow Prompt Message (Sent to Non-Followers)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={followPromptMessage}
+                        onChange={(e) => setFollowPromptMessage(e.target.value)}
+                        placeholder="Hey {username}! Please follow @ourpage first..."
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12.5px',
+                          color: '#0f172a',
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '12px', background: '#e0e7ff', color: '#4338ca', fontWeight: 600 }}>👉 Follow Profile</span>
+                      <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '12px', background: '#dcfce7', color: '#15803d', fontWeight: 700 }}>✅ I've Followed</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Active Switch */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <input 
-              type="checkbox"
-              id="ruleIsActive"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-            />
-            <label htmlFor="ruleIsActive" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
-              Enable this rule immediately
-            </label>
-          </div>
+          {/* Right Column: Live Interactive Instagram Preview Panel */}
+          <div style={{
+            background: '#f8fafc',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '18px',
+            overflowY: 'auto',
+          }}>
+            {/* Preview Panel Title */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: '#e0e7ff',
+                color: '#4f46e5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Eye size={18} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  Preview
+                </h3>
+                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>
+                  See how it will look to your audience
+                </div>
+              </div>
+            </div>
 
-          {/* Submit Actions */}
-          <div style={{ display: 'flex', gap: '10px', marginTop: '10px', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={onClose}
-              style={{ flex: 1, padding: '10px', fontSize: '13.5px' }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-              style={{ flex: 2, padding: '10px', fontSize: '13.5px', fontWeight: 700 }}
-            >
-              {loading ? 'Saving Automation...' : (ruleToEdit && !ruleToEdit.isTemplate ? 'Update Rule' : 'Activate Automation ⚡')}
-            </button>
+            {/* Instagram Live Simulated Canvas Container */}
+            <div style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              border: '1px solid #e2e8f0',
+              padding: '20px',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.04)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}>
+              {/* Context Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: '15px',
+                  boxShadow: '0 2px 8px rgba(220, 39, 67, 0.25)'
+                }}>
+                  <InstagramIcon />
+                </div>
+                <div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a' }}>
+                    {actionType === 'comment' ? 'Someone comments on your post' : (actionType === 'story' ? 'Someone replies to your story' : 'Someone sends you a DM')}
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 500 }}>
+                    @user123 • 2m ago
+                  </div>
+                </div>
+              </div>
+
+              {/* User Trigger Message Bubble */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', paddingLeft: '8px' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: '#cbd5e1',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  flexShrink: 0
+                }}>
+                  👤
+                </div>
+                <div style={{
+                  background: '#f1f5f9',
+                  padding: '10px 14px',
+                  borderRadius: '16px',
+                  borderTopLeftRadius: '4px',
+                  fontSize: '13.5px',
+                  color: '#0f172a',
+                  fontWeight: 600,
+                  maxWidth: '85%',
+                  wordBreak: 'break-word'
+                }}>
+                  {triggerKeyword || 'Hi'}
+                </div>
+              </div>
+
+              {/* Down Arrow separator */}
+              <div style={{ display: 'flex', justifyContent: 'center', color: '#cbd5e1' }}>
+                <ArrowDown size={16} />
+              </div>
+
+              {/* Action 1: Public Reply Bubble (If enabled & actionType === 'comment') */}
+              {actionType === 'comment' && enablePublicReply && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{
+                    alignSelf: 'flex-start',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#ec4899',
+                    background: '#fce7f3',
+                    padding: '3px 10px',
+                    borderRadius: '12px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <span>🧭 Your public reply</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', paddingLeft: '8px' }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      flexShrink: 0
+                    }}>
+                      A
+                    </div>
+                    <div style={{
+                      background: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                      padding: '10px 14px',
+                      borderRadius: '16px',
+                      borderTopLeftRadius: '4px',
+                      fontSize: '13px',
+                      color: '#0f172a',
+                      fontWeight: 500,
+                      maxWidth: '85%',
+                      wordBreak: 'break-word'
+                    }}>
+                      {commentReplyMessage || 'Check your DM! 🚀'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Down Arrow separator if both public and private DM are active */}
+              {actionType === 'comment' && enablePublicReply && enablePrivateDm && (
+                <div style={{ display: 'flex', justifyContent: 'center', color: '#cbd5e1' }}>
+                  <ArrowDown size={16} />
+                </div>
+              )}
+
+              {/* Action 2: Private DM Bubble (If enabled or story/dm type) */}
+              {((actionType === 'comment' && enablePrivateDm) || actionType === 'story' || actionType === 'dm') && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{
+                    alignSelf: 'flex-start',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#4f46e5',
+                    background: '#e0e7ff',
+                    padding: '3px 10px',
+                    borderRadius: '12px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <span>✈️ Your private DM</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', paddingLeft: '8px' }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      flexShrink: 0
+                    }}>
+                      A
+                    </div>
+                    <div style={{
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      padding: '12px 14px',
+                      borderRadius: '16px',
+                      borderTopLeftRadius: '4px',
+                      fontSize: '13px',
+                      color: '#0f172a',
+                      lineHeight: 1.45,
+                      maxWidth: '88%',
+                      wordBreak: 'break-word'
+                    }}>
+                      {(actionType === 'comment' || actionType === 'story' ? dmReplyMessage : dmText)
+                        .replace(/\{username\}/gi, 'user123') || 'Hey user123! Thanks for reaching out.'}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Dynamic Green Banner Summary Box */}
+            <div style={{
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              borderRadius: '16px',
+              padding: '16px 18px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+            }}>
+              <div style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                background: '#10b981',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                marginTop: '1px'
+              }}>
+                <CheckCircle2 size={16} />
+              </div>
+              <div>
+                <h4 style={{ fontSize: '14.5px', fontWeight: 800, color: '#065f46', margin: 0 }}>
+                  Looks good!
+                </h4>
+                <div style={{ fontSize: '12.5px', color: '#047857', marginTop: '4px', lineHeight: 1.4, fontWeight: 500 }}>
+                  {getSummaryText()}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions inside form */}
+            <div style={{ marginTop: 'auto', paddingTop: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                <input 
+                  type="checkbox"
+                  id="ruleIsActiveFooter"
+                  checked={isActive}
+                  onChange={(e) => setIsActive(e.target.checked)}
+                  style={{ width: '18px', height: '18px', accentColor: '#4f46e5', cursor: 'pointer' }}
+                />
+                <label htmlFor="ruleIsActiveFooter" style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', cursor: 'pointer' }}>
+                  Activate this rule immediately
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={{
+                    padding: '12px',
+                    borderRadius: '12px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#334155',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#ffffff'; }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                    padding: '12px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
+                >
+                  {loading ? 'Saving...' : (ruleToEdit && !ruleToEdit.isTemplate ? 'Save Changes' : 'Save Changes')}
+                </button>
+              </div>
+            </div>
           </div>
         </form>
       </div>
     </div>
+  );
+}
+
+function InstagramIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+    </svg>
   );
 }
