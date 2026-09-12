@@ -25,15 +25,18 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(false);
 
+  // Admin emails with platform governance privileges
+  const ADMIN_EMAILS = ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com', 'sumit.bhardwaj_cs23@gla.ac.in'];
+  const checkIsAdmin = (u) => Boolean(u?.role === 'admin' || (u?.email && ADMIN_EMAILS.includes(u.email.toLowerCase().trim())));
+
   // View routing: 'landing' | 'auth-login' | 'auth-signup' | 'admin-login' | 'admin' | 'app'
   const [currentView, setCurrentView] = useState(() => {
     const hash = window.location.hash.toLowerCase();
     const path = window.location.pathname.toLowerCase();
-    if (path === '/admin-login' || hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') return 'admin-login';
-    if (path === '/admin' || hash === '#admin') {
+    if (path.startsWith('/admin-login') || hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') return 'admin-login';
+    if (path === '/admin' || path.startsWith('/admin/') || hash === '#admin' || hash === '#/admin') {
       const u = getCurrentUser();
-      const isAdmin = u?.role === 'admin' || (u?.email && ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(u.email.toLowerCase().trim()));
-      return isAdmin ? 'admin' : 'admin-login';
+      return checkIsAdmin(u) ? 'admin' : 'admin-login';
     }
     if (path === '/login' || hash === '#login') return 'auth-login';
     if (path === '/signup' || path === '/register' || hash === '#signup' || hash === '#register') return 'auth-signup';
@@ -70,13 +73,9 @@ export default function App() {
       }
       else if (hash === '#login') setCurrentView('auth-login');
       else if (hash === '#signup' || hash === '#register') setCurrentView('auth-signup');
-      else if (hash === '#admin') {
-        const isAdmin = user?.role === 'admin' || (user?.email && ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(user.email.toLowerCase().trim()));
-        if (isAdmin) {
-          setCurrentView('admin');
-        } else {
-          setCurrentView('admin-login');
-        }
+      else if (hash === '#admin' || hash === '#/admin') {
+        const isAdmin = checkIsAdmin(user);
+        setCurrentView(isAdmin ? 'admin' : 'admin-login');
       }
       else if (hash === '#app') setCurrentView(user ? 'app' : 'auth-login');
       else if (hash === '#landing' || hash === '' || hash === '#') setCurrentView('landing');
@@ -338,7 +337,7 @@ export default function App() {
 
   // 1.8 Standalone Super Admin Panel (Separate Governance Portal)
   if (currentView === 'admin') {
-    const isAdmin = user && (user.role === 'admin' || ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(user?.email?.toLowerCase().trim()));
+    const isAdmin = checkIsAdmin(user);
     if (!isAdmin) {
       return (
         <AdminLoginView
@@ -529,7 +528,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'admin' && (user?.role === 'admin' || (user?.email && ['sumitbhardwaj2227@gmail.com', 'admin@airvix.com'].includes(user.email.toLowerCase().trim()))) && (
+          {activeTab === 'admin' && checkIsAdmin(user) && (
             <AdminView user={user} />
           )}
         </main>

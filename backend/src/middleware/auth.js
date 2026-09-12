@@ -59,7 +59,7 @@ async function requireAdmin(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized: authentication required' });
   }
 
-  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com,admin@airvix.com')
+  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com,admin@airvix.com,sumit.bhardwaj_cs23@gla.ac.in')
     .toLowerCase()
     .split(',')
     .map(e => e.trim());

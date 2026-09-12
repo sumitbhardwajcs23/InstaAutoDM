@@ -23,12 +23,174 @@ const {
 
 function isConfiguredAdminEmail(email) {
   if (!email) return false;
-  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com,admin@airvix.com')
+  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'sumitbhardwaj2227@gmail.com,admin@airvix.com,sumit.bhardwaj_cs23@gla.ac.in')
     .toLowerCase()
     .split(',')
     .map(e => e.trim());
   return adminEmails.includes(email.toLowerCase().trim());
 }
+
+/**
+ * 0A. SUPER ADMIN LOGIN
+ * POST /api/auth/admin-login
+ * Supports:
+ *   1. Google SSO (id_token / access_token / credential)
+ *   2. Email OTP (email, otp)
+ *   3. Email & Password / Master Key (email, password)
+ */
+router.post('/admin-login', authLimiter, async (req, res) => {
+  try {
+    const { email, password, otp, id_token, credential, code, access_token } = req.body;
+    const googleToken = id_token || credential || code || access_token;
+
+    let targetEmail = email ? email.toLowerCase().trim() : null;
+    let verifiedName = null;
+
+    // 1. Google SSO Authentication Flow for Admin
+    if (googleToken) {
+      const googleProfile = await verifyGoogleIdToken(googleToken);
+      if (!googleProfile.email) {
+        return res.status(400).json({ error: 'Could not extract a verified email from Google identity.' });
+      }
+      targetEmail = googleProfile.email.toLowerCase().trim();
+      verifiedName = googleProfile.name;
+    }
+
+    if (!targetEmail) {
+      return res.status(400).json({ error: 'Email address or Google authentication is required.' });
+    }
+
+    // Verify Admin Authorization
+    if (!isConfiguredAdminEmail(targetEmail)) {
+      return res.status(403).json({ 
+        error: `Access Denied: ${targetEmail} is not authorized for Super Admin privileges.` 
+      });
+    }
+
+    // 2. If OTP is provided, verify OTP
+    if (otp) {
+      await verifyOtpToken({
+        email: targetEmail,
+        purpose: 'admin_login_otp',
+        otp: String(otp).trim(),
+      });
+    } 
+    // 3. If password is provided, verify password or admin master key
+    else if (password && !googleToken) {
+      const masterKey = process.env.ADMIN_MASTER_KEY || 'Airvix@Admin2026!';
+      const isMasterKey = (password === masterKey);
+
+      let existingUser = await db.prepare('SELECT * FROM users WHERE email = ?').get(targetEmail);
+      let isDbPasswordMatch = false;
+
+      if (existingUser && (existingUser.password_hash || existingUser.password)) {
+        isDbPasswordMatch = await bcrypt.compare(password, existingUser.password_hash || existingUser.password);
+      }
+
+      if (!isMasterKey && !isDbPasswordMatch) {
+        return res.status(401).json({ error: 'Invalid admin credentials. Access denied.' });
+      }
+    } 
+    // 4. If neither Google token, OTP, nor Password was verified
+    else if (!googleToken) {
+      return res.status(400).json({ error: 'Password or 6-digit verification code is required to authenticate.' });
+    }
+
+    // Find or create the canonical user and ensure role is 'admin' and plan is 'enterprise'
+    const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(targetEmail);
+
+    if (!user) {
+      const { v4: uuidv4 } = require('uuid');
+      const userId = uuidv4();
+      const pwdHash = password ? await bcrypt.hash(password, 10) : null;
+      await db.prepare(`
+        INSERT INTO users (id, email, name, role, plan, status, password_hash, email_verified, dm_usage_this_period, usage_period_start, created_at, updated_at)
+        VALUES (?, ?, ?, 'admin', 'enterprise', 'active', ?, 1, 0, ?, ?, ?)
+      `).run(
+        userId,
+        targetEmail,
+        verifiedName || targetEmail.split('@')[0],
+        pwdHash,
+        nowStr,
+        nowStr,
+        nowStr
+      );
+      user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    } else {
+      // Ensure user has admin privileges
+      await db.prepare(`
+        UPDATE users 
+        SET role = 'admin', plan = 'enterprise', email_verified = 1, updated_at = ?
+        WHERE id = ?
+      `).run(nowStr, user.id);
+      user.role = 'admin';
+      user.plan = 'enterprise';
+      user.email_verified = 1;
+    }
+
+    // Create session bundle
+    const sessionBundle = await createUserSession(user, req);
+    res.json({
+      success: true,
+      token: sessionBundle.token,
+      user: {
+        ...sessionBundle.user,
+        role: 'admin',
+        plan: 'enterprise',
+      },
+      sessionId: sessionBundle.sessionId,
+    });
+  } catch (err) {
+    console.error('[Admin Auth] Login error:', err.message);
+    res.status(400).json({ error: err.message || 'Admin authentication failed. Access denied.' });
+  }
+});
+
+/**
+ * 0B. REQUEST SUPER ADMIN OTP
+ * POST /api/auth/admin-otp/request
+ */
+router.post('/admin-otp/request', authLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email address is required.' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (!isConfiguredAdminEmail(normalizedEmail)) {
+      return res.status(403).json({ 
+        error: `Access Denied: ${normalizedEmail} is not authorized for Super Admin privileges.` 
+      });
+    }
+
+    // Generate 6-digit OTP
+    const { rawOtp, expiresAt } = await createOtpToken({
+      email: normalizedEmail,
+      purpose: 'admin_login_otp',
+      ttlMinutes: 10,
+    });
+
+    // Send email via Resend
+    const sendResult = await sendLoginOtpEmail({
+      email: normalizedEmail,
+      otp: rawOtp,
+      name: 'Airvix Administrator',
+    });
+
+    res.json({
+      success: true,
+      message: `A 6-digit Super Admin verification code has been sent to ${normalizedEmail}`,
+      expires_at: expiresAt,
+      ...(sendResult.simulated && process.env.NODE_ENV !== 'production' ? { dev_otp: rawOtp } : {})
+    });
+  } catch (err) {
+    console.error('[Admin Auth] Request OTP error:', err.message);
+    res.status(400).json({ error: err.message || 'Failed to send admin verification code.' });
+  }
+});
 
 /**
  * 1. CONTINUE WITH GOOGLE OAUTH
