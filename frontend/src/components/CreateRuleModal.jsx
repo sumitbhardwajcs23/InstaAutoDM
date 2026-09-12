@@ -155,9 +155,14 @@ export default function CreateRuleModal({
     setError(null);
   }, [ruleToEdit, preselectedMedia, isOpen]);
 
+  // Ensure actionType is valid if targetMedia is set
   useEffect(() => {
-    if (targetMedia && actionType === 'dm') {
-      setActionType(targetMedia.type === 'story' ? 'story' : 'comment');
+    if (targetMedia) {
+      if (targetMedia.type === 'story') {
+        setActionType('story');
+      } else if (actionType === 'story' || actionType === 'dm') {
+        setActionType('comment');
+      }
     }
   }, [targetMedia, actionType]);
 
@@ -274,22 +279,24 @@ export default function CreateRuleModal({
     setActiveEmojiTarget(null);
   };
 
+  const isWildcard = triggerKeyword.trim() === '*';
+
   // Helper text for summary banner
   const getSummaryText = () => {
-    const kw = triggerKeyword ? `"${triggerKeyword}"` : '"keyword"';
+    const kw = isWildcard ? 'ANY comment' : (triggerKeyword ? `comments containing "${triggerKeyword}"` : 'comments');
     if (actionType === 'comment') {
       if (enablePublicReply && enablePrivateDm) {
-        return `This rule will reply to comments containing ${kw} with a public reply and a private DM.`;
+        return `This rule will reply to ${kw} with a public reply and a private DM.`;
       } else if (enablePublicReply) {
-        return `This rule will reply to comments containing ${kw} with a public reply only.`;
+        return `This rule will reply to ${kw} with a public reply only.`;
       } else if (enablePrivateDm) {
-        return `This rule will reply to comments containing ${kw} with a private DM only.`;
+        return `This rule will reply to ${kw} with a private DM only.`;
       }
-      return `Select an action for comments containing ${kw}.`;
+      return `Select an action for ${kw}.`;
     } else if (actionType === 'story') {
-      return `This rule will reply to story responses containing ${kw} with a private DM.`;
+      return `This rule will reply to story responses with a private DM.`;
     } else {
-      return `This rule will reply to direct messages containing ${kw} with a private DM.`;
+      return `This rule will reply to direct messages containing "${triggerKeyword || 'Hi'}" with a private DM.`;
     }
   };
 
@@ -523,6 +530,7 @@ export default function CreateRuleModal({
                 {/* Option 1: Comment */}
                 <button
                   type="button"
+                  disabled={Boolean(targetMedia && targetMedia.type === 'story')}
                   onClick={() => setActionType('comment')}
                   style={{
                     padding: '14px 12px',
@@ -534,7 +542,8 @@ export default function CreateRuleModal({
                     alignItems: 'flex-start',
                     gap: '8px',
                     position: 'relative',
-                    cursor: 'pointer',
+                    cursor: targetMedia && targetMedia.type === 'story' ? 'not-allowed' : 'pointer',
+                    opacity: targetMedia && targetMedia.type === 'story' ? 0.5 : 1,
                     textAlign: 'left',
                     transition: 'all 0.15s ease',
                     boxShadow: actionType === 'comment' ? '0 4px 12px rgba(79,70,229,0.08)' : 'none',
@@ -577,10 +586,16 @@ export default function CreateRuleModal({
                   </div>
                 </button>
 
-                {/* Option 2: Story Reply */}
+                {/* Option 2: Story Reply (DISABLED when targeting a specific Reel / Post) */}
                 <button
                   type="button"
-                  onClick={() => setActionType('story')}
+                  disabled={Boolean(targetMedia && targetMedia.type !== 'story')}
+                  onClick={() => {
+                    if (!targetMedia || targetMedia.type === 'story') {
+                      setActionType('story');
+                    }
+                  }}
+                  title={targetMedia && targetMedia.type !== 'story' ? 'Story Reply is disabled when automating a specific Reel or Post' : ''}
                   style={{
                     padding: '14px 12px',
                     borderRadius: '14px',
@@ -591,7 +606,8 @@ export default function CreateRuleModal({
                     alignItems: 'flex-start',
                     gap: '8px',
                     position: 'relative',
-                    cursor: 'pointer',
+                    cursor: targetMedia && targetMedia.type !== 'story' ? 'not-allowed' : 'pointer',
+                    opacity: targetMedia && targetMedia.type !== 'story' ? 0.45 : 1,
                     textAlign: 'left',
                     transition: 'all 0.15s ease',
                     boxShadow: actionType === 'story' ? '0 4px 12px rgba(79,70,229,0.08)' : 'none',
@@ -629,16 +645,17 @@ export default function CreateRuleModal({
                   <div>
                     <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>Story Reply</div>
                     <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', lineHeight: 1.3 }}>
-                      When someone replies to your story
+                      {targetMedia && targetMedia.type !== 'story' ? '⚠️ Disabled for Reel' : 'When someone replies to your story'}
                     </div>
                   </div>
                 </button>
 
-                {/* Option 3: Direct Message */}
+                {/* Option 3: Direct Message (DISABLED when targeting a specific Reel / Post) */}
                 <button
                   type="button"
                   disabled={Boolean(targetMedia)}
                   onClick={() => setActionType('dm')}
+                  title={targetMedia ? 'Direct Message trigger is disabled when automating a specific Reel or Post' : ''}
                   style={{
                     padding: '14px 12px',
                     borderRadius: '14px',
@@ -650,7 +667,7 @@ export default function CreateRuleModal({
                     gap: '8px',
                     position: 'relative',
                     cursor: targetMedia ? 'not-allowed' : 'pointer',
-                    opacity: targetMedia ? 0.5 : 1,
+                    opacity: targetMedia ? 0.45 : 1,
                     textAlign: 'left',
                     transition: 'all 0.15s ease',
                     boxShadow: actionType === 'dm' ? '0 4px 12px rgba(79,70,229,0.08)' : 'none',
@@ -688,7 +705,7 @@ export default function CreateRuleModal({
                   <div>
                     <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>Direct Message</div>
                     <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', lineHeight: 1.3 }}>
-                      When someone sends you a DM
+                      {targetMedia ? '⚠️ Disabled for Reel' : 'When someone sends you a DM'}
                     </div>
                   </div>
                 </button>
@@ -723,13 +740,13 @@ export default function CreateRuleModal({
                   required
                   value={triggerKeyword}
                   onChange={(e) => setTriggerKeyword(e.target.value)}
-                  placeholder="e.g. Hi"
+                  placeholder="e.g. Hi or * for Any comment"
                   style={{
                     flex: 1,
                     padding: '11px 14px',
                     borderRadius: '12px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
+                    border: isWildcard ? '2px solid #4f46e5' : '1px solid #cbd5e1',
+                    background: isWildcard ? '#faf5ff' : '#ffffff',
                     fontSize: '14px',
                     fontWeight: 700,
                     color: '#0f172a',
@@ -759,18 +776,45 @@ export default function CreateRuleModal({
                 </select>
               </div>
 
-              {/* Quick Add Chips */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
+              {/* Quick Add Chips with Prominent "ANY Comment (*)" option */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>Quick add:</span>
+                
+                {/* Special Wildcard Any Comment Chip */}
+                <button
+                  type="button"
+                  onClick={() => setTriggerKeyword('*')}
+                  style={{
+                    padding: '5px 13px',
+                    borderRadius: '20px',
+                    background: isWildcard 
+                      ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' 
+                      : 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
+                    border: '1px solid #c7d2fe',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    color: isWildcard ? '#ffffff' : '#4338ca',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    boxShadow: isWildcard ? '0 2px 8px rgba(79, 70, 229, 0.3)' : '0 1px 3px rgba(0,0,0,0.05)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Sparkles size={13} />
+                  <span>⭐ Any Comment / Anything (*)</span>
+                </button>
+
                 {['Hi', 'Hello', 'Link', 'Price'].map((chip) => (
                   <button
                     key={chip}
                     type="button"
                     onClick={() => setTriggerKeyword(chip)}
                     style={{
-                      padding: '4px 12px',
+                      padding: '5px 12px',
                       borderRadius: '8px',
-                      background: '#f1f5f9',
+                      background: triggerKeyword === chip ? '#e2e8f0' : '#f1f5f9',
                       border: '1px solid #e2e8f0',
                       fontSize: '12px',
                       fontWeight: 700,
@@ -779,12 +823,34 @@ export default function CreateRuleModal({
                       transition: 'all 0.15s ease',
                     }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = triggerKeyword === chip ? '#e2e8f0' : '#f1f5f9'; }}
                   >
                     + {chip}
                   </button>
                 ))}
               </div>
+
+              {/* Wildcard Alert Banner when "*" is selected */}
+              {isWildcard && (
+                <div style={{
+                  marginTop: '10px',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(124, 58, 237, 0.08))',
+                  border: '1px solid rgba(79, 70, 229, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  fontSize: '12.5px',
+                  color: '#4338ca',
+                  fontWeight: 600
+                }}>
+                  <Sparkles size={16} color="#4f46e5" />
+                  <span>
+                    <b>⭐ Any Comment Catch-All Mode:</b> Responds to <u>EVERY SINGLE comment</u> posted on your Reel, regardless of what text the user types!
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Step 3: What should happen? */}
@@ -1261,7 +1327,7 @@ export default function CreateRuleModal({
                   maxWidth: '85%',
                   wordBreak: 'break-word'
                 }}>
-                  {triggerKeyword || 'Hi'}
+                  {isWildcard ? 'Awesome post!! 🔥 (Any Comment)' : (triggerKeyword || 'Hi')}
                 </div>
               </div>
 
