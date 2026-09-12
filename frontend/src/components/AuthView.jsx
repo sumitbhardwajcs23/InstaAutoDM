@@ -472,10 +472,6 @@ export default function AuthView({ onAuthSuccess, initialMode = 'login', onBackT
                 <GoogleIcon />
                 <span>Continue with Google</span>
               </button>
-              <button type="button" onClick={handleGoogleAuth} disabled={loading} className="auth-sso-btn">
-                <MetaIcon />
-                <span>Continue with Meta</span>
-              </button>
             </div>
 
             <div className="auth-divider">
