@@ -131,6 +131,22 @@ router.post('/admin-login', authLimiter, async (req, res) => {
 
     // Create session bundle
     const sessionBundle = await createUserSession(user, req);
+
+    // Also record in admin_sessions table for governance and session tracking
+    try {
+      const crypto = require('crypto');
+      const tokenHash = crypto.createHash('sha256').update(sessionBundle.token).digest('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const ipAddress = (req.ip || (req.headers && req.headers['x-forwarded-for']) || '127.0.0.1').toString();
+      const userAgent = (req.headers && req.headers['user-agent']) || 'Airvix Admin Console';
+      await db.prepare(`
+        INSERT INTO admin_sessions (id, user_id, token_hash, ip_address, user_agent, is_active, is_revoked, expires_at, created_at, last_active_at)
+        VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, ?)
+      `).run(sessionBundle.sessionId, user.id, tokenHash, ipAddress, userAgent, expiresAt, nowStr, nowStr);
+    } catch (e) {
+      console.warn('[Admin Auth] admin_sessions sync note:', e.message);
+    }
+
     res.json({
       success: true,
       token: sessionBundle.token,

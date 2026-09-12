@@ -78,10 +78,10 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
                 if (res.ok && data.token && data.user) {
                   setAuthSession(data.token, data.user);
                   setNotice('✅ Super Admin clearance confirmed. Launching Control Center...');
-                  setTimeout(() => {
-                    window.location.hash = '#admin';
+                  if (onAuthSuccess) {
                     onAuthSuccess(data.user);
-                  }, 400);
+                  }
+                  window.location.hash = '#admin';
                 } else {
                   setError(data.error || 'Admin authorization failed. Ensure this Google account has admin rights.');
                 }
@@ -117,10 +117,10 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
                 if (res.ok && data.token && data.user) {
                   setAuthSession(data.token, data.user);
                   setNotice('✅ Super Admin clearance confirmed. Launching Control Center...');
-                  setTimeout(() => {
-                    window.location.hash = '#admin';
+                  if (onAuthSuccess) {
                     onAuthSuccess(data.user);
-                  }, 400);
+                  }
+                  window.location.hash = '#admin';
                 } else {
                   setError(data.error || 'Admin authorization failed.');
                 }
@@ -240,10 +240,10 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
       if (res.ok && data.token && data.user) {
         setAuthSession(data.token, data.user);
         setNotice('✅ Identity Verified! Entering Super Admin Control Center...');
-        setTimeout(() => {
-          window.location.hash = '#admin';
+        if (onAuthSuccess) {
           onAuthSuccess(data.user);
-        }, 400);
+        }
+        window.location.hash = '#admin';
       } else {
         throw new Error(data.error || 'Invalid or expired code. Please try again.');
       }
@@ -271,10 +271,10 @@ export default function AdminLoginView({ onAuthSuccess, onBackToUserLogin }) {
       if (res.ok && data.token && data.user) {
         setAuthSession(data.token, data.user);
         setNotice('✅ Credentials authenticated. Initializing Control Center...');
-        setTimeout(() => {
-          window.location.hash = '#admin';
+        if (onAuthSuccess) {
           onAuthSuccess(data.user);
-        }, 400);
+        }
+        window.location.hash = '#admin';
       } else {
         throw new Error(data.error || 'Admin authentication failed. Access denied.');
       }

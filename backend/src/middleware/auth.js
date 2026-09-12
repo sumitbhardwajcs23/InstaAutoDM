@@ -74,16 +74,35 @@ async function requireAdmin(req, res, next) {
   // Session revocation validation if session_id is encoded in token
   if (req.user.session_id) {
     try {
-      const activeSession = await getDb().prepare(`
-        SELECT id, is_active, expires_at 
-        FROM admin_sessions 
+      // 1. Check user_sessions (used by unified authentication)
+      const userSession = await getDb().prepare(`
+        SELECT id, is_revoked, expires_at 
+        FROM user_sessions 
         WHERE id = ?
       `).get(req.user.session_id);
 
-      if (!activeSession || !activeSession.is_active || new Date(activeSession.expires_at) < new Date()) {
-        return res.status(401).json({ 
-          error: 'Admin session has expired or been revoked. Please log in again.' 
-        });
+      if (userSession) {
+        if (userSession.is_revoked === 1 || (userSession.expires_at && new Date(userSession.expires_at) < new Date())) {
+          return res.status(401).json({ 
+            error: 'Admin session has expired or been revoked. Please log in again.' 
+          });
+        }
+      } else {
+        // 2. Fallback check admin_sessions table
+        const activeSession = await getDb().prepare(`
+          SELECT id, is_active, is_revoked, expires_at 
+          FROM admin_sessions 
+          WHERE id = ?
+        `).get(req.user.session_id);
+
+        if (activeSession) {
+          const isRevoked = activeSession.is_revoked === 1 || activeSession.is_active === 0;
+          if (isRevoked || (activeSession.expires_at && new Date(activeSession.expires_at) < new Date())) {
+            return res.status(401).json({ 
+              error: 'Admin session has expired or been revoked. Please log in again.' 
+            });
+          }
+        }
       }
     } catch (err) {
       console.warn('[AuthMiddleware] Session check warning:', err.message);

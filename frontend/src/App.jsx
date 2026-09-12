@@ -68,17 +68,26 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.toLowerCase();
+      const currentUser = user || getCurrentUser();
+      const isAdmin = checkIsAdmin(currentUser);
+
       if (hash === '#admin-login' || hash === '#admin/login' || hash === '#staff-login') {
-        setCurrentView('admin-login');
+        setCurrentView(isAdmin ? 'admin' : 'admin-login');
       }
       else if (hash === '#login') setCurrentView('auth-login');
       else if (hash === '#signup' || hash === '#register') setCurrentView('auth-signup');
       else if (hash === '#admin' || hash === '#/admin') {
-        const isAdmin = checkIsAdmin(user);
         setCurrentView(isAdmin ? 'admin' : 'admin-login');
       }
-      else if (hash === '#app') setCurrentView(user ? 'app' : 'auth-login');
-      else if (hash === '#landing' || hash === '' || hash === '#') setCurrentView('landing');
+      else if (hash === '#app') setCurrentView(currentUser ? 'app' : 'auth-login');
+      else if (hash === '#landing' || hash === '' || hash === '#') {
+        const path = window.location.pathname.toLowerCase();
+        if (path === '/admin' || path.startsWith('/admin/')) {
+          setCurrentView(isAdmin ? 'admin' : 'admin-login');
+        } else {
+          setCurrentView('landing');
+        }
+      }
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
@@ -222,7 +231,16 @@ export default function App() {
 
   const handleAuthSuccess = (loggedUser) => {
     setUser(loggedUser);
-    if (loggedUser?.role === 'admin' && (currentView === 'admin-login' || window.location.hash === '#admin-login')) {
+    const isAdmin = checkIsAdmin(loggedUser);
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    const isAdminIntent = 
+      isAdmin && 
+      (path === '/admin' || path.startsWith('/admin/') || 
+       hash === '#admin' || hash === '#/admin' || hash === '#admin-login' || hash === '#admin/login' || 
+       currentView === 'admin-login' || currentView === 'admin');
+
+    if (isAdminIntent) {
       window.location.hash = '#admin';
       setCurrentView('admin');
     } else {
@@ -326,7 +344,7 @@ export default function App() {
     return (
       <AdminLoginView
         onAuthSuccess={(adminUser) => {
-          handleAuthSuccess(adminUser);
+          setUser(adminUser);
           window.location.hash = '#admin';
           setCurrentView('admin');
         }}
@@ -337,12 +355,13 @@ export default function App() {
 
   // 1.8 Standalone Super Admin Panel (Separate Governance Portal)
   if (currentView === 'admin') {
-    const isAdmin = checkIsAdmin(user);
+    const activeAdmin = user || getCurrentUser();
+    const isAdmin = checkIsAdmin(activeAdmin);
     if (!isAdmin) {
       return (
         <AdminLoginView
           onAuthSuccess={(adminUser) => {
-            handleAuthSuccess(adminUser);
+            setUser(adminUser);
             window.location.hash = '#admin';
             setCurrentView('admin');
           }}
@@ -352,7 +371,7 @@ export default function App() {
     }
     return (
       <AdminView
-        user={user}
+        user={activeAdmin}
         onBackToApp={() => {
           window.location.hash = '#app';
           setCurrentView('app');
