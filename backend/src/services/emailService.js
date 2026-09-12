@@ -1,5 +1,6 @@
-// backend/src/services/emailService.js
 const { Resend } = require('resend');
+const fs = require('fs');
+const path = require('path');
 
 function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY;
@@ -11,16 +12,34 @@ function getFromEmail() {
   return process.env.EMAIL_FROM || 'Airvix Auth <otp@airvix.online>';
 }
 
+// Load attached Airvix Logo as Data URI for 100% reliable email client rendering
+let cachedLogoBase64 = null;
+function getAirvixLogoBase64() {
+  if (cachedLogoBase64) return cachedLogoBase64;
+  try {
+    const logoPath = path.join(__dirname, '../../../frontend/public/airvix-logo.png');
+    if (fs.existsSync(logoPath)) {
+      const buf = fs.readFileSync(logoPath);
+      cachedLogoBase64 = `data:image/png;base64,${buf.toString('base64')}`;
+      return cachedLogoBase64;
+    }
+  } catch (err) {
+    console.error('[EmailService] Warning reading logo file:', err.message);
+  }
+  return 'https://airvix.online/airvix-logo.png';
+}
+
 /**
- * Render branded HTML template for Airvix OTP emails matching user reference design
+ * Render branded HTML template for Airvix OTP emails matching user reference design (Pure White Theme)
  */
 function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName }) {
   const otpDigits = String(otp || '123456').split('');
+  const logoUrl = getAirvixLogoBase64();
   const digitBoxesHtml = otpDigits
     .map(
       (digit) => `
       <td align="center" style="padding: 0 4px;">
-        <div style="width: 44px; height: 52px; line-height: 52px; background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 24px; font-weight: 800; color: #0f172a; text-align: center; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
+        <div class="otp-box" style="width: 44px; height: 52px; line-height: 52px; background-color: #f1f5f9 !important; border: 1px solid #e2e8f0 !important; border-radius: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 24px; font-weight: 800; color: #0f172a !important; text-align: center; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
           ${digit}
         </div>
       </td>`
@@ -29,31 +48,68 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
 
   return `
 <!DOCTYPE html>
-<html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>${title}</title>
+  <style>
+    :root {
+      color-scheme: light !important;
+      supported-color-schemes: light !important;
+    }
+    body, html {
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    /* Force Light Mode Overrides for Dark-Mode Email Clients */
+    [data-ogsc] .email-body,
+    [data-ogsc] .email-card,
+    [data-ogsb] .email-body,
+    [data-ogsb] .email-card {
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+    }
+    @media (prefers-color-scheme: dark) {
+      body, .email-body, .email-card, table, td, div, h1, p, span {
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+      }
+      .email-card {
+        background-color: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05) !important;
+      }
+      .otp-box {
+        background-color: #f1f5f9 !important;
+        border: 1px solid #e2e8f0 !important;
+        color: #0f172a !important;
+      }
+      .lock-badge {
+        background-color: #f0eaff !important;
+      }
+      .info-box {
+        background-color: #f8fafc !important;
+        border: 1px solid #f1f5f9 !important;
+        color: #64748b !important;
+      }
+    }
+  </style>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f2ff; color: #0f172a; margin: 0; padding: 32px 16px;">
-  <div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 20px; border: 1px solid #e2e8f0; padding: 40px 36px; box-shadow: 0 10px 30px rgba(99, 102, 241, 0.06);">
+<body class="email-body" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #ffffff !important; color: #0f172a !important; margin: 0; padding: 32px 16px;">
+  <div class="email-card" style="max-width: 580px; margin: 0 auto; background-color: #ffffff !important; border-radius: 20px; border: 1px solid #e2e8f0 !important; padding: 40px 36px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); box-sizing: border-box;">
     
     <!-- Top Header / Logo Bar -->
     <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 36px;">
       <tr>
-        <td align="left">
-          <table border="0" cellspacing="0" cellpadding="0">
-            <tr>
-              <td style="padding-right: 10px;">
-                <img src="https://airvix.online/airvix-mark.png" alt="Airvix" width="32" height="32" style="display: block; width: 32px; height: 32px; border: 0; object-fit: contain;" />
-              </td>
-              <td style="font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">
-                Airvix
-              </td>
-            </tr>
-          </table>
+        <td align="left" valign="middle">
+          <img src="${logoUrl}" alt="Airvix" height="38" style="display: block; height: 38px; width: auto; border: 0; object-fit: contain;" />
         </td>
-        <td align="right" style="font-size: 13px; color: #64748b; font-weight: 500;">
+        <td align="right" valign="middle" style="font-size: 13px; color: #64748b !important; font-weight: 500;">
           Automate &bull; Engage &bull; Grow
         </td>
       </tr>
@@ -61,7 +117,7 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
 
     <!-- Lock Icon Badge -->
     <div style="text-align: center; margin-bottom: 24px;">
-      <div style="display: inline-block; width: 56px; height: 56px; border-radius: 16px; background-color: #f0eaff; text-align: center; line-height: 56px;">
+      <div class="lock-badge" style="display: inline-block; width: 56px; height: 56px; border-radius: 16px; background-color: #f0eaff !important; text-align: center; line-height: 56px;">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="vertical-align: middle;">
           <rect x="5" y="11" width="14" height="10" rx="3" fill="#6366f1"/>
           <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="#6366f1" stroke-width="2.5" stroke-linecap="round"/>
@@ -107,16 +163,7 @@ function renderEmailHtml({ title, subtitle, otp, messageNotice, recipientName })
     <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-top: 8px;">
       <tr>
         <td align="left" valign="top">
-          <table border="0" cellspacing="0" cellpadding="0">
-            <tr>
-              <td style="padding-right: 8px;">
-                <img src="https://airvix.online/airvix-mark.png" alt="Airvix" width="22" height="22" style="display: block; width: 22px; height: 22px; border: 0; object-fit: contain;" />
-              </td>
-              <td style="font-size: 16px; font-weight: 800; color: #0f172a;">
-                Airvix
-              </td>
-            </tr>
-          </table>
+          <img src="${logoUrl}" alt="Airvix" height="24" style="display: block; height: 24px; width: auto; border: 0; object-fit: contain;" />
           <div style="font-size: 12px; color: #64748b; margin-top: 6px; max-width: 280px; line-height: 1.4;">
             All-in-one Instagram automation for creators, brands and businesses.
           </div>
