@@ -190,16 +190,30 @@ async function recordLoopIncident({
 }) {
   const incidentId = uuidv4();
   try {
+    // Foreign key safety: verify trigger_rule_id exists in automation_rules before inserting
+    // to prevent fk_loop_trigger_rule constraint violations on deleted, synthetic, or AI fallback rules
+    let verifiedRuleId = null;
+    if (ruleId) {
+      try {
+        const ruleExists = await db.prepare('SELECT id FROM automation_rules WHERE id = ?').get(ruleId);
+        if (ruleExists) {
+          verifiedRuleId = ruleExists.id;
+        }
+      } catch (_) {
+        verifiedRuleId = null;
+      }
+    }
+
     await db.prepare(`
       INSERT INTO automation_loop_incidents (
         id, instagram_account_id, conversation_id, target_user_id, trigger_rule_id, loop_reason, details, status, detected_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', datetime('now'))
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
     `).run(
       incidentId,
       accountId,
       conversationId || null,
       targetUserId,
-      ruleId || null,
+      verifiedRuleId,
       reason,
       details || null
     );

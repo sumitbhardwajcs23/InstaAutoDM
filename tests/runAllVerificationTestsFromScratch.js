@@ -28,7 +28,14 @@ const testFiles = [
   'securityHeaders.test.js',
   'tenantAuthz.test.js',
   'tokenLifecycleAndMetaCompliance.test.js',
-  'webhookReliability.test.js'
+  'webhookReliability.test.js',
+  'auditPersonaSimulation.test.js',
+  'auditSection45.test.js',
+  'auditSection46Matrix.test.js',
+  'auditSection54AiSafetyLoops.test.js',
+  'auditSection56ApiErrors.test.js',
+  'auditSection58WebhookReplay.test.js',
+  'auditSection65Concurrency.test.js'
 ];
 
 async function runSingleTest(file) {

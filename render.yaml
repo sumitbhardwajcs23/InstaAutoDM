@@ -2,7 +2,7 @@ services:
   - type: web
     name: instautoreply-backend
     env: node
-    plan: free
+    plan: standard
     buildCommand: cd backend && npm install
     startCommand: cd backend && node src/server.js
     healthCheckPath: /health
@@ -12,12 +12,21 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: DATABASE_POOL_MAX
+        value: "20"
+      - key: CLUSTER_SIZE
+        value: "4"
       - key: FREE_PLAN_DM_LIMIT
         value: "1000"
       - key: META_MOCK_MODE
         value: "false"
       - key: DATABASE_URL
         sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: instautoreply-redis
+          property: connectionString
       - key: JWT_SECRET
         generateValue: true
       - key: ENCRYPTION_KEY
@@ -46,4 +55,15 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
 
+  # Managed persistent Redis instance for distributed rate limiting & non-authoritative caching
+  - type: redis
+    name: instautoreply-redis
+    plan: standard
+    ipAllowList: [] # internal private networking only (accessible only to services in same account)

@@ -8,115 +8,192 @@ const { dmLimitFor } = require('../constants/planLimits');
 
 // KNOWN_TESTERS is now part of profileCache — no need to duplicate here
 const KNOWN_TESTERS = profileCache.KNOWN_USERS;
+const redisClient = require('../services/redisClient');
 
+const inflightAccounts = new Map();
 async function getAccountForUser(userId, accountId) {
   if (!userId) return null;
-  if (accountId) {
-    return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
+  const key = `${userId}:${accountId || 'default'}`;
+  const cacheKey = `cache:acc:${key}`;
+
+  try {
+    const cached = await redisClient.get(cacheKey);
+    if (cached) return cached;
+  } catch (_) {}
+
+  let fetchPromise = inflightAccounts.get(key);
+  if (!fetchPromise) {
+    fetchPromise = (async () => {
+      try {
+        let acc;
+        if (accountId) {
+          acc = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
+        } else {
+          acc = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
+        }
+        if (acc) {
+          redisClient.set(cacheKey, acc, 30).catch(() => {});
+        }
+        return acc || null;
+      } finally {
+        inflightAccounts.delete(key);
+      }
+    })();
+    inflightAccounts.set(key, fetchPromise);
   }
-  return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
+  return await fetchPromise;
 }
+
+const inflightConvs = new Map();
 
 // GET /api/conversations
 router.get('/', async (req, res) => {
   const { limit = 50, offset = 0, status, account_id } = req.query;
-  const account = await getAccountForUser(req.user.id, account_id);
-  if (!account) return res.json({ total: 0, conversations: [] });
+  const convKey = `${req.user.id}:${account_id || 'default'}:${status || 'all'}:${limit}:${offset}`;
+  const cacheKey = `cache:convs:${convKey}`;
 
-  let where = 'WHERE c.instagram_account_id = ?';
-  const params = [account.id];
-  if (status) { where += ' AND c.status = ?'; params.push(status); }
-
-  const total = (await db.prepare(`SELECT COUNT(*) as count FROM conversations c ${where}`).get(...params))?.count || 0;
-  const rows = await db.prepare(`
-    SELECT c.id, c.instagram_account_id, c.ig_scoped_user_id, c.username, c.name, c.profile_pic_url, c.avatar_seed, c.last_message, c.last_message_direction,
-           c.status, c.pending_follow_rule_id, c.last_user_message_at, c.created_at, c.updated_at,
-           (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) as message_count
-    FROM conversations c
-    ${where}
-    ORDER BY c.updated_at DESC
-    LIMIT ? OFFSET ?
-  `).all(...params, Number(limit), Number(offset));
-
-  // Enrich rows from cache instantly (zero network calls needed for known users)
-  // For unknown users, kick off background Meta fetch so next poll shows real name
-  for (const row of rows) {
-    const resolved = profileCache.resolve(row.ig_scoped_user_id, row);
-    if (resolved.name) row.name = resolved.name;
-    if (resolved.username && resolved.username !== 'user') row.username = resolved.username;
-    if (resolved.profile_pic) row.profile_pic_url = resolved.profile_pic;
-    // If still no real name, trigger background enrichment (non-blocking)
-    if (!row.name && account.access_token_enc) {
-      profileCache.fetchAndCache(row.ig_scoped_user_id, account.access_token_enc, row.id, account.page_id).catch(() => {});
+  try {
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      return res.json(cached);
     }
+  } catch (_) {}
+
+  let fetchPromise = inflightConvs.get(convKey);
+  if (!fetchPromise) {
+    fetchPromise = (async () => {
+      try {
+        const account = await getAccountForUser(req.user.id, account_id);
+        if (!account) return { total: 0, conversations: [] };
+
+        let where = 'WHERE c.instagram_account_id = ?';
+        const params = [account.id];
+        if (status) { where += ' AND c.status = ?'; params.push(status); }
+
+        const total = (await db.prepare(`SELECT COUNT(*) as count FROM conversations c ${where}`).get(...params))?.count || 0;
+        const rows = await db.prepare(`
+          SELECT c.id, c.instagram_account_id, c.ig_scoped_user_id, c.username, c.name, c.profile_pic_url, c.avatar_seed, c.last_message, c.last_message_direction,
+                 c.status, c.pending_follow_rule_id, c.last_user_message_at, c.created_at, c.updated_at,
+                 (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) as message_count
+          FROM conversations c
+          ${where}
+          ORDER BY c.updated_at DESC
+          LIMIT ? OFFSET ?
+        `).all(...params, Number(limit), Number(offset));
+
+        // Batch fetch messages for all returned conversations in a SINGLE query instead of N+1
+        const messagesByConvId = new Map();
+        if (rows && rows.length > 0) {
+          const placeholders = rows.map(() => '?').join(',');
+          const rawMsgs = await db.prepare(
+            `SELECT id, conversation_id, direction, content, created_at, status 
+             FROM messages 
+             WHERE conversation_id IN (${placeholders}) 
+             ORDER BY created_at ASC`
+          ).all(...rows.map(r => r.id));
+          for (const m of (rawMsgs || [])) {
+            let list = messagesByConvId.get(m.conversation_id);
+            if (!list) {
+              list = [];
+              messagesByConvId.set(m.conversation_id, list);
+            }
+            list.push(m);
+          }
+        }
+
+        // Enrich rows from cache instantly (zero network calls needed for known users)
+        for (const row of rows) {
+          const resolved = profileCache.resolve(row.ig_scoped_user_id, row);
+          if (resolved.name) row.name = resolved.name;
+          if (resolved.username && resolved.username !== 'user') row.username = resolved.username;
+          if (resolved.profile_pic) row.profile_pic_url = resolved.profile_pic;
+          // If still no real name, trigger background enrichment (non-blocking)
+          if (!row.name && account.access_token_enc) {
+            profileCache.fetchAndCache(row.ig_scoped_user_id, account.access_token_enc, row.id, account.page_id).catch(() => {});
+          }
+        }
+
+        const now = Date.now();
+        const avatarColors = ['#a855f7', '#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#06b6d4'];
+
+        const conversations = (rows || []).map((c) => {
+          const userMsgTs = c.last_user_message_at ? new Date(c.last_user_message_at).getTime() : now;
+          const is_window_active = (userMsgTs + 24 * 3600000) > now;
+          const window_expires_at = new Date(userMsgTs + 24 * 3600000).toISOString();
+          const diff = now - new Date(c.updated_at || c.last_user_message_at).getTime();
+          const mins = Math.floor(diff / 60000);
+          const hrs = Math.floor(mins / 60);
+          const days = Math.floor(hrs / 24);
+          const timeAgo = days > 0 ? `${days}d ago` : hrs > 0 ? `${hrs}h ago` : `${mins}m ago`;
+
+          const rawMsgs = messagesByConvId.get(c.id) || [];
+          const messages = rawMsgs.map(m => {
+            const msgDate = new Date(m.created_at);
+            const timeStr = isNaN(msgDate.getTime()) ? 'Just now' : msgDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
+            return {
+              id: m.id,
+              sender: m.direction === 'inbound' ? 'user' : 'bot',
+              text: m.content,
+              time: timeStr,
+              created_at: m.created_at,
+              rule: m.direction === 'outbound' ? 'Automated DM' : null,
+              status: m.status
+            };
+          });
+
+          const knownTester = KNOWN_TESTERS[c.ig_scoped_user_id];
+          const realName = (c.name && c.name.toLowerCase() !== 'user') ? c.name : (knownTester?.name || null);
+          const cleanUsername = (c.username && c.username !== 'user') 
+            ? c.username.replace(/^@/, '') 
+            : (knownTester?.username || null);
+          const displayName = realName || (cleanUsername ? `@${cleanUsername}` : 'Instagram User');
+          const handle = cleanUsername ? `@${cleanUsername}` : `IG ID: ${c.ig_scoped_user_id}`;
+          const initial = (realName || cleanUsername || 'I').charAt(0).toUpperCase();
+          const charCodeSum = (c.id || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+          const avatarBg = avatarColors[charCodeSum % avatarColors.length];
+          const profilePic = c.profile_pic_url || (knownTester?.profile_pic_url || null);
+
+          return {
+            ...c,
+            name: realName || displayName,
+            displayName,
+            sender: handle,
+            username: handle,
+            handle,
+            cleanUsername,
+            initial,
+            avatarBg,
+            profile_pic_url: profilePic,
+            ig_scoped_user_id: c.ig_scoped_user_id,
+            pending_follow_rule_id: c.pending_follow_rule_id || null,
+            lastMessage: c.last_message || (messages[messages.length - 1]?.text) || 'No messages yet',
+            time: timeAgo,
+            timeAgo,
+            status: c.pending_follow_rule_id ? 'Waiting on Follow' : (c.status === 'replied' ? 'Replied' : 'Open'),
+            last_message_at: c.updated_at || c.last_user_message_at,
+            is_window_active,
+            window_expires_at,
+            messages
+          };
+        });
+
+        const payload = { total, conversations };
+        redisClient.set(cacheKey, payload, 10).catch(() => {});
+        return payload;
+      } finally {
+        inflightConvs.delete(convKey);
+      }
+    })();
+    inflightConvs.set(convKey, fetchPromise);
   }
 
-  const now = Date.now();
-  const avatarColors = ['#a855f7', '#3b82f6', '#ec4899', '#10b981', '#f59e0b', '#06b6d4'];
-
-  const conversations = await Promise.all(rows.map(async (c) => {
-    const userMsgTs = c.last_user_message_at ? new Date(c.last_user_message_at).getTime() : now;
-    const is_window_active = (userMsgTs + 24 * 3600000) > now;
-    const window_expires_at = new Date(userMsgTs + 24 * 3600000).toISOString();
-    const diff = now - new Date(c.updated_at || c.last_user_message_at).getTime();
-    const mins = Math.floor(diff / 60000);
-    const hrs = Math.floor(mins / 60);
-    const days = Math.floor(hrs / 24);
-    const timeAgo = days > 0 ? `${days}d ago` : hrs > 0 ? `${hrs}h ago` : `${mins}m ago`;
-
-    // Fetch all messages in the thread in chronological order (IST time)
-    const rawMsgs = await db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC').all(c.id);
-    const messages = rawMsgs.map(m => {
-      const msgDate = new Date(m.created_at);
-      const timeStr = isNaN(msgDate.getTime()) ? 'Just now' : msgDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
-      return {
-        id: m.id,
-        sender: m.direction === 'inbound' ? 'user' : 'bot',
-        text: m.content,
-        time: timeStr,
-        created_at: m.created_at,
-        rule: m.direction === 'outbound' ? 'Automated DM' : null,
-        status: m.status
-      };
-    });
-
-    const knownTester = KNOWN_TESTERS[c.ig_scoped_user_id];
-    const realName = (c.name && c.name.toLowerCase() !== 'user') ? c.name : (knownTester?.name || null);
-    const cleanUsername = (c.username && c.username !== 'user') 
-      ? c.username.replace(/^@/, '') 
-      : (knownTester?.username || null);
-    const displayName = realName || (cleanUsername ? `@${cleanUsername}` : 'Instagram User');
-    const handle = cleanUsername ? `@${cleanUsername}` : `IG ID: ${c.ig_scoped_user_id}`;
-    const initial = (realName || cleanUsername || 'I').charAt(0).toUpperCase();
-    const charCodeSum = (c.id || '').split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
-    const avatarBg = avatarColors[charCodeSum % avatarColors.length];
-    const profilePic = c.profile_pic_url || (knownTester?.profile_pic_url || null);
-
-    return {
-      ...c,
-      name: realName || displayName,
-      displayName,
-      sender: handle,
-      username: handle,
-      handle,
-      cleanUsername,
-      initial,
-      avatarBg,
-      profile_pic_url: profilePic,
-      ig_scoped_user_id: c.ig_scoped_user_id,
-      pending_follow_rule_id: c.pending_follow_rule_id || null,
-      lastMessage: c.last_message || (messages[messages.length - 1]?.text) || 'No messages yet',
-      time: timeAgo,
-      timeAgo,
-      status: c.pending_follow_rule_id ? 'Waiting on Follow' : (c.status === 'replied' ? 'Replied' : 'Open'),
-      last_message_at: c.updated_at || c.last_user_message_at,
-      is_window_active,
-      window_expires_at,
-      messages
-    };
-  }));
-
-  res.json({ total, conversations });
+  try {
+    const result = await fetchPromise;
+    res.json(result);
+  } catch (err) {
+    console.error('[Conversations] GET / error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch conversations' });
+  }
 });
 
 // GET /api/conversations/incidents - List loop detection incidents (must precede /:id)
@@ -210,13 +287,34 @@ router.post('/:id/reply', async (req, res) => {
   const { text } = req.body;
   if (!text || !text.trim()) return res.status(400).json({ error: 'Message text required' });
 
-  // Plan limit enforcement
-  const user = await db.prepare('SELECT id, plan, dm_usage_this_period FROM users WHERE id = ?').get(req.user.id);
-  const planLimit = dmLimitFor(user?.plan);
-  const currentUsage = user?.dm_usage_this_period || 0;
-  if (currentUsage >= planLimit) {
+  // Authoritative subscription entitlement & plan resolution
+  const user = await db.prepare('SELECT id, plan, dm_usage_this_period, subscription_status FROM users WHERE id = ?').get(req.user.id);
+  const sub = await db.prepare('SELECT id, plan, status, current_period_end, grace_period_ends_at FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').get(req.user.id);
+
+  const subStatus = (sub?.status || user?.subscription_status || 'active').toLowerCase();
+
+  // Explicitly block canceled, expired, unpaid, reconciliation_required
+  const blockedStatuses = ['canceled', 'expired', 'unpaid', 'reconciliation_required'];
+  if (blockedStatuses.includes(subStatus)) {
     return res.status(403).json({
-      error: `Monthly DM limit reached for your plan (${user?.plan || 'free'}: ${planLimit}). Upgrade your plan to send more messages.`
+      error: `Outbound messaging is blocked for your account status (${subStatus}). Please update your subscription.`,
+      code: 'SUBSCRIPTION_STATE_BLOCKED'
+    });
+  }
+
+  // Authoritative entitlement check
+  const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus);
+  const effectivePlan = isEntitled ? (sub?.plan || user?.plan || 'free') : 'free';
+  const planLimit = dmLimitFor(effectivePlan);
+
+  // Authoritative usage counter check (compare max of usage_counters and users)
+  const counter = await db.prepare('SELECT dms_sent FROM usage_counters WHERE user_id = ?').get(req.user.id);
+  const currentUsage = Math.max(counter?.dms_sent || 0, user?.dm_usage_this_period || 0);
+
+  if (planLimit !== -1 && currentUsage >= planLimit) {
+    return res.status(403).json({
+      error: `Monthly DM limit reached for your plan (${effectivePlan}: ${planLimit}). Upgrade your plan to send more messages.`,
+      code: 'QUOTA_EXCEEDED'
     });
   }
 
@@ -245,13 +343,43 @@ router.post('/:id/reply', async (req, res) => {
   await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
     msgId, conversation.id, 'outbound', text, status, metaMessageId, errorMsg, nowIso
   );
-  await db.prepare("UPDATE conversations SET last_message = ?, last_message_direction = 'outbound', status = 'replied', updated_at = datetime('now') WHERE id = ?").run(
+  await db.prepare("UPDATE conversations SET last_message = ?, last_message_direction = 'outbound', status = 'replied', updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?").run(
     text, conversation.id
   );
 
-  // Meter outbound DM usage on success
+  // Meter outbound DM usage atomically across usage_counters (SSOT) and users (cache)
   if (status === 'sent') {
-    await db.prepare("UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1, updated_at = datetime('now') WHERE id = ?").run(req.user.id);
+    const pool = db.getPgPool();
+    if (pool) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const resCnt = await client.query(`
+          INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, updated_at)
+          VALUES ($1, $2, NOW(), NOW() + INTERVAL '30 days', 1, NOW())
+          ON CONFLICT (user_id) DO UPDATE SET
+            dms_sent = usage_counters.dms_sent + 1,
+            updated_at = NOW()
+          RETURNING dms_sent
+        `, [`cnt_${req.user.id}`, req.user.id]);
+
+        const authoritativeCount = resCnt.rows[0]?.dms_sent || (currentUsage + 1);
+        await client.query(`
+          UPDATE users SET
+            dm_usage_this_period = $1,
+            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          WHERE id = $2
+        `, [authoritativeCount, req.user.id]);
+        await client.query('COMMIT');
+      } catch (incErr) {
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('[Conversations] Failed to increment authoritative usage:', incErr.message);
+      } finally {
+        client.release();
+      }
+    } else {
+      await db.prepare("UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?").run(req.user.id);
+    }
   }
 
   res.json({ success: true, messageId: msgId, status, error: errorMsg });

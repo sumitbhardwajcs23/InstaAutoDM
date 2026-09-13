@@ -135,6 +135,7 @@ async function runTests() {
   await db.prepare('DELETE FROM users WHERE id = ?').run(testUserId);
 
   console.log('\n🎉 ALL 7 TESTS PASSED PERFECTLY!\n');
+  process.exit(0);
 }
 
 runTests().catch(err => {

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { dmLimitFor } = require('../constants/planLimits');
+const { processPaymentWebhookProduction, getCurrentEntitlementSubscription } = require('./billingEngine');
 
 const THREE_DAYS_MS = 3 * 24 * 3600 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 3600 * 1000;
@@ -21,39 +22,18 @@ class BillingService {
    */
   async getSubscription(userId) {
     if (!userId) return null;
-    let sub = await db.prepare("SELECT * FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").get(userId);
-    const user = await db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+    const sub = await db.prepare("SELECT * FROM subscriptions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").get(userId);
+    return sub || null;
+  }
 
-    if (!sub && user) {
-      const now = new Date();
-      const periodStart = now.toISOString();
-      const periodEnd = new Date(now.getTime() + THIRTY_DAYS_MS).toISOString();
-      const id = `sub_${uuidv4().slice(0, 12)}`;
-
-      await db.prepare(`
-        INSERT INTO subscriptions (
-          id, user_id, plan, status, billing_cycle, current_period_start, current_period_end, created_at, updated_at
-        ) VALUES (?, ?, ?, 'active', 'monthly', ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-      `).run(id, userId, user.plan || 'free', periodStart, periodEnd);
-
-      sub = await db.prepare("SELECT * FROM subscriptions WHERE id = ?").get(id);
-    }
-
-    // Check if grace period has expired
-    if (sub && sub.status === 'past_due' && sub.grace_period_ends_at) {
-      if (new Date(sub.grace_period_ends_at).getTime() < Date.now()) {
-        await db.prepare(`
-          UPDATE subscriptions SET
-            status = 'unpaid',
-            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-          WHERE id = ?
-        `).run(sub.id);
-        await db.prepare("UPDATE users SET subscription_status = 'unpaid' WHERE id = ?").run(userId);
-        sub.status = 'unpaid';
-      }
-    }
-
-    return sub;
+  /**
+   * Resolves the single authoritative current entitlement subscription (excludes terminal and reconciliation_required)
+   */
+  async getEntitlementSubscription(userId) {
+    if (!userId) return null;
+    const pool = db.getPgPool();
+    if (!pool) return null;
+    return await getCurrentEntitlementSubscription(pool, userId);
   }
 
   /**
@@ -118,16 +98,13 @@ class BillingService {
    * Supports both (gateway, payload, signature, rawBody) and (gateway, eventType, idempotencyKey, payload, signatureVerified)
    */
   async processPaymentWebhook(gateway, arg2, arg3, arg4, arg5) {
-    let eventType = null;
-    let idempotencyKey = null;
     let payload = null;
-    let signatureVerified = true;
+    let signature = null;
     let rawBody = null;
 
     if (typeof arg2 === 'object' && typeof arg3 === 'string') {
-      // Called as: (gateway, payloadObj, signature, rawBody)
       payload = arg2;
-      const signature = arg3;
+      signature = arg3;
       rawBody = arg4;
 
       const secret = gateway === 'razorpay' ? process.env.RAZORPAY_WEBHOOK_SECRET : process.env.STRIPE_WEBHOOK_SECRET;
@@ -137,268 +114,9 @@ class BillingService {
           throw new Error('Invalid signature for payment webhook');
         }
       }
-
-      eventType = payload.event || payload.type || 'payment.captured';
-      idempotencyKey = payload.id || (payload.payload?.payment?.entity?.id) || (payload.data?.object?.id) || `pay_evt_${uuidv4().slice(0, 8)}`;
-    } else {
-      // Called as: (gateway, eventType, idempotencyKey, payload, signatureVerified)
-      eventType = arg2;
-      idempotencyKey = arg3;
-      payload = arg4;
-      signatureVerified = arg5 !== undefined ? arg5 : true;
     }
 
-    // 1. Idempotency check in payment_webhook_events
-    const existing = await db.prepare("SELECT id, status FROM payment_webhook_events WHERE idempotency_key = ?").get(idempotencyKey);
-    if (existing) {
-      console.log(`[BillingWebhook] ⚠️ Duplicate payment webhook ignored: ${idempotencyKey}`);
-      return { duplicate: true, status: existing.status };
-    }
-
-    const eventId = `pwe_${uuidv4().slice(0, 12)}`;
-    await db.prepare(`
-      INSERT INTO payment_webhook_events (
-        id, gateway, event_type, idempotency_key, payload, signature_verified, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'processed', to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-    `).run(eventId, gateway, eventType, idempotencyKey, JSON.stringify(payload), signatureVerified ? 1 : 0);
-
-    // Extract notes and entity properties from Razorpay or Stripe formats
-    const paymentEntity = payload.payload?.payment?.entity || payload.data?.object || payload;
-    const subEntity = payload.payload?.subscription?.entity || {};
-    const notes = paymentEntity.notes || subEntity.notes || payload.notes || {};
-
-    const userId = notes.user_id || payload.user_id || payload.customer_id;
-    const cycle = notes.cycle || payload.cycle || 'monthly';
-
-    // ── Plan validation against pricing_plans (SSOT for plan definitions) ──
-    // Prevents arbitrary plan values (e.g. 'custom-vip', 'enterprise') from
-    // being persisted to subscriptions.plan. Only valid pricing_plans slugs
-    // are accepted. Unknown values are rejected with an explicit warning and
-    // the event is logged as-is but not applied to the subscription.
-    const rawPlan = (notes.plan || payload.plan || '').toLowerCase().trim();
-    let plan = rawPlan;
-    if (rawPlan) {
-      try {
-        const validPlan = await db.prepare(
-          `SELECT slug FROM pricing_plans WHERE (slug = ? OR id = ?) AND is_active = 1 LIMIT 1`
-        ).get(rawPlan, rawPlan);
-        if (validPlan) {
-          plan = validPlan.slug;
-        } else {
-          // Plan slug not found in pricing_plans — reject and halt processing
-          console.error(
-            `[BillingWebhook] ❌ INVALID PLAN REJECTED: '${rawPlan}' is not a valid pricing_plans slug. ` +
-            `Event: ${idempotencyKey}, gateway: ${gateway}. ` +
-            `Valid slugs must exist in pricing_plans table. ` +
-            `Update notes.plan in the payment gateway to a valid slug before retrying.`
-          );
-          // Update webhook event status to reflect rejection
-          await db.prepare(
-            `UPDATE payment_webhook_events SET status = 'rejected', error_message = ? WHERE idempotency_key = ?`
-          ).run(`Invalid plan slug: '${rawPlan}' not in pricing_plans`, idempotencyKey).catch(() => {});
-          return {
-            duplicate: false,
-            processed: false,
-            error: `Invalid plan identifier: '${rawPlan}'. Must be a valid pricing_plans slug.`,
-            rejectionReason: 'plan_not_in_pricing_plans'
-          };
-        }
-      } catch (planValidationErr) {
-        // pricing_plans lookup failed (e.g. table not yet seeded) — use safe fallback
-        console.warn(
-          `[BillingWebhook] ⚠️ Could not validate plan '${rawPlan}' against pricing_plans: ${planValidationErr.message}. ` +
-          `Falling back to 'free'. Fix pricing_plans table or DB connection.`
-        );
-        plan = 'free';
-      }
-    } else {
-      // No plan in webhook notes — default to free
-      plan = 'free';
-    }
-    
-    let rawAmount = paymentEntity.amount !== undefined ? paymentEntity.amount : (payload.amount || PLAN_PRICES[plan]?.[cycle] || 1499);
-    // Convert paise/cents to standard units if necessary
-    const amount = rawAmount > 10000 ? Math.round(rawAmount / 100) : rawAmount;
-    const tax = Math.round(amount * 0.18);
-
-    let user = null;
-    if (userId) {
-      user = await db.prepare("SELECT * FROM users WHERE id = ? OR email = ?").get(userId, userId);
-    }
-
-    if (!user && (payload.email || notes.email)) {
-      user = await db.prepare("SELECT * FROM users WHERE email = ?").get(payload.email || notes.email);
-    }
-
-    if (!user) {
-      console.warn(`[BillingWebhook] Target user not found for webhook ${idempotencyKey}`);
-      return { duplicate: false, processed: false, error: 'User not found' };
-    }
-
-    // Process event types
-    switch (eventType) {
-      case 'subscription.charged':
-      case 'payment.captured':
-      case 'invoice.paid':
-      case 'invoice.payment_succeeded':
-      case 'subscription.activated': {
-        const now = new Date();
-        const periodStart = now.toISOString();
-        const durationMs = cycle === 'yearly' ? ONE_YEAR_MS : THIRTY_DAYS_MS;
-        const periodEnd = new Date(now.getTime() + durationMs).toISOString();
-
-        // Update / Insert Subscription
-        let sub = await db.prepare("SELECT id FROM subscriptions WHERE user_id = ?").get(user.id);
-        if (sub) {
-          await db.prepare(`
-            UPDATE subscriptions SET
-              plan = ?,
-              status = 'active',
-              billing_cycle = ?,
-              current_period_start = ?,
-              current_period_end = ?,
-              cancel_at_period_end = 0,
-              canceled_at = NULL,
-              grace_period_ends_at = NULL,
-              grace_period_until = NULL,
-              updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-            WHERE id = ?
-          `).run(plan, cycle, periodStart, periodEnd, sub.id);
-        } else {
-          sub = { id: `sub_${uuidv4().slice(0, 12)}` };
-          await db.prepare(`
-            INSERT INTO subscriptions (
-              id, user_id, plan, status, billing_cycle, current_period_start, current_period_end, created_at, updated_at
-            ) VALUES (?, ?, ?, 'active', ?, ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-          `).run(sub.id, user.id, plan, cycle, periodStart, periodEnd);
-        }
-
-        // Reset user usage and update plan
-        await db.prepare(`
-          UPDATE users SET
-            plan = ?,
-            subscription_status = 'active',
-            dm_usage_this_period = 0,
-            usage_period_start = ?,
-            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-          WHERE id = ?
-        `).run(plan, periodStart.slice(0, 10), user.id);
-
-        // Reset normalized usage_counters table in sync
-        await db.prepare(`
-          INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, updated_at)
-          VALUES (?, ?, NOW(), NOW() + INTERVAL '30 days', 0, NOW())
-          ON CONFLICT (user_id) DO UPDATE SET
-            dms_sent = 0,
-            comments_processed = 0,
-            stories_replied = 0,
-            period_start = NOW(),
-            period_end = NOW() + INTERVAL '30 days',
-            updated_at = NOW()
-        `).run(`cnt_${user.id}`, user.id).catch(e => console.warn('[BillingService] usage_counters reset error:', e.message));
-
-        // Record paid invoice with GST tax calculation
-        const invoiceId = `inv_${uuidv4().slice(0, 12)}`;
-        const invoiceNum = `INV-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-        await db.prepare(`
-          INSERT INTO invoices (
-            id, user_id, subscription_id, invoice_number, amount, tax, currency, status, gateway, gateway_payment_id,
-            billing_name, billing_email, gst_number, paid_at, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, 'INR', 'paid', ?, ?, ?, ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-        `).run(
-          invoiceId, user.id, sub.id, invoiceNum, amount, tax, gateway, paymentEntity.id || `pay_${uuidv4().slice(0, 8)}`,
-          payload.billing_name || user.name || 'Valued Creator', payload.billing_email || user.email, payload.gst_number || null
-        );
-
-        // 3NF Normalization: Track coupon redemption in junction table
-        const appliedCouponId = notes.coupon_id || payload.coupon_id;
-        const appliedCouponCode = notes.coupon_code || payload.coupon_code;
-        if (appliedCouponId || appliedCouponCode) {
-          try {
-            const couponRow = appliedCouponId
-              ? await db.prepare("SELECT id FROM coupons WHERE id = ?").get(appliedCouponId)
-              : await db.prepare("SELECT id FROM coupons WHERE UPPER(code) = ?").get(appliedCouponCode.trim().toUpperCase());
-            if (couponRow) {
-              await db.prepare(`
-                INSERT INTO coupon_redemptions (id, coupon_id, user_id, invoice_id, redeemed_at)
-                VALUES (?, ?, ?, ?, NOW())
-                ON CONFLICT (coupon_id, user_id) DO NOTHING
-              `).run(`rdm_${uuidv4().slice(0, 12)}`, couponRow.id, user.id, invoiceId);
-              await db.prepare("UPDATE coupons SET used_count = used_count + 1 WHERE id = ?").run(couponRow.id);
-            }
-          } catch (cRdmErr) {
-            console.warn('[BillingService] coupon_redemptions recording notice:', cRdmErr.message);
-          }
-        }
-
-        console.log(`[BillingService] ✅ Subscription activated for user ${user.id} (${plan}, ${cycle}). Invoice: ${invoiceNum}`);
-        return { duplicate: false, processed: true, plan, status: 'active', invoiceNumber: invoiceNum };
-      }
-
-      case 'payment.failed':
-      case 'invoice.payment_failed': {
-        const gracePeriodEnd = new Date(Date.now() + THREE_DAYS_MS).toISOString();
-        let sub = await db.prepare("SELECT id FROM subscriptions WHERE user_id = ?").get(user.id);
-
-        if (sub) {
-          await db.prepare(`
-            UPDATE subscriptions SET
-              status = 'grace_period',
-              grace_period_ends_at = ?,
-              grace_period_until = ?,
-              updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-            WHERE id = ?
-          `).run(gracePeriodEnd, gracePeriodEnd, sub.id);
-        } else {
-          sub = { id: `sub_${uuidv4().slice(0, 12)}` };
-          await db.prepare(`
-            INSERT INTO subscriptions (
-              id, user_id, plan, status, billing_cycle, current_period_start, current_period_end, grace_period_ends_at, grace_period_until, created_at, updated_at
-            ) VALUES (?, ?, ?, 'grace_period', 'monthly', datetime('now'), datetime('now'), ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-          `).run(sub.id, user.id, user.plan || 'free', gracePeriodEnd, gracePeriodEnd);
-        }
-
-        await db.prepare(`
-          UPDATE users SET
-            subscription_status = 'grace_period',
-            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-          WHERE id = ?
-        `).run(user.id);
-
-        // Record failed invoice record
-        const invoiceId = `inv_${uuidv4().slice(0, 12)}`;
-        const invoiceNum = `INV-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-        await db.prepare(`
-          INSERT INTO invoices (
-            id, user_id, subscription_id, invoice_number, amount, tax, currency, status, gateway, billing_name, billing_email, failed_reason, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, 'INR', 'failed', ?, ?, ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-        `).run(
-          invoiceId, user.id, sub?.id || null, invoiceNum, amount, tax, gateway,
-          user.name || 'Creator', user.email, payload.error_reason || 'Card declined / payment failed'
-        );
-
-        console.warn(`[BillingService] ⚠️ Payment failed for user ${user.id}. Grace period active until ${gracePeriodEnd}.`);
-        return { duplicate: false, processed: true, status: 'grace_period', gracePeriodEndsAt: gracePeriodEnd };
-      }
-
-
-      case 'subscription.cancelled': {
-        let sub = await db.prepare("SELECT id FROM subscriptions WHERE user_id = ?").get(user.id);
-        if (sub) {
-          await db.prepare(`
-            UPDATE subscriptions SET
-              cancel_at_period_end = 1,
-              canceled_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
-              updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-            WHERE id = ?
-          `).run(sub.id);
-        }
-        return { duplicate: false, processed: true, cancelAtPeriodEnd: true };
-      }
-
-      default:
-        return { duplicate: false, processed: true, status: 'acknowledged' };
-    }
+    return await processPaymentWebhookProduction(gateway, arg2, arg3, arg4, arg5);
   }
 
   /**

@@ -108,6 +108,16 @@ async function runTests() {
     assert(activeCount >= maxRules, 'Active count should equal or exceed max rules limit');
   });
 
+  // Teardown: Clean up test artifacts and restore canonical plan limits
+  try {
+    await db.prepare("DELETE FROM site_settings WHERE key = 'custom_pricing_plans'").run();
+    await db.prepare("UPDATE pricing_plans SET dm_limit = 1000, ig_limit = 1, rules_limit = 5, name = 'Starter / Free' WHERE slug = 'free' OR id = 'free'").run();
+    await db.prepare("DELETE FROM pricing_plans WHERE id = 'plan-custom-pro'").run();
+    await refreshPlanLimitsCache();
+  } catch (cleanErr) {
+    console.warn('Notice cleaning up test plans:', cleanErr.message);
+  }
+
   console.log(`\n----------------------------------------`);
   console.log(`Test Results: ${passed} Passed, ${failed} Failed`);
   console.log(`----------------------------------------\n`);

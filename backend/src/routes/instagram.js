@@ -47,8 +47,12 @@ async function getUserId(req) {
 
 // Check if user has exceeded their connected Instagram accounts limit
 async function checkUserIgLimit(userId) {
-  const user = await db.prepare('SELECT id, plan, custom_ig_limit FROM users WHERE id = ?').get(userId);
+  const user = await db.prepare('SELECT id, plan, subscription_status, custom_ig_limit FROM users WHERE id = ?').get(userId);
   if (!user) return { allowed: true };
+
+  const subStatus = user.subscription_status || 'active';
+  const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus) && subStatus !== 'reconciliation_required';
+  const effectivePlan = isEntitled ? (user.plan || 'free') : 'free';
 
   const currentCountRow = await db.prepare('SELECT COUNT(*) as count FROM instagram_accounts WHERE user_id = ?').get(userId);
   const currentCount = parseInt(currentCountRow?.count || 0, 10);
@@ -59,8 +63,8 @@ async function checkUserIgLimit(userId) {
     if (plansSetting?.value) {
       const plansList = JSON.parse(plansSetting.value);
       const matchedPlan = (plansList || []).find(p => 
-        (p.slug || '').toLowerCase() === (user.plan || 'free').toLowerCase() || 
-        (p.name || '').toLowerCase() === (user.plan || 'free').toLowerCase()
+        (p.slug || '').toLowerCase() === effectivePlan.toLowerCase() || 
+        (p.name || '').toLowerCase() === effectivePlan.toLowerCase()
       );
       if (matchedPlan && matchedPlan.igLimit) planIgLimit = Number(matchedPlan.igLimit);
     }
@@ -68,7 +72,7 @@ async function checkUserIgLimit(userId) {
 
   const allowedLimit = (user.custom_ig_limit !== null && user.custom_ig_limit !== undefined && Number(user.custom_ig_limit) > 0)
     ? Number(user.custom_ig_limit)
-    : (planIgLimit || igLimitFor(user.plan));
+    : (planIgLimit || igLimitFor(effectivePlan));
 
   if (currentCount >= allowedLimit) {
     return {

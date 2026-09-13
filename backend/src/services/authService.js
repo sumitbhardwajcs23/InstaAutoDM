@@ -361,6 +361,10 @@ async function revokeUserSession(token) {
   if (!token) return;
   const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
   await db.prepare('UPDATE user_sessions SET is_revoked = 1 WHERE token_hash = ?').run(tokenHash);
+  try {
+    const redisClient = require('./redisClient');
+    await redisClient.del(`cache:sess:${tokenHash}`);
+  } catch (_) {}
 }
 
 /**

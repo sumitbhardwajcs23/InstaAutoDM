@@ -13,7 +13,7 @@ const fs = require('fs');
 const { validateSecrets } = require('./config/secrets');
 validateSecrets();
 
-require('./db'); // Initialize DB
+const db = require('./db'); // Initialize DB
 
 const app = express();
 app.set('trust proxy', 1);
@@ -98,10 +98,13 @@ app.use('/webhooks', require('./routes/webhooks'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/instagram', require('./routes/instagram'));
 
-// Basic liveness probe
-app.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().toISOString(), version: '3.4.0' }));
+// Basic liveness probe (checks process/event-loop responsiveness without downstream dependencies)
+app.get(['/health', '/health/live'], (_req, res) => {
+  const liveness = observability.getLivenessStatus ? observability.getLivenessStatus() : { status: 'ok' };
+  res.json({ ...liveness, version: '3.4.0' });
+});
 
-// Deep readiness probe with database, queue, and latency percentiles
+// Deep readiness probe with database, queue, redis, and pool diagnostics
 app.get(['/health/ready', '/api/health'], async (_req, res) => {
   const status = await observability.getHealthStatus();
   const statusCode = status.status === 'healthy' ? 200 : 503;
@@ -252,6 +255,9 @@ if (process.env.NODE_ENV !== 'test') {
     const { dataRetention } = require('./services/dataRetention');
     dataRetention.scheduleRetentionJobs();
   });
+
+  server.keepAliveTimeout = 5000;
+  server.headersTimeout = 10000;
 
   const handleShutdown = async (signal) => {
     console.log(`\n[Server] Received ${signal}. Initiating graceful shutdown...`);

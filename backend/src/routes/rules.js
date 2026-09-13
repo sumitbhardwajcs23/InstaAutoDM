@@ -5,66 +5,126 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { rulesLimitFor } = require('../constants/planLimits');
 
+const redisClient = require('../services/redisClient');
+
+const inflightAccounts = new Map();
 async function getAccountForUser(userId, accountId) {
   if (!userId) return null;
-  if (accountId) {
-    return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
+  const key = `${userId}:${accountId || 'default'}`;
+  const cacheKey = `cache:acc:${key}`;
+
+  try {
+    const cached = await redisClient.get(cacheKey);
+    if (cached) return cached;
+  } catch (_) {}
+
+  if (inflightAccounts.has(key)) {
+    try {
+      const coalesced = await inflightAccounts.get(key);
+      if (coalesced) return coalesced;
+    } catch (_) {}
   }
-  return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
+
+  const fetchPromise = (async () => {
+    try {
+      let acc;
+      if (accountId) {
+        acc = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
+      } else {
+        acc = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
+      }
+      if (acc) {
+        redisClient.set(cacheKey, acc, 30).catch(() => {});
+      }
+      return acc || null;
+    } finally {
+      inflightAccounts.delete(key);
+    }
+  })();
+
+  inflightAccounts.set(key, fetchPromise);
+  return await fetchPromise;
 }
+
+const inflightRules = new Map();
 
 router.get('/', async (req, res) => {
   const account = await getAccountForUser(req.user.id, req.query.account_id);
   if (!account) return res.json({ rules: [], count: 0 });
-  const rows = await db.prepare('SELECT * FROM automation_rules WHERE instagram_account_id = ? ORDER BY created_at DESC').all(account.id);
-  
-  // Relational 3NF: Fetch attached cards from rule_card_attachments
-  let cardMap = {};
-  const ruleIds = (rows || []).map(r => r.id);
-  if (ruleIds.length > 0) {
+
+  const cacheKey = `cache:rules:${account.id}`;
+  try {
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+  } catch (_) {}
+
+  if (inflightRules.has(account.id)) {
     try {
-      const placeholders = ruleIds.map(() => '?').join(',');
-      const cards = await db.prepare(`SELECT * FROM rule_card_attachments WHERE rule_id IN (${placeholders}) ORDER BY card_order ASC`).all(...ruleIds);
-      if (Array.isArray(cards)) {
-        for (const c of cards) {
-          if (!cardMap[c.rule_id]) cardMap[c.rule_id] = [];
-          cardMap[c.rule_id].push(c);
-        }
-      }
+      const coalesced = await inflightRules.get(account.id);
+      if (coalesced) return res.json(coalesced);
     } catch (_) {}
   }
 
-  const rules = rows.map(r => {
-    const attachedCards = cardMap[r.id] || [];
-    const primaryCard = attachedCards[0];
-    const isCardEnabled = (r.card_enabled == 1 || attachedCards.length > 0) ? 1 : 0;
+  const fetchPromise = (async () => {
+    try {
+      const rows = await db.prepare('SELECT * FROM automation_rules WHERE instagram_account_id = ? ORDER BY created_at DESC').all(account.id);
+      
+      // Relational 3NF: Fetch attached cards from rule_card_attachments
+      let cardMap = {};
+      const ruleIds = (rows || []).map(r => r.id);
+      if (ruleIds.length > 0) {
+        try {
+          const placeholders = ruleIds.map(() => '?').join(',');
+          const cards = await db.prepare(`SELECT * FROM rule_card_attachments WHERE rule_id IN (${placeholders}) ORDER BY card_order ASC`).all(...ruleIds);
+          if (Array.isArray(cards)) {
+            for (const c of cards) {
+              if (!cardMap[c.rule_id]) cardMap[c.rule_id] = [];
+              cardMap[c.rule_id].push(c);
+            }
+          }
+        } catch (_) {}
+      }
 
-    return {
-      ...r,
-      is_active: Boolean(r.is_active),
-      action_type: r.type === 'comment_to_dm' ? 'comment' : (r.type === 'story_reply' ? 'story' : 'dm'),
-      reply_text: r.dm_reply_message || r.reply_message,
-      comment_reply_mode: r.comment_reply_mode || 'both',
-      comment_reply_message: r.comment_reply_message || '',
-      dm_reply_message: r.dm_reply_message || r.reply_message || '',
-      target_media_id: r.target_media_id || null,
-      target_media_type: r.target_media_type || (r.type === 'story_reply' ? 'story' : 'all'),
-      target_media_thumbnail: r.target_media_thumbnail || null,
-      target_media_caption: r.target_media_caption || null,
-      require_follow: r.require_follow ? 1 : 0,
-      follow_prompt_message: r.follow_prompt_message || '',
-      follow_comment_reply: r.follow_comment_reply || '',
-      card_enabled: isCardEnabled,
-      card_title: primaryCard?.title || r.card_title || '',
-      card_subtitle: primaryCard?.subtitle || r.card_subtitle || '',
-      card_image_url: primaryCard?.image_url || r.card_image_url || '',
-      card_button_text: primaryCard?.button_text || r.card_button_text || '',
-      card_button_url: primaryCard?.button_url || r.card_button_url || '',
-      cards: attachedCards,
-      name: r.name || (r.trigger_keyword ? `${r.trigger_keyword} Auto Reply` : 'Auto Reply Rule')
-    };
-  });
-  res.json({ rules, count: rules.length });
+      const rules = rows.map(r => {
+        const attachedCards = cardMap[r.id] || [];
+        const primaryCard = attachedCards[0];
+        const isCardEnabled = (r.card_enabled == 1 || attachedCards.length > 0) ? 1 : 0;
+
+        return {
+          ...r,
+          is_active: Boolean(r.is_active),
+          action_type: r.type === 'comment_to_dm' ? 'comment' : (r.type === 'story_reply' ? 'story' : 'dm'),
+          target_media_id: r.target_media_id || null,
+          target_media_type: r.target_media_type || (r.type === 'story_reply' ? 'story' : 'all'),
+          target_media_thumbnail: r.target_media_thumbnail || null,
+          target_media_caption: r.target_media_caption || null,
+          require_follow: r.require_follow ? 1 : 0,
+          follow_prompt_message: r.follow_prompt_message || '',
+          follow_comment_reply: r.follow_comment_reply || '',
+          card_enabled: isCardEnabled,
+          card_title: primaryCard?.title || r.card_title || '',
+          card_subtitle: primaryCard?.subtitle || r.card_subtitle || '',
+          card_image_url: primaryCard?.image_url || r.card_image_url || '',
+          card_button_text: primaryCard?.button_text || r.card_button_text || '',
+          card_button_url: primaryCard?.button_url || r.card_button_url || '',
+          cards: attachedCards,
+          name: r.name || (r.trigger_keyword ? `${r.trigger_keyword} Auto Reply` : 'Auto Reply Rule')
+        };
+      });
+
+      const payload = { rules, count: rules.length };
+      redisClient.set(cacheKey, payload, 15).catch(() => {});
+      return payload;
+    } finally {
+      inflightRules.delete(account.id);
+    }
+  })();
+
+  inflightRules.set(account.id, fetchPromise);
+  const result = await fetchPromise;
+  res.json(result);
 });
 
 router.post('/', async (req, res) => {
@@ -121,8 +181,11 @@ router.post('/', async (req, res) => {
 
   // Enforce active keyword automation rules limit based on user's plan
   if (is_active && req.user && req.user.id) {
-    const userRow = await db.prepare('SELECT plan, custom_rules_limit FROM users WHERE id = ?').get(req.user.id);
-    const maxRules = rulesLimitFor(userRow?.plan, userRow?.custom_rules_limit);
+    const userRow = await db.prepare('SELECT plan, subscription_status, custom_rules_limit FROM users WHERE id = ?').get(req.user.id);
+    const subStatus = userRow?.subscription_status || 'active';
+    const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus) && subStatus !== 'reconciliation_required';
+    const effectivePlan = isEntitled ? (userRow?.plan || 'free') : 'free';
+    const maxRules = rulesLimitFor(effectivePlan, userRow?.custom_rules_limit);
 
     const activeCountRow = await db.prepare(`
       SELECT COUNT(*) as count
@@ -286,8 +349,11 @@ router.get('/:id', requireRuleOwner, async (req, res) => {
 router.patch('/:id/toggle', requireRuleOwner, async (req, res) => {
   const newStatus = req.rule.is_active ? 0 : 1;
   if (newStatus === 1 && req.user && req.user.id) {
-    const userRow = await db.prepare('SELECT plan, custom_rules_limit FROM users WHERE id = ?').get(req.user.id);
-    const maxRules = rulesLimitFor(userRow?.plan, userRow?.custom_rules_limit);
+    const userRow = await db.prepare('SELECT plan, subscription_status, custom_rules_limit FROM users WHERE id = ?').get(req.user.id);
+    const subStatus = userRow?.subscription_status || 'active';
+    const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus) && subStatus !== 'reconciliation_required';
+    const effectivePlan = isEntitled ? (userRow?.plan || 'free') : 'free';
+    const maxRules = rulesLimitFor(effectivePlan, userRow?.custom_rules_limit);
 
     const activeCountRow = await db.prepare(`
       SELECT COUNT(*) as count

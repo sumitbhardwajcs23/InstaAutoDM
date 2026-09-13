@@ -27,12 +27,17 @@ if (PG_URL && !isRenderInternal) {
   };
 }
 
+const isNeonPooler = PG_URL && PG_URL.includes('-pooler');
+const defaultPoolMax = isNeonPooler ? 25 : 20;
+const poolMax = process.env.DATABASE_POOL_MAX ? parseInt(process.env.DATABASE_POOL_MAX, 10) : defaultPoolMax;
+
 const pgPool = PG_URL ? new Pool({
   connectionString: PG_URL,
   ssl: sslOption,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 30000,
+  max: poolMax,
+  min: 2, // Warm connection base to prevent TLS handshake connection spikes
+  idleTimeoutMillis: 15000,
+  connectionTimeoutMillis: 15000,
 }) : null;
 
 // Initialize tables and columns on startup
@@ -126,6 +131,9 @@ if (pgPool) {
             created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
             last_active_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
           );
+          CREATE INDEX IF NOT EXISTS idx_user_sessions_token_hash ON user_sessions(token_hash);
+          CREATE INDEX IF NOT EXISTS idx_comment_replies_acc_created ON comment_replies(instagram_account_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_automation_rules_acc_active ON automation_rules(instagram_account_id, is_active);
         `).catch(() => {});
         await pgPool.query(`
           CREATE TABLE IF NOT EXISTS site_settings (
@@ -650,6 +658,8 @@ function normalizeParams(args) {
   return args;
 }
 
+let totalQueryCount = 0;
+
 const db = {
   prepare(sql) {
     if (!pgPool) {
@@ -658,18 +668,21 @@ const db = {
     const pgSql = toPgSql(sql);
     return {
       async get(...args) {
+        totalQueryCount++;
         if (dbInitPromise) await dbInitPromise;
         const params = normalizeParams(args).map(p => (p === undefined ? null : p));
         const res = await pgPool.query(pgSql, params);
         return res.rows[0] ? formatRow(res.rows[0]) : undefined;
       },
       async all(...args) {
+        totalQueryCount++;
         if (dbInitPromise) await dbInitPromise;
         const params = normalizeParams(args).map(p => (p === undefined ? null : p));
         const res = await pgPool.query(pgSql, params);
         return (res.rows || []).map(formatRow);
       },
       async run(...args) {
+        totalQueryCount++;
         if (dbInitPromise) await dbInitPromise;
         const params = normalizeParams(args).map(p => (p === undefined ? null : p));
         const res = await pgPool.query(pgSql, params);
@@ -682,6 +695,7 @@ const db = {
     if (!pgPool) {
       throw new Error('Database connection not available. DATABASE_URL is required.');
     }
+    totalQueryCount++;
     const params = normalizeParams(args).map(p => (p === undefined ? null : p));
     const pgSql = toPgSql(sql);
     const res = await pgPool.query(pgSql, params);
@@ -708,6 +722,25 @@ const db = {
 
   getPgPool() {
     return pgPool;
+  },
+
+  getPoolMetrics() {
+    if (!pgPool) return { total: 0, idle: 0, waiting: 0 };
+    return {
+      total: pgPool.totalCount,
+      idle: pgPool.idleCount,
+      waiting: pgPool.waitingCount
+    };
+  },
+
+  getQueryCount() {
+    return totalQueryCount;
+  },
+
+  resetQueryCount() {
+    const prev = totalQueryCount;
+    totalQueryCount = 0;
+    return prev;
   }
 };
 

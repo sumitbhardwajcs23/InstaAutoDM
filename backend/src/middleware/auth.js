@@ -12,6 +12,9 @@ const PUBLIC_PATHS = [
   '/site/public-settings',
 ];
 
+// In-flight coalescing for concurrent session validation checks
+const inflightSessions = new Map();
+
 async function requireAuth(req, res, next) {
   const header = req.headers['authorization'] || req.headers['Authorization'];
   let token = null;
@@ -24,11 +27,42 @@ async function requireAuth(req, res, next) {
   if (token) {
     try {
       const payload = jwt.verify(token, JWT_SECRET);
-      // Check session revocation in database
+      // Check session revocation with Redis read-through cache & in-flight coalescing
       const crypto = require('crypto');
       const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
-      const revokedSession = await getDb().prepare('SELECT is_revoked FROM user_sessions WHERE token_hash = ?').get(tokenHash);
-      if (!revokedSession || !revokedSession.is_revoked) {
+      const redisClient = require('../services/redisClient');
+      const cacheKey = `cache:sess:${tokenHash}`;
+
+      let isRevoked = null;
+      try {
+        const cached = await redisClient.get(cacheKey);
+        if (cached !== null && cached !== undefined) {
+          isRevoked = Boolean(cached.is_revoked);
+        }
+      } catch (_) {}
+
+      if (isRevoked === null) {
+        if (!inflightSessions.has(tokenHash)) {
+          const fetchPromise = (async () => {
+            try {
+              const revokedSession = await getDb().prepare('SELECT is_revoked FROM user_sessions WHERE token_hash = ?').get(tokenHash);
+              const revoked = revokedSession ? Boolean(revokedSession.is_revoked) : false;
+              redisClient.set(cacheKey, { is_revoked: revoked }, 30).catch(() => {});
+              return revoked;
+            } finally {
+              inflightSessions.delete(tokenHash);
+            }
+          })();
+          inflightSessions.set(tokenHash, fetchPromise);
+        }
+        try {
+          isRevoked = await inflightSessions.get(tokenHash);
+        } catch (_) {
+          isRevoked = false;
+        }
+      }
+
+      if (!isRevoked) {
         req.user = payload; // { id, email, name, plan }
       }
     } catch (err) {}

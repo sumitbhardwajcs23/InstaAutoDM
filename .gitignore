@@ -35,3 +35,7 @@ Thumbs.db
 backups/
 *.enc.json
 *.manifest.json
+
+# Local binaries & scratch files
+bin/
+scratch/

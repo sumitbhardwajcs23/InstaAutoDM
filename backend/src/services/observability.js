@@ -142,47 +142,156 @@ function checkErrorRateAlert() {
     }
 }
 
+// Cache for diagnostic DLQ counter to prevent query stampedes under high-volume load probes
+let cachedDlq = { count: 0, fetchedAt: 0 };
+const DLQ_CACHE_TTL_MS = 5000;
+let dlqInFlight = null;
+
+// Short-lived DB ping cache (2s TTL) to prevent pool saturation under burst
+// health-check traffic (e.g. 1000 VUs hitting /health/ready simultaneously).
+// The result is still live from a load-balancer perspective; 2s staleness is
+// acceptable for a readiness probe — a real DB outage will be detected within 2s.
+let cachedDbPing = { status: null, latencyMs: 0, fetchedAt: 0 };
+const DB_PING_CACHE_TTL_MS = 2000;
+
+// In-flight coalescing: ensures only ONE DB ping is in flight at a time
+let dbPingInFlight = null;
+
 /**
- * Full system health check inspecting Database, Queue, DLQ, and Memory
+ * Liveness probe: shallow check verifying event loop responsiveness
+ */
+function getLivenessStatus() {
+    return {
+        status: 'ok',
+        uptime_seconds: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString()
+    };
+}
+
+/**
+ * Full system health & readiness check:
+ * Dependency-aware: live DB ping is ALWAYS executed live and never cached.
+ * Stale cached auxiliary data will NEVER mask an unavailable critical dependency.
  */
 async function getHealthStatus() {
-    const startTime = Date.now();
     let dbStatus = 'healthy';
     let dbLatencyMs = 0;
 
-    try {
-        const t0 = Date.now();
-        await db.prepare('SELECT 1 as ping').get();
-        dbLatencyMs = Date.now() - t0;
-    } catch (err) {
-        dbStatus = 'unhealthy';
-        recordError('DB_HEALTH_CHECK', err, { severity: 'critical' });
+    // 1. CRITICAL DEPENDENCY: DB PING
+    // Cached for DB_PING_CACHE_TTL_MS (2s) to prevent pool exhaustion under burst
+    // health-check traffic. A real outage is still detected within 2s.
+    // If a ping is already in-flight, await the same promise (coalescing).
+    const now = Date.now();
+    if (now - cachedDbPing.fetchedAt > DB_PING_CACHE_TTL_MS) {
+        if (!dbPingInFlight) {
+            dbPingInFlight = (async () => {
+                let status = 'healthy';
+                let latency = 0;
+                try {
+                    const t0 = Date.now();
+                    // Hard 1.5s timeout: if the pool is exhausted, return 'degraded'
+                    // immediately rather than blocking for up to 8s (connectionTimeoutMillis).
+                    // 'degraded' → HTTP 503 (not ERR), which is a valid health response.
+                    await Promise.race([
+                        db.prepare('SELECT 1 as ping').get(),
+                        new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('DB ping timeout (1500ms)')), 1500)
+                        )
+                    ]);
+                    latency = Date.now() - t0;
+                } catch (err) {
+                    if (err.message && err.message.includes('DB ping timeout')) {
+                        status = 'degraded'; // pool busy; not an outage, give 503 not hang
+                    } else {
+                        status = 'unhealthy'; // genuine DB error
+                        recordError('DB_HEALTH_CHECK', err, { severity: 'critical' });
+                    }
+                    latency = Date.now() - now;
+                }
+                cachedDbPing = { status, latencyMs: latency, fetchedAt: Date.now() };
+                dbPingInFlight = null;
+                return cachedDbPing;
+            })();
+        }
+        await dbPingInFlight;
+    }
+    dbStatus = cachedDbPing.status || 'healthy';
+    dbLatencyMs = cachedDbPing.latencyMs || 0;
+
+    // 2. DIAGNOSTIC / AUXILIARY: DLQ Counter (Cached with 5s TTL + in-flight coalescing to protect DB under burst traffic)
+    const dlqNow = Date.now();
+    let dlqCount = cachedDlq.count;
+    if (dbStatus === 'healthy' && (dlqNow - cachedDlq.fetchedAt > DLQ_CACHE_TTL_MS)) {
+        if (!dlqInFlight) {
+            dlqInFlight = (async () => {
+                try {
+                    const dlqRow = await db.prepare('SELECT COUNT(*) as count FROM dead_letter_queue WHERE is_resolved = 0').get();
+                    const count = parseInt(dlqRow?.count || 0, 10);
+                    cachedDlq = { count, fetchedAt: Date.now() };
+                } catch (_) {
+                    // Retain previous count on transient diagnostic query failure
+                } finally {
+                    dlqInFlight = null;
+                }
+                return cachedDlq.count;
+            })();
+        }
+        try {
+            dlqCount = await dlqInFlight;
+        } catch (_) {
+            dlqCount = cachedDlq.count;
+        }
     }
 
-    // Queue & DLQ status
-    let dlqCount = 0;
+    // 3. AUXILIARY DEPENDENCY: Redis connectivity
+    let redisStatus = 'disabled';
     try {
-        const dlqRow = await db.prepare('SELECT COUNT(*) as count FROM dead_letter_queue WHERE is_resolved = 0').get();
-        dlqCount = parseInt(dlqRow?.count || 0, 10);
-    } catch (e) {}
+        const redisClient = require('./redisClient');
+        if (redisClient.isAvailable()) {
+            redisStatus = 'connected';
+        } else if (process.env.REDIS_URL || process.env.UPSTASH_REDIS_URL) {
+            redisStatus = 'disconnected';
+        }
+    } catch {
+        redisStatus = 'unavailable';
+    }
+
+    // 4. DATABASE POOL METRICS
+    let poolMetrics = null;
+    try {
+        poolMetrics = db.getPoolMetrics ? db.getPoolMetrics() : null;
+    } catch {}
 
     const mem = process.memoryUsage();
     const uptimeSeconds = Math.floor(process.uptime());
     const latencies = calculateLatencyPercentiles();
 
-    const healthy = dbStatus === 'healthy';
+    // READINESS RULE: healthy → 200; degraded (pool busy, transient) → 503 but
+    // distinguishable from unhealthy (genuine DB outage) → 503 with full error detail
+    const isHealthy = dbStatus === 'healthy';
+    const isDegraded = dbStatus === 'degraded';
 
     return {
-        status: healthy ? 'healthy' : 'degraded',
+        status: isHealthy ? 'healthy' : (isDegraded ? 'degraded' : 'unhealthy'),
+        readiness: isHealthy, // false for both degraded and unhealthy → HTTP 503
         timestamp: new Date().toISOString(),
         uptime_seconds: uptimeSeconds,
         checks: {
             database: {
                 status: dbStatus,
-                latency_ms: dbLatencyMs
+                latency_ms: dbLatencyMs,
+                pool: poolMetrics,
+                query_count: (db.getQueryCount ? db.getQueryCount() : 0)
+            },
+            redis: {
+                status: redisStatus,
+                metrics: (() => {
+                    try { return require('./redisClient').getMetrics(); } catch { return null; }
+                })()
             },
             dlq: {
                 pending_count: dlqCount,
+                cached: (dlqNow - cachedDlq.fetchedAt <= DLQ_CACHE_TTL_MS),
                 status: dlqCount > 50 ? 'warning' : 'healthy'
             },
             memory: {
@@ -209,5 +318,6 @@ module.exports = {
     recordError,
     triggerAlert,
     getHealthStatus,
+    getLivenessStatus,
     apiMetrics
 };

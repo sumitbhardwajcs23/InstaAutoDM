@@ -203,6 +203,7 @@ async function run() {
     console.log('\n====================================================');
     console.log('🎉 ALL 9 MULTI-USER & DATA PRIVACY TESTS PASSED 100%');
     console.log('====================================================');
+    process.exit(0);
   } finally {
     server.close();
   }

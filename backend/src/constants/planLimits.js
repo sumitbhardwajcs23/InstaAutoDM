@@ -45,7 +45,55 @@ async function loadDynamicPlanCache() {
     const db = require('../db');
     const cache = {};
 
-    // 1. Primary Source: Query pricing_plans PostgreSQL table
+    // 1. Sync any legacy site_settings custom_pricing_plans into pricing_plans (canonical SSOT)
+    try {
+      const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
+      if (row && row.value) {
+        const customPlans = JSON.parse(row.value);
+        if (Array.isArray(customPlans) && customPlans.length > 0) {
+          for (const plan of customPlans) {
+            const planId = plan.id || plan.slug || 'custom';
+            const slug = (plan.slug || plan.name || plan.id || '').toLowerCase().trim();
+            const dmLimit = (plan.dmLimit !== undefined && plan.dmLimit !== null && plan.dmLimit !== '' && !isNaN(Number(plan.dmLimit))) 
+              ? Number(plan.dmLimit) 
+              : (plan.dm_limit !== undefined ? Number(plan.dm_limit) : null);
+            const igLimit = (plan.igLimit !== undefined && plan.igLimit !== null && plan.igLimit !== '' && !isNaN(Number(plan.igLimit))) 
+              ? Number(plan.igLimit) 
+              : (plan.ig_limit !== undefined ? Number(plan.ig_limit) : null);
+            const rulesLimit = (plan.rulesLimit !== undefined && plan.rulesLimit !== null && plan.rulesLimit !== '' && !isNaN(Number(plan.rulesLimit))) 
+              ? Number(plan.rulesLimit) 
+              : (plan.rules_limit !== undefined ? Number(plan.rules_limit) : null);
+
+            // Canonical SSOT resolution: if slug matches an existing plan, update that plan's id
+            const existingSlugMatch = await db.prepare("SELECT id FROM pricing_plans WHERE LOWER(TRIM(slug)) = ? OR LOWER(TRIM(id)) = ? LIMIT 1").get(slug, planId);
+            const targetId = existingSlugMatch ? existingSlugMatch.id : planId;
+
+            await db.prepare(`
+              INSERT INTO pricing_plans (id, slug, name, dm_limit, ig_limit, rules_limit, monthly_price, annual_price, is_active, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+              ON CONFLICT (id) DO UPDATE SET
+                slug = EXCLUDED.slug,
+                name = EXCLUDED.name,
+                dm_limit = EXCLUDED.dm_limit,
+                ig_limit = EXCLUDED.ig_limit,
+                rules_limit = EXCLUDED.rules_limit,
+                updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+            `).run(
+              targetId,
+              slug,
+              plan.name || slug,
+              dmLimit !== null ? dmLimit : 1000,
+              igLimit !== null ? igLimit : 1,
+              rulesLimit !== null ? rulesLimit : 5,
+              Number(plan.monthlyPrice) || 0,
+              Number(plan.annualPrice) || 0
+            );
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Primary Source of Truth: Query pricing_plans PostgreSQL table
     try {
       const rows = await db.prepare("SELECT * FROM pricing_plans WHERE is_active = 1 ORDER BY sort_order ASC").all();
       if (Array.isArray(rows) && rows.length > 0) {
@@ -62,32 +110,6 @@ async function loadDynamicPlanCache() {
           for (const key of keys) {
             if (key) {
               cache[key] = { dmLimit, igLimit, rulesLimit, monthlyPrice: plan.monthly_price, annualPrice: plan.annual_price };
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    // 2. Secondary Fallback Source: site_settings custom_pricing_plans
-    try {
-      const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
-      if (row && row.value) {
-        const plans = JSON.parse(row.value);
-        if (Array.isArray(plans) && plans.length > 0) {
-          for (const plan of plans) {
-            const keys = [
-              (plan.slug || '').toLowerCase().trim(),
-              (plan.name || '').toLowerCase().trim(),
-              (plan.id || '').toLowerCase().trim()
-            ].filter(Boolean);
-            const dmLimit = (plan.dmLimit !== undefined && plan.dmLimit !== null && plan.dmLimit !== '' && !isNaN(Number(plan.dmLimit))) ? Number(plan.dmLimit) : null;
-            const igLimit = (plan.igLimit !== undefined && plan.igLimit !== null && plan.igLimit !== '' && !isNaN(Number(plan.igLimit))) ? Number(plan.igLimit) : null;
-            const rulesLimit = (plan.rulesLimit !== undefined && plan.rulesLimit !== null && plan.rulesLimit !== '' && !isNaN(Number(plan.rulesLimit))) ? Number(plan.rulesLimit) : null;
-
-            for (const key of keys) {
-              if (key && !cache[key]) {
-                cache[key] = { dmLimit, igLimit, rulesLimit };
-              }
             }
           }
         }

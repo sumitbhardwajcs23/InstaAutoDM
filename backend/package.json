@@ -24,8 +24,10 @@
     "express-rate-limit": "^8.7.0",
     "google-auth-library": "^11.0.2",
     "instautoreplydm": "file:..",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.0",
+    "rate-limit-redis": "^6.0.1",
     "resend": "^6.28.0",
     "uuid": "^14.0.2"
   }

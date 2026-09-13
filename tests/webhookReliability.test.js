@@ -78,7 +78,14 @@ async function runTests() {
     // 3. DLQ job reprocessing and resolution
     await test('Reprocess and resolve DLQ jobs via management service', async () => {
         const testDlqId = `dlq-${uuidv4().slice(0, 8)}`;
-        const userId = 'user-test-reprocess';
+        const userId = `usr_reproc_${Date.now()}`;
+
+        // Ensure user exists in users table for FK referential integrity
+        await db.prepare(`
+            INSERT INTO users (id, email, name, plan, role, status, usage_period_start)
+            VALUES (?, ?, 'Reprocess Test User', 'free', 'user', 'active', to_char(NOW(), 'YYYY-MM-DD'))
+            ON CONFLICT (id) DO NOTHING
+        `).run(userId, `${userId}@example.com`);
         
         await db.prepare(`
             INSERT INTO dead_letter_queue (id, job_id, user_id, queue_name, payload, error_name, error_message, retry_count, is_resolved, created_at)
@@ -116,6 +123,7 @@ async function runTests() {
     console.log(`========================================\n`);
 
     if (failed > 0) process.exit(1);
+    process.exit(0);
 }
 
 runTests().catch(err => {

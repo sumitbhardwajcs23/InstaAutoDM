@@ -1,0 +1,900 @@
+{
+  "timestamp": "2026-09-13T13:35:32.392Z",
+  "environment": "Staging / Isolated Pure PostgreSQL",
+  "database": "Neon Serverless PostgreSQL (ep-ancie....aws.neon.tech / replyos)",
+  "scenarios": {
+    "S14_ColdStart": {
+      "bootElapsedMs": 241,
+      "firstReqElapsedMs": 12,
+      "firstAuthLatencyMs": 10011.7041,
+      "status": "FAIL"
+    },
+    "S1_Baseline": {
+      "concurrentUsers": 25,
+      "totalRequests": 250,
+      "durationSec": 0.06,
+      "throughput": {
+        "reqsPerSec": 4464.29,
+        "successReqsPerSec": 4464.29
+      },
+      "latencyMs": {
+        "min": 1.19,
+        "avg": 5.18,
+        "p50": 3.54,
+        "p90": 13.63,
+        "p95": 17.05,
+        "p99": 19.52,
+        "max": 19.88
+      },
+      "errors": {
+        "count": 0,
+        "errorRatePct": 0,
+        "statusCodes": {
+          "200": 250
+        }
+      },
+      "system": {
+        "cpuUtilizationPct": 57.1,
+        "eventLoopDelayMs": {
+          "p50": 9.88,
+          "p95": 10.24,
+          "p99": 10.24
+        },
+        "memory": {
+          "rssMb": 60,
+          "heapUsedMb": 11.8,
+          "heapTotalMb": 16,
+          "deltaRssMb": 2.5,
+          "deltaHeapMb": 1.2
+        }
+      }
+    },
+    "S2_ConcurrencyMatrix": [
+      {
+        "vu": 10,
+        "concurrentUsers": 10,
+        "totalRequests": 20,
+        "durationSec": 0.01,
+        "throughput": {
+          "reqsPerSec": 4000,
+          "successReqsPerSec": 4000
+        },
+        "latencyMs": {
+          "min": 0.73,
+          "avg": 1.68,
+          "p50": 1.73,
+          "p90": 2.44,
+          "p95": 2.61,
+          "p99": 2.61,
+          "max": 2.61
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 20
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 0,
+          "eventLoopDelayMs": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "memory": {
+            "rssMb": 60.3,
+            "heapUsedMb": 12.4,
+            "heapTotalMb": 16,
+            "deltaRssMb": 0,
+            "deltaHeapMb": 0.6
+          }
+        }
+      },
+      {
+        "vu": 50,
+        "concurrentUsers": 50,
+        "totalRequests": 100,
+        "durationSec": 0.02,
+        "throughput": {
+          "reqsPerSec": 4545.45,
+          "successReqsPerSec": 4545.45
+        },
+        "latencyMs": {
+          "min": 3.06,
+          "avg": 9.28,
+          "p50": 12.18,
+          "p90": 15.77,
+          "p95": 15.79,
+          "p99": 15.82,
+          "max": 15.82
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 100
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 209.1,
+          "eventLoopDelayMs": {
+            "p50": 0,
+            "p95": 0,
+            "p99": 0
+          },
+          "memory": {
+            "rssMb": 61.1,
+            "heapUsedMb": 12,
+            "heapTotalMb": 16.2,
+            "deltaRssMb": 0.6,
+            "deltaHeapMb": -0.4
+          }
+        }
+      },
+      {
+        "vu": 100,
+        "concurrentUsers": 100,
+        "totalRequests": 200,
+        "durationSec": 0.08,
+        "throughput": {
+          "reqsPerSec": 2380.95,
+          "successReqsPerSec": 2380.95
+        },
+        "latencyMs": {
+          "min": 8.22,
+          "avg": 36.37,
+          "p50": 33.19,
+          "p90": 62.72,
+          "p95": 67.32,
+          "p99": 70.07,
+          "max": 70.27
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 200
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 206,
+          "eventLoopDelayMs": {
+            "p50": 10,
+            "p95": 27.89,
+            "p99": 27.89
+          },
+          "memory": {
+            "rssMb": 63,
+            "heapUsedMb": 14,
+            "heapTotalMb": 21.2,
+            "deltaRssMb": 1.6,
+            "deltaHeapMb": 1.9
+          }
+        }
+      },
+      {
+        "vu": 250,
+        "concurrentUsers": 250,
+        "totalRequests": 500,
+        "durationSec": 0.07,
+        "throughput": {
+          "reqsPerSec": 6944.44,
+          "successReqsPerSec": 6944.44
+        },
+        "latencyMs": {
+          "min": 11.92,
+          "avg": 30.92,
+          "p50": 32.86,
+          "p90": 55.18,
+          "p95": 57.5,
+          "p99": 58.24,
+          "max": 58.26
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 500
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 129.2,
+          "eventLoopDelayMs": {
+            "p50": 11.46,
+            "p95": 16.1,
+            "p99": 16.1
+          },
+          "memory": {
+            "rssMb": 70.2,
+            "heapUsedMb": 16.1,
+            "heapTotalMb": 31.7,
+            "deltaRssMb": 6.8,
+            "deltaHeapMb": 2.1
+          }
+        }
+      },
+      {
+        "vu": 500,
+        "concurrentUsers": 500,
+        "totalRequests": 1000,
+        "durationSec": 0.13,
+        "throughput": {
+          "reqsPerSec": 7692.31,
+          "successReqsPerSec": 7692.31
+        },
+        "latencyMs": {
+          "min": 26.48,
+          "avg": 54.54,
+          "p50": 52.75,
+          "p90": 102.8,
+          "p95": 103.31,
+          "p99": 103.48,
+          "max": 103.55
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 1000
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 96.2,
+          "eventLoopDelayMs": {
+            "p50": 10.41,
+            "p95": 11.35,
+            "p99": 11.35
+          },
+          "memory": {
+            "rssMb": 85.7,
+            "heapUsedMb": 21.6,
+            "heapTotalMb": 51.7,
+            "deltaRssMb": 15.3,
+            "deltaHeapMb": 5.4
+          }
+        }
+      },
+      {
+        "vu": 750,
+        "concurrentUsers": 750,
+        "totalRequests": 1500,
+        "durationSec": 0.22,
+        "throughput": {
+          "reqsPerSec": 6880.73,
+          "successReqsPerSec": 6880.73
+        },
+        "latencyMs": {
+          "min": 33.4,
+          "avg": 89.69,
+          "p50": 97.98,
+          "p90": 159.09,
+          "p95": 160.42,
+          "p99": 161.52,
+          "max": 161.68
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 1500
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 150.5,
+          "eventLoopDelayMs": {
+            "p50": 11.54,
+            "p95": 18.91,
+            "p99": 18.91
+          },
+          "memory": {
+            "rssMb": 105.8,
+            "heapUsedMb": 14.2,
+            "heapTotalMb": 86.5,
+            "deltaRssMb": 19.7,
+            "deltaHeapMb": -7.6
+          }
+        }
+      },
+      {
+        "vu": 1000,
+        "concurrentUsers": 1000,
+        "totalRequests": 2000,
+        "durationSec": 0.3,
+        "throughput": {
+          "reqsPerSec": 6600.66,
+          "successReqsPerSec": 6600.66
+        },
+        "latencyMs": {
+          "min": 39.92,
+          "avg": 126.91,
+          "p50": 143.76,
+          "p90": 222.46,
+          "p95": 223.86,
+          "p99": 224.56,
+          "max": 224.6
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 2000
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 98,
+          "eventLoopDelayMs": {
+            "p50": 10.14,
+            "p95": 18.81,
+            "p99": 20.96
+          },
+          "memory": {
+            "rssMb": 131.4,
+            "heapUsedMb": 36.7,
+            "heapTotalMb": 86.5,
+            "deltaRssMb": 25.3,
+            "deltaHeapMb": 22.3
+          }
+        }
+      },
+      {
+        "vu": 1500,
+        "concurrentUsers": 1500,
+        "totalRequests": 2000,
+        "durationSec": 0.28,
+        "throughput": {
+          "reqsPerSec": 7042.25,
+          "successReqsPerSec": 7042.25
+        },
+        "latencyMs": {
+          "min": 70.87,
+          "avg": 172.26,
+          "p50": 191.05,
+          "p90": 222.98,
+          "p95": 225.07,
+          "p99": 227.4,
+          "max": 227.88
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 2000
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 126.4,
+          "eventLoopDelayMs": {
+            "p50": 11.83,
+            "p95": 17.55,
+            "p99": 17.55
+          },
+          "memory": {
+            "rssMb": 139.8,
+            "heapUsedMb": 33.1,
+            "heapTotalMb": 86.5,
+            "deltaRssMb": 7.8,
+            "deltaHeapMb": -3.8
+          }
+        }
+      },
+      {
+        "vu": 2000,
+        "concurrentUsers": 2000,
+        "totalRequests": 2000,
+        "durationSec": 0.3,
+        "throughput": {
+          "reqsPerSec": 6688.96,
+          "successReqsPerSec": 6688.96
+        },
+        "latencyMs": {
+          "min": 166.87,
+          "avg": 221.21,
+          "p50": 228.63,
+          "p90": 259.72,
+          "p95": 265.92,
+          "p99": 271.11,
+          "max": 272.33
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 2000
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 110,
+          "eventLoopDelayMs": {
+            "p50": 10.91,
+            "p95": 13.54,
+            "p99": 15.47
+          },
+          "memory": {
+            "rssMb": 143.7,
+            "heapUsedMb": 25.2,
+            "heapTotalMb": 157.5,
+            "deltaRssMb": 3.5,
+            "deltaHeapMb": -8.2
+          }
+        }
+      }
+    ],
+    "S3_RealisticTrafficMix": {
+      "concurrentUsers": 100,
+      "totalRequests": 500,
+      "durationSec": 50.18,
+      "throughput": {
+        "reqsPerSec": 9.96,
+        "successReqsPerSec": 0.3
+      },
+      "latencyMs": {
+        "min": 4173.41,
+        "avg": 9949.86,
+        "p50": 10034.44,
+        "p90": 10046.58,
+        "p95": 10047.65,
+        "p99": 10053.13,
+        "max": 10054.42
+      },
+      "errors": {
+        "count": 485,
+        "errorRatePct": 97,
+        "statusCodes": {
+          "200": 15,
+          "ERR": 485
+        }
+      },
+      "system": {
+        "cpuUtilizationPct": 0.9,
+        "eventLoopDelayMs": {
+          "p50": 15.56,
+          "p95": 16.27,
+          "p99": 16.79
+        },
+        "memory": {
+          "rssMb": 66.8,
+          "heapUsedMb": 13.6,
+          "heapTotalMb": 18,
+          "deltaRssMb": -77.2,
+          "deltaHeapMb": -11.8
+        }
+      }
+    },
+    "S4_1000UsersDeepDive": {
+      "concurrentUsers": 1000,
+      "totalRequests": 2000,
+      "durationSec": 20.62,
+      "throughput": {
+        "reqsPerSec": 97,
+        "successReqsPerSec": 0
+      },
+      "latencyMs": {
+        "min": 10009.88,
+        "avg": 10278.73,
+        "p50": 10282.29,
+        "p90": 10310.41,
+        "p95": 10311.34,
+        "p99": 10311.81,
+        "max": 10312.01
+      },
+      "errors": {
+        "count": 2000,
+        "errorRatePct": 100,
+        "statusCodes": {
+          "ERR": 2000
+        }
+      },
+      "system": {
+        "cpuUtilizationPct": 4,
+        "eventLoopDelayMs": {
+          "p50": 15.58,
+          "p95": 16.34,
+          "p99": 19.14
+        },
+        "memory": {
+          "rssMb": 99.9,
+          "heapUsedMb": 29.6,
+          "heapTotalMb": 51.5,
+          "deltaRssMb": 32.7,
+          "deltaHeapMb": 15.9
+        }
+      }
+    },
+    "S5_HorizontalScaling": {
+      "oneInstance": {
+        "concurrentUsers": 100,
+        "totalRequests": 600,
+        "durationSec": 0.26,
+        "throughput": {
+          "reqsPerSec": 2334.63,
+          "successReqsPerSec": 2334.63
+        },
+        "latencyMs": {
+          "min": 11.4,
+          "avg": 42.04,
+          "p50": 25.86,
+          "p90": 128.47,
+          "p95": 138.43,
+          "p99": 141.48,
+          "max": 142.64
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 600
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 182.5,
+          "eventLoopDelayMs": {
+            "p50": 16.81,
+            "p95": 26.66,
+            "p99": 57.84
+          },
+          "memory": {
+            "rssMb": 112.4,
+            "heapUsedMb": 20.8,
+            "heapTotalMb": 77.2,
+            "deltaRssMb": 12.8,
+            "deltaHeapMb": -10.2
+          }
+        }
+      },
+      "twoInstances": {
+        "concurrentUsers": 100,
+        "totalRequests": 600,
+        "durationSec": 0.14,
+        "throughput": {
+          "reqsPerSec": 4225.35,
+          "successReqsPerSec": 4225.35
+        },
+        "latencyMs": {
+          "min": 7.65,
+          "avg": 22.93,
+          "p50": 19.98,
+          "p90": 34.02,
+          "p95": 56.43,
+          "p99": 60.1,
+          "max": 60.9
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 600
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 98.6,
+          "eventLoopDelayMs": {
+            "p50": 12.05,
+            "p95": 22.38,
+            "p99": 22.38
+          },
+          "memory": {
+            "rssMb": 126.3,
+            "heapUsedMb": 30.9,
+            "heapTotalMb": 77.2,
+            "deltaRssMb": 13.5,
+            "deltaHeapMb": 10
+          }
+        }
+      },
+      "fourInstances": {
+        "concurrentUsers": 100,
+        "totalRequests": 600,
+        "durationSec": 0.18,
+        "throughput": {
+          "reqsPerSec": 3351.96,
+          "successReqsPerSec": 3351.96
+        },
+        "latencyMs": {
+          "min": 11.71,
+          "avg": 28.86,
+          "p50": 24.37,
+          "p90": 43.16,
+          "p95": 62.16,
+          "p99": 65.36,
+          "max": 65.89
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 600
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 122.3,
+          "eventLoopDelayMs": {
+            "p50": 13.98,
+            "p95": 19.45,
+            "p99": 19.45
+          },
+          "memory": {
+            "rssMb": 126.5,
+            "heapUsedMb": 17.6,
+            "heapTotalMb": 77.5,
+            "deltaRssMb": -0.2,
+            "deltaHeapMb": -13.4
+          }
+        }
+      },
+      "scaleFactor2": 1.81,
+      "scaleFactor4": 1.44
+    },
+    "S6_WebhookBursts": [
+      {
+        "burstSize": 100,
+        "concurrentUsers": 100,
+        "totalRequests": 100,
+        "durationSec": 10.02,
+        "throughput": {
+          "reqsPerSec": 9.99,
+          "successReqsPerSec": 0
+        },
+        "latencyMs": {
+          "min": 10002.91,
+          "avg": 10005.17,
+          "p50": 10004.63,
+          "p90": 10011.82,
+          "p95": 10011.84,
+          "p99": 10011.86,
+          "max": 10011.86
+        },
+        "errors": {
+          "count": 100,
+          "errorRatePct": 100,
+          "statusCodes": {
+            "ERR": 100
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 1.6,
+          "eventLoopDelayMs": {
+            "p50": 15.53,
+            "p95": 16.84,
+            "p99": 20.38
+          },
+          "memory": {
+            "rssMb": 127,
+            "heapUsedMb": 23.6,
+            "heapTotalMb": 77.5,
+            "deltaRssMb": 0.1,
+            "deltaHeapMb": 5.9
+          }
+        }
+      },
+      {
+        "burstSize": 500,
+        "concurrentUsers": 200,
+        "totalRequests": 500,
+        "durationSec": 30.22,
+        "throughput": {
+          "reqsPerSec": 16.55,
+          "successReqsPerSec": 0
+        },
+        "latencyMs": {
+          "min": 10004.51,
+          "avg": 10073.36,
+          "p50": 10083.08,
+          "p90": 10121.42,
+          "p95": 10132.24,
+          "p99": 10139.61,
+          "max": 10140.88
+        },
+        "errors": {
+          "count": 500,
+          "errorRatePct": 100,
+          "statusCodes": {
+            "ERR": 500
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 4.6,
+          "eventLoopDelayMs": {
+            "p50": 15.56,
+            "p95": 17.45,
+            "p99": 21.05
+          },
+          "memory": {
+            "rssMb": 126.3,
+            "heapUsedMb": 28.1,
+            "heapTotalMb": 77.5,
+            "deltaRssMb": -0.9,
+            "deltaHeapMb": 4.5
+          }
+        }
+      },
+      {
+        "burstSize": 1000,
+        "concurrentUsers": 200,
+        "totalRequests": 1000,
+        "durationSec": 24.51,
+        "throughput": {
+          "reqsPerSec": 40.8,
+          "successReqsPerSec": 30.6
+        },
+        "latencyMs": {
+          "min": 274.14,
+          "avg": 3697.48,
+          "p50": 1110.47,
+          "p90": 10012.19,
+          "p95": 10060.39,
+          "p99": 10080.71,
+          "max": 10082.93
+        },
+        "errors": {
+          "count": 250,
+          "errorRatePct": 25,
+          "statusCodes": {
+            "200": 750,
+            "ERR": 250
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 7,
+          "eventLoopDelayMs": {
+            "p50": 15.38,
+            "p95": 20.51,
+            "p99": 23.07
+          },
+          "memory": {
+            "rssMb": 155.7,
+            "heapUsedMb": 51.6,
+            "heapTotalMb": 136.7,
+            "deltaRssMb": 29.1,
+            "deltaHeapMb": 23.5
+          }
+        }
+      },
+      {
+        "burstSize": 2500,
+        "concurrentUsers": 200,
+        "totalRequests": 2500,
+        "durationSec": 21.34,
+        "throughput": {
+          "reqsPerSec": 117.17,
+          "successReqsPerSec": 117.17
+        },
+        "latencyMs": {
+          "min": 354.24,
+          "avg": 1520.74,
+          "p50": 939.62,
+          "p90": 3664.11,
+          "p95": 3787.2,
+          "p99": 4037.13,
+          "max": 4108.22
+        },
+        "errors": {
+          "count": 0,
+          "errorRatePct": 0,
+          "statusCodes": {
+            "200": 2500
+          }
+        },
+        "system": {
+          "cpuUtilizationPct": 11.5,
+          "eventLoopDelayMs": {
+            "p50": 14.61,
+            "p95": 20.77,
+            "p99": 24.22
+          },
+          "memory": {
+            "rssMb": 170.7,
+            "heapUsedMb": 40.6,
+            "heapTotalMb": 137.2,
+            "deltaRssMb": 14.4,
+            "deltaHeapMb": -11.2
+          }
+        }
+      }
+    ],
+    "S7_DbPoolStress": {
+      "queriesIssued": 30,
+      "successCount": 30,
+      "poolMetrics": {
+        "peakTotal": 20,
+        "peakIdle": 20,
+        "peakWaiting": 0
+      },
+      "status": "PASS"
+    },
+    "S8_WorkerThroughput": {
+      "batchSize": 100,
+      "enqueueDurationMs": 34982,
+      "enqueueRateJobsPerSec": 2.9,
+      "processDurationMs": 12324,
+      "processRateJobsPerSec": 8.1,
+      "status": "PASS"
+    },
+    "S9_DistributedRateLimiting": {
+      "storeType": "MemoryStore (In-process)",
+      "instanceCount": 4,
+      "leakageFactor": "4x per-instance quota partitioning",
+      "verdict": "LIMITATION IDENTIFIED (Requires Redis store for multi-instance deployments)"
+    },
+    "S10_DistributedIdempotency": {
+      "instance1Status": 200,
+      "instance2Status": 200,
+      "status": "PASS"
+    },
+    "S11_GracefulShutdown": {
+      "drainDurationMs": 517,
+      "succeeded": 39,
+      "failed": 0,
+      "status": "PASS"
+    },
+    "S12_ZeroDowntimeDeploy": {
+      "requestsServed": 109,
+      "droppedRequests": 0,
+      "availabilityPct": 100,
+      "status": "PASS"
+    },
+    "S13_UpstreamThrottling": {
+      "jobState": "RETRYING",
+      "errorRecorded": "OAuthException: (#4) Application request limit reached",
+      "status": "PASS"
+    },
+    "S15_FailoverLag": {
+      "detectionElapsedMs": 8,
+      "isEvicted": true,
+      "status": "PASS"
+    },
+    "S16_SoakTest": {
+      "concurrentUsers": 50,
+      "totalRequests": 69691,
+      "durationSec": 10,
+      "throughput": {
+        "reqsPerSec": 6967.71,
+        "successReqsPerSec": 6967.71
+      },
+      "latencyMs": {
+        "min": 2.31,
+        "avg": 7.16,
+        "p50": 7.12,
+        "p90": 8.07,
+        "p95": 8.64,
+        "p99": 10.73,
+        "max": 48.41
+      },
+      "errors": {
+        "count": 0,
+        "errorRatePct": 0,
+        "statusCodes": {
+          "200": 69691
+        }
+      },
+      "system": {
+        "cpuUtilizationPct": 103.4,
+        "eventLoopDelayMs": {
+          "p50": 10.79,
+          "p95": 12.1,
+          "p99": 12.98
+        },
+        "memory": {
+          "rssMb": 188.2,
+          "heapUsedMb": 47.6,
+          "heapTotalMb": 148.9,
+          "deltaRssMb": 16.4,
+          "deltaHeapMb": 8.9
+        }
+      }
+    },
+    "S17_StaticVsCdn": {
+      "staticThroughput": 5479.45,
+      "apiThroughput": 13793.1,
+      "staticP95": 21.17,
+      "apiP95": 4.13
+    },
+    "S18_DbReconciliation": {
+      "orphanSubscriptions": 0,
+      "orphanInvoices": 0,
+      "negativeCounters": 0,
+      "duplicateActiveSubscriptions": 0,
+      "status": "PASS"
+    }
+  }
+}

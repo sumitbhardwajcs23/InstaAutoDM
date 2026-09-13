@@ -1,0 +1,202 @@
+// backend/src/services/redisClient.js
+/**
+ * Resilient Redis Client Service for Airvix
+ * 
+ * Used strictly for:
+ * 1. Ephemeral non-authoritative caching (e.g. dashboard statistics)
+ * 2. Centralized distributed rate-limiting sliding windows (rate-limit-redis)
+ * 
+ * NEVER used as the source of truth for billing, subscriptions, roles, usage, or entitlements.
+ */
+
+const Redis = require('ioredis');
+
+let client = null;
+let isConnected = false;
+let connectionAttempts = 0;
+
+const metrics = {
+  hits: 0,
+  misses: 0,
+  sets: 0,
+  errors: 0
+};
+
+const REDIS_URL = process.env.REDIS_URL;
+
+if (REDIS_URL) {
+  try {
+    client = new Redis(REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 5000,
+      enableReadyCheck: true,
+      retryStrategy(times) {
+        connectionAttempts = times;
+        if (times > 10) {
+          console.warn('[Redis] ⚠️ Max connection attempts reached, cooling down...');
+          return 5000;
+        }
+        return Math.min(times * 200, 2000);
+      }
+    });
+
+    client.on('connect', () => {
+      isConnected = true;
+      console.log('[Redis] ✅ Connected to Redis server successfully.');
+    });
+
+    client.on('ready', () => {
+      isConnected = true;
+    });
+
+    client.on('error', (err) => {
+      isConnected = false;
+      metrics.errors++;
+      // Non-fatal: Log warning but do not crash process
+      if (metrics.errors <= 3 || metrics.errors % 50 === 0) {
+        console.warn(`[Redis] ⚠️ Connection warning: ${err.message}`);
+      }
+    });
+
+    client.on('close', () => {
+      isConnected = false;
+    });
+  } catch (err) {
+    console.warn(`[Redis] ⚠️ Initialization error: ${err.message}`);
+    client = null;
+  }
+} else {
+  // In-memory fallback map when no REDIS_URL is configured
+  console.log('[Redis] ℹ️ No REDIS_URL configured; running in-memory cache fallback.');
+}
+
+// In-memory fallback cache with TTL eviction
+const fallbackCache = new Map();
+
+function cleanExpiredFallback() {
+  const now = Date.now();
+  for (const [k, v] of fallbackCache.entries()) {
+    if (v.expiresAt && v.expiresAt < now) {
+      fallbackCache.delete(k);
+    }
+  }
+}
+setInterval(cleanExpiredFallback, 30000).unref();
+
+async function get(key) {
+  if (client && isConnected) {
+    try {
+      const raw = await client.get(key);
+      if (raw !== null) {
+        metrics.hits++;
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return raw;
+        }
+      }
+      metrics.misses++;
+      return null;
+    } catch (err) {
+      metrics.errors++;
+      metrics.misses++;
+    }
+  }
+
+  // Fallback
+  const entry = fallbackCache.get(key);
+  if (entry) {
+    if (!entry.expiresAt || entry.expiresAt > Date.now()) {
+      metrics.hits++;
+      return entry.val;
+    }
+    fallbackCache.delete(key);
+  }
+  metrics.misses++;
+  return null;
+}
+
+async function set(key, val, ttlSeconds = 60) {
+  const serialized = typeof val === 'string' ? val : JSON.stringify(val);
+  metrics.sets++;
+
+  if (client && isConnected) {
+    try {
+      if (ttlSeconds > 0) {
+        await client.set(key, serialized, 'EX', ttlSeconds);
+      } else {
+        await client.set(key, serialized);
+      }
+      return true;
+    } catch (err) {
+      metrics.errors++;
+    }
+  }
+
+  // Fallback
+  fallbackCache.set(key, {
+    val,
+    expiresAt: ttlSeconds > 0 ? Date.now() + (ttlSeconds * 1000) : null
+  });
+  return true;
+}
+
+async function del(key) {
+  if (client && isConnected) {
+    try {
+      await client.del(key);
+    } catch (err) {
+      metrics.errors++;
+    }
+  }
+  fallbackCache.delete(key);
+  return true;
+}
+
+function isAvailable() {
+  return Boolean(client && isConnected);
+}
+
+function getRawClient() {
+  return client;
+}
+
+function getMetrics() {
+  return {
+    ...metrics,
+    isConnected,
+    isRedisConfigured: Boolean(REDIS_URL),
+    fallbackEntries: fallbackCache.size
+  };
+}
+
+async function close() {
+  if (client) {
+    try {
+      await client.quit();
+    } catch {
+      client.disconnect();
+    }
+  }
+}
+
+/**
+ * sendCommand: delegates to the raw ioredis .call() method.
+ * Used by ResilientStore for rate-limit-redis compatibility.
+ * Exposed as a named function so tests can mock it directly.
+ */
+async function sendCommand(...args) {
+  if (!client) throw new Error('Redis client not initialized');
+  return client.call(...args);
+}
+
+module.exports = {
+  get,
+  set,
+  del,
+  isAvailable,
+  getRawClient,
+  sendCommand,
+  getMetrics,
+  close
+};

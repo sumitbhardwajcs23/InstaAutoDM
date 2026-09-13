@@ -76,6 +76,7 @@ async function run() {
   const dashB = await req('GET', '/api/dashboard/stats', null, tokenB);
   console.log('Status:', dashB.status, '| Account:', dashB.body.account?.username, '| Connected:', dashB.body.connected);
 
-  console.log('\n\u2705 All tests passed! Isolation working correctly.\n');
+  console.log('\n✅ All tests passed! Isolation working correctly.\n');
+  process.exit(0);
 }
 run().catch(console.error);

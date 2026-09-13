@@ -605,29 +605,53 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     const user = await db.prepare('SELECT id, email, name FROM users WHERE email = ?').get(normalizedEmail);
 
+    let devToken = null;
     let devOtp = null;
+
     if (user) {
-      const { rawOtp, expiresAt } = await createOtpToken({
-        email: normalizedEmail,
-        purpose: 'password_reset',
-        ttlMinutes: 10,
-      });
+      // 1. Generate secure single-use reset token for link/API based flows
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      const { v4: uuidv4 } = require('uuid');
+      const resetId = `rst_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
 
-      const sendResult = await sendPasswordResetOtpEmail({
-        email: normalizedEmail,
-        otp: rawOtp,
-        name: user.name,
-      });
+      await db.prepare(`
+        INSERT INTO password_resets (id, user_id, token_hash, expires_at, used, created_at)
+        VALUES (?, ?, ?, ?, 0, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+      `).run(resetId, user.id, tokenHash, expiresAt);
 
-      if (sendResult.simulated && process.env.NODE_ENV !== 'production') {
-        devOtp = rawOtp;
+      if (process.env.NODE_ENV !== 'production') {
+        devToken = rawToken;
+      }
+
+      // 2. Generate 6-digit OTP for email verification flows
+      try {
+        const { rawOtp } = await createOtpToken({
+          email: normalizedEmail,
+          purpose: 'password_reset',
+          ttlMinutes: 10,
+        });
+
+        await sendPasswordResetOtpEmail({
+          email: normalizedEmail,
+          otp: rawOtp,
+          name: user.name,
+        });
+
+        if (process.env.NODE_ENV !== 'production') {
+          devOtp = rawOtp;
+        }
+      } catch (otpErr) {
+        console.warn('[Auth] Non-fatal OTP generation notice:', otpErr.message);
       }
     }
 
     // Uniform response to prevent account enumeration vulnerability
     res.json({
       success: true,
-      message: 'If an account exists with this email, a 6-digit password reset code has been sent.',
+      message: 'If an account exists with this email, password reset instructions and code have been sent.',
+      ...(devToken ? { dev_token: devToken } : {}),
       ...(devOtp ? { dev_otp: devOtp } : {})
     });
   } catch (err) {
@@ -637,35 +661,59 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
 });
 
 /**
- * FORGOT PASSWORD: VERIFY OTP AND SET NEW PASSWORD
+ * FORGOT PASSWORD: VERIFY TOKEN OR OTP AND SET NEW PASSWORD
  * POST /api/auth/reset-password
  */
 router.post('/reset-password', authLimiter, async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json({ error: 'Email, verification code, and new password are required' });
-    }
-    if (newPassword.length < 6) {
+    const { token, email, otp, newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters long' });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    let targetUserId = null;
+    let targetEmail = null;
 
-    // Verify reset OTP
-    const otpResult = await verifyOtpToken({
-      email: normalizedEmail,
-      purpose: 'password_reset',
-      otp,
-    });
+    if (token) {
+      // Single-use token verification
+      const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+      const resetRecord = await db.prepare(`
+        SELECT r.*, u.email 
+        FROM password_resets r
+        JOIN users u ON r.user_id = u.id
+        WHERE r.token_hash = ? AND r.used = 0
+      `).get(tokenHash);
 
-    if (!otpResult.valid) {
-      return res.status(400).json({ error: otpResult.error });
-    }
+      if (!resetRecord || new Date(resetRecord.expires_at).getTime() < Date.now()) {
+        return res.status(400).json({ error: 'Invalid, expired, or previously used password reset token.' });
+      }
 
-    const user = await db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
-    if (!user) {
-      return res.status(404).json({ error: 'User account not found.' });
+      targetUserId = resetRecord.user_id;
+      targetEmail = resetRecord.email;
+
+      // Mark token as used immediately to prevent replay attacks
+      await db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run(resetRecord.id);
+    } else if (email && otp) {
+      // 6-digit OTP verification
+      const normalizedEmail = email.toLowerCase().trim();
+      const otpResult = await verifyOtpToken({
+        email: normalizedEmail,
+        purpose: 'password_reset',
+        otp,
+      });
+
+      if (!otpResult.valid) {
+        return res.status(400).json({ error: otpResult.error });
+      }
+
+      const user = await db.prepare('SELECT id, email FROM users WHERE email = ?').get(normalizedEmail);
+      if (!user) {
+        return res.status(404).json({ error: 'User account not found.' });
+      }
+      targetUserId = user.id;
+      targetEmail = user.email;
+    } else {
+      return res.status(400).json({ error: 'Reset token or email and verification code are required' });
     }
 
     // Hash new password and update canonical user record
@@ -676,20 +724,22 @@ router.post('/reset-password', authLimiter, async (req, res) => {
       UPDATE users 
       SET password_hash = ?, email_verified = 1, updated_at = ? 
       WHERE id = ?
-    `).run(passwordHash, nowStr, user.id);
+    `).run(passwordHash, nowStr, targetUserId);
 
     // Invalidate old active sessions for security
-    await db.prepare('UPDATE user_sessions SET is_revoked = 1 WHERE user_id = ?').run(user.id);
+    await db.prepare('UPDATE user_sessions SET is_revoked = 1 WHERE user_id = ?').run(targetUserId);
 
     // Ensure password provider link exists
-    await linkAuthProviderToUser({
-      userId: user.id,
-      provider: 'password',
-      providerAccountId: normalizedEmail,
-    }).catch(() => {});
+    if (targetEmail) {
+      await linkAuthProviderToUser({
+        userId: targetUserId,
+        provider: 'password',
+        providerAccountId: targetEmail,
+      }).catch(() => {});
+    }
 
     // Create fresh authenticated session
-    const updatedUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+    const updatedUser = await db.prepare('SELECT * FROM users WHERE id = ?').get(targetUserId);
     const sessionBundle = await createUserSession(updatedUser, req);
 
     res.json({
@@ -765,59 +815,163 @@ router.post('/logout', async (req, res) => {
   }
 });
 
+const inflightMe = new Map();
+
 /**
  * GET /api/auth/me (Current Authenticated User & Linked Providers)
  */
 router.get('/me', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const cacheKey = `cache:me:${userId}`;
+  const redisClient = require('../services/redisClient');
+
   try {
-    const user = await db.prepare(`
-      SELECT id, email, name, avatar_url, plan, role, status, email_verified, dm_usage_this_period, usage_period_start, created_at 
-      FROM users WHERE id = ?
-    `).get(req.user.id);
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+  } catch (_) {}
 
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    let adminRole = null;
-    let permissions = [];
-    let isRoot = false;
+  if (inflightMe.has(userId)) {
     try {
-      const adminRow = await db.prepare('SELECT * FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(user.email.toLowerCase().trim());
-      if (adminRow && adminRow.status === 'active') {
-        adminRole = adminRow.role;
-        isRoot = Boolean(adminRow.is_root || adminRow.is_immutable || (adminRow.role === 'superadmin' && !adminRow.created_by));
-        permissions = JSON.parse(adminRow.permissions || '[]');
-        user.role = 'admin';
-      } else if (isConfiguredAdminEmail(user.email)) {
-        adminRole = 'superadmin';
-        isRoot = true;
-        permissions = ['*'];
-        user.role = 'admin';
-      }
-    } catch (e) {}
+      const coalesced = await inflightMe.get(userId);
+      if (coalesced) return res.json(coalesced);
+    } catch (_) {}
+  }
 
-    if (isConfiguredAdminEmail(user.email) && user.role !== 'admin') {
-      user.role = 'admin';
-      await db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
+  const fetchPromise = (async () => {
+    try {
+      const user = await db.prepare(`
+        SELECT id, email, name, avatar_url, plan, role, status, email_verified, dm_usage_this_period, usage_period_start, created_at 
+        FROM users WHERE id = ?
+      `).get(userId);
+
+      if (!user) return null;
+
+      let adminRole = null;
+      let permissions = [];
+      let isRoot = false;
+      try {
+        const adminRow = await db.prepare('SELECT * FROM admin_users WHERE LOWER(TRIM(email)) = ?').get(user.email.toLowerCase().trim());
+        if (adminRow && adminRow.status === 'active') {
+          adminRole = adminRow.role;
+          isRoot = Boolean(adminRow.is_root || adminRow.is_immutable || (adminRow.role === 'superadmin' && !adminRow.created_by));
+          permissions = JSON.parse(adminRow.permissions || '[]');
+          user.role = 'admin';
+        } else if (isConfiguredAdminEmail(user.email)) {
+          adminRole = 'superadmin';
+          isRoot = true;
+          permissions = ['*'];
+          user.role = 'admin';
+        }
+      } catch (e) {}
+
+      if (isConfiguredAdminEmail(user.email) && user.role !== 'admin') {
+        user.role = 'admin';
+        await db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
+      }
+
+      // Fetch linked providers for this canonical user
+      const linkedProviders = await db.prepare(`
+        SELECT provider, provider_account_id, created_at 
+        FROM auth_accounts WHERE user_id = ?
+      `).all(user.id);
+
+      const payload = { 
+        user: {
+          ...user,
+          admin_role: adminRole,
+          is_root: isRoot,
+          permissions: permissions,
+          linked_providers: (linkedProviders || []).map(p => p.provider)
+        }
+      };
+      redisClient.set(cacheKey, payload, 10).catch(() => {});
+      return payload;
+    } finally {
+      inflightMe.delete(userId);
+    }
+  })();
+
+  inflightMe.set(userId, fetchPromise);
+
+  try {
+    const result = await fetchPromise;
+    if (!result) return res.status(404).json({ error: 'User not found' });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch current user' });
+  }
+});
+
+/**
+ * DELETE /api/auth/me
+ * GDPR Article 17 Right to Erasure
+ * Permanently deletes user account and cascade-purges all associated data.
+ */
+router.delete('/me', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Fetch linked providers for this canonical user
-    const linkedProviders = await db.prepare(`
-      SELECT provider, provider_account_id, created_at 
-      FROM auth_accounts WHERE user_id = ?
-    `).all(user.id);
+    // Safety guard: Protect real production customer/root account
+    if (userId === '934117b7-7b64-4ca6-8bc9-3257702699c0' || req.user?.email === 'sumitbhardwaj2227@gmail.com') {
+      return res.status(403).json({ error: 'Protected production account cannot be deleted via API' });
+    }
 
-    res.json({ 
-      user: {
-        ...user,
-        admin_role: adminRole,
-        is_root: isRoot,
-        permissions: permissions,
-        linked_providers: (linkedProviders || []).map(p => p.provider)
-      } 
+    const result = await dataRetentionService.deleteUserData(userId, 'user_self_service');
+    return res.status(200).json({
+      message: 'Account and associated data permanently deleted in compliance with GDPR Article 17',
+      ...result
     });
   } catch (err) {
-    console.error('[Auth] /me error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch user profile' });
+    console.error('[Auth] DELETE /me error:', err);
+    return res.status(500).json({ error: 'Failed to delete account: ' + err.message });
+  }
+});
+
+/**
+ * 14. GDPR DATA PORTABILITY EXPORT
+ * GET /api/auth/export-data
+ * Exports all user account data, connected IG accounts, automations, and billing history
+ * with passwords and access tokens strictly redacted.
+ */
+const { DataRetentionService, dataRetention } = require('../services/dataRetention');
+const dataRetentionService = new DataRetentionService(db);
+
+router.get('/export-data', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const data = await dataRetentionService.exportUserData(userId);
+
+    // Audit log this export
+    try {
+      const { v4: uuidv4 } = require('uuid');
+      await db.prepare(`
+        INSERT INTO audit_logs (id, actor_id, actor_email, action, target_resource, ip_address, details, created_at)
+        VALUES (?, ?, ?, 'GDPR_DATA_EXPORT', 'user_data', ?, 'Self-served GDPR Article 20 data export', to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+      `).run(
+        `aud_${uuidv4().slice(0, 12)}`,
+        userId,
+        req.user.email || null,
+        req.ip || '127.0.0.1'
+      );
+    } catch (auditErr) {
+      console.warn('[Auth] Audit log notice for export-data:', auditErr.message);
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="airvix-data-export-${userId}.json"`);
+    res.json(data);
+  } catch (err) {
+    console.error('[Auth] Export data error:', err.message);
+    res.status(500).json({ error: 'Failed to export account data' });
   }
 });
 

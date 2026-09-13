@@ -1,6 +1,6 @@
 // frontend/src/components/UpgradeModal.jsx
 import React, { useState, useEffect } from 'react';
-import { X, Crown, Check, Sparkles, Zap, ShieldCheck, CreditCard, FileText, ChevronDown, Building } from 'lucide-react';
+import { X, Crown, Check, Sparkles, Zap, ShieldCheck, CreditCard, FileText, ChevronDown, Building, Tag } from 'lucide-react';
 import { apiFetch } from '../api/client';
 
 // Static fallback plans used if API is unavailable
@@ -32,6 +32,23 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
   // Dynamic plans from API
   const [planDetails, setPlanDetails] = useState(PLAN_DETAILS_FALLBACK);
   const [plansLoaded, setPlansLoaded] = useState(false);
+
+  // Promo / Coupon Code State
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState('');
+  const [showCouponInput, setShowCouponInput] = useState(false);
+
+  // Reset coupon state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setAppliedCoupon(null);
+      setCouponCode('');
+      setCouponError('');
+      setShowCouponInput(false);
+    }
+  }, [isOpen]);
 
   // Fetch pricing plans from admin configuration whenever modal opens
   useEffect(() => {
@@ -83,11 +100,82 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
     }
   }, [initialPlan, isOpen, planDetails]);
 
+  // Coupon validation handler
+  const handleApplyCoupon = async (overrideCode) => {
+    const codeToValidate = (overrideCode || couponCode).trim().toUpperCase();
+    if (!codeToValidate) {
+      setCouponError('Please enter a coupon code');
+      return;
+    }
+    setCouponLoading(true);
+    setCouponError('');
+    try {
+      const res = await apiFetch('/billing/validate-coupon', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: codeToValidate,
+          plan: selectedPlan,
+          cycle: billingCycle
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        setCouponError(data.error || 'Invalid or expired coupon code');
+        setAppliedCoupon(null);
+      } else {
+        setAppliedCoupon(data);
+        setCouponCode(data.code || codeToValidate);
+        setCouponError('');
+      }
+    } catch (err) {
+      setCouponError('Failed to validate coupon: ' + err.message);
+      setAppliedCoupon(null);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponError('');
+  };
+
+  // If a coupon is applied and user switches plan or cycle, re-validate
+  useEffect(() => {
+    if (appliedCoupon?.code) {
+      handleApplyCoupon(appliedCoupon.code);
+    }
+  }, [selectedPlan, billingCycle]);
+
   if (!isOpen) return null;
 
   const currentPlanMeta = planDetails[selectedPlan] || Object.values(planDetails)[0] || PLAN_DETAILS_FALLBACK.pro;
-  const currentPrice = billingCycle === 'yearly' ? currentPlanMeta.yearlyPrice : currentPlanMeta.monthlyPrice;
-  const formattedPrice = `₹${currentPrice.toLocaleString('en-IN')}`;
+  const baseMonthlyPrice = currentPlanMeta.monthlyPrice || 0;
+  const baseAnnualTotal = currentPlanMeta.annualTotal || ((currentPlanMeta.yearlyPrice || 0) * 12);
+  const baseDisplayPrice = billingCycle === 'yearly' ? currentPlanMeta.yearlyPrice : baseMonthlyPrice;
+
+  // Final price considering coupon discount
+  let finalPrice = baseDisplayPrice;
+  let finalAnnualTotal = baseAnnualTotal;
+  let discountAmount = 0;
+
+  if (appliedCoupon) {
+    if (billingCycle === 'yearly') {
+      discountAmount = appliedCoupon.discount_amount || 0;
+      finalAnnualTotal = Math.max(0, appliedCoupon.final_price ?? 0);
+      finalPrice = Math.round(finalAnnualTotal / 12);
+    } else {
+      discountAmount = appliedCoupon.discount_amount || 0;
+      finalPrice = Math.max(0, appliedCoupon.final_price ?? 0);
+    }
+  }
+
+  const formattedPrice = `₹${finalPrice.toLocaleString('en-IN')}`;
+  const formattedBasePrice = `₹${baseDisplayPrice.toLocaleString('en-IN')}`;
+  const formattedPayAmount = billingCycle === 'yearly'
+    ? `₹${(appliedCoupon ? finalAnnualTotal : baseAnnualTotal).toLocaleString('en-IN')}`
+    : formattedPrice;
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -109,13 +197,14 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
       // 1. Ensure Razorpay checkout script is loaded
       await loadRazorpayScript();
 
-      // 2. Create order on backend
+      // 2. Create order on backend (passing coupon_code if applied)
       const res = await apiFetch('/billing/create-checkout', {
         method: 'POST',
         body: JSON.stringify({
           plan: selectedPlan,
           cycle: billingCycle,
-          gateway: 'razorpay'
+          gateway: 'razorpay',
+          coupon_code: appliedCoupon ? appliedCoupon.code : undefined
         }),
       });
 
@@ -144,7 +233,9 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
             plan: selectedPlan,
             cycle: billingCycle,
             business_name: businessName,
-            gst_number: gstNumber
+            gst_number: gstNumber,
+            coupon_id: appliedCoupon?.coupon_id || '',
+            coupon_code: appliedCoupon?.code || ''
           },
           theme: {
             color: '#6366f1'
@@ -161,7 +252,9 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
                   cycle: billingCycle,
                   billing_name: businessName || orderData.user?.name,
                   billing_email: orderData.user?.email,
-                  gst_number: gstNumber
+                  gst_number: gstNumber,
+                  coupon_id: appliedCoupon?.coupon_id || undefined,
+                  coupon_code: appliedCoupon?.code || undefined
                 })
               });
 
@@ -196,7 +289,7 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
       } else {
         // Test / Development simulated checkout when keys are placeholders or dev mode
         const confirmTest = window.confirm(
-          `[Razorpay Demo Mode] Proceed to activate ${currentPlanMeta.name} (${billingCycle}) for ${formattedPrice}? (Simulated Payment)`
+          `[Razorpay Demo Mode] Proceed to activate ${currentPlanMeta.name} (${billingCycle}) for ${formattedPayAmount}? (Simulated Payment)`
         );
         if (confirmTest) {
           const verifyRes = await apiFetch('/billing/verify-payment', {
@@ -209,7 +302,9 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
               cycle: billingCycle,
               billing_name: businessName || orderData.user?.name,
               billing_email: orderData.user?.email,
-              gst_number: gstNumber
+              gst_number: gstNumber,
+              coupon_id: appliedCoupon?.coupon_id || undefined,
+              coupon_code: appliedCoupon?.code || undefined
             })
           });
 
@@ -379,13 +474,33 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
           </div>
 
           {/* Price Header */}
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '4px', margin: '14px 0 2px' }}>
-            <span style={{ fontSize: '36px', fontWeight: 800, color: 'var(--text-main, #0f172a)' }}>{formattedPrice}</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '8px', margin: '14px 0 2px' }}>
+            {appliedCoupon && (
+              <span style={{
+                fontSize: '22px',
+                fontWeight: 600,
+                color: '#94a3b8',
+                textDecoration: 'line-through'
+              }}>
+                {formattedBasePrice}
+              </span>
+            )}
+            <span style={{
+              fontSize: '36px',
+              fontWeight: 800,
+              color: appliedCoupon ? '#059669' : 'var(--text-main, #0f172a)'
+            }}>
+              {formattedPrice}
+            </span>
             <span style={{ fontSize: '14px', color: 'var(--text-muted, #64748b)' }}>/ month</span>
           </div>
           {billingCycle === 'yearly' && (
             <div style={{ fontSize: '11.5px', color: '#059669', fontWeight: 600 }}>
-              ₹{currentPlanMeta.annualTotal.toLocaleString('en-IN')} billed annually (includes 2 months free)
+              {appliedCoupon ? (
+                <span>₹{finalAnnualTotal.toLocaleString('en-IN')} billed annually (Coupon {appliedCoupon.code} applied · Save ₹{discountAmount.toLocaleString('en-IN')})</span>
+              ) : (
+                <span>₹{currentPlanMeta.annualTotal.toLocaleString('en-IN')} billed annually (includes 2 months free)</span>
+              )}
             </div>
           )}
         </div>
@@ -422,7 +537,7 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
         </div>
 
         {/* GST / Business Details Optional Accordion */}
-        <div style={{ marginBottom: '18px' }}>
+        <div style={{ marginBottom: '14px' }}>
           <button
             type="button"
             onClick={() => setShowGstForm(!showGstForm)}
@@ -482,6 +597,175 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
           )}
         </div>
 
+        {/* Promo / Coupon Code Section */}
+        <div style={{ marginBottom: '18px' }}>
+          {!appliedCoupon ? (
+            <div>
+              {!showCouponInput ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCouponInput(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#4f46e5',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: 0,
+                  }}
+                >
+                  <Tag size={13} />
+                  <span>+ Have a promo / coupon code?</span>
+                </button>
+              ) : (
+                <div style={{
+                  background: 'var(--bg-subtle, #f8fafc)',
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  border: '1px solid var(--border-light, #e2e8f0)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main, #0f172a)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Tag size={13} color="#6366f1" /> Apply Coupon Code
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { setShowCouponInput(false); setCouponError(''); }}
+                      style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', padding: 0 }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="e.g. LAUNCH50, WELCOME20"
+                      value={couponCode}
+                      onChange={(e) => {
+                        setCouponCode(e.target.value.toUpperCase());
+                        setCouponError('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleApplyCoupon();
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: couponError ? '1px solid #ef4444' : '1px solid #cbd5e1',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        letterSpacing: '0.05em',
+                        textTransform: 'uppercase',
+                        outline: 'none',
+                        background: '#ffffff',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCoupon()}
+                      disabled={couponLoading || !couponCode.trim()}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        background: '#4f46e5',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        cursor: couponLoading || !couponCode.trim() ? 'not-allowed' : 'pointer',
+                        opacity: couponLoading || !couponCode.trim() ? 0.6 : 1,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {couponLoading ? 'Checking...' : 'Apply'}
+                    </button>
+                  </div>
+                  {couponError && (
+                    <div style={{ fontSize: '11.5px', color: '#ef4444', fontWeight: 500, marginTop: '2px' }}>
+                      ⚠️ {couponError}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              boxShadow: '0 2px 6px rgba(16, 185, 129, 0.08)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '8px',
+                  background: '#10b981',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '14px',
+                  fontWeight: 800
+                }}>
+                  %
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#065f46', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>{appliedCoupon.code}</span>
+                    <span style={{
+                      background: '#d1fae5',
+                      color: '#047857',
+                      fontSize: '10.5px',
+                      padding: '1px 6px',
+                      borderRadius: '99px',
+                      fontWeight: 700
+                    }}>
+                      {appliedCoupon.discount_percent > 0 ? `${appliedCoupon.discount_percent}% OFF` : `₹${discountAmount} OFF`}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#047857', marginTop: '1px' }}>
+                    {appliedCoupon.description || 'Promo discount applied'} · You save ₹{discountAmount.toLocaleString('en-IN')}!
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveCoupon}
+                title="Remove coupon"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#059669',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderRadius: '6px',
+                  transition: 'background 0.15s ease',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Razorpay Badges */}
         <div style={{
           display: 'flex',
@@ -520,7 +804,11 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
             transition: 'all 0.15s ease',
           }}
         >
-          {loading ? 'Opening Razorpay Gateway...' : `Pay ${formattedPrice} with Razorpay`}
+          {loading
+            ? 'Opening Razorpay Gateway...'
+            : (appliedCoupon && (billingCycle === 'yearly' ? finalAnnualTotal === 0 : finalPrice === 0))
+              ? '🎉 Activate Free VIP Access (100% OFF)'
+              : `Pay ${formattedPayAmount} with Razorpay`}
         </button>
 
         <p style={{ fontSize: '11px', color: 'var(--text-light, #94a3b8)', textAlign: 'center', marginTop: '12px', margin: '12px 0 0' }}>

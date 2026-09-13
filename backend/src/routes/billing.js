@@ -17,46 +17,80 @@ const PLAN_PRICES_FALLBACK = {
   enterprise: { monthly: 7999, yearly: 71988 }
 };
 
+const redisClient = require('../services/redisClient');
+let inflightPlans = null;
+
 // Load admin-configured plans from pricing_plans table or site_settings
 async function getAdminStoredPlans() {
-  try {
-    const rows = await db.prepare("SELECT * FROM pricing_plans WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC").all();
-    if (Array.isArray(rows) && rows.length > 0) {
-      return rows.map(r => {
-        let features = [];
-        try {
-          if (r.features) features = typeof r.features === 'string' ? JSON.parse(r.features) : r.features;
-        } catch (_) {
-          features = typeof r.features === 'string' ? r.features.split('\n').filter(Boolean) : [];
-        }
-        return {
-          id: r.id,
-          slug: r.slug || r.id,
-          name: r.name,
-          description: r.description || '',
-          monthlyPrice: Number(r.monthly_price) || 0,
-          annualPrice: Number(r.annual_price) || 0,
-          currency: r.currency || 'INR',
-          dmLimit: Number(r.dm_limit) || 1000,
-          igLimit: Number(r.ig_limit) || 1,
-          rulesLimit: Number(r.rules_limit) || 5,
-          badge: r.badge_text || '',
-          popular: Boolean(r.is_popular),
-          active: r.is_active !== 0,
-          features
-        };
-      });
-    }
-  } catch (e) {}
+  const cacheKey = 'cache:plans:all';
 
   try {
-    const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
-    if (row && row.value) {
-      const plans = JSON.parse(row.value);
-      if (Array.isArray(plans) && plans.length > 0) return plans;
+    const cached = await redisClient.get(cacheKey);
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      return cached;
     }
-  } catch (e) {}
-  return null;
+  } catch (_) {}
+
+  if (inflightPlans) {
+    try {
+      const coalesced = await inflightPlans;
+      if (coalesced) return coalesced;
+    } catch (_) {}
+  }
+
+  inflightPlans = (async () => {
+    try {
+      let plans = null;
+      try {
+        const rows = await db.prepare("SELECT * FROM pricing_plans WHERE is_active = 1 ORDER BY sort_order ASC, created_at ASC").all();
+        if (Array.isArray(rows) && rows.length > 0) {
+          plans = rows.map(r => {
+            let features = [];
+            try {
+              if (r.features) features = typeof r.features === 'string' ? JSON.parse(r.features) : r.features;
+            } catch (_) {
+              features = typeof r.features === 'string' ? r.features.split('\n').filter(Boolean) : [];
+            }
+            return {
+              id: r.id,
+              slug: r.slug || r.id,
+              name: r.name,
+              description: r.description || '',
+              monthlyPrice: Number(r.monthly_price) || 0,
+              annualPrice: Number(r.annual_price) || 0,
+              currency: r.currency || 'INR',
+              dmLimit: Number(r.dm_limit) || 1000,
+              igLimit: Number(r.ig_limit) || 1,
+              rulesLimit: Number(r.rules_limit) || 5,
+              badge: r.badge_text || '',
+              popular: Boolean(r.is_popular),
+              active: r.is_active !== 0,
+              features
+            };
+          });
+        }
+      } catch (e) {}
+
+      if (!plans) {
+        try {
+          const row = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
+          if (row && row.value) {
+            const p = JSON.parse(row.value);
+            if (Array.isArray(p) && p.length > 0) plans = p;
+          }
+        } catch (e) {}
+      }
+
+      if (plans && plans.length > 0) {
+        redisClient.set(cacheKey, plans, 60).catch(() => {});
+      }
+      return plans;
+    } finally {
+      inflightPlans = null;
+    }
+  })();
+
+  return await inflightPlans;
 }
 
 // Resolve price (monthly or yearly) for a plan slug from admin settings, falling back to static
@@ -93,7 +127,9 @@ router.get('/subscription', async (req, res) => {
     const subscription = await billingService.getSubscription(userId);
     const user = await db.prepare("SELECT plan, dm_usage_this_period, usage_period_start, subscription_status FROM users WHERE id = ?").get(userId);
 
-    const plan = user?.plan || subscription?.plan || 'free';
+    const subStatus = subscription?.status || user?.subscription_status || 'active';
+    const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus) && subStatus !== 'reconciliation_required';
+    const plan = isEntitled ? (subscription?.plan || user?.plan || 'free') : 'free';
     const limit = dmLimitFor(plan);
     const usage = user?.dm_usage_this_period || 0;
 

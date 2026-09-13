@@ -7,7 +7,12 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
+try {
+  require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
+  require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+  require('dotenv').config({ path: path.join(__dirname, '../../../../.env') });
+  require('dotenv').config();
+} catch (e) {}
 
 const db = require('./index');
 
@@ -138,6 +143,10 @@ class Migrator {
         await client.query(`
           INSERT INTO schema_migrations (version, name, checksum, execution_time_ms)
           VALUES ($1, $2, $3, $4)
+          ON CONFLICT (version) DO UPDATE SET
+            name = EXCLUDED.name,
+            checksum = EXCLUDED.checksum,
+            execution_time_ms = EXCLUDED.execution_time_ms;
         `, [m.version, m.name, m.checksum, duration]);
 
         await client.query('COMMIT');

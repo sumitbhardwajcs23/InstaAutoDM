@@ -29,6 +29,11 @@ class EventQueueWorker {
     this.seenIdempotencyKeys = new Set();
     this.timer = null;
     this.isShuttingDown = false;
+    this.pendingPersistBatch = [];
+    this.persistFlushTimer = null;
+    this.PERSIST_BATCH_SIZE = 25;
+    this.PERSIST_FLUSH_INTERVAL_MS = 25;
+    this.activeFlushPromise = null;
   }
 
   getIdempotencyKey(event) {
@@ -49,35 +54,109 @@ class EventQueueWorker {
 
   async isDuplicateInDb(idempotencyKey) {
     if (!idempotencyKey) return false;
+    const redisClient = require('./redisClient');
+    try {
+      const inRedis = await redisClient.get(`idem:${idempotencyKey}`);
+      if (inRedis) return true;
+    } catch (_) {}
+
     try {
       const existing = await db.prepare("SELECT id FROM webhook_jobs WHERE idempotency_key = ? LIMIT 1").get(idempotencyKey);
-      if (existing) return true;
+      if (existing) {
+        redisClient.set(`idem:${idempotencyKey}`, 1, 86400).catch(() => {});
+        return true;
+      }
       const existingEvent = await db.prepare("SELECT id FROM webhook_events WHERE idempotency_key = ? LIMIT 1").get(idempotencyKey);
-      return Boolean(existingEvent);
+      if (existingEvent) {
+        redisClient.set(`idem:${idempotencyKey}`, 1, 86400).catch(() => {});
+        return true;
+      }
+      redisClient.set(`idem:${idempotencyKey}`, 1, 86400).catch(() => {});
+      return false;
     } catch {
       return false;
     }
   }
 
-  async persistJob(job) {
-    try {
-      const scheduledIso = new Date(job.scheduledAt).toISOString();
-      await db.prepare(`
-        INSERT INTO webhook_jobs (
-          id, idempotency_key, account_id, job_type, payload, state, attempts, max_attempts, scheduled_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'QUEUED', 0, ?, ?, datetime('now'), datetime('now'))
-        ON CONFLICT (idempotency_key) DO NOTHING
-      `).run(
-        job.id,
-        job.idempotencyKey,
-        job.event?.accountId || 'unknown',
-        job.event?.type || 'event',
-        JSON.stringify(job.event?.data || {}),
-        job.maxAttempts,
-        scheduledIso
-      );
-    } catch (e) {
-      // Ignore if table not yet initialized or duplicate insert
+  persistJob(job) {
+    if (!job) return Promise.resolve();
+    this.pendingPersistBatch.push(job);
+    if (this.pendingPersistBatch.length >= this.PERSIST_BATCH_SIZE) {
+      if (this.persistFlushTimer) {
+        clearTimeout(this.persistFlushTimer);
+        this.persistFlushTimer = null;
+      }
+      return this.flushPersistBatch().catch(() => {});
+    } else if (!this.persistFlushTimer) {
+      this.persistFlushTimer = setTimeout(() => {
+        this.persistFlushTimer = null;
+        this.flushPersistBatch().catch(() => {});
+      }, this.PERSIST_FLUSH_INTERVAL_MS);
+    }
+    return Promise.resolve();
+  }
+
+  async flushPersistBatch() {
+    if (this.persistFlushTimer) {
+      clearTimeout(this.persistFlushTimer);
+      this.persistFlushTimer = null;
+    }
+
+    // Drain all in-flight and pending batches completely
+    while (this.activeFlushPromise || this.pendingPersistBatch.length > 0) {
+      if (this.activeFlushPromise) {
+        try {
+          await this.activeFlushPromise;
+        } catch {}
+        continue;
+      }
+
+      if (this.pendingPersistBatch.length === 0) {
+        break;
+      }
+
+      const batch = this.pendingPersistBatch;
+      this.pendingPersistBatch = [];
+
+      const doFlush = async () => {
+        try {
+          const placeholders = batch
+            .map(() => "(?, ?, ?, ?, ?, 'QUEUED', 0, ?, ?, datetime('now'), datetime('now'))")
+            .join(', ');
+
+          const sql = `
+            INSERT INTO webhook_jobs (
+              id, idempotency_key, account_id, job_type, payload, state, attempts, max_attempts, scheduled_at, created_at, updated_at
+            ) VALUES ${placeholders}
+            ON CONFLICT (idempotency_key) DO NOTHING
+          `;
+
+          const params = [];
+          for (const j of batch) {
+            const scheduledIso = new Date(j.scheduledAt).toISOString();
+            params.push(
+              j.id,
+              j.idempotencyKey,
+              j.event?.accountId || 'unknown',
+              j.event?.type || 'event',
+              JSON.stringify(j.event?.data || {}),
+              j.maxAttempts,
+              scheduledIso
+            );
+          }
+
+          await db.prepare(sql).run(...params);
+        } catch (e) {
+          console.warn('[Queue] Micro-batch persist warning:', e.message);
+        }
+      };
+
+      this.activeFlushPromise = doFlush();
+      try {
+        await this.activeFlushPromise;
+      } finally {
+        this.activeFlushPromise = null;
+      }
     }
   }
 
@@ -410,6 +489,8 @@ class EventQueueWorker {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    // Drain any remaining micro-batched persistence operations
+    await this.flushPersistBatch();
     const start = Date.now();
     while (this.activeWorkers > 0 && Date.now() - start < timeoutMs) {
       await new Promise(r => setTimeout(r, 100));
@@ -592,14 +673,16 @@ class EventQueueWorker {
     }
 
     const subStatus = user.subscription_status || 'active';
-    if (subStatus === 'unpaid' || subStatus === 'suspended') {
+    if (subStatus === 'unpaid' || subStatus === 'suspended' || subStatus === 'reconciliation_required' || subStatus === 'expired' || subStatus === 'canceled') {
       console.warn(`[Worker] 🛑 User ${user.id} subscription is ${subStatus}. Suppressing automated comment response.`);
       return;
     }
 
-    const dmLimit = dmLimitFor(user.plan);
-    if (shouldSendDm && user.dm_usage_this_period >= dmLimit) {
-      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', 'usage_capped', `Plan limit reached (${user.plan || 'free'}: ${dmLimit})`);
+    const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus);
+    const effectivePlan = isEntitled ? (user.plan || 'free') : 'free';
+    const dmLimit = dmLimitFor(effectivePlan);
+    if (shouldSendDm && dmLimit !== -1 && user.dm_usage_this_period >= dmLimit) {
+      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', 'usage_capped', `Plan limit reached (${effectivePlan}: ${dmLimit})`);
       return;
     }
 
@@ -1058,15 +1141,17 @@ class EventQueueWorker {
     }
 
     const subStatus = user.subscription_status || 'active';
-    if (subStatus === 'unpaid' || subStatus === 'suspended') {
+    if (subStatus === 'unpaid' || subStatus === 'suspended' || subStatus === 'reconciliation_required' || subStatus === 'expired' || subStatus === 'canceled') {
       console.warn(`[Worker] 🛑 User ${user.id} subscription is ${subStatus}. Suppressing automated DM response.`);
       return;
     }
 
-    const dmLimit = dmLimitFor(user.plan);
-    if (user.dm_usage_this_period >= dmLimit) {
+    const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus);
+    const effectivePlan = isEntitled ? (user.plan || 'free') : 'free';
+    const dmLimit = dmLimitFor(effectivePlan);
+    if (dmLimit !== -1 && user.dm_usage_this_period >= dmLimit) {
       const cappedOutTs = new Date(eventTime + 1000).toISOString();
-      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped', `Plan limit reached (${user.plan || 'free'}: ${dmLimit})`, cappedOutTs);
+      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped', `Plan limit reached (${effectivePlan}: ${dmLimit})`, cappedOutTs);
       return;
     }
 
@@ -1203,7 +1288,22 @@ class EventQueueWorker {
     try {
       const dlqId = uuidv4();
       const jobId = job.id || `job-${Date.now()}`;
-      const userId = job.userId || job.data?.userId || 'system';
+      
+      // Sanitize user_id: resolve valid user ID from users table, otherwise set to NULL
+      // This prevents foreign key constraint violations on system, synthetic, or deleted user jobs.
+      let verifiedUserId = null;
+      const rawUserId = job.userId || job.data?.userId || null;
+      if (rawUserId && rawUserId !== 'system') {
+        try {
+          const userExists = await db.prepare('SELECT id FROM users WHERE id = ?').get(rawUserId);
+          if (userExists) {
+            verifiedUserId = userExists.id;
+          }
+        } catch (_) {
+          verifiedUserId = null;
+        }
+      }
+
       const queueName = job.type || 'dm-dispatch';
       const payloadStr = typeof job === 'string' ? job : JSON.stringify(job);
       const errorName = err?.name || 'WorkerError';
@@ -1214,8 +1314,8 @@ class EventQueueWorker {
       await db.prepare(`
         INSERT INTO dead_letter_queue (
           id, job_id, user_id, queue_name, payload, error_name, error_message, error_stack, retry_count, is_resolved, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
-      `).run(dlqId, jobId, userId, queueName, payloadStr, errorName, errorMessage, errorStack, retryCount);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+      `).run(dlqId, jobId, verifiedUserId, queueName, payloadStr, errorName, errorMessage, errorStack, retryCount);
 
       console.warn(`[Queue DLQ] ☠️ Dispatched job ${jobId} to dead-letter queue: ${errorMessage}`);
       return dlqId;
@@ -1265,9 +1365,9 @@ class EventQueueWorker {
 
   getRateLimitStatus(accountId) {
     const now = Date.now();
-    const r = rateLimitWindows.get(accountId) || { pr: [], dm: [] };
-    const prActive = r.pr.filter(t => t > now - 3600000).length;
-    const dmActive = r.dm.filter(t => t > now - 60000).length;
+    const r = this.rateLimitWindows.get(accountId) || { pr: [], dm: [] };
+    const prActive = (Array.isArray(r.pr) ? r.pr : []).filter(t => t > now - 3600000).length;
+    const dmActive = (Array.isArray(r.dm) ? r.dm : []).filter(t => t > now - 60000).length;
     return {
       private_replies_last_hour: prActive,
       private_reply_limit_per_hour: 120,

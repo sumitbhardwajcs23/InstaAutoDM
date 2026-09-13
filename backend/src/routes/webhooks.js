@@ -45,31 +45,33 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Invalid webhook payload structure' });
   }
 
-  // Helper to log audit entries into webhook_events
-  async function logWebhookEvent({ idempotencyKey, accountId, senderId, eventType, payloadData, status, error = null }) {
-    try {
-      const id = uuidv4();
-      const sanitized = JSON.stringify(payloadData || {}).replace(/("access_token"|"token"):"[^"]+"/g, '$1:"[REDACTED]"');
-      const elapsedMs = Date.now() - startTime;
-      await db.prepare(`
-        INSERT INTO webhook_events (
-          id, idempotency_key, account_id, sender_id, event_type, payload, signature_hash, delivery_timestamp, processing_time_ms, status, error, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), ?, ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-      `).run(
-        id,
-        idempotencyKey || null,
-        accountId || 'unknown',
-        senderId || null,
-        eventType || 'webhook',
-        sanitized,
-        signatureHash,
-        elapsedMs,
-        status,
-        error ? String(error).slice(0, 500) : null
-      );
-    } catch (auditErr) {
-      console.error('[WebhookAudit] Save error:', auditErr.message);
-    }
+  // Helper to log audit entries into webhook_events asynchronously
+  function logWebhookEvent({ idempotencyKey, accountId, senderId, eventType, payloadData, status, error = null }) {
+    setImmediate(async () => {
+      try {
+        const id = uuidv4();
+        const sanitized = JSON.stringify(payloadData || {}).replace(/("access_token"|"token"):"[^"]+"/g, '$1:"[REDACTED]"');
+        const elapsedMs = Date.now() - startTime;
+        await db.prepare(`
+          INSERT INTO webhook_events (
+            id, idempotency_key, account_id, sender_id, event_type, payload, signature_hash, delivery_timestamp, processing_time_ms, status, error, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), ?, ?, ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+        `).run(
+          id,
+          idempotencyKey || null,
+          accountId || 'unknown',
+          senderId || null,
+          eventType || 'webhook',
+          sanitized,
+          signatureHash,
+          elapsedMs,
+          status,
+          error ? String(error).slice(0, 500) : null
+        );
+      } catch (auditErr) {
+        console.error('[WebhookAudit] Save error:', auditErr.message);
+      }
+    });
   }
 
   // Scrub sensitive tokens before logging
@@ -108,7 +110,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
                 if (isEntryStale) {
                   staleEvents++;
                   console.warn(`[Webhook] ⏱️ Discarding stale replay message event ${v.message.mid}`);
-                  await logWebhookEvent({
+                  logWebhookEvent({
                     idempotencyKey,
                     accountId: targetAccountId,
                     senderId: v.sender?.id,
@@ -124,7 +126,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
                 if (isDup) {
                   duplicateEvents++;
                   console.log(`[Webhook] ⚠️ Duplicate webhook DM ignored for key: ${idempotencyKey}`);
-                  await logWebhookEvent({
+                  logWebhookEvent({
                     idempotencyKey,
                     accountId: targetAccountId,
                     senderId: v.sender?.id,
@@ -160,7 +162,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
                     }
                   });
                   enqueuedEvents++;
-                  await logWebhookEvent({
+                  logWebhookEvent({
                     idempotencyKey,
                     accountId: targetAccountId,
                     senderId: v.sender?.id,
@@ -171,7 +173,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
                   console.log(`[Webhook] 📥 Enqueued DM ${v.message.mid} to background worker`);
                 } catch (msgErr) {
                   console.error(`[Webhook] ❌ Failed to enqueue DM ${v.message.mid}:`, msgErr.message);
-                  await logWebhookEvent({
+                  logWebhookEvent({
                     idempotencyKey,
                     accountId: targetAccountId,
                     senderId: v.sender?.id,
@@ -192,7 +194,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
               if (isEntryStale) {
                 staleEvents++;
                 console.warn(`[Webhook] ⏱️ Discarding stale replay comment event ${v.id}`);
-                await logWebhookEvent({
+                logWebhookEvent({
                   idempotencyKey,
                   accountId,
                   senderId: v.from?.id,
@@ -208,7 +210,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
               if (isDup) {
                 duplicateEvents++;
                 console.log(`[Webhook] ⚠️ Duplicate webhook comment ignored for key: ${idempotencyKey}`);
-                await logWebhookEvent({
+                logWebhookEvent({
                   idempotencyKey,
                   accountId,
                   senderId: v.from?.id,
@@ -233,7 +235,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
                   }
                 });
                 enqueuedEvents++;
-                await logWebhookEvent({
+                logWebhookEvent({
                   idempotencyKey,
                   accountId,
                   senderId: v.from?.id,
@@ -244,7 +246,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
                 console.log(`[Webhook] 📥 Enqueued comment ${v.id} to background worker`);
               } catch (commErr) {
                 console.error(`[Webhook] ❌ Failed to enqueue comment ${v.id}:`, commErr.message);
-                await logWebhookEvent({
+                logWebhookEvent({
                   idempotencyKey,
                   accountId,
                   senderId: v.from?.id,
@@ -268,7 +270,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
               if (isEntryStale) {
                 staleEvents++;
                 console.warn(`[Webhook] ⏱️ Discarding stale replay messaging event ${msg.message.mid}`);
-                await logWebhookEvent({
+                logWebhookEvent({
                   idempotencyKey,
                   accountId,
                   senderId: msg.sender?.id,
@@ -283,7 +285,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
               if (isDup) {
                 duplicateEvents++;
                 console.log(`[Webhook] ⚠️ Duplicate webhook messaging DM ignored for key: ${idempotencyKey}`);
-                await logWebhookEvent({
+                logWebhookEvent({
                   idempotencyKey,
                   accountId,
                   senderId: msg.sender?.id,
@@ -319,7 +321,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
                   }
                 });
                 enqueuedEvents++;
-                await logWebhookEvent({
+                logWebhookEvent({
                   idempotencyKey,
                   accountId,
                   senderId: msg.sender?.id,
@@ -330,7 +332,7 @@ router.post('/instagram', webhookLimiter, async (req, res) => {
                 console.log(`[Webhook] 📥 Enqueued messaging DM ${msg.message.mid} to background worker`);
               } catch (msgErr) {
                 console.error(`[Webhook] ❌ Failed to enqueue messaging DM ${msg.message.mid}:`, msgErr.message);
-                await logWebhookEvent({
+                logWebhookEvent({
                   idempotencyKey,
                   accountId,
                   senderId: msg.sender?.id,
