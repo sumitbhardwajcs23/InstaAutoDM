@@ -506,6 +506,9 @@ router.post('/register-request', authLimiter, async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'Please enter a valid email address' });
+    }
     const existing = await db.prepare('SELECT id, password_hash, email_verified FROM users WHERE email = ?').get(normalizedEmail);
 
     if (existing && existing.password_hash && existing.email_verified) {
@@ -553,6 +556,9 @@ router.post('/register', authLimiter, async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'Please enter a valid email address' });
+    }
 
     // If OTP is supplied, verify it first before creating account
     if (otp) {
