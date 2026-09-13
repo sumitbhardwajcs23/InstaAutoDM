@@ -819,18 +819,11 @@ const inflightMe = new Map();
 
 /**
  * GET /api/auth/me (Current Authenticated User & Linked Providers)
+ * PostgreSQL is the sole authoritative system of record for user status, plan, and entitlements.
+ * In-flight coalescing prevents concurrent duplicate roundtrips without stale caching.
  */
 router.get('/me', requireAuth, async (req, res) => {
   const userId = req.user.id;
-  const cacheKey = `cache:me:${userId}`;
-  const redisClient = require('../services/redisClient');
-
-  try {
-    const cached = await redisClient.get(cacheKey);
-    if (cached) {
-      return res.json(cached);
-    }
-  } catch (_) {}
 
   if (inflightMe.has(userId)) {
     try {
@@ -886,7 +879,6 @@ router.get('/me', requireAuth, async (req, res) => {
           linked_providers: (linkedProviders || []).map(p => p.provider)
         }
       };
-      redisClient.set(cacheKey, payload, 10).catch(() => {});
       return payload;
     } finally {
       inflightMe.delete(userId);
