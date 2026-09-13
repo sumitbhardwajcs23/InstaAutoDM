@@ -249,6 +249,8 @@ async function getHealthStatus() {
         const redisClient = require('./redisClient');
         if (redisClient.isAvailable()) {
             redisStatus = 'connected';
+        } else if (redisClient.isLocalhostIgnored && redisClient.isLocalhostIgnored()) {
+            redisStatus = 'fallback_localhost_ignored';
         } else if (process.env.REDIS_URL || process.env.UPSTASH_REDIS_URL) {
             redisStatus = 'disconnected';
         }

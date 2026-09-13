@@ -23,8 +23,17 @@ const metrics = {
 };
 
 const REDIS_URL = process.env.REDIS_URL;
+const isRenderHost = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID);
+const isLocalhostRedis = REDIS_URL && (REDIS_URL.includes('127.0.0.1') || REDIS_URL.includes('localhost'));
+let localhostIgnoredOnCloud = false;
 
-if (REDIS_URL) {
+if (REDIS_URL && isRenderHost && isLocalhostRedis) {
+  localhostIgnoredOnCloud = true;
+  console.warn('[Redis] ⚠️ CONFIGURATION NOTICE: REDIS_URL in Render is pointing to localhost/127.0.0.1.');
+  console.warn('[Redis] ℹ️ Render web services cannot reach workstation localhost.');
+  console.warn('[Redis] ℹ️ To connect Redis on Render: Create a Redis instance in Render Dashboard and set REDIS_URL to its Internal Redis URL, or remove REDIS_URL from Environment Variables.');
+  console.log('[Redis] ℹ️ Running on resilient in-memory cache fallback.');
+} else if (REDIS_URL) {
   try {
     client = new Redis(REDIS_URL, {
       maxRetriesPerRequest: 1,
@@ -33,8 +42,10 @@ if (REDIS_URL) {
       retryStrategy(times) {
         connectionAttempts = times;
         if (times > 10) {
-          console.warn('[Redis] ⚠️ Max connection attempts reached, cooling down...');
-          return 5000;
+          if (times === 11) {
+            console.warn('[Redis] ⚠️ Max connection attempts reached, cooling down (retrying periodically)...');
+          }
+          return 30000;
         }
         return Math.min(times * 200, 2000);
       }
@@ -161,11 +172,16 @@ function getRawClient() {
   return client;
 }
 
+function isLocalhostIgnored() {
+  return localhostIgnoredOnCloud;
+}
+
 function getMetrics() {
   return {
     ...metrics,
     isConnected,
-    isRedisConfigured: Boolean(REDIS_URL),
+    isRedisConfigured: Boolean(REDIS_URL) && !localhostIgnoredOnCloud,
+    localhostIgnoredOnCloud,
     fallbackEntries: fallbackCache.size
   };
 }
@@ -195,6 +211,7 @@ module.exports = {
   set,
   del,
   isAvailable,
+  isLocalhostIgnored,
   getRawClient,
   sendCommand,
   getMetrics,
