@@ -31,13 +31,27 @@ const isNeonPooler = PG_URL && PG_URL.includes('-pooler');
 const defaultPoolMax = isNeonPooler ? 25 : 20;
 const poolMax = process.env.DATABASE_POOL_MAX ? parseInt(process.env.DATABASE_POOL_MAX, 10) : defaultPoolMax;
 
-const pgPool = PG_URL ? new Pool({
+let PoolClass = Pool;
+let useServerlessWs = false;
+if (PG_URL && PG_URL.includes('neon.tech') && (process.env.USE_NEON_WEBSOCKET === 'true' || !process.env.RENDER)) {
+  try {
+    const { Pool: NeonPool, neonConfig } = require('@neondatabase/serverless');
+    const ws = require('ws');
+    neonConfig.webSocketConstructor = ws;
+    PoolClass = NeonPool;
+    useServerlessWs = true;
+  } catch (e) {}
+}
+
+const pgPool = PG_URL ? new PoolClass({
   connectionString: PG_URL,
-  ssl: sslOption,
-  max: poolMax,
-  min: 2, // Warm connection base to prevent TLS handshake connection spikes
-  idleTimeoutMillis: 15000,
-  connectionTimeoutMillis: 15000,
+  ...(useServerlessWs ? {} : {
+    ssl: sslOption,
+    max: poolMax,
+    min: 0,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 45000,
+  })
 }) : null;
 
 // Initialize tables and columns on startup
@@ -91,9 +105,13 @@ if (pgPool) {
           ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
           ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
           ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_dm_limit INTEGER;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_daily_limit INTEGER;
           ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_ig_limit INTEGER;
           ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_rules_limit INTEGER;
           ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified INTEGER DEFAULT 0;
+          ALTER TABLE invoices ADD COLUMN IF NOT EXISTS coupon_code TEXT;
+          ALTER TABLE invoices ADD COLUMN IF NOT EXISTS coupon_id TEXT;
+          ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_amount INTEGER DEFAULT 0;
         `).catch(() => {});
         await pgPool.query(`
           CREATE TABLE IF NOT EXISTS auth_accounts (
@@ -200,9 +218,9 @@ if (pgPool) {
               monthly_price: 1499,
               annual_price: 1099,
               currency: 'INR',
-              dm_limit: -1,
+              dm_limit: 25000,
               ig_limit: 3,
-              rules_limit: -1,
+              rules_limit: 25,
               badge_text: 'MOST POPULAR IN INDIA',
               is_popular: 1,
               is_active: 1,
@@ -226,9 +244,9 @@ if (pgPool) {
               monthly_price: 4999,
               annual_price: 3499,
               currency: 'INR',
-              dm_limit: -1,
+              dm_limit: 500000,
               ig_limit: 10,
-              rules_limit: -1,
+              rules_limit: 500,
               badge_text: 'ENTERPRISE',
               is_popular: 0,
               is_active: 1,

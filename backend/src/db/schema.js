@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT DEFAULT 'user',
   status TEXT DEFAULT 'active',
   custom_dm_limit INTEGER,
+  custom_daily_limit INTEGER,
   custom_ig_limit INTEGER,
   custom_rules_limit INTEGER,
   dm_usage_this_period INTEGER DEFAULT 0,
@@ -327,6 +328,9 @@ CREATE TABLE IF NOT EXISTS invoices (
   billing_email TEXT,
   gst_number TEXT,
   billing_address TEXT,
+  coupon_code TEXT,
+  coupon_id TEXT,
+  discount_amount INTEGER DEFAULT 0,
   paid_at TEXT,
   failed_reason TEXT,
   created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')

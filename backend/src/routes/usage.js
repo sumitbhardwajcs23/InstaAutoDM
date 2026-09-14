@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const queue = require('../services/queue');
-const { dmLimitFor } = require('../constants/planLimits');
+const { dmLimitFor, dailyLimitFor, badgeFor } = require('../constants/planLimits');
 
 const redisClient = require('../services/redisClient');
 const inflightUsage = new Map();
@@ -64,7 +64,9 @@ router.get('/', async (req, res) => {
       const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus) && subStatus !== 'reconciliation_required';
       const effectivePlan = isEntitled ? (user?.plan || 'free') : 'free';
 
-      const planLimit = dmLimitFor(effectivePlan);
+      const planLimit = dmLimitFor(effectivePlan, user?.custom_dm_limit);
+      const dailyLimit = dailyLimitFor(effectivePlan, user?.custom_daily_limit, user?.custom_dm_limit);
+      const subBadge = badgeFor(effectivePlan);
       const usageCount = counter?.dms_sent !== undefined ? Number(counter.dms_sent) : (user?.dm_usage_this_period || 0);
       const usagePercent = Math.min(100, Math.round((usageCount / (planLimit || 1)) * 100));
 
@@ -77,10 +79,12 @@ router.get('/', async (req, res) => {
 
       const result = {
         plan: effectivePlan,
+        subscription_badge: subBadge,
         dms_sent: usageCount,
         dm_usage_this_period: usageCount,
         dm_limit: planLimit,
         monthly_limit: planLimit,
+        daily_limit: dailyLimit,
         percent_used: usagePercent,
         usage_percent: usagePercent,
         usage_period_start: user.usage_period_start,

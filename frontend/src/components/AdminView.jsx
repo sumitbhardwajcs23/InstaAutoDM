@@ -2190,6 +2190,11 @@ export default function AdminView({ user, onBackToApp }) {
               name: u.name || (u.email ? u.email.split('@')[0] : 'User'),
               email: u.email,
               plan: (u.plan || 'free').toLowerCase(),
+              subscription_badge: u.subscription_badge || (u.plan || 'free').toUpperCase(),
+              monthly_limit: u.monthly_limit !== undefined ? u.monthly_limit : (u.dmLimit || 1000),
+              daily_limit: u.daily_limit !== undefined ? u.daily_limit : Math.ceil((u.dmLimit || 1000) / 30),
+              total_paid: Number(u.total_paid || 0),
+              latest_coupon_code: u.latest_coupon_code || '—',
               status: u.status === 'suspended' ? 'inactive' : 'active',
               joined: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Active',
               raw: u
@@ -2209,7 +2214,7 @@ export default function AdminView({ user, onBackToApp }) {
                   <div>
                     <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Users</h2>
                     <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
-                      Manage all platform users, their plans, and status.
+                      Manage all platform users, their plans, billing quotas, and status.
                     </p>
                   </div>
                   <button
@@ -2241,10 +2246,11 @@ export default function AdminView({ user, onBackToApp }) {
                       onChange={(e) => setUserPlanFilter(e.target.value)}
                     >
                       <option value="">All Plans</option>
+                      <option value="free">Free Starter</option>
                       <option value="starter">Starter</option>
-                      <option value="creator">Creator</option>
                       <option value="pro">Pro</option>
-                      <option value="business">Business</option>
+                      <option value="agency">Agency</option>
+                      <option value="enterprise">Enterprise</option>
                     </select>
                   </div>
 
@@ -2265,28 +2271,64 @@ export default function AdminView({ user, onBackToApp }) {
                   <table className="admin-clean-table">
                     <thead>
                       <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Plan</th>
+                        <th>User</th>
+                        <th>Plan & Badge</th>
+                        <th>Quota (Day / Mo)</th>
+                        <th>Paid & Coupon</th>
                         <th>Status</th>
                         <th>Joined</th>
                         <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredUsers.slice(0, 10).map((u, idx) => (
+                      {filteredUsers.map((u, idx) => (
                         <tr key={u.id || idx}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
                               <div className="admin-avatar-initials">
                                 {u.name.split(' ').map(n => n[0]).join('')}
                               </div>
-                              <span style={{ fontWeight: 600, color: '#0f172a', fontSize: '13px' }}>{u.name}</span>
+                              <div>
+                                <span style={{ fontWeight: 600, color: '#0f172a', fontSize: '13px', display: 'block' }}>{u.name}</span>
+                                <span style={{ color: '#64748b', fontSize: '11px' }}>{u.email}</span>
+                              </div>
                             </div>
                           </td>
-                          <td style={{ color: '#475569', fontSize: '12.5px' }}>{u.email}</td>
                           <td>
-                            <span className={`admin-badge-plan ${u.plan}`}>{u.plan}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span className={`admin-badge-plan ${u.plan}`}>{u.plan}</span>
+                              <span style={{
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                background: u.plan !== 'free' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(148, 163, 184, 0.15)',
+                                color: u.plan !== 'free' ? '#4f46e5' : '#64748b',
+                                border: u.plan !== 'free' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(148, 163, 184, 0.25)'
+                              }}>
+                                {u.subscription_badge}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '12px', lineHeight: 1.3 }}>
+                              <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                                {u.monthly_limit === -1 ? 'Unlimited' : `${u.monthly_limit.toLocaleString()} / mo`}
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                {u.daily_limit === -1 ? 'Unlimited / day' : `${u.daily_limit.toLocaleString()} / day`}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '12px', lineHeight: 1.3 }}>
+                              <div style={{ fontWeight: 700, color: u.total_paid > 0 ? '#16a34a' : '#64748b' }}>
+                                ₹{u.total_paid.toLocaleString('en-IN')}
+                              </div>
+                              <div style={{ fontSize: '11px', color: u.latest_coupon_code !== '—' ? '#7c3aed' : '#94a3b8' }}>
+                                {u.latest_coupon_code !== '—' ? `🏷️ ${u.latest_coupon_code}` : 'No Coupon'}
+                              </div>
+                            </div>
                           </td>
                           <td>
                             <span className={u.status === 'active' ? 'admin-badge-status-active' : 'admin-badge-status-inactive'}>
@@ -3209,6 +3251,15 @@ export default function AdminView({ user, onBackToApp }) {
                 </button>
                 <button
                   type="button"
+                  className={`admin-subtab-btn ${plansSubTab === 'payments' ? 'active' : ''}`}
+                  onClick={() => { setPlansSubTab('payments'); loadPayments(); }}
+                >
+                  <DollarSign size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />
+                  <span>Payments</span>
+                  {paymentsList.length > 0 && <span className="admin-subtab-badge">{paymentsList.length}</span>}
+                </button>
+                <button
+                  type="button"
                   className={`admin-subtab-btn ${plansSubTab === 'coupons' ? 'active' : ''}`}
                   onClick={() => { setPlansSubTab('coupons'); loadCoupons(); }}
                 >
@@ -3457,10 +3508,12 @@ export default function AdminView({ user, onBackToApp }) {
                           <tr>
                             <th>Invoice #</th>
                             <th>Customer</th>
-                            <th>Plan</th>
+                            <th>Plan & Badge</th>
+                            <th>Quota (Day / Mo)</th>
                             <th>Amount</th>
+                            <th>Coupon</th>
                             <th>Date</th>
-                            <th>Payment Gateway</th>
+                            <th>Gateway</th>
                             <th>Status</th>
                             <th style={{ textAlign: 'right' }}>Actions</th>
                           </tr>
@@ -3474,14 +3527,15 @@ export default function AdminView({ user, onBackToApp }) {
                                 (inv.invoice_number && inv.invoice_number.toLowerCase().includes(q)) ||
                                 (inv.user_name && inv.user_name.toLowerCase().includes(q)) ||
                                 (inv.user_email_full && inv.user_email_full.toLowerCase().includes(q)) ||
-                                (inv.user_email && inv.user_email.toLowerCase().includes(q));
+                                (inv.user_email && inv.user_email.toLowerCase().includes(q)) ||
+                                (inv.coupon_code && inv.coupon_code.toLowerCase().includes(q));
                               return matchStatus && matchSearch;
                             });
 
                             if (filtered.length === 0) {
                               return (
                                 <tr>
-                                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
+                                  <td colSpan={10} style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
                                     <Receipt size={32} style={{ color: '#cbd5e1', marginBottom: '8px' }} />
                                     <div style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>No Invoices Found</div>
                                     <p style={{ fontSize: '12px', margin: '4px 0 12px 0' }}>
@@ -3501,83 +3555,292 @@ export default function AdminView({ user, onBackToApp }) {
                               );
                             }
 
-                            return filtered.map((inv) => (
-                              <tr key={inv.id}>
-                                <td>
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedInvoiceSlip(inv)}
-                                    style={{ background: 'none', border: 'none', padding: 0, fontWeight: 700, color: '#2563eb', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                    title="View Invoice Receipt"
-                                  >
-                                    <span>{inv.invoice_number || inv.id}</span>
-                                    <ExternalLink size={11} />
-                                  </button>
-                                </td>
-                                <td>
-                                  <div style={{ fontWeight: 600, color: '#0f172a' }}>{inv.user_name || 'Customer'}</div>
-                                  <div style={{ fontSize: '11px', color: '#64748b' }}>{inv.user_email_masked || inv.user_email || '—'}</div>
-                                </td>
-                                <td>
-                                  <span style={{ textTransform: 'capitalize', fontWeight: 600, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
-                                    {inv.plan || inv.user_plan || 'Pro'}
-                                  </span>
-                                </td>
-                                <td style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px' }}>
-                                  ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
-                                </td>
-                                <td style={{ color: '#475569', fontSize: '12px' }}>
-                                  {inv.formatted_date || (inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Paid')}
-                                </td>
-                                <td style={{ color: '#475569', fontSize: '12px' }}>
-                                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <Zap size={12} color="#16a34a" />
-                                    <span>{inv.gateway === 'razorpay' ? 'Razorpay' : (inv.gateway || 'Razorpay')}</span>
-                                  </span>
-                                </td>
-                                <td>
-                                  <span className={inv.status === 'paid' ? 'admin-badge-status-active' : (inv.status === 'pending' ? 'admin-badge-status-pending' : 'admin-badge-plan')}>
-                                    {inv.status === 'paid' ? '● Paid' : (inv.status === 'pending' ? '⏳ Pending' : inv.status)}
-                                  </span>
-                                </td>
-                                <td style={{ textAlign: 'right' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                            return filtered.map((inv) => {
+                              const planName = (inv.plan || inv.user_plan || 'free').toLowerCase();
+                              const badge = inv.subscription_badge || planName.toUpperCase();
+                              const monthlyLimit = inv.monthly_limit !== undefined ? inv.monthly_limit : (planName === 'pro' ? 25000 : 1000);
+                              const dailyLimit = inv.daily_limit !== undefined ? inv.daily_limit : Math.ceil(monthlyLimit / 30);
+
+                              return (
+                                <tr key={inv.id}>
+                                  <td>
                                     <button
                                       type="button"
-                                      className="admin-btn-secondary"
-                                      style={{ padding: '4px 8px', fontSize: '11px' }}
                                       onClick={() => setSelectedInvoiceSlip(inv)}
-                                      title="Print / View Receipt"
+                                      style={{ background: 'none', border: 'none', padding: 0, fontWeight: 700, color: '#2563eb', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                      title="View Invoice Receipt"
                                     >
-                                      <Printer size={12} />
+                                      <span>{inv.invoice_number || inv.id}</span>
+                                      <ExternalLink size={11} />
                                     </button>
-
-                                    {inv.status !== 'paid' && (
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 600, color: '#0f172a' }}>{inv.user_name || 'Customer'}</div>
+                                    <div style={{ fontSize: '11px', color: '#64748b' }}>{inv.user_email_masked || inv.user_email || '—'}</div>
+                                  </td>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <span style={{ textTransform: 'capitalize', fontWeight: 600, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+                                        {planName}
+                                      </span>
+                                      <span style={{
+                                        fontSize: '10px',
+                                        fontWeight: 800,
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        background: planName !== 'free' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(148, 163, 184, 0.15)',
+                                        color: planName !== 'free' ? '#4f46e5' : '#64748b',
+                                        border: planName !== 'free' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(148, 163, 184, 0.25)'
+                                      }}>
+                                        {badge}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontSize: '12px', lineHeight: 1.3 }}>
+                                      <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                                        {monthlyLimit === -1 ? 'Unlimited' : `${monthlyLimit.toLocaleString()} / mo`}
+                                      </div>
+                                      <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                        {dailyLimit === -1 ? 'Unlimited / day' : `${dailyLimit.toLocaleString()} / day`}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px' }}>
+                                      ₹{Number(inv.amount || 0).toLocaleString('en-IN')}
+                                    </div>
+                                    {Number(inv.discount_amount) > 0 && (
+                                      <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>
+                                        -₹{Number(inv.discount_amount).toLocaleString('en-IN')} off
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td>
+                                    {inv.coupon_code ? (
+                                      <span style={{
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        color: '#7c3aed',
+                                        background: 'rgba(124, 58, 237, 0.08)',
+                                        border: '1px solid rgba(124, 58, 237, 0.25)',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px'
+                                      }}>
+                                        🏷️ {inv.coupon_code}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                                    )}
+                                  </td>
+                                  <td style={{ color: '#475569', fontSize: '12px' }}>
+                                    {inv.formatted_date || (inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Paid')}
+                                  </td>
+                                  <td style={{ color: '#475569', fontSize: '12px' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <Zap size={12} color="#16a34a" />
+                                      <span>{inv.gateway === 'razorpay' ? 'Razorpay' : (inv.gateway || 'Razorpay')}</span>
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <span className={inv.status === 'paid' ? 'admin-badge-status-active' : (inv.status === 'pending' ? 'admin-badge-status-pending' : 'admin-badge-plan')}>
+                                      {inv.status === 'paid' ? '● Paid' : (inv.status === 'pending' ? '⏳ Pending' : inv.status)}
+                                    </span>
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
                                       <button
                                         type="button"
                                         className="admin-btn-secondary"
-                                        style={{ padding: '4px 8px', fontSize: '11px', color: '#16a34a' }}
-                                        onClick={() => handleUpdateInvoiceStatus(inv.id, 'paid')}
-                                        title="Mark as Paid"
+                                        style={{ padding: '4px 8px', fontSize: '11px' }}
+                                        onClick={() => setSelectedInvoiceSlip(inv)}
+                                        title="Print / View Receipt"
                                       >
-                                        <Check size={12} />
+                                        <Printer size={12} />
                                       </button>
-                                    )}
 
-                                    <button
-                                      type="button"
-                                      className="admin-btn-secondary"
-                                      style={{ padding: '4px 8px', fontSize: '11px', color: '#dc2626' }}
-                                      onClick={() => handleDeleteInvoice(inv.id, inv.invoice_number)}
-                                      title="Delete invoice record"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ));
+                                      {inv.status !== 'paid' && (
+                                        <button
+                                          type="button"
+                                          className="admin-btn-secondary"
+                                          style={{ padding: '4px 8px', fontSize: '11px', color: '#16a34a' }}
+                                          onClick={() => handleUpdateInvoiceStatus(inv.id, 'paid')}
+                                          title="Mark as Paid"
+                                        >
+                                          <Check size={12} />
+                                        </button>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        className="admin-btn-secondary"
+                                        style={{ padding: '4px 8px', fontSize: '11px', color: '#dc2626' }}
+                                        onClick={() => handleDeleteInvoice(inv.id, inv.invoice_number)}
+                                        title="Delete invoice record"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            });
                           })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─────────────────────────────────────────────────────────────
+                  SUB-TAB 2b: REAL-TIME PAYMENTS & REVENUE VISIBILITY
+              ───────────────────────────────────────────────────────────── */}
+              {plansSubTab === 'payments' && (
+                <div>
+                  {/* Revenue Metrics Summary */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', marginBottom: '18px' }}>
+                    <div className="admin-card" style={{ padding: '16px 20px' }}>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Total Verified Revenue</div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#16a34a', margin: '4px 0' }}>
+                        ₹{Number(paymentsSummary.total_revenue || 0).toLocaleString('en-IN')}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 600 }}>● Authoritative PostgreSQL Ledger</span>
+                    </div>
+
+                    <div className="admin-card" style={{ padding: '16px 20px' }}>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Active Paid Subscribers</div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#2563eb', margin: '4px 0' }}>
+                        {paymentsSummary.active_subscriptions || 0}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: 600 }}>● Active Paid Entitlements</span>
+                    </div>
+
+                    <div className="admin-card" style={{ padding: '16px 20px' }}>
+                      <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Billing Gateway</div>
+                      <div style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: '6px 0' }}>
+                        Razorpay Webhook Verified
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600 }}>● Cryptographically Protected</span>
+                    </div>
+                  </div>
+
+                  {/* Transactions Table Card */}
+                  <div className="admin-card">
+                    <div style={{ overflowX: 'auto' }}>
+                      <table className="admin-clean-table">
+                        <thead>
+                          <tr>
+                            <th>Transaction / Order</th>
+                            <th>Customer</th>
+                            <th>Plan & Badge</th>
+                            <th>Quota (Day / Mo)</th>
+                            <th>Amount</th>
+                            <th>Coupon Applied</th>
+                            <th>Payment Gateway</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(paymentsList || []).length === 0 ? (
+                            <tr>
+                              <td colSpan={9} style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
+                                <CreditCard size={32} style={{ color: '#cbd5e1', marginBottom: '8px' }} />
+                                <div style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>No Payment Transactions Found</div>
+                                <p style={{ fontSize: '12px', margin: '4px 0 0 0' }}>Verified payments and renewals will automatically stream here.</p>
+                              </td>
+                            </tr>
+                          ) : (
+                            paymentsList.map((tx) => {
+                              const planName = (tx.plan || 'pro').toLowerCase();
+                              const badge = tx.subscription_badge || planName.toUpperCase();
+                              const monthlyLimit = tx.monthly_limit !== undefined ? tx.monthly_limit : (planName === 'pro' ? 25000 : 1000);
+                              const dailyLimit = tx.daily_limit !== undefined ? tx.daily_limit : Math.ceil(monthlyLimit / 30);
+
+                              return (
+                                <tr key={tx.id}>
+                                  <td>
+                                    <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '12.5px' }}>{tx.id}</span>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 600, color: '#0f172a' }}>{tx.user_name || 'Customer'}</div>
+                                    <div style={{ fontSize: '11px', color: '#64748b' }}>{tx.user_email || '—'}</div>
+                                  </td>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <span className={`admin-badge-plan ${planName}`}>{planName}</span>
+                                      <span style={{
+                                        fontSize: '10px',
+                                        fontWeight: 800,
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        background: planName !== 'free' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(148, 163, 184, 0.15)',
+                                        color: planName !== 'free' ? '#4f46e5' : '#64748b',
+                                        border: planName !== 'free' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(148, 163, 184, 0.25)'
+                                      }}>
+                                        {badge}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontSize: '12px', lineHeight: 1.3 }}>
+                                      <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                                        {monthlyLimit === -1 ? 'Unlimited' : `${monthlyLimit.toLocaleString()} / mo`}
+                                      </div>
+                                      <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                        {dailyLimit === -1 ? 'Unlimited / day' : `${dailyLimit.toLocaleString()} / day`}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px' }}>
+                                      ₹{Number(tx.amount || 0).toLocaleString('en-IN')}
+                                    </div>
+                                    {Number(tx.discount_amount) > 0 && (
+                                      <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>
+                                        -₹{Number(tx.discount_amount).toLocaleString('en-IN')} off
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td>
+                                    {tx.coupon_code ? (
+                                      <span style={{
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        color: '#7c3aed',
+                                        background: 'rgba(124, 58, 237, 0.08)',
+                                        border: '1px solid rgba(124, 58, 237, 0.25)',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px'
+                                      }}>
+                                        🏷️ {tx.coupon_code}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                                    )}
+                                  </td>
+                                  <td style={{ color: '#475569', fontSize: '12px' }}>
+                                    {tx.gateway}
+                                  </td>
+                                  <td style={{ color: '#475569', fontSize: '12px' }}>
+                                    {tx.payment_date}
+                                  </td>
+                                  <td>
+                                    <span className={tx.status === 'paid' ? 'admin-badge-status-active' : 'admin-badge-status-pending'}>
+                                      {tx.status === 'paid' ? '● Captured' : tx.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
                         </tbody>
                       </table>
                     </div>

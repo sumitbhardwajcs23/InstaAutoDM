@@ -260,8 +260,8 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
 
               if (verifyRes.ok) {
                 const verifyData = await verifyRes.json();
-                if (onUpgraded) onUpgraded(verifyData.plan || selectedPlan);
-                alert(`🎉 Payment Successful! Your account has been upgraded to ${selectedPlan.toUpperCase()} plan.`);
+                if (onUpgraded) onUpgraded(verifyData.plan || selectedPlan, verifyData);
+                alert(`🎉 Payment Successful! Your account has been upgraded to ${(verifyData.plan || selectedPlan).toUpperCase()} plan.`);
                 onClose();
               } else {
                 const err = await verifyRes.json();
@@ -310,8 +310,8 @@ export default function UpgradeModal({ isOpen, onClose, onUpgraded, initialPlan 
 
           if (verifyRes.ok) {
             const verifyData = await verifyRes.json();
-            if (onUpgraded) onUpgraded(verifyData.plan || selectedPlan);
-            alert(`🎉 Subscription Activated! Upgraded to ${selectedPlan.toUpperCase()} plan.`);
+            if (onUpgraded) onUpgraded(verifyData.plan || selectedPlan, verifyData);
+            alert(`🎉 Subscription Activated! Upgraded to ${(verifyData.plan || selectedPlan).toUpperCase()} plan.`);
             onClose();
           } else {
             const err = await verifyRes.json();

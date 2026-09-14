@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const billingService = require('../services/billingService');
-const { dmLimitFor } = require('../constants/planLimits');
+const { dmLimitFor, dailyLimitFor, badgeFor } = require('../constants/planLimits');
 
 // Plan pricing definitions — static fallback (overridden by admin-configured plans from DB)
 const PLAN_PRICES_FALLBACK = {
@@ -125,12 +125,14 @@ router.get('/subscription', async (req, res) => {
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const subscription = await billingService.getSubscription(userId);
-    const user = await db.prepare("SELECT plan, dm_usage_this_period, usage_period_start, subscription_status FROM users WHERE id = ?").get(userId);
+    const user = await db.prepare("SELECT plan, dm_usage_this_period, usage_period_start, subscription_status, custom_dm_limit, custom_daily_limit FROM users WHERE id = ?").get(userId);
 
     const subStatus = subscription?.status || user?.subscription_status || 'active';
     const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus) && subStatus !== 'reconciliation_required';
     const plan = isEntitled ? (subscription?.plan || user?.plan || 'free') : 'free';
-    const limit = dmLimitFor(plan);
+    const limit = dmLimitFor(plan, user?.custom_dm_limit);
+    const dailyLimit = dailyLimitFor(plan, user?.custom_daily_limit, user?.custom_dm_limit);
+    const subBadge = badgeFor(plan);
     const usage = user?.dm_usage_this_period || 0;
 
     res.json({
@@ -145,11 +147,15 @@ router.get('/subscription', async (req, res) => {
         cancel_at_period_end: Boolean(subscription?.cancel_at_period_end),
         canceled_at: subscription?.canceled_at,
         grace_period_ends_at: subscription?.grace_period_ends_at,
-        in_grace_period: subscription?.status === 'past_due' && subscription?.grace_period_ends_at && new Date(subscription.grace_period_ends_at).getTime() > Date.now()
+        in_grace_period: subscription?.status === 'past_due' && subscription?.grace_period_ends_at && new Date(subscription.grace_period_ends_at).getTime() > Date.now(),
+        badge: subBadge,
+        subscription_badge: subBadge
       },
       usage: {
         dms_sent: usage,
         dm_limit: limit,
+        monthly_limit: limit,
+        daily_limit: dailyLimit,
         remaining: Math.max(0, limit - usage),
         percent: Math.min(100, Math.round((usage / (limit || 1)) * 100)),
         period_start: user?.usage_period_start
@@ -424,6 +430,53 @@ router.post('/verify-payment', async (req, res) => {
 
     const paymentId = razorpay_payment_id || `pay_${uuidv4().replace(/-/g, '').slice(0, 14)}`;
 
+    // Check if payment was already processed (idempotency check)
+    const existingInv = await db.prepare("SELECT id, invoice_number FROM invoices WHERE gateway_payment_id = ?").get(paymentId);
+    if (existingInv) {
+      const existingUser = await db.prepare("SELECT id, email, name, plan, subscription_status, custom_dm_limit, custom_daily_limit, dm_usage_this_period FROM users WHERE id = ?").get(userId);
+      const monthly = dmLimitFor(existingUser?.plan || canonicalPlan, existingUser?.custom_dm_limit);
+      const daily = dailyLimitFor(existingUser?.plan || canonicalPlan, existingUser?.custom_daily_limit, existingUser?.custom_dm_limit);
+      const badge = badgeFor(existingUser?.plan || canonicalPlan);
+      return res.status(200).json({
+        success: true,
+        alreadyProcessed: true,
+        message: 'Payment already processed and activated',
+        plan: existingUser?.plan || canonicalPlan,
+        monthly_limit: monthly,
+        daily_limit: daily,
+        subscription_badge: badge,
+        invoice_number: existingInv.invoice_number,
+        user: {
+          ...existingUser,
+          monthly_limit: monthly,
+          daily_limit: daily,
+          subscription_badge: badge
+        }
+      });
+    }
+
+    // Determine coupon discount if coupon was applied
+    let finalPaidAmount = priceInr;
+    let appliedCoupon = null;
+    let discountAmount = 0;
+    const rawCoupon = (coupon_code || '').trim().toUpperCase();
+    if (rawCoupon) {
+      const coupon = await db.prepare("SELECT * FROM coupons WHERE UPPER(code) = ? AND is_active = 1").get(rawCoupon);
+      if (coupon) {
+        if (coupon.discount_percent > 0) {
+          discountAmount = Math.round((priceInr * coupon.discount_percent) / 100);
+        } else if (coupon.discount_amount > 0) {
+          discountAmount = Math.min(priceInr, coupon.discount_amount);
+        }
+        finalPaidAmount = Math.max(0, priceInr - discountAmount);
+        appliedCoupon = coupon;
+      }
+    }
+
+    // Check current subscription to verify plan transition vs renewal
+    const currentSub = await billingService.getSubscription(userId);
+    const isPlanChange = !currentSub || (currentSub.plan !== canonicalPlan);
+
     // Process upgrade via billingService (updates subscriptions, users table, usage_counters, and records GST invoice)
     const webhookResult = await billingService.processPaymentWebhook(
       'razorpay',
@@ -431,29 +484,51 @@ router.post('/verify-payment', async (req, res) => {
       paymentId,
       {
         id: paymentId,
-        amount: priceInr,
+        amount: finalPaidAmount,
         notes: {
           user_id: userId,
           plan: canonicalPlan,
           cycle: cycle === 'yearly' ? 'yearly' : 'monthly',
-          coupon_id: coupon_id || null,
-          coupon_code: coupon_code || null
+          is_plan_change: isPlanChange,
+          coupon_id: appliedCoupon?.id || coupon_id || null,
+          coupon_code: appliedCoupon?.code || coupon_code || null,
+          discount_amount: discountAmount
         },
         billing_name: billing_name || user.name || 'Valued Creator',
         billing_email: billing_email || user.email,
-        gst_number: gst_number || null
+        gst_number: gst_number || null,
+        coupon_code: appliedCoupon?.code || coupon_code || null,
+        coupon_id: appliedCoupon?.id || coupon_id || null,
+        discount_amount: discountAmount,
+        is_plan_change: isPlanChange
       },
       true
     );
 
-    const updatedUser = await db.prepare("SELECT id, email, name, plan, subscription_status, dm_usage_this_period FROM users WHERE id = ?").get(userId);
+    // Invalidate Redis cache immediately
+    try {
+      await redisClient.del(`cache:usage:${userId}`).catch(() => {});
+    } catch (_) {}
+
+    const updatedUser = await db.prepare("SELECT id, email, name, plan, subscription_status, custom_dm_limit, custom_daily_limit, dm_usage_this_period FROM users WHERE id = ?").get(userId);
+    const monthlyLimit = dmLimitFor(updatedUser?.plan || canonicalPlan, updatedUser?.custom_dm_limit);
+    const dailyLimit = dailyLimitFor(updatedUser?.plan || canonicalPlan, updatedUser?.custom_daily_limit, updatedUser?.custom_dm_limit);
+    const subBadge = badgeFor(updatedUser?.plan || canonicalPlan);
 
     res.json({
       success: true,
       message: `🎉 Successfully upgraded to ${planKey.toUpperCase()} plan!`,
       plan: updatedUser?.plan || planKey,
+      monthly_limit: monthlyLimit,
+      daily_limit: dailyLimit,
+      subscription_badge: subBadge,
       invoice_number: webhookResult.invoiceNumber || null,
-      user: updatedUser
+      user: {
+        ...updatedUser,
+        monthly_limit: monthlyLimit,
+        daily_limit: dailyLimit,
+        subscription_badge: subBadge
+      }
     });
   } catch (err) {
     console.error('[Billing] Verify payment error:', err.message);

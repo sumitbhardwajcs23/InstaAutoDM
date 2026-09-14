@@ -249,12 +249,18 @@ async function processPaymentWebhookProduction(gateway, arg2, arg3, arg4, arg5) 
         }
 
         // RULE 2: subscriptions.plan is SSOT
-        // Renewal webhooks cannot silently change the plan unless explicit plan-change event
+        // Legitimate plan change occurs if event is explicit upgrade/change OR trusted metadata indicates plan change
         const isExplicitPlanChange = ['subscription.upgraded', 'subscription.plan_changed', 'customer.subscription.updated'].includes(eventType)
-          || (notes.is_plan_change === true || payload.is_plan_change === true);
+          || notes.is_plan_change === true || notes.is_plan_change === 'true'
+          || payload.is_plan_change === true || payload.is_plan_change === 'true'
+          || notes.plan_change === true || notes.plan_change === 'true';
 
         if (isExplicitPlanChange && validatedPlan) {
           finalPlan = validatedPlan;
+          const webhookCycle = (notes.cycle || payload.cycle || '').toLowerCase().trim();
+          if (webhookCycle === 'yearly' || webhookCycle === 'annual' || webhookCycle === 'monthly') {
+            finalCycle = webhookCycle === 'annual' ? 'yearly' : webhookCycle;
+          }
         } else {
           finalPlan = activeSub.plan;
           if (validatedPlan && validatedPlan !== activeSub.plan) {
@@ -264,7 +270,7 @@ async function processPaymentWebhookProduction(gateway, arg2, arg3, arg4, arg5) 
 
         const isYearly = finalCycle === 'yearly' || finalCycle === 'annual';
         const existingEnd = new Date(activeSub.current_period_end);
-        const baseDate = (!isNaN(existingEnd.getTime()) && existingEnd > now) ? existingEnd : now;
+        const baseDate = (isExplicitPlanChange || isNaN(existingEnd.getTime()) || existingEnd <= now) ? now : existingEnd;
         periodStart = now.toISOString();
 
         // Calendar-based calculation: 1 full calendar year or 1 calendar month
@@ -358,16 +364,32 @@ async function processPaymentWebhookProduction(gateway, arg2, arg3, arg4, arg5) 
         `, [targetSubId, user.id, finalPlan, finalCycle, periodStart, periodEnd]);
       }
 
-      // 3. Update users cache
-      await client.query(`
-        UPDATE users SET
-          plan = $1,
-          subscription_status = 'active',
-          dm_usage_this_period = 0,
-          usage_period_start = $2,
-          updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-        WHERE id = $3
-      `, [finalPlan, periodStart.slice(0, 10), user.id]);
+      // 3. Update users compatibility cache
+      // If explicit plan change, clear legacy custom_dm_limit so new plan quota applies cleanly
+      const isPlanTransition = !activeSub || (activeSub.plan !== finalPlan);
+      if (isPlanTransition) {
+        await client.query(`
+          UPDATE users SET
+            plan = $1,
+            subscription_status = 'active',
+            dm_usage_this_period = 0,
+            usage_period_start = $2,
+            custom_dm_limit = NULL,
+            custom_daily_limit = NULL,
+            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          WHERE id = $3
+        `, [finalPlan, periodStart.slice(0, 10), user.id]);
+      } else {
+        await client.query(`
+          UPDATE users SET
+            plan = $1,
+            subscription_status = 'active',
+            dm_usage_this_period = 0,
+            usage_period_start = $2,
+            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          WHERE id = $3
+        `, [finalPlan, periodStart.slice(0, 10), user.id]);
+      }
 
       // 4. Update usage counter (exactly-once per recognized billing transition)
       const durationInterval = (finalCycle === 'yearly' || finalCycle === 'annual') ? '1 year' : '1 month';
@@ -382,25 +404,74 @@ async function processPaymentWebhookProduction(gateway, arg2, arg3, arg4, arg5) 
           updated_at = EXCLUDED.updated_at
       `, [`cnt_${user.id}`, user.id, durationInterval]);
 
-      // 5. Create invoice
+      // 5. Create invoice with coupon tracking
       let rawAmount = paymentEntity.amount !== undefined ? paymentEntity.amount : (payload.amount || PLAN_PRICES[finalPlan]?.[finalCycle] || 1499);
       const amount = rawAmount > 10000 ? Math.round(rawAmount / 100) : rawAmount;
       const tax = Math.round(amount * 0.18);
 
       const invoiceId = `inv_${uuidv4().slice(0, 12)}`;
       const invoiceNum = `INV-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      const couponCode = (notes.coupon_code || payload.coupon_code || '').trim().toUpperCase() || null;
+      const couponId = notes.coupon_id || payload.coupon_id || null;
+      const discountAmount = Number(notes.discount_amount || payload.discount_amount || 0);
+
+      let appliedCouponId = couponId;
+      let appliedCouponCode = couponCode;
+
+      if (!appliedCouponId && appliedCouponCode) {
+        const cRes = await client.query('SELECT id, code FROM coupons WHERE UPPER(code) = $1 LIMIT 1', [appliedCouponCode]);
+        if (cRes.rows.length > 0) {
+          appliedCouponId = cRes.rows[0].id;
+          appliedCouponCode = cRes.rows[0].code;
+        }
+      } else if (appliedCouponId && !appliedCouponCode) {
+        const cRes = await client.query('SELECT id, code FROM coupons WHERE id = $1 LIMIT 1', [appliedCouponId]);
+        if (cRes.rows.length > 0) {
+          appliedCouponCode = cRes.rows[0].code;
+        }
+      }
+
       await client.query(`
         INSERT INTO invoices (
           id, user_id, subscription_id, invoice_number, amount, tax, currency, status, gateway, gateway_payment_id,
-          billing_name, billing_email, gst_number, paid_at, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'INR', 'paid', $7, $8, $9, $10, $11, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+          billing_name, billing_email, gst_number, coupon_code, coupon_id, discount_amount, paid_at, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'INR', 'paid', $7, $8, $9, $10, $11, $12, $13, $14, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
       `, [
         invoiceId, user.id, targetSubId, invoiceNum, amount, tax, gateway,
         paymentEntity.id || `pay_${uuidv4().slice(0, 8)}`,
         payload.billing_name || user.name || 'Valued Creator',
         payload.billing_email || user.email,
-        payload.gst_number || null
+        payload.gst_number || null,
+        appliedCouponCode,
+        appliedCouponId,
+        discountAmount
       ]);
+
+      // 6. Record coupon redemption & increment used_count atomically
+      if (appliedCouponId) {
+        const redempId = `cr_${uuidv4().slice(0, 12)}`;
+        const redempRes = await client.query(`
+          INSERT INTO coupon_redemptions (id, coupon_id, user_id, invoice_id, discount_applied, redeemed_at)
+          VALUES ($1, $2, $3, $4, $5, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+          ON CONFLICT (coupon_id, user_id) DO NOTHING
+          RETURNING id
+        `, [redempId, appliedCouponId, user.id, invoiceId, discountAmount]);
+
+        if (redempRes.rows.length > 0) {
+          await client.query(`
+            UPDATE coupons SET used_count = COALESCE(used_count, 0) + 1 WHERE id = $1
+          `, [appliedCouponId]);
+        }
+      }
+
+      // 7. Invalidate ephemeral Redis usage cache safely
+      try {
+        const redisClient = require('./redisClient');
+        if (redisClient && typeof redisClient.del === 'function') {
+          await redisClient.del(`cache:usage:${user.id}`).catch(() => {});
+        }
+      } catch (_) {}
 
       // Mark webhook event processed
       if (idempotencyKey) {
@@ -692,10 +763,69 @@ async function processSubscriptionExpiriesProduction(pool, explicitSubId = null)
   return { processed: processedCount, lastResult };
 }
 
+/**
+ * Programmatic helper to process a verified payment event.
+ * Wraps processPaymentWebhookProduction with structured inputs and idempotency key handling.
+ */
+async function processVerifiedPayment(opts) {
+  const paymentId = opts.paymentId || `pay_${uuidv4().replace(/-/g, '').slice(0, 14)}`;
+  const orderId = opts.orderId || `order_${uuidv4().replace(/-/g, '').slice(0, 14)}`;
+  const amountPaise = (opts.amount || 0) * 100;
+  const cycle = opts.cycle || 'monthly';
+  const plan = (opts.plan || 'pro').toLowerCase();
+
+  const payload = {
+    event: opts.eventType || 'payment.captured',
+    paymentId,
+    orderId,
+    idempotencyKey: opts.idempotencyKey || `pay_${paymentId}`,
+    user_id: opts.userId,
+    customer_id: opts.userId,
+    plan,
+    cycle,
+    amount: amountPaise,
+    currency: opts.currency || 'INR',
+    notes: {
+      user_id: opts.userId,
+      plan,
+      cycle,
+      ...(opts.notes || {})
+    },
+    payload: {
+      payment: {
+        entity: {
+          id: paymentId,
+          order_id: orderId,
+          amount: amountPaise,
+          currency: opts.currency || 'INR',
+          status: 'captured',
+          notes: {
+            user_id: opts.userId,
+            plan,
+            cycle,
+            ...(opts.notes || {})
+          }
+        }
+      }
+    }
+  };
+
+  const gateway = opts.gateway || 'razorpay';
+  const eventType = opts.eventType || 'payment.captured';
+  const idempotencyKey = opts.idempotencyKey || `pay_${paymentId}`;
+
+  const res = await processPaymentWebhookProduction(gateway, eventType, idempotencyKey, payload, true);
+  if (res.duplicate) {
+    return { ...res, status: 'already_processed', duplicate: true };
+  }
+  return { ...res, status: res.processed ? 'success' : 'failed' };
+}
+
 module.exports = {
   getCurrentEntitlementSubscription,
   getCanonicalFreePlan,
   runMigration009PreflightCheck,
   processPaymentWebhookProduction,
+  processVerifiedPayment,
   processSubscriptionExpiriesProduction
 };

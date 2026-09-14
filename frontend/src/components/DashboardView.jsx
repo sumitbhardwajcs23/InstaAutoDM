@@ -89,6 +89,7 @@ export default function DashboardView({
   const accountType = account?.accountType || account?.account_type || (isConnected ? 'Creator Account' : 'None');
   const dmsSent = stats?.dmsSent ?? 0;
   const dmsLimit = stats?.dmsLimit ?? 1000;
+  const dailyLimit = stats?.dailyLimit || user?.daily_limit || (dmsLimit === -1 ? -1 : Math.ceil(dmsLimit / 30));
   const dmPercent = dmsLimit > 0 ? Math.min(100, Math.round((dmsSent / dmsLimit) * 100)) : 0;
   const commentsReplied = stats?.commentsReplied ?? 0;
   const activeRulesCount = stats?.activeRules ?? rules.filter(r => r.is_active).length;
@@ -499,10 +500,11 @@ export default function DashboardView({
                 / {dmsLimit}
               </span>
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Monthly quota limit
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span>Monthly: {dmsLimit === -1 ? 'Unlimited' : `${dmsLimit.toLocaleString()} DMs`}</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>Daily: {dailyLimit === -1 ? 'Unlimited' : `${dailyLimit.toLocaleString()} DMs/day`}</span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '8px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '6px' }}>
               Resets in {daysUntilReset} days
             </div>
           </div>

@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { dmLimitFor } = require('../constants/planLimits');
+const { dmLimitFor, dailyLimitFor, badgeFor } = require('../constants/planLimits');
 const redisClient = require('../services/redisClient');
 
 async function getAccountForUser(userId, accountId) {
@@ -60,10 +60,18 @@ router.get('/stats', async (req, res) => {
           }
         }
 
-        const subStatus = user?.subscription_status || 'active';
+        const activeSub = await db.prepare(`
+          SELECT plan, status FROM subscriptions 
+          WHERE user_id = ? AND status IN ('active', 'trialing') 
+          ORDER BY created_at DESC LIMIT 1
+        `).get(userId).catch(() => null);
+
+        const subStatus = activeSub?.status || user?.subscription_status || 'active';
         const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus) && subStatus !== 'reconciliation_required';
-        const effectivePlan = isEntitled ? (user?.plan || 'free') : 'free';
-        const userPlanLimit = dmLimitFor(effectivePlan);
+        const effectivePlan = isEntitled ? ((activeSub?.plan || user?.plan || 'free').toLowerCase()) : 'free';
+        const userPlanLimit = dmLimitFor(effectivePlan, user?.custom_dm_limit);
+        const dailyPlanLimit = dailyLimitFor(effectivePlan, user?.custom_daily_limit, user?.custom_dm_limit);
+        const subscriptionBadge = badgeFor(effectivePlan);
 
         if (!account || !user) {
           const fallbackResponse = {
@@ -76,6 +84,9 @@ router.get('/stats', async (req, res) => {
             totalRules: 0,
             dmUsage: 0,
             dmLimit: userPlanLimit,
+            dailyLimit: dailyPlanLimit,
+            monthlyLimit: userPlanLimit,
+            subscriptionBadge,
             usagePercent: 0,
             accountHealthy: false
           };
@@ -150,9 +161,20 @@ router.get('/stats', async (req, res) => {
             updated_at: account.updated_at,
             connected_at: account.connected_at
           },
-          user: { id: user.id, name: user.name, email: user.email, plan: effectivePlan },
+          user: { 
+            id: user.id, 
+            name: user.name, 
+            email: user.email, 
+            plan: effectivePlan,
+            subscription_badge: subscriptionBadge,
+            monthly_limit: userPlanLimit,
+            daily_limit: dailyPlanLimit
+          },
           totalDmsSent,
           dmLimit: userPlanLimit,
+          monthlyLimit: userPlanLimit,
+          dailyLimit: dailyPlanLimit,
+          subscriptionBadge,
           dmRemaining: Math.max(0, userPlanLimit - totalDmsSent),
           usagePercent,
           commentsReplied: commentsThisMonth,
@@ -164,6 +186,8 @@ router.get('/stats', async (req, res) => {
           stats: {
             dms_sent_period: totalDmsSent,
             dms_limit: userPlanLimit,
+            dms_daily_limit: dailyPlanLimit,
+            subscription_badge: subscriptionBadge,
             dm_percent: usagePercent,
             comments_replied: commentsThisMonth,
             active_rules: activeRules,

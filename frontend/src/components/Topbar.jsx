@@ -19,7 +19,10 @@ export default function Topbar({
   const [searchValue, setSearchValue] = useState('');
 
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
-  const displayPlan = user?.plan === 'pro' ? 'Pro Plan' : 'Free Plan';
+  const effectivePlan = (user?.plan || 'free').toLowerCase();
+  const displayPlan = effectivePlan === 'free' ? 'Free Plan' : `${effectivePlan.toUpperCase()} Plan`;
+  const badge = user?.subscription_badge || effectivePlan.toUpperCase();
+  const isPaid = effectivePlan !== 'free';
   const initial = (displayName.charAt(0) || 'U').toUpperCase();
 
   const handleSearchChange = (e) => {
@@ -353,8 +356,22 @@ export default function Topbar({
             </div>
 
             <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
-                {displayName}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
+                  {displayName}
+                </span>
+                <span style={{
+                  fontSize: '9px',
+                  fontWeight: 800,
+                  padding: '2px 6px',
+                  borderRadius: '6px',
+                  background: isPaid ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25))' : 'rgba(148, 163, 184, 0.15)',
+                  color: isPaid ? '#6366f1' : '#64748b',
+                  border: isPaid ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(148, 163, 184, 0.3)',
+                  letterSpacing: '0.4px'
+                }}>
+                  {badge}
+                </span>
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                 {displayPlan}

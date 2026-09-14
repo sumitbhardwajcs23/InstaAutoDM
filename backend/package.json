@@ -29,6 +29,8 @@
     "pg": "^8.23.0",
     "rate-limit-redis": "^6.0.1",
     "resend": "^6.28.0",
-    "uuid": "^14.0.2"
+    "uuid": "^14.0.2",
+    "@neondatabase/serverless": "^0.10.4",
+    "ws": "^8.18.0"
   }
 }

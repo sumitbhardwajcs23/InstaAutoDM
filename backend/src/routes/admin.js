@@ -7,7 +7,7 @@ const db = require('../db');
 const { requireAuth, requireAdmin, requireAdminRole, requirePermission } = require('../middleware/auth');
 const { DEFAULT_TEMPLATES } = require('../constants/defaultTemplates');
 const { DEFAULT_SITE_SETTINGS, mergeSettingsWithEnvDefaults } = require('./site');
-const { dmLimitFor, igLimitFor, rulesLimitFor, refreshPlanLimitsCache } = require('../constants/planLimits');
+const { dmLimitFor, dailyLimitFor, badgeFor, igLimitFor, rulesLimitFor, refreshPlanLimitsCache } = require('../constants/planLimits');
 const cryptoService = require('../services/crypto');
 const totp = require('../services/totp');
 const { abuseDetection } = require('../services/abuseDetection');
@@ -273,6 +273,7 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
         u.role, 
         u.status, 
         u.custom_dm_limit,
+        u.custom_daily_limit,
         u.custom_ig_limit,
         u.custom_rules_limit,
         u.dm_usage_this_period, 
@@ -311,33 +312,108 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
     query += ` GROUP BY u.id ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
     params.push(parseInt(limit, 10), parseInt(offset, 10));
 
-    const users = await db.prepare(query).all(...params);
+    const users = await db.prepare(query).all(...params) || [];
 
-    // Enrich users with connected instagram accounts array & effective limits
-    const enrichedUsers = await Promise.all((users || []).map(async u => {
-      let instagram_accounts = [];
+    // Batched zero N+1 queries for user enrichment
+    const userIds = users.map(u => u.id);
+    const igAccountsByUser = {};
+    const activeSubsByUser = {};
+    const invoicesAggByUser = {};
+
+    if (userIds.length > 0) {
+      // 1. Batched Instagram Accounts
       try {
-        const igRows = await db.prepare('SELECT id, username, ig_user_id, followers_count, status FROM instagram_accounts WHERE user_id = ?').all(u.id);
-        if (igRows) instagram_accounts = igRows;
-      } catch (e) {}
+        const igPlaceholders = userIds.map(() => '?').join(',');
+        const igRows = await db.prepare(`
+          SELECT id, user_id, username, ig_user_id, followers_count, status 
+          FROM instagram_accounts 
+          WHERE user_id IN (${igPlaceholders})
+        `).all(...userIds);
+        for (const ig of (igRows || [])) {
+          if (!igAccountsByUser[ig.user_id]) igAccountsByUser[ig.user_id] = [];
+          igAccountsByUser[ig.user_id].push(ig);
+        }
+      } catch (igErr) {
+        console.error('[Admin] Batched IG accounts query error:', igErr.message);
+      }
 
-      const effectiveDmLimit = dmLimitFor(u.plan, u.custom_dm_limit);
-      const effectiveIgLimit = igLimitFor(u.plan, u.custom_ig_limit);
-      const effectiveRulesLimit = rulesLimitFor(u.plan, u.custom_rules_limit);
+      // 2. Batched Authoritative Active Subscriptions
+      try {
+        const subPlaceholders = userIds.map(() => '?').join(',');
+        const subRows = await db.prepare(`
+          SELECT user_id, plan, status, current_period_start, current_period_end, created_at
+          FROM subscriptions
+          WHERE user_id IN (${subPlaceholders})
+            AND status IN ('active', 'trialing')
+          ORDER BY created_at DESC
+        `).all(...userIds);
+        for (const sub of (subRows || [])) {
+          if (!activeSubsByUser[sub.user_id]) {
+            activeSubsByUser[sub.user_id] = sub;
+          }
+        }
+      } catch (subErr) {
+        console.error('[Admin] Batched Subscriptions query error:', subErr.message);
+      }
+
+      // 3. Batched Invoice Aggregation (total_paid, latest_payment_amount, latest_coupon_code)
+      try {
+        const invPlaceholders = userIds.map(() => '?').join(',');
+        const invRows = await db.prepare(`
+          SELECT user_id, amount, coupon_code, discount_amount, paid_at, created_at, status
+          FROM invoices
+          WHERE user_id IN (${invPlaceholders})
+            AND status = 'paid'
+          ORDER BY paid_at DESC NULLS LAST, created_at DESC
+        `).all(...userIds);
+        for (const inv of (invRows || [])) {
+          if (!invoicesAggByUser[inv.user_id]) {
+            invoicesAggByUser[inv.user_id] = {
+              total_paid: 0,
+              latest_payment_amount: Number(inv.amount || 0),
+              latest_coupon_code: inv.coupon_code || null
+            };
+          }
+          invoicesAggByUser[inv.user_id].total_paid += Number(inv.amount || 0);
+        }
+      } catch (invErr) {
+        console.error('[Admin] Batched Invoices query error:', invErr.message);
+      }
+    }
+
+    // Enrich users with authoritative limits, badge, and payment visibility
+    const enrichedUsers = users.map(u => {
+      const activeSub = activeSubsByUser[u.id];
+      const effectivePlan = (activeSub?.plan || u.plan || 'free').toLowerCase();
+      const monthlyLimit = dmLimitFor(effectivePlan, u.custom_dm_limit);
+      const dailyLimit = dailyLimitFor(effectivePlan, u.custom_daily_limit, u.custom_dm_limit);
+      const subscriptionBadge = badgeFor(effectivePlan);
+      const invAgg = invoicesAggByUser[u.id] || { total_paid: 0, latest_payment_amount: 0, latest_coupon_code: null };
+      const instagram_accounts = igAccountsByUser[u.id] || [];
 
       return {
         ...u,
-        connected_accounts_count: instagram_accounts.length || parseInt(u.connected_accounts_count || 0, 10),
-        rules_count: parseInt(u.rules_count || 0, 10),
-        dmLimit: effectiveDmLimit,
-        igLimit: effectiveIgLimit,
-        rulesLimit: effectiveRulesLimit,
+        plan: effectivePlan,
+        effective_plan: effectivePlan,
+        subscription_status: activeSub ? activeSub.status : (u.subscription_status || 'none'),
+        subscription_badge: subscriptionBadge,
+        monthly_limit: monthlyLimit,
+        daily_limit: dailyLimit,
+        dmLimit: monthlyLimit,
+        igLimit: igLimitFor(effectivePlan, u.custom_ig_limit),
+        rulesLimit: rulesLimitFor(effectivePlan, u.custom_rules_limit),
         custom_dm_limit: u.custom_dm_limit,
+        custom_daily_limit: u.custom_daily_limit,
         custom_ig_limit: u.custom_ig_limit,
         custom_rules_limit: u.custom_rules_limit,
+        total_paid: invAgg.total_paid,
+        latest_payment_amount: invAgg.latest_payment_amount,
+        latest_coupon_code: invAgg.latest_coupon_code,
+        connected_accounts_count: instagram_accounts.length || parseInt(u.connected_accounts_count || 0, 10),
+        rules_count: parseInt(u.rules_count || 0, 10),
         instagram_accounts
       };
-    }));
+    });
 
     // Count query
     let countQuery = `SELECT COUNT(*) as total FROM users u WHERE 1=1`;
@@ -379,7 +455,7 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
 router.patch('/users/:id', requirePermission('users:manage'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { plan, role, status, name, reset_dm_usage, custom_dm_limit, custom_ig_limit, custom_rules_limit } = req.body;
+    const { plan, role, status, name, reset_dm_usage, custom_dm_limit, custom_daily_limit, custom_ig_limit, custom_rules_limit } = req.body;
 
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     if (!user) {
@@ -425,7 +501,7 @@ router.patch('/users/:id', requirePermission('users:manage'), async (req, res) =
       updates.push('dm_usage_this_period = 0');
     }
 
-    // Custom Limits Override Support
+    // Custom Limits Override Support (strict validation)
     if (custom_dm_limit !== undefined) {
       if (custom_dm_limit === null || custom_dm_limit === '' || custom_dm_limit === 'null') {
         updates.push('custom_dm_limit = NULL');
@@ -434,6 +510,22 @@ router.patch('/users/:id', requirePermission('users:manage'), async (req, res) =
         if (!isNaN(val) && val >= 0) {
           updates.push('custom_dm_limit = ?');
           params.push(val);
+        } else {
+          return res.status(400).json({ error: 'custom_dm_limit must be a non-negative integer or null' });
+        }
+      }
+    }
+
+    if (custom_daily_limit !== undefined) {
+      if (custom_daily_limit === null || custom_daily_limit === '' || custom_daily_limit === 'null') {
+        updates.push('custom_daily_limit = NULL');
+      } else {
+        const val = parseInt(custom_daily_limit, 10);
+        if (!isNaN(val) && val >= 0) {
+          updates.push('custom_daily_limit = ?');
+          params.push(val);
+        } else {
+          return res.status(400).json({ error: 'custom_daily_limit must be a non-negative integer or null' });
         }
       }
     }
@@ -446,6 +538,8 @@ router.patch('/users/:id', requirePermission('users:manage'), async (req, res) =
         if (!isNaN(val) && val >= 0) {
           updates.push('custom_ig_limit = ?');
           params.push(val);
+        } else {
+          return res.status(400).json({ error: 'custom_ig_limit must be a non-negative integer or null' });
         }
       }
     }
@@ -458,6 +552,8 @@ router.patch('/users/:id', requirePermission('users:manage'), async (req, res) =
         if (!isNaN(val) && val >= 0) {
           updates.push('custom_rules_limit = ?');
           params.push(val);
+        } else {
+          return res.status(400).json({ error: 'custom_rules_limit must be a non-negative integer or null' });
         }
       }
     }
@@ -493,6 +589,16 @@ router.patch('/users/:id', requirePermission('users:manage'), async (req, res) =
         }
       }
 
+      // Invalidate Redis usage cache if limits or plans changed
+      try {
+        const redis = require('../services/redis');
+        if (redis && typeof redis.del === 'function') {
+          await redis.del(`cache:usage:${id}`);
+        }
+      } catch (cacheErr) {
+        // Safe degrade if redis not connected
+      }
+
       // Record live audit log in PostgreSQL
       await logAuditEvent(
         req.user?.id,
@@ -503,8 +609,25 @@ router.patch('/users/:id', requirePermission('users:manage'), async (req, res) =
       );
     }
 
-    const updatedUser = await db.prepare('SELECT id, email, name, plan, role, status, custom_dm_limit, custom_ig_limit, custom_rules_limit, dm_usage_this_period, created_at, updated_at FROM users WHERE id = ?').get(id);
-    res.json({ message: 'User updated successfully', user: updatedUser });
+    const updatedUser = await db.prepare(`
+      SELECT id, email, name, plan, role, status, custom_dm_limit, custom_daily_limit, custom_ig_limit, custom_rules_limit, dm_usage_this_period, created_at, updated_at 
+      FROM users WHERE id = ?
+    `).get(id);
+
+    const effectivePlan = (updatedUser.plan || 'free').toLowerCase();
+    const monthlyLimit = dmLimitFor(effectivePlan, updatedUser.custom_dm_limit);
+    const dailyLimit = dailyLimitFor(effectivePlan, updatedUser.custom_daily_limit, updatedUser.custom_dm_limit);
+    const subscriptionBadge = badgeFor(effectivePlan);
+
+    res.json({ 
+      message: 'User updated successfully', 
+      user: {
+        ...updatedUser,
+        monthly_limit: monthlyLimit,
+        daily_limit: dailyLimit,
+        subscription_badge: subscriptionBadge
+      } 
+    });
   } catch (err) {
     console.error('[Admin] Update user error:', err);
     res.status(500).json({ error: 'Failed to update user' });
@@ -640,7 +763,10 @@ router.post('/users/:id/reset-password', async (req, res) => {
 router.get('/users/:id/details', requirePermission('users:view'), async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await db.prepare('SELECT id, email, name, avatar_url, plan, role, status, custom_dm_limit, custom_ig_limit, custom_rules_limit, dm_usage_this_period, usage_period_start, created_at, updated_at FROM users WHERE id = ?').get(id);
+    const user = await db.prepare(`
+      SELECT id, email, name, avatar_url, plan, role, status, custom_dm_limit, custom_daily_limit, custom_ig_limit, custom_rules_limit, dm_usage_this_period, usage_period_start, created_at, updated_at 
+      FROM users WHERE id = ?
+    `).get(id);
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -651,10 +777,10 @@ router.get('/users/:id/details', requirePermission('users:view'), async (req, re
       SELECT id, ig_user_id, username, account_type, page_id, fb_page_name, followers_count, full_name, profile_picture_url, status, created_at
       FROM instagram_accounts
       WHERE user_id = ?
-    `).all(id);
+    `).all(id) || [];
 
     // Automation rules summary
-    const accountIds = (igAccounts || []).map(a => a.id);
+    const accountIds = igAccounts.map(a => a.id);
     let rulesCount = 0;
     if (accountIds.length > 0) {
       const placeholders = accountIds.map(() => '?').join(',');
@@ -662,23 +788,70 @@ router.get('/users/:id/details', requirePermission('users:view'), async (req, re
       rulesCount = parseInt(rulesRow?.count || 0, 10);
     }
 
-    // Determine effective limits (custom overrides plan defaults)
-    const dmLimit = dmLimitFor(user.plan, user.custom_dm_limit);
-    const igLimit = igLimitFor(user.plan, user.custom_ig_limit);
-    const rulesLimit = rulesLimitFor(user.plan, user.custom_rules_limit);
+    // Authoritative Subscription (SSOT)
+    const activeSub = await db.prepare(`
+      SELECT id, user_id, plan, status, billing_cycle, current_period_start, current_period_end, created_at
+      FROM subscriptions 
+      WHERE user_id = ? AND status IN ('active', 'trialing')
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `).get(id);
+
+    const effectivePlan = (activeSub?.plan || user.plan || 'free').toLowerCase();
+
+    // Invoices and financial summary
+    const invoices = await db.prepare(`
+      SELECT id, invoice_number, amount, currency, status, gateway, coupon_code, discount_amount, paid_at, created_at
+      FROM invoices
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT 20
+    `).all(id) || [];
+
+    let total_paid = 0;
+    let latest_payment_amount = 0;
+    let latest_coupon_code = null;
+
+    for (const inv of invoices) {
+      if (inv.status === 'paid') {
+        total_paid += Number(inv.amount || 0);
+        if (!latest_payment_amount) {
+          latest_payment_amount = Number(inv.amount || 0);
+          latest_coupon_code = inv.coupon_code || null;
+        }
+      }
+    }
+
+    // Determine effective limits and badge
+    const monthlyLimit = dmLimitFor(effectivePlan, user.custom_dm_limit);
+    const dailyLimit = dailyLimitFor(effectivePlan, user.custom_daily_limit, user.custom_dm_limit);
+    const subscriptionBadge = badgeFor(effectivePlan);
+    const igLimit = igLimitFor(effectivePlan, user.custom_ig_limit);
+    const rulesLimit = rulesLimitFor(effectivePlan, user.custom_rules_limit);
     const dmUsed = user.dm_usage_this_period || 0;
-    const dmLeft = Math.max(0, dmLimit - dmUsed);
+    const dmLeft = Math.max(0, monthlyLimit - dmUsed);
 
     res.json({
       user: {
         ...user,
-        dmLimit,
+        plan: effectivePlan,
+        effective_plan: effectivePlan,
+        subscription_status: activeSub ? activeSub.status : 'none',
+        subscription_badge: subscriptionBadge,
+        monthly_limit: monthlyLimit,
+        daily_limit: dailyLimit,
+        dmLimit: monthlyLimit,
         igLimit,
         rulesLimit,
         dmUsed,
         dmLeft,
-        connected_accounts: igAccounts || [],
-        rulesCount
+        total_paid,
+        latest_payment_amount,
+        latest_coupon_code,
+        connected_accounts: igAccounts,
+        rulesCount,
+        subscription: activeSub || null,
+        invoices
       }
     });
   } catch (err) {
@@ -1133,24 +1306,45 @@ router.delete('/coupons/:id', requirePermission('coupons:manage'), async (req, r
 // ── INVOICES MANAGEMENT CRUD ─────────────────────────────────────────
 
 // GET /api/admin/invoices
-router.get('/invoices', requirePermission('billing:manage'), async (_req, res) => {
+router.get('/invoices', requirePermission('billing:manage'), async (req, res) => {
   try {
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || 50, 10)));
+    const offset = Math.max(0, parseInt(req.query.offset || 0, 10));
+
+    const totalRow = await db.prepare('SELECT COUNT(*) as count FROM invoices').get().catch(() => ({ count: 0 }));
+    const total = parseInt(totalRow?.count || 0, 10);
+
     const rows = await db.prepare(`
-      SELECT i.*, u.name as user_name, u.email as user_email, u.plan as user_plan
+      SELECT i.*, u.name as user_name, u.email as user_email, u.plan as user_plan,
+             u.custom_dm_limit, u.custom_daily_limit
       FROM invoices i
       LEFT JOIN users u ON i.user_id = u.id
       ORDER BY i.created_at DESC
-    `).all().catch(() => []) || [];
+      LIMIT ? OFFSET ?
+    `).all(limit, offset).catch(() => []) || [];
 
-    const invoices = rows.map(inv => ({
-      ...inv,
-      user_name: inv.user_name || inv.billing_name || 'Creator',
-      user_email_masked: maskEmail(inv.user_email || inv.billing_email || ''),
-      user_email_full: inv.user_email || inv.billing_email || '',
-      formatted_date: inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : (inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Paid')
-    }));
+    const invoices = rows.map(inv => {
+      const planName = (inv.plan || inv.user_plan || 'free').toLowerCase();
+      const monthlyLimit = dmLimitFor(planName, inv.custom_dm_limit);
+      const dailyLimit = dailyLimitFor(planName, inv.custom_daily_limit, inv.custom_dm_limit);
+      const subscriptionBadge = badgeFor(planName);
 
-    res.json({ invoices });
+      return {
+        ...inv,
+        plan: planName,
+        coupon_code: inv.coupon_code || null,
+        discount_amount: Number(inv.discount_amount || 0),
+        monthly_limit: monthlyLimit,
+        daily_limit: dailyLimit,
+        subscription_badge: subscriptionBadge,
+        user_name: inv.user_name || inv.billing_name || 'Creator',
+        user_email_masked: maskEmail(inv.user_email || inv.billing_email || ''),
+        user_email_full: inv.user_email || inv.billing_email || '',
+        formatted_date: inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : (inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Paid')
+      };
+    });
+
+    res.json({ invoices, total, limit, offset });
   } catch (err) {
     console.error('[Admin] Get invoices error:', err);
     res.status(500).json({ error: 'Failed to fetch invoices' });
@@ -1617,30 +1811,53 @@ router.post('/integrations/:id/disconnect', requirePermission('integrations:mana
 });
 
 // ── GET /api/admin/payments ──────────────────────────────────────────
-router.get('/payments', requirePermission('billing:manage'), async (_req, res) => {
+router.get('/payments', requirePermission('billing:manage'), async (req, res) => {
   try {
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || 50, 10)));
+    const offset = Math.max(0, parseInt(req.query.offset || 0, 10));
+
+    const totalRow = await db.prepare('SELECT COUNT(*) as count FROM invoices').get().catch(() => ({ count: 0 }));
+    const total = parseInt(totalRow?.count || 0, 10);
+
     const realInvoices = await db.prepare(`
       SELECT i.id, i.user_id, i.subscription_id, i.invoice_number, i.amount, i.currency, i.status, i.gateway, i.created_at, i.paid_at,
-             u.name as user_name, u.email as user_email, u.plan
+             i.coupon_code, i.discount_amount, i.plan as invoice_plan,
+             u.name as user_name, u.email as user_email, u.plan as user_plan,
+             u.custom_dm_limit, u.custom_daily_limit
       FROM invoices i
       LEFT JOIN users u ON i.user_id = u.id
       ORDER BY i.created_at DESC
-    `).all().catch(() => []) || [];
+      LIMIT ? OFFSET ?
+    `).all(limit, offset).catch(() => []) || [];
 
-    const transactions = realInvoices.map((inv) => ({
-      id: inv.invoice_number || inv.id,
-      user_id: inv.user_id,
-      user_name: inv.user_name || 'Customer',
-      user_email: maskEmail(inv.user_email),
-      plan: inv.plan || 'pro',
-      amount: inv.amount || 0,
-      currency: inv.currency || 'INR',
-      status: inv.status || 'paid',
-      gateway: inv.gateway === 'razorpay' ? 'Razorpay (UPI / NetBanking / Cards)' : (inv.gateway || 'Razorpay'),
-      payment_date: inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : (inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Paid')
-    }));
+    const transactions = realInvoices.map((inv) => {
+      const planName = (inv.invoice_plan || inv.user_plan || 'pro').toLowerCase();
+      const monthlyLimit = dmLimitFor(planName, inv.custom_dm_limit);
+      const dailyLimit = dailyLimitFor(planName, inv.custom_daily_limit, inv.custom_dm_limit);
+      const subscriptionBadge = badgeFor(planName);
 
-    const totalRevenue = transactions.filter(t => t.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0);
+      return {
+        id: inv.invoice_number || inv.id,
+        user_id: inv.user_id,
+        user_name: inv.user_name || 'Customer',
+        user_email: maskEmail(inv.user_email),
+        user_email_full: inv.user_email || '',
+        plan: planName,
+        amount: Number(inv.amount || 0),
+        currency: inv.currency || 'INR',
+        coupon_code: inv.coupon_code || null,
+        discount_amount: Number(inv.discount_amount || 0),
+        monthly_limit: monthlyLimit,
+        daily_limit: dailyLimit,
+        subscription_badge: subscriptionBadge,
+        status: inv.status || 'paid',
+        gateway: inv.gateway === 'razorpay' ? 'Razorpay (UPI / NetBanking / Cards)' : (inv.gateway || 'Razorpay'),
+        payment_date: inv.paid_at ? new Date(inv.paid_at).toLocaleDateString() : (inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Paid')
+      };
+    });
+
+    const revRow = await db.prepare(`SELECT COALESCE(SUM(amount), 0) as total_revenue FROM invoices WHERE status = 'paid'`).get().catch(() => ({ total_revenue: 0 }));
+    const totalRevenue = Number(revRow?.total_revenue || 0);
 
     const paidSubsCount = parseInt((await db.prepare(`
       SELECT COUNT(*) as count 
@@ -1651,6 +1868,9 @@ router.get('/payments', requirePermission('billing:manage'), async (_req, res) =
 
     res.json({
       transactions,
+      total,
+      limit,
+      offset,
       summary: {
         total_revenue: totalRevenue,
         active_subscriptions: paidSubsCount,

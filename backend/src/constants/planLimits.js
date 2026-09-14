@@ -178,7 +178,7 @@ function dmLimitFor(plan, customLimit = null) {
 
   // Try dynamic cache (synchronous — cache should be pre-warmed by server startup)
   const cached = getCachedPlanSync(normalized);
-  if (cached && cached.dmLimit !== null && cached.dmLimit !== undefined) return cached.dmLimit;
+  if (cached && cached.dmLimit !== null && cached.dmLimit !== undefined && cached.dmLimit > 0) return cached.dmLimit;
 
   // Static fallback
   if (normalized in PLAN_LIMITS) {
@@ -234,6 +234,48 @@ function rulesLimitFor(plan, customLimit = null) {
   return PLAN_RULES_LIMITS[normalized] || PLAN_RULES_LIMITS.free;
 }
 
+/**
+ * Returns the effective daily DM limit for a plan.
+ * Default: Math.ceil(monthlyLimit / 30).
+ * Overridden by customDailyLimit if specified.
+ *
+ * @param {string} [plan]
+ * @param {number|null} [customDailyLimit]
+ * @param {number|null} [customMonthlyLimit]
+ * @returns {number}
+ */
+function dailyLimitFor(plan, customDailyLimit = null, customMonthlyLimit = null) {
+  if (customDailyLimit !== null && customDailyLimit !== undefined && customDailyLimit !== '') {
+    const parsed = parseInt(customDailyLimit, 10);
+    if (!isNaN(parsed) && parsed >= 0) return parsed;
+  }
+  const monthly = dmLimitFor(plan, customMonthlyLimit);
+  return Math.ceil((monthly || 1000) / 30);
+}
+
+/**
+ * Returns canonical subscription badge string for a plan.
+ * Derived from authoritative effective subscription plan.
+ *
+ * @param {string} [plan]
+ * @returns {string}
+ */
+function badgeFor(plan) {
+  const norm = (plan || 'free').toLowerCase().trim();
+  const cached = getCachedPlanSync(norm);
+  if (cached && cached.badge) return cached.badge;
+  const badges = {
+    free: 'FREE',
+    starter: 'STARTER',
+    pro: 'PRO',
+    agency: 'AGENCY',
+    business: 'BUSINESS',
+    scale: 'ENTERPRISE',
+    enterprise: 'ENTERPRISE'
+  };
+  return badges[norm] || norm.toUpperCase();
+}
+
 // Warm cache on module load (non-blocking, fire and forget)
 loadDynamicPlanCache().catch(() => {});
 
@@ -242,6 +284,8 @@ module.exports = {
   PLAN_IG_LIMITS,
   PLAN_RULES_LIMITS,
   dmLimitFor,
+  dailyLimitFor,
+  badgeFor,
   igLimitFor,
   rulesLimitFor,
   refreshPlanLimitsCache,

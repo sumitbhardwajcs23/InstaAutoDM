@@ -614,8 +614,18 @@ export default function App() {
         isOpen={isUpgradeOpen}
         initialPlan={upgradePlan}
         onClose={() => setIsUpgradeOpen(false)}
-        onUpgraded={(plan) => {
-          setUser((prev) => ({ ...prev, plan }));
+        onUpgraded={(newPlan, verifyData) => {
+          if (verifyData) {
+            setUser((prev) => ({
+              ...prev,
+              plan: verifyData.plan || newPlan,
+              subscription_badge: verifyData.subscription_badge,
+              monthly_limit: verifyData.monthly_limit,
+              daily_limit: verifyData.daily_limit
+            }));
+          } else {
+            setUser((prev) => ({ ...prev, plan: newPlan }));
+          }
           loadData();
         }}
       />

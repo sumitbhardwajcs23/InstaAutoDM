@@ -14,6 +14,16 @@ export default function BillingView({ user, onUpgrade }) {
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [plans, setPlans] = useState(STATIC_PLANS);
   const [plansLoading, setPlansLoading] = useState(true);
+  const [subscriptionData, setSubscriptionData] = useState(null);
+
+  useEffect(() => {
+    apiFetch('/billing/subscription')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d) setSubscriptionData(d);
+      })
+      .catch(() => {});
+  }, [currentPlan]);
 
   useEffect(() => {
     apiFetch('/billing/plans')
@@ -94,6 +104,72 @@ export default function BillingView({ user, onUpgrade }) {
         <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
           No hidden international conversion charges. Instant activation with UPI, Cards &amp; Net Banking with GST invoices.
         </p>
+
+        {/* Active Entitlement Status Bar */}
+        {subscriptionData && (
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
+            borderRadius: '16px',
+            padding: '16px 20px',
+            marginTop: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+            textAlign: 'left'
+          }}>
+            <div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Authoritative Subscription
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', textTransform: 'capitalize' }}>
+                  {subscriptionData.plan || currentPlan} Plan
+                </span>
+                <span style={{
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: (subscriptionData.plan || currentPlan) !== 'free' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                  color: (subscriptionData.plan || currentPlan) !== 'free' ? '#6366f1' : '#64748b',
+                  border: (subscriptionData.plan || currentPlan) !== 'free' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(148, 163, 184, 0.25)'
+                }}>
+                  {subscriptionData.subscription_badge || (subscriptionData.plan || currentPlan).toUpperCase()}
+                </span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: subscriptionData.status === 'active' ? '#16a34a' : '#f59e0b',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  ● {subscriptionData.status || 'Active'}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Monthly Quota</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>
+                  {subscriptionData.monthly_limit === -1 ? 'Unlimited' : `${(subscriptionData.monthly_limit || 1000).toLocaleString()} DMs`}
+                </div>
+              </div>
+              <div style={{ width: '1px', height: '24px', background: 'var(--border-light)' }} />
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>Daily Limit</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>
+                  {subscriptionData.daily_limit === -1 ? 'Unlimited' : `${(subscriptionData.daily_limit || Math.ceil((subscriptionData.monthly_limit || 1000) / 30)).toLocaleString()} DMs/day`}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Monthly / Yearly Billing Switch */}
         <div style={{
