@@ -75,12 +75,17 @@ router.get('/', async (req, res) => {
         dm_limit: usage.monthly_limit,
         monthly_limit: usage.monthly_limit,
         daily_limit: usage.daily_limit,
+        daily_replies_used: usage.daily_replies_used || 0,
+        daily_dms_sent: usage.daily_dms_sent || 0,
+        daily_comments_replied: usage.daily_comments_replied || 0,
+        daily_remaining: usage.daily_remaining,
         percent_used: usage.percent_used,
         usage_percent: usage.percent_used,
         usage_period_start: usage.usage_period_start,
         is_capped: usage.is_capped,
         remaining: usage.remaining,
         dm_remaining: usage.remaining,
+        accounts_breakdown: usage.accounts_breakdown || [],
         sliding_windows: slidingWindows,
         stats: { total_sent_replies: totalSentReplies, total_sent_dms: totalSentDMs, total_all_sent: totalSentReplies + totalSentDMs }
       };

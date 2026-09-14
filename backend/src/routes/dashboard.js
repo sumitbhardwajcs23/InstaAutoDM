@@ -2,20 +2,54 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { dmLimitFor, dailyLimitFor, badgeFor } = require('../constants/planLimits');
 const redisClient = require('../services/redisClient');
+const quotaService = require('../services/quotaService');
 
 async function getAccountForUser(userId, accountId) {
   if (!userId) return null;
-  if (accountId) {
+  const pool = db.getPgPool ? db.getPgPool() : null;
+
+  if (pool) {
+    if (accountId && accountId !== 'default') {
+      const conn = await pool.query(`
+        SELECT ig.* FROM instagram_accounts ig
+        JOIN instagram_account_connections c ON c.instagram_account_id = ig.id
+        WHERE c.user_id = $1 AND ig.id = $2 AND c.status = 'active'
+        LIMIT 1
+      `, [userId, accountId]).catch(() => null);
+      if (conn?.rows?.[0]) return conn.rows[0];
+
+      const legacy = await pool.query(`
+        SELECT * FROM instagram_accounts WHERE user_id = $1 AND id = $2 LIMIT 1
+      `, [userId, accountId]).catch(() => null);
+      if (legacy?.rows?.[0]) return legacy.rows[0];
+    }
+
+    // Default: find latest actively connected account
+    const conn = await pool.query(`
+      SELECT ig.* FROM instagram_accounts ig
+      JOIN instagram_account_connections c ON c.instagram_account_id = ig.id
+      WHERE c.user_id = $1 AND c.status = 'active'
+      ORDER BY c.connected_at DESC LIMIT 1
+    `, [userId]).catch(() => null);
+    if (conn?.rows?.[0]) return conn.rows[0];
+
+    const legacy = await pool.query(`
+      SELECT * FROM instagram_accounts WHERE user_id = $1 AND status = 'connected'
+      ORDER BY updated_at DESC LIMIT 1
+    `, [userId]).catch(() => null);
+    return legacy?.rows?.[0] || null;
+  }
+
+  // SQLite fallback
+  if (accountId && accountId !== 'default') {
     return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND id = ? LIMIT 1").get(userId, accountId);
   }
   return await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC LIMIT 1").get(userId);
 }
 
 // In-flight request coalescing: prevents N concurrent cold-cache requests for the
-// same user from each opening 5 separate DB queries. All concurrent callers
-// await the same promise; only ONE DB fetch round-trip is issued.
+// same user from each opening multiple separate DB queries.
 const inflightDashboard = new Map();
 
 // GET /api/dashboard/stats
@@ -39,12 +73,22 @@ router.get('/stats', async (req, res) => {
   if (!fetchPromise) {
     fetchPromise = (async () => {
       try {
-        const [account, initialUser] = await Promise.all([
+        const [account, authoritative] = await Promise.all([
           getAccountForUser(userId, req.query.account_id),
-          db.prepare('SELECT * FROM users WHERE id = ?').get(userId)
+          quotaService.getAuthoritativeUsage(userId)
         ]);
 
-        let user = initialUser;
+        let user = null;
+        try {
+          const pool = db.getPgPool ? db.getPgPool() : null;
+          if (pool) {
+            const uRes = await pool.query('SELECT id, email, name, plan, subscription_status, custom_dm_limit, custom_daily_limit FROM users WHERE id = $1', [userId]);
+            user = uRes.rows[0];
+          } else {
+            user = await db.prepare('SELECT id, email, name, plan, subscription_status, custom_dm_limit, custom_daily_limit FROM users WHERE id = ?').get(userId);
+          }
+        } catch (_) {}
+
         if (!user && userId) {
           const email = req.user.email || `${userId}@user.local`;
           const name = req.user.name || 'Creator';
@@ -54,98 +98,146 @@ router.get('/stats', async (req, res) => {
               INSERT INTO users (id, email, name, plan, dm_usage_this_period, usage_period_start, created_at, updated_at)
               VALUES (?, ?, ?, 'free', 0, ?, ?, ?)
             `).run(userId, email, name, now.slice(0, 10), now, now);
-            user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+            user = { id: userId, email, name, plan: 'free' };
           } catch (_) {
             user = { id: userId, dm_usage_this_period: 0, plan: 'free' };
           }
         }
 
-        const activeSub = await db.prepare(`
-          SELECT plan, status FROM subscriptions 
-          WHERE user_id = ? AND status IN ('active', 'trialing') 
-          ORDER BY created_at DESC LIMIT 1
-        `).get(userId).catch(() => null);
+        const effectivePlan = authoritative.effectivePlan;
+        const monthlyLimit = authoritative.monthly_limit;
+        const dailyLimit = authoritative.daily_limit;
+        const totalRepliesUsed = authoritative.total_replies_used;
+        const dmsSent = authoritative.dms_sent;
+        const commentsRepliedCount = authoritative.comments_replied;
+        const dailyRepliesUsed = authoritative.daily_replies_used;
+        const dailyRemaining = authoritative.daily_remaining;
+        const availableQuota = authoritative.available_quota;
+        const usagePercent = authoritative.percent_used;
+        const subscriptionBadge = authoritative.subscription_badge;
+        const accountsBreakdown = authoritative.accounts_breakdown || [];
 
-        const subStatus = activeSub?.status || user?.subscription_status || 'active';
-        const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus) && subStatus !== 'reconciliation_required';
-        const effectivePlan = isEntitled ? ((activeSub?.plan || user?.plan || 'free').toLowerCase()) : 'free';
-        const userPlanLimit = dmLimitFor(effectivePlan, user?.custom_dm_limit);
-        const dailyPlanLimit = dailyLimitFor(effectivePlan, user?.custom_daily_limit, user?.custom_dm_limit);
-        const subscriptionBadge = badgeFor(effectivePlan);
-
-        if (!account || !user) {
+        // If no active account connected
+        if (!account) {
           const fallbackResponse = {
             connected: false,
             account: null,
-            totalDmsSent: 0,
+            user: {
+              id: user?.id || userId,
+              name: user?.name || 'Creator',
+              email: user?.email || '',
+              plan: effectivePlan,
+              subscription_badge: subscriptionBadge,
+              monthly_limit: monthlyLimit,
+              daily_limit: dailyLimit
+            },
+            totalDmsSent: totalRepliesUsed,
+            totalRepliesUsed,
+            dmsSent,
             commentsReplied: 0,
+            commentsRepliedCount,
             commentsRepliedChange: 0,
             activeRules: 0,
             totalRules: 0,
-            dmUsage: 0,
-            dmLimit: userPlanLimit,
-            dailyLimit: dailyPlanLimit,
-            monthlyLimit: userPlanLimit,
+            dmUsage: totalRepliesUsed,
+            dmLimit: monthlyLimit,
+            monthlyLimit,
+            dailyLimit,
+            dailyRepliesUsed,
+            usedToday: dailyRepliesUsed,
+            remainingToday: dailyRemaining,
+            dailyRemaining,
+            dmRemaining: availableQuota,
+            remaining: availableQuota,
             subscriptionBadge,
-            usagePercent: 0,
-            accountHealthy: false
+            usagePercent,
+            accountHealthy: false,
+            accountsBreakdown,
+            stats: {
+              dms_sent_period: totalRepliesUsed,
+              dms_sent: dmsSent,
+              comments_replied_period: commentsRepliedCount,
+              total_replies_used: totalRepliesUsed,
+              dms_limit: monthlyLimit,
+              monthly_limit: monthlyLimit,
+              dms_daily_limit: dailyLimit,
+              daily_limit: dailyLimit,
+              daily_replies_used: dailyRepliesUsed,
+              used_today: dailyRepliesUsed,
+              remaining_today: dailyRemaining,
+              remaining: availableQuota,
+              subscription_badge: subscriptionBadge,
+              dm_percent: usagePercent,
+              percent_used: usagePercent,
+              comments_replied: 0,
+              active_rules: 0,
+              total_rules: 0,
+              accounts_breakdown: accountsBreakdown
+            },
+            recent_conversations: []
           };
           redisClient.set(cacheKey, fallbackResponse, 30).catch(() => {});
           return fallbackResponse;
         }
 
-        // 3. Execute all independent aggregation queries in parallel
-        const [
-          counterRow,
-          rulesAgg,
-          commentsThisMonthRow,
-          commentsLastMonthRow,
-          rawConversations
-        ] = await Promise.all([
-          // SUM across all usage_counters rows for this user (legacy + Migration 012 account-level rows)
-          db.prepare(`
-            SELECT
-              COALESCE(SUM(dms_sent), 0) AS dms_sent,
-              COALESCE(SUM(comments_replied), 0) AS comments_replied,
-              COALESCE(SUM(dms_sent + comments_replied), 0) AS total_replies
-            FROM usage_counters
-            WHERE user_id = ?
-          `).get(userId).catch(() => null),
-          db.prepare("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_active = 1) as active FROM automation_rules WHERE instagram_account_id = ?").get(account.id).catch(() => ({ total: 0, active: 0 })),
-          db.prepare(`
-            SELECT COUNT(*) as count FROM comment_replies 
-            WHERE instagram_account_id = ? AND status = 'sent'
-            AND created_at >= date('now','start of month')
-          `).get(account.id).catch(() => ({ count: 0 })),
-          db.prepare(`
-            SELECT COUNT(*) as count FROM comment_replies 
-            WHERE instagram_account_id = ? AND status = 'sent'
-            AND created_at >= date('now','start of month','-1 month')
-            AND created_at < date('now','start of month')
-          `).get(account.id).catch(() => ({ count: 0 })),
-          db.prepare(`
-            SELECT * FROM conversations
-            WHERE instagram_account_id = ?
-            ORDER BY updated_at DESC
-            LIMIT 5
-          `).all(account.id).catch(() => [])
-        ]);
+        // Parallel account-level queries (comments sent this month, rules count, conversations)
+        const pool = db.getPgPool ? db.getPgPool() : null;
+        let commentsThisMonth = 0;
+        let commentsLastMonth = 0;
+        let rulesAgg = { total: 0, active: 0 };
+        let rawConversations = [];
 
-        const dmsSent = Number(counterRow?.dms_sent !== undefined ? counterRow.dms_sent : (user.dm_usage_this_period || 0));
-        const commentsReplied = Number(counterRow?.comments_replied || 0);
-        // total_replies = authoritative SUM(dms_sent + comments_replied) from usage_counters SSOT
-        const totalRepliesUsed = counterRow?.total_replies !== undefined
-          ? Number(counterRow.total_replies)
-          : (dmsSent + commentsReplied);
-        const commentsThisMonth = commentsThisMonthRow?.count || 0;
-        const commentsLastMonth = commentsLastMonthRow?.count || 0;
+        if (pool) {
+          const [cRes, rRes, convRes] = await Promise.all([
+            pool.query(`
+              SELECT
+                COUNT(*) FILTER (WHERE created_at >= date_trunc('month', NOW())) AS this_month,
+                COUNT(*) FILTER (WHERE created_at >= date_trunc('month', NOW() - INTERVAL '1 month') AND created_at < date_trunc('month', NOW())) AS last_month
+              FROM comment_replies
+              WHERE instagram_account_id = $1 AND status = 'sent'
+            `, [account.id]).catch(() => ({ rows: [] })),
+            pool.query(`
+              SELECT
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE is_active = 1) AS active
+              FROM automation_rules
+              WHERE instagram_account_id = $1
+            `, [account.id]).catch(() => ({ rows: [] })),
+            pool.query(`
+              SELECT * FROM conversations
+              WHERE instagram_account_id = $1
+              ORDER BY updated_at DESC
+              LIMIT 5
+            `, [account.id]).catch(() => ({ rows: [] }))
+          ]);
+
+          commentsThisMonth = Number(cRes.rows[0]?.this_month || 0);
+          commentsLastMonth = Number(cRes.rows[0]?.last_month || 0);
+          rulesAgg = {
+            total: Number(rRes.rows[0]?.total || 0),
+            active: Number(rRes.rows[0]?.active || 0)
+          };
+          rawConversations = convRes.rows || [];
+        } else {
+          // SQLite fallback
+          const [cThis, cLast, rAgg, convs] = await Promise.all([
+            db.prepare(`SELECT COUNT(*) as count FROM comment_replies WHERE instagram_account_id = ? AND status = 'sent' AND created_at >= date('now','start of month')`).get(account.id).catch(() => ({ count: 0 })),
+            db.prepare(`SELECT COUNT(*) as count FROM comment_replies WHERE instagram_account_id = ? AND status = 'sent' AND created_at >= date('now','start of month','-1 month') AND created_at < date('now','start of month')`).get(account.id).catch(() => ({ count: 0 })),
+            db.prepare("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_active = 1) as active FROM automation_rules WHERE instagram_account_id = ?").get(account.id).catch(() => ({ total: 0, active: 0 })),
+            db.prepare(`SELECT * FROM conversations WHERE instagram_account_id = ? ORDER BY updated_at DESC LIMIT 5`).all(account.id).catch(() => [])
+          ]);
+          commentsThisMonth = Number(cThis?.count || 0);
+          commentsLastMonth = Number(cLast?.count || 0);
+          rulesAgg = { total: Number(rAgg?.total || 0), active: Number(rAgg?.active || 0) };
+          rawConversations = convs || [];
+        }
+
         const changePercent = commentsLastMonth > 0
           ? Math.round(((commentsThisMonth - commentsLastMonth) / commentsLastMonth) * 100)
           : 0;
 
         const activeRules = Number(rulesAgg?.active || 0);
         const totalRules = Number(rulesAgg?.total || 0);
-        const usagePercent = Math.min(100, Math.round((totalRepliesUsed / (userPlanLimit || 1)) * 100));
 
         const recent_conversations = (rawConversations || []).map(c => {
           const lastUserTime = new Date(c.last_user_message_at || c.updated_at).getTime();
@@ -175,21 +267,32 @@ router.get('/stats', async (req, res) => {
             connected_at: account.connected_at
           },
           user: { 
-            id: user.id, 
-            name: user.name, 
-            email: user.email, 
+            id: user?.id || userId, 
+            name: user?.name || 'Creator', 
+            email: user?.email || '', 
             plan: effectivePlan,
             subscription_badge: subscriptionBadge,
-            monthly_limit: userPlanLimit,
-            daily_limit: dailyPlanLimit
+            monthly_limit: monthlyLimit,
+            daily_limit: dailyLimit
           },
-          totalDmsSent,
-          dmLimit: userPlanLimit,
-          monthlyLimit: userPlanLimit,
-          dailyLimit: dailyPlanLimit,
+          // Authoritative unified reply quota metrics
+          totalDmsSent: totalRepliesUsed,
+          totalRepliesUsed,
+          dmsSent,
+          commentsRepliedCount,
+          dmLimit: monthlyLimit,
+          monthlyLimit,
+          dailyLimit,
+          dailyRepliesUsed,
+          usedToday: dailyRepliesUsed,
+          remainingToday: dailyRemaining,
+          dailyRemaining,
           subscriptionBadge,
-          dmRemaining: Math.max(0, userPlanLimit - totalDmsSent),
+          dmRemaining: availableQuota,
+          remaining: availableQuota,
           usagePercent,
+          accountsBreakdown,
+          // Operational metrics
           commentsReplied: commentsThisMonth,
           commentsRepliedChange: changePercent,
           activeRules,
@@ -199,18 +302,23 @@ router.get('/stats', async (req, res) => {
           stats: {
             dms_sent_period: totalRepliesUsed,
             dms_sent: dmsSent,
-            comments_replied_period: commentsReplied,
+            comments_replied_period: commentsRepliedCount,
             total_replies_used: totalRepliesUsed,
-            dms_limit: userPlanLimit,
-            monthly_limit: userPlanLimit,
-            dms_daily_limit: dailyPlanLimit,
-            daily_limit: dailyPlanLimit,
+            dms_limit: monthlyLimit,
+            monthly_limit: monthlyLimit,
+            dms_daily_limit: dailyLimit,
+            daily_limit: dailyLimit,
+            daily_replies_used: dailyRepliesUsed,
+            used_today: dailyRepliesUsed,
+            remaining_today: dailyRemaining,
+            remaining: availableQuota,
             subscription_badge: subscriptionBadge,
             dm_percent: usagePercent,
             percent_used: usagePercent,
             comments_replied: commentsThisMonth,
             active_rules: activeRules,
-            total_rules: totalRules
+            total_rules: totalRules,
+            accounts_breakdown: accountsBreakdown
           },
           recent_conversations
         };

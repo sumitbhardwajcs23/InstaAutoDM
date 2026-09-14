@@ -39,7 +39,6 @@ export default function Sidebar({
     { id: 'conversations', label: 'Conversations', icon: MessageSquare, badge: unreadCount },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'simulator', label: 'Live Simulator', icon: PlayCircle },
-    { id: 'connect', label: 'Connect Account', icon: Link2, action: onOpenConnect },
     { id: 'templates', label: 'Templates', icon: FileText },
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: Settings },

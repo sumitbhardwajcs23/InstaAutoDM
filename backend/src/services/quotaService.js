@@ -118,15 +118,23 @@ async function getOrCreateAccountCounter(client, igAccountId, userId, subscripti
 
 class QuotaService {
   /**
+  /**
    * Retrieves authoritative usage metrics from PostgreSQL.
    * Supports both account-level queries (accountId provided) and
    * subscription-level aggregation (sum of all accounts under the subscription).
+   * Supports invocation with either string userId or object { userId, accountId }.
    *
-   * @param {object} opts
-   * @param {string} opts.userId         - Required
-   * @param {string} [opts.accountId]    - Instagram account ID for per-account query
+   * @param {string|object} opts - userId string OR { userId, accountId }
    */
-  async getAuthoritativeUsage({ userId, accountId } = {}) {
+  async getAuthoritativeUsage(opts = {}) {
+    let userId;
+    let accountId = null;
+    if (typeof opts === 'string') {
+      userId = opts;
+    } else if (opts && typeof opts === 'object') {
+      userId = opts.userId;
+      accountId = opts.accountId || null;
+    }
     if (!userId) throw new Error('userId is required');
 
     const pool = db.getPgPool();
@@ -139,42 +147,36 @@ class QuotaService {
     try {
       // 1. Resolve subscription context
       const ctx = await resolveSubscriptionContext(client, userId);
+      const todayStr = new Date().toISOString().slice(0, 10);
 
-      // 2. Compute subscription-level committed usage
-      //    = SUM over all usage_counters rows for this subscription
+      // 2. Compute subscription-level committed monthly usage
+      //    = SUM over all usage_counters rows for this subscription (or user if no sub)
       let committedRes;
       if (ctx.subscriptionId) {
         committedRes = await client.query(`
           SELECT
             COALESCE(SUM(dms_sent), 0)          AS total_dms,
             COALESCE(SUM(comments_replied), 0)  AS total_comments,
-            COALESCE(SUM(dms_sent + comments_replied), 0) AS total_replies,
-            json_agg(json_build_object(
-              'id', instagram_account_id,
-              'dms_sent', dms_sent,
-              'comments_replied', comments_replied,
-              'total', dms_sent + comments_replied
-            )) FILTER (WHERE instagram_account_id IS NOT NULL) AS accounts_breakdown
+            COALESCE(SUM(dms_sent + comments_replied), 0) AS total_replies
           FROM usage_counters
           WHERE subscription_id = $1
         `, [ctx.subscriptionId]);
       } else {
-        // No subscription: fall back to user-level legacy row
+        // No subscription: fall back to user-level rows
         committedRes = await client.query(`
           SELECT
             COALESCE(SUM(dms_sent), 0)          AS total_dms,
             COALESCE(SUM(comments_replied), 0)  AS total_comments,
-            COALESCE(SUM(dms_sent + comments_replied), 0) AS total_replies,
-            NULL::json AS accounts_breakdown
+            COALESCE(SUM(dms_sent + comments_replied), 0) AS total_replies
           FROM usage_counters
           WHERE user_id = $1
         `, [userId]);
       }
 
       const row = committedRes.rows[0];
-      const dmsSent = Number(row.total_dms || 0);
-      const commentsReplied = Number(row.total_comments || 0);
-      const committedUsage = Number(row.total_replies || 0);
+      const dmsSent = Number(row?.total_dms || 0);
+      const commentsReplied = Number(row?.total_comments || 0);
+      const committedUsage = Number(row?.total_replies || 0);
 
       // 3. Count active non-expired RESERVED reservations for this subscription
       let reservedRes;
@@ -193,10 +195,64 @@ class QuotaService {
       }
       const activeReserved = Number(reservedRes.rows[0]?.count || 0);
 
-      // 4. Per-account breakdown (if multi-account subscription)
-      const accountsBreakdown = row.accounts_breakdown || null;
+      // 4. Compute authoritative daily usage from activity_log for today
+      //    Attributed strictly to subscription_id (or user_id if free tier)
+      let dailyRes;
+      if (ctx.subscriptionId) {
+        dailyRes = await client.query(`
+          SELECT
+            COALESCE(SUM(dms_sent), 0) AS daily_dms,
+            COALESCE(SUM(comments_replied), 0) AS daily_comments,
+            COALESCE(SUM(dms_sent + comments_replied), 0) AS daily_replies_used
+          FROM activity_log
+          WHERE subscription_id = $1 AND event_date = $2
+        `, [ctx.subscriptionId, todayStr]);
+      } else {
+        dailyRes = await client.query(`
+          SELECT
+            COALESCE(SUM(dms_sent), 0) AS daily_dms,
+            COALESCE(SUM(comments_replied), 0) AS daily_comments,
+            COALESCE(SUM(dms_sent + comments_replied), 0) AS daily_replies_used
+          FROM activity_log
+          WHERE user_id = $1 AND subscription_id IS NULL AND event_date = $2
+        `, [userId, todayStr]);
+      }
+      const dailyDmsSent = Number(dailyRes.rows[0]?.daily_dms || 0);
+      const dailyCommentsReplied = Number(dailyRes.rows[0]?.daily_comments || 0);
+      const dailyRepliesUsed = Number(dailyRes.rows[0]?.daily_replies_used || 0);
+      const dailyRemaining = ctx.dailyLimit === -1
+        ? 999999
+        : Math.max(0, ctx.dailyLimit - dailyRepliesUsed);
 
-      // 5. Derive quota metrics
+      // 5. Per-account breakdown (active connected accounts with Instagram profile metadata)
+      const breakdownRes = await client.query(`
+        SELECT
+          c.instagram_account_id AS id,
+          ig.username,
+          ig.full_name,
+          ig.profile_picture_url,
+          COALESCE(uc.dms_sent, 0) AS dms_sent,
+          COALESCE(uc.comments_replied, 0) AS comments_replied,
+          COALESCE(uc.dms_sent + uc.comments_replied, 0) AS total
+        FROM instagram_account_connections c
+        JOIN instagram_accounts ig ON ig.id = c.instagram_account_id
+        LEFT JOIN usage_counters uc ON uc.instagram_account_id = c.instagram_account_id
+          AND ($1::text IS NULL OR uc.subscription_id = $1)
+        WHERE c.user_id = $2 AND c.status = 'active'
+        ORDER BY total DESC, ig.username ASC
+      `, [ctx.subscriptionId, userId]);
+
+      const accountsBreakdown = (breakdownRes.rows || []).map(r => ({
+        id: r.id,
+        username: r.username,
+        full_name: r.full_name,
+        profile_picture_url: r.profile_picture_url,
+        dms_sent: Number(r.dms_sent || 0),
+        comments_replied: Number(r.comments_replied || 0),
+        total: Number(r.total || 0)
+      }));
+
+      // 6. Derive overall quota metrics
       const totalInFlight = committedUsage + activeReserved;
       const availableQuota = ctx.monthlyLimit === -1
         ? 999999
@@ -216,6 +272,10 @@ class QuotaService {
         monthly_limit: ctx.monthlyLimit,
         plan_limit: ctx.monthlyLimit,
         daily_limit: ctx.dailyLimit,
+        daily_replies_used: dailyRepliesUsed,
+        daily_dms_sent: dailyDmsSent,
+        daily_comments_replied: dailyCommentsReplied,
+        daily_remaining: dailyRemaining,
         dms_sent: dmsSent,
         comments_replied: commentsReplied,
         total_replies_used: committedUsage,
@@ -235,6 +295,7 @@ class QuotaService {
     } finally {
       client.release();
     }
+  }
   }
 
   /**
@@ -311,11 +372,31 @@ class QuotaService {
    * @param {object} opts
    * @param {string} opts.userId            - Airvix user ID
    * @param {string} [opts.accountId]       - Instagram account ID (required for account-keyed logic)
-   * @param {string} opts.replyType         - 'dm' | 'comment'
-   * @param {string} [opts.idempotencyKey]  - Caller-supplied idempotency key
-   * @param {number} [opts.ttlSeconds=300]  - Reservation TTL
+  /**
+   * Atomically checks quota and creates a RESERVED reservation.
+   * Supports both object ({ userId, accountId, replyType, idempotencyKey, ttlSeconds })
+   * and positional arguments (userId, replyType, idempotencyKey, ttlSeconds).
    */
-  async reserveReplyQuota({ userId, accountId, replyType = 'dm', idempotencyKey = null, ttlSeconds = 300 } = {}) {
+  async reserveReplyQuota(optsOrUserId, replyTypeArg = 'dm', idempotencyKeyArg = null, ttlSecondsArg = 300) {
+    let userId;
+    let accountId = null;
+    let replyType = 'dm';
+    let idempotencyKey = null;
+    let ttlSeconds = 300;
+
+    if (typeof optsOrUserId === 'string') {
+      userId = optsOrUserId;
+      replyType = replyTypeArg || 'dm';
+      idempotencyKey = idempotencyKeyArg || null;
+      ttlSeconds = ttlSecondsArg || 300;
+    } else if (optsOrUserId && typeof optsOrUserId === 'object') {
+      userId = optsOrUserId.userId;
+      accountId = optsOrUserId.accountId || null;
+      replyType = optsOrUserId.replyType || 'dm';
+      idempotencyKey = optsOrUserId.idempotencyKey || null;
+      ttlSeconds = optsOrUserId.ttlSeconds || 300;
+    }
+
     if (!userId) throw new Error('userId is required');
     if (!['dm', 'comment'].includes(replyType)) throw new Error('replyType must be "dm" or "comment"');
 
@@ -354,6 +435,19 @@ class QuotaService {
       const ctx = await resolveSubscriptionContext(client, userId);
       const periodStart = new Date().toISOString().slice(0, 10);
 
+      // Auto-resolve accountId from active connections if not explicitly provided
+      if (!accountId) {
+        const accRes = await client.query(`
+          SELECT instagram_account_id
+          FROM instagram_account_connections
+          WHERE user_id = $1 AND status = 'active'
+          ORDER BY connected_at DESC LIMIT 1
+        `, [userId]);
+        if (accRes.rows[0]) {
+          accountId = accRes.rows[0].instagram_account_id;
+        }
+      }
+
       // 2. Get/create the usage_counters row and lock it FOR UPDATE
       const counter = await getOrCreateAccountCounter(client, accountId || null, userId, ctx.subscriptionId, periodStart);
 
@@ -390,7 +484,7 @@ class QuotaService {
       const reservedCount = Number(reservedCountRes.rows[0]?.reserved_count || 0);
       const totalInFlight = subscriptionCommitted + reservedCount;
 
-      // 5. Enforce subscription-level quota gate
+      // 5. Enforce subscription-level monthly quota gate
       if (ctx.monthlyLimit !== -1 && totalInFlight >= ctx.monthlyLimit) {
         await client.query('ROLLBACK');
         return {
@@ -402,6 +496,41 @@ class QuotaService {
           monthlyLimit: ctx.monthlyLimit,
           effectivePlan: ctx.effectivePlan
         };
+      }
+
+      // 5b. Enforce daily limit gate (if daily limit is configured)
+      if (ctx.dailyLimit && ctx.dailyLimit !== -1) {
+        let dailyCommitted = 0;
+        if (ctx.subscriptionId) {
+          const dRes = await client.query(`
+            SELECT COALESCE(SUM(dms_sent + comments_replied), 0) AS total
+            FROM activity_log
+            WHERE subscription_id = $1 AND event_date = $2
+          `, [ctx.subscriptionId, periodStart]);
+          dailyCommitted = Number(dRes.rows[0]?.total || 0);
+        } else {
+          const dRes = await client.query(`
+            SELECT COALESCE(SUM(dms_sent + comments_replied), 0) AS total
+            FROM activity_log
+            WHERE user_id = $1 AND subscription_id IS NULL AND event_date = $2
+          `, [userId, periodStart]);
+          dailyCommitted = Number(dRes.rows[0]?.total || 0);
+        }
+
+        if ((dailyCommitted + reservedCount) >= ctx.dailyLimit) {
+          await client.query('ROLLBACK');
+          return {
+            allowed: false,
+            reason: 'DAILY_LIMIT_EXCEEDED',
+            committedUsage: subscriptionCommitted,
+            dailyUsage: dailyCommitted,
+            dailyLimit: ctx.dailyLimit,
+            reservedUsage: reservedCount,
+            totalInFlight,
+            monthlyLimit: ctx.monthlyLimit,
+            effectivePlan: ctx.effectivePlan
+          };
+        }
       }
 
       // 6. Insert reservation
@@ -572,11 +701,38 @@ class QuotaService {
         WHERE id = $2
       `, [subscriptionTotal, reservation.user_id]);
 
+      // Atomically record/upsert daily activity_log with subscription & user attribution
+      const activityLogId = `act_${(reservation.instagram_account_id || reservation.user_id).slice(0, 8)}_${Date.now()}`;
+      if (reservation.subscription_id) {
+        await client.query(`
+          INSERT INTO activity_log
+            (id, instagram_account_id, subscription_id, user_id, event_date, dms_sent, comments_replied, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+          ON CONFLICT (instagram_account_id, subscription_id, event_date) WHERE subscription_id IS NOT NULL
+          DO UPDATE SET
+            dms_sent = activity_log.dms_sent + EXCLUDED.dms_sent,
+            comments_replied = activity_log.comments_replied + EXCLUDED.comments_replied
+        `, [activityLogId, reservation.instagram_account_id, reservation.subscription_id, reservation.user_id, periodStart, incDm, incComment]);
+      } else {
+        await client.query(`
+          INSERT INTO activity_log
+            (id, instagram_account_id, subscription_id, user_id, event_date, dms_sent, comments_replied, created_at)
+          VALUES ($1, $2, NULL, $3, $4, $5, $6, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+          ON CONFLICT (instagram_account_id, user_id, event_date) WHERE subscription_id IS NULL
+          DO UPDATE SET
+            dms_sent = activity_log.dms_sent + EXCLUDED.dms_sent,
+            comments_replied = activity_log.comments_replied + EXCLUDED.comments_replied
+        `, [activityLogId, reservation.instagram_account_id, reservation.user_id, periodStart, incDm, incComment]);
+      }
+
       await client.query('COMMIT');
 
-      // Bust Redis cache for this user
+      // Bust Redis cache for this user (both specific and wildcard pattern)
       redisClient.del(`cache:usage:${reservation.user_id}`).catch(() => {});
       redisClient.del(`cache:dash:${reservation.user_id}:default`).catch(() => {});
+      if (redisClient.delPattern) {
+        redisClient.delPattern(`cache:dash:${reservation.user_id}:*`).catch(() => {});
+      }
 
       return { committed: true, reservationId: reservation.id, totalRepliesUsed: subscriptionTotal };
     } catch (err) {

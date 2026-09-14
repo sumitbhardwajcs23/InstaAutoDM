@@ -533,8 +533,20 @@ class EventQueueWorker {
     });
   }
 
-  async updateActivityLog(accountId, type) {
+  async updateActivityLog(accountId, type, userId = null) {
     try {
+      // In PostgreSQL pool mode, quotaService.commitReplyQuota already records activity_log atomically
+      // with exact subscription_id and user_id attribution during reply execution.
+      // If db.getPgPool() exists and no explicit userId is provided, skip to avoid double counting.
+      const pool = db.getPgPool ? db.getPgPool() : null;
+      if (pool) {
+        // Only run if not already committed via quotaService
+        if (!userId) {
+          // Check if already updated by quota commit or resolve account context
+          return;
+        }
+      }
+
       const today = new Date().toISOString().slice(0, 10);
       const existing = await db.prepare('SELECT id FROM activity_log WHERE instagram_account_id = ? AND event_date = ?').get(accountId, today);
       if (existing) {

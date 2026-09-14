@@ -327,6 +327,8 @@ export default function AdminView({ user, onBackToApp }) {
 
   // Workspaces State
   const [workspacesList, setWorkspacesList] = useState([]);
+  const [workspaceSearch, setWorkspaceSearch] = useState('');
+  const [workspaceStatusFilter, setWorkspaceStatusFilter] = useState('');
 
   // Audit Logs State
   const [auditLogsList, setAuditLogsList] = useState([]);
@@ -2187,24 +2189,37 @@ export default function AdminView({ user, onBackToApp }) {
           {activeTab === 'users' && (() => {
             const displayUsers = (usersList || []).map((u) => ({
               id: u.id,
+              user_id: u.user_id || u.id,
               name: u.name || (u.email ? u.email.split('@')[0] : 'User'),
               email: u.email,
               plan: (u.plan || 'free').toLowerCase(),
+              subscription_status: u.subscription_status || 'none',
               subscription_badge: u.subscription_badge || (u.plan || 'free').toUpperCase(),
               monthly_limit: u.monthly_limit !== undefined ? u.monthly_limit : (u.dmLimit || 1000),
               daily_limit: u.daily_limit !== undefined ? u.daily_limit : Math.ceil((u.dmLimit || 1000) / 30),
+              remaining_quota: u.remaining_quota !== undefined ? u.remaining_quota : Math.max(0, (u.monthly_limit || 1000) - Number(u.total_replies_used || 0)),
               total_replies_used: Number(u.total_replies_used !== undefined ? u.total_replies_used : (u.dm_usage_this_period || 0)),
               dms_sent: Number(u.dms_sent || 0),
               comments_replied: Number(u.comments_replied || 0),
+              connected_accounts_count: Number(u.connected_accounts_count !== undefined ? u.connected_accounts_count : (u.instagram_accounts?.length || 0)),
+              instagram_accounts: u.instagram_accounts || [],
               total_paid: Number(u.total_paid || 0),
               latest_coupon_code: u.latest_coupon_code || '—',
               status: u.status === 'suspended' ? 'inactive' : 'active',
               joined: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Active',
+              last_active: u.last_active_at ? new Date(u.last_active_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—',
               raw: u
             }));
 
             const filteredUsers = displayUsers.filter(u => {
-              if (userSearch && !u.name.toLowerCase().includes(userSearch.toLowerCase()) && !u.email.toLowerCase().includes(userSearch.toLowerCase())) return false;
+              if (userSearch) {
+                const term = userSearch.toLowerCase().trim();
+                const matchesName = u.name.toLowerCase().includes(term);
+                const matchesEmail = u.email.toLowerCase().includes(term);
+                const matchesId = u.user_id && u.user_id.toLowerCase().includes(term);
+                const matchesIg = u.instagram_accounts && u.instagram_accounts.some(ig => ig.username && ig.username.toLowerCase().includes(term));
+                if (!matchesName && !matchesEmail && !matchesId && !matchesIg) return false;
+              }
               if (userPlanFilter && u.plan !== userPlanFilter.toLowerCase()) return false;
               if (userStatusFilter && u.status !== userStatusFilter.toLowerCase()) return false;
               return true;
@@ -2215,9 +2230,9 @@ export default function AdminView({ user, onBackToApp }) {
                 {/* Header with Title and Invite User button */}
                 <div className="admin-card-header" style={{ marginBottom: '14px' }}>
                   <div>
-                    <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Users</h2>
+                    <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Users Directory</h2>
                     <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
-                      Manage all platform users, their plans, billing quotas, and status.
+                      Manage all platform users, their connected Instagram accounts, combined quotas, and status.
                     </p>
                   </div>
                   <button
@@ -2261,7 +2276,7 @@ export default function AdminView({ user, onBackToApp }) {
                     <Search size={14} />
                     <input
                       type="text"
-                      placeholder="Search users..."
+                      placeholder="Search by name, email, user ID, or @instagram..."
                       value={userSearch}
                       onChange={(e) => setUserSearch(e.target.value)}
                       className="admin-search-box-input"
@@ -2275,11 +2290,12 @@ export default function AdminView({ user, onBackToApp }) {
                     <thead>
                       <tr>
                         <th>User</th>
+                        <th>Connected Accounts</th>
                         <th>Plan & Badge</th>
                         <th>Quota (Day / Mo)</th>
                         <th>Paid & Coupon</th>
                         <th>Status</th>
-                        <th>Joined</th>
+                        <th>Joined & Active</th>
                         <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
@@ -2293,32 +2309,77 @@ export default function AdminView({ user, onBackToApp }) {
                               </div>
                               <div>
                                 <span style={{ fontWeight: 600, color: '#0f172a', fontSize: '13px', display: 'block' }}>{u.name}</span>
-                                <span style={{ color: '#64748b', fontSize: '11px' }}>{u.email}</span>
+                                <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>{u.email}</span>
+                                <span style={{ fontFamily: 'monospace', fontSize: '10px', color: '#94a3b8', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px', display: 'inline-block', marginTop: '2px' }}>
+                                  ID: {u.user_id}
+                                </span>
                               </div>
                             </div>
                           </td>
                           <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                              <span className={`admin-badge-plan ${u.plan}`}>{u.plan}</span>
+                            {u.instagram_accounts && u.instagram_accounts.length > 0 ? (
+                              <div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '240px' }}>
+                                  {u.instagram_accounts.map(ig => (
+                                    <span key={ig.id} style={{
+                                      fontSize: '11px',
+                                      fontWeight: 600,
+                                      background: '#f0f9ff',
+                                      color: '#0284c7',
+                                      border: '1px solid #bae6fd',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px'
+                                    }}>
+                                      @{ig.username}
+                                    </span>
+                                  ))}
+                                </div>
+                                <span style={{ fontSize: '10.5px', color: '#64748b', marginTop: '3px', display: 'block' }}>
+                                  {u.connected_accounts_count} {u.connected_accounts_count === 1 ? 'account connected' : 'accounts connected'}
+                                </span>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '11.5px', color: '#94a3b8', fontStyle: 'italic' }}>None connected</span>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span className={`admin-badge-plan ${u.plan}`}>{u.plan}</span>
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  padding: '2px 5px',
+                                  borderRadius: '4px',
+                                  background: u.plan !== 'free' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(148, 163, 184, 0.15)',
+                                  color: u.plan !== 'free' ? '#4f46e5' : '#64748b',
+                                  border: u.plan !== 'free' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(148, 163, 184, 0.25)'
+                                }}>
+                                  {u.subscription_badge}
+                                </span>
+                              </div>
                               <span style={{
                                 fontSize: '10px',
-                                fontWeight: 800,
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                background: u.plan !== 'free' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(148, 163, 184, 0.15)',
-                                color: u.plan !== 'free' ? '#4f46e5' : '#64748b',
-                                border: u.plan !== 'free' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(148, 163, 184, 0.25)'
+                                color: u.subscription_status === 'active' ? '#16a34a' : (u.subscription_status === 'trialing' ? '#2563eb' : '#94a3b8'),
+                                textTransform: 'capitalize',
+                                fontWeight: 600
                               }}>
-                                {u.subscription_badge}
+                                ● {u.subscription_status}
                               </span>
                             </div>
                           </td>
                           <td>
-                            <div style={{ fontSize: '12px', lineHeight: 1.3 }}>
+                            <div style={{ fontSize: '12px', lineHeight: 1.35 }}>
                               <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                                {u.monthly_limit === -1 ? 'Unlimited' : `${u.total_replies_used} / ${u.monthly_limit.toLocaleString()} mo`}
+                                {u.monthly_limit === -1 ? 'Unlimited' : `${u.total_replies_used.toLocaleString()} / ${u.monthly_limit.toLocaleString()} mo`}
                               </div>
                               <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                Daily: {u.daily_limit === -1 ? 'Unlimited' : `${u.daily_limit.toLocaleString()} / day`}
+                              </div>
+                              <div style={{ fontSize: '10.5px', color: '#94a3b8' }}>
                                 {`DMs: ${u.dms_sent} • Comments: ${u.comments_replied}`}
                               </div>
                             </div>
@@ -2338,7 +2399,12 @@ export default function AdminView({ user, onBackToApp }) {
                               {u.status === 'active' ? 'Active' : 'Inactive'}
                             </span>
                           </td>
-                          <td style={{ color: '#64748b', fontSize: '12px' }}>{u.joined}</td>
+                          <td>
+                            <div style={{ fontSize: '11.5px', color: '#64748b', lineHeight: 1.3 }}>
+                              <div>Joined: <span style={{ color: '#334155' }}>{u.joined}</span></div>
+                              <div style={{ fontSize: '10.5px', color: '#94a3b8' }}>Active: {u.last_active}</div>
+                            </div>
+                          </td>
                           <td style={{ textAlign: 'right' }}>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
                               <button
@@ -2388,8 +2454,21 @@ export default function AdminView({ user, onBackToApp }) {
               owner: ws.owner_email_masked || ws.owner_email || 'Workspace Owner',
               accounts: ws.connected_accounts || 0,
               plan: (ws.plan || 'free').toLowerCase(),
+              subscription_badge: ws.subscription_badge || (ws.plan || 'free').toUpperCase(),
               status: ws.status || 'active'
             }));
+
+            const filteredWorkspaces = displayWorkspaces.filter(ws => {
+              if (workspaceSearch) {
+                const term = workspaceSearch.toLowerCase().trim();
+                const matchesName = ws.name && ws.name.toLowerCase().includes(term);
+                const matchesOwner = ws.owner && ws.owner.toLowerCase().includes(term);
+                const matchesId = ws.id && ws.id.toLowerCase().includes(term);
+                if (!matchesName && !matchesOwner && !matchesId) return false;
+              }
+              if (workspaceStatusFilter && ws.status.toLowerCase() !== workspaceStatusFilter.toLowerCase()) return false;
+              return true;
+            });
 
             return (
               <div className="admin-card">
@@ -2398,7 +2477,7 @@ export default function AdminView({ user, onBackToApp }) {
                   <div>
                     <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Workspaces</h2>
                     <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
-                      Manage workspaces, owners, and connected accounts.
+                      Manage multi-tenant workspaces, subscription plans, owners, and connected accounts.
                     </p>
                   </div>
                   <button
@@ -2418,11 +2497,17 @@ export default function AdminView({ user, onBackToApp }) {
                     <input
                       type="text"
                       placeholder="Search workspaces..."
+                      value={workspaceSearch}
+                      onChange={(e) => setWorkspaceSearch(e.target.value)}
                       className="admin-search-box-input"
                     />
                   </div>
 
-                  <select className="admin-select-input">
+                  <select
+                    className="admin-select-input"
+                    value={workspaceStatusFilter}
+                    onChange={(e) => setWorkspaceStatusFilter(e.target.value)}
+                  >
                     <option value="">All Status</option>
                     <option value="active">Active</option>
                     <option value="paused">Paused</option>
@@ -2438,19 +2523,32 @@ export default function AdminView({ user, onBackToApp }) {
                         <th>Workspace</th>
                         <th>Owner</th>
                         <th>Accounts</th>
-                        <th>Plan</th>
+                        <th>Plan & Badge</th>
                         <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {displayWorkspaces.length > 0 ? (
-                        displayWorkspaces.map((ws, idx) => (
+                      {filteredWorkspaces.length > 0 ? (
+                        filteredWorkspaces.map((ws, idx) => (
                           <tr key={ws.id || idx}>
                             <td style={{ fontWeight: 700, color: '#0f172a' }}>{ws.name}</td>
                             <td style={{ color: '#475569' }}>{ws.owner}</td>
                             <td style={{ fontWeight: 600, color: '#0f172a' }}>{ws.accounts}</td>
                             <td>
-                              <span className={`admin-badge-plan ${ws.plan}`}>{ws.plan}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span className={`admin-badge-plan ${ws.plan}`}>{ws.plan}</span>
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  padding: '2px 5px',
+                                  borderRadius: '4px',
+                                  background: ws.plan !== 'free' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(148, 163, 184, 0.15)',
+                                  color: ws.plan !== 'free' ? '#4f46e5' : '#64748b',
+                                  border: ws.plan !== 'free' ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid rgba(148, 163, 184, 0.25)'
+                                }}>
+                                  {ws.subscription_badge}
+                                </span>
+                              </div>
                             </td>
                             <td>
                               <span className={ws.status === 'active' ? 'admin-badge-status-active' : ws.status === 'paused' ? 'admin-badge-status-paused' : 'admin-badge-status-inactive'}>
@@ -2462,7 +2560,7 @@ export default function AdminView({ user, onBackToApp }) {
                       ) : (
                         <tr>
                           <td colSpan={5} style={{ textAlign: 'center', padding: '28px', color: '#64748b', fontSize: '13px' }}>
-                            No separate workspaces provisioned yet. Accounts linked directly to user accounts.
+                            No separate workspaces match the filter criteria. Accounts linked directly to user accounts.
                           </td>
                         </tr>
                       )}
@@ -2472,7 +2570,7 @@ export default function AdminView({ user, onBackToApp }) {
 
                 {/* Pagination Footer */}
                 <div className="admin-pagination-footer">
-                  <span>Showing {displayWorkspaces.length} of {displayWorkspaces.length} workspaces</span>
+                  <span>Showing {filteredWorkspaces.length} of {workspacesList.length || filteredWorkspaces.length} workspaces</span>
                   <div className="admin-pagination-controls">
                     <button type="button" className="admin-pagination-btn active">1</button>
                   </div>
@@ -5517,17 +5615,25 @@ export default function AdminView({ user, onBackToApp }) {
                 </div>
 
                 <div className="admin-stat-pill">
-                  <div className="admin-stat-pill-label">Monthly DM Limit</div>
+                  <div className="admin-stat-pill-label">Monthly Reply Quota</div>
                   <div className="admin-stat-pill-value" style={{ color: '#0f172a' }}>
-                    {selectedUserDetail.dmLimit?.toLocaleString()} DMs
+                    {selectedUserDetail.dmLimit === -1 ? 'Unlimited' : `${selectedUserDetail.dmLimit?.toLocaleString()} Replies`}
                     {selectedUserDetail.custom_dm_limit ? <span style={{ fontSize: '10px', color: '#16a34a', display: 'block', fontWeight: 600 }}>(Custom Override)</span> : null}
                   </div>
                 </div>
 
                 <div className="admin-stat-pill">
-                  <div className="admin-stat-pill-label">Tokens Left / Used</div>
+                  <div className="admin-stat-pill-label">Daily Reply Limit</div>
+                  <div className="admin-stat-pill-value" style={{ color: '#0f172a' }}>
+                    {selectedUserDetail.daily_limit === -1 ? 'Unlimited' : `${selectedUserDetail.daily_limit?.toLocaleString()} / day`}
+                    {selectedUserDetail.custom_daily_limit ? <span style={{ fontSize: '10px', color: '#16a34a', display: 'block', fontWeight: 600 }}>(Custom Override)</span> : null}
+                  </div>
+                </div>
+
+                <div className="admin-stat-pill">
+                  <div className="admin-stat-pill-label">Replies Remaining / Used</div>
                   <div className="admin-stat-pill-value">
-                    {selectedUserDetail.dmLeft?.toLocaleString()} / {selectedUserDetail.dmUsed?.toLocaleString()}
+                    {selectedUserDetail.dmLeft === -1 ? 'Unlimited' : `${selectedUserDetail.dmLeft?.toLocaleString()} left`} / {selectedUserDetail.dmUsed?.toLocaleString()} used
                   </div>
                 </div>
 

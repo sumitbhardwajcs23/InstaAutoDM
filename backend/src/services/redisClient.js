@@ -164,6 +164,26 @@ async function del(key) {
   return true;
 }
 
+async function delPattern(pattern) {
+  if (client && isConnected) {
+    try {
+      const keys = await client.keys(pattern);
+      if (keys && keys.length > 0) {
+        await client.del(...keys);
+      }
+    } catch (err) {
+      metrics.errors++;
+    }
+  }
+  const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+  for (const k of fallbackCache.keys()) {
+    if (regex.test(k)) {
+      fallbackCache.delete(k);
+    }
+  }
+  return true;
+}
+
 function isAvailable() {
   return Boolean(client && isConnected);
 }
@@ -210,6 +230,7 @@ module.exports = {
   get,
   set,
   del,
+  delPattern,
   isAvailable,
   isLocalhostIgnored,
   getRawClient,

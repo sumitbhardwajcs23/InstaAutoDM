@@ -211,12 +211,22 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 CREATE TABLE IF NOT EXISTS activity_log (
   id TEXT PRIMARY KEY,
   instagram_account_id TEXT REFERENCES instagram_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  user_id TEXT REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  subscription_id TEXT REFERENCES subscriptions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
   event_date TEXT NOT NULL,
   dms_sent INTEGER DEFAULT 0,
   comments_replied INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
-  UNIQUE(instagram_account_id, event_date)
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
+CREATE UNIQUE INDEX IF NOT EXISTS unq_activity_log_sub_acc_date
+  ON activity_log(instagram_account_id, subscription_id, event_date)
+  WHERE subscription_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS unq_activity_log_user_acc_date
+  ON activity_log(instagram_account_id, user_id, event_date)
+  WHERE subscription_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_activity_log_sub_date ON activity_log(subscription_id, event_date);
+CREATE INDEX IF NOT EXISTS idx_activity_log_user_date ON activity_log(user_id, event_date);
+
 
 CREATE TABLE IF NOT EXISTS workspaces (
   id TEXT PRIMARY KEY,

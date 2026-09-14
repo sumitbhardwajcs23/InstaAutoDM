@@ -88,9 +88,15 @@ export default function DashboardView({
     : (hasRealHandle ? `@${account.username}` : (isConnected ? 'Instagram Creator' : 'No Account'));
   const accountType = account?.accountType || account?.account_type || (isConnected ? 'Creator Account' : 'None');
   const dmsSent = stats?.dmsSent ?? 0;
-  const dmsLimit = stats?.dmsLimit ?? 1000;
-  const dailyLimit = stats?.dailyLimit || user?.daily_limit || (dmsLimit === -1 ? -1 : Math.ceil(dmsLimit / 30));
-  const dmPercent = dmsLimit > 0 ? Math.min(100, Math.round((dmsSent / dmsLimit) * 100)) : 0;
+  const commentsRepliedCount = stats?.commentsRepliedCount ?? 0;
+  const totalRepliesUsed = stats?.totalRepliesUsed ?? (dmsSent + commentsRepliedCount);
+  const monthlyLimit = stats?.monthlyLimit ?? stats?.dmsLimit ?? 1000;
+  const dailyLimit = stats?.dailyLimit || user?.daily_limit || (monthlyLimit === -1 ? -1 : Math.ceil(monthlyLimit / 30));
+  const dailyRepliesUsed = stats?.dailyRepliesUsed ?? stats?.usedToday ?? 0;
+  const dailyRemaining = stats?.dailyRemaining ?? stats?.remainingToday ?? (dailyLimit === -1 ? 999999 : Math.max(0, dailyLimit - dailyRepliesUsed));
+  const monthlyRemaining = stats?.remaining ?? stats?.dmRemaining ?? (monthlyLimit === -1 ? 999999 : Math.max(0, monthlyLimit - totalRepliesUsed));
+  const usagePercent = stats?.usagePercent !== undefined ? stats.usagePercent : (monthlyLimit > 0 ? Math.min(100, Math.round((totalRepliesUsed / monthlyLimit) * 100)) : 0);
+  const dmPercent = usagePercent;
   const commentsReplied = stats?.commentsReplied ?? 0;
   const activeRulesCount = stats?.activeRules ?? rules.filter(r => r.is_active).length;
   const totalRulesCount = stats?.totalRules ?? rules.length;
@@ -477,7 +483,7 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* Card 2: Total DMs Sent */}
+        {/* Card 2: Total Reply Limit */}
         <div className="card" style={{
           padding: '20px',
           borderRadius: '16px',
@@ -489,20 +495,27 @@ export default function DashboardView({
           justifyContent: 'space-between',
         }}>
           <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', letterSpacing: '0.06em', marginBottom: '10px' }}>
-              TOTAL DMS SENT
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', letterSpacing: '0.06em', marginBottom: '8px' }}>
+              TOTAL REPLY LIMIT
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
               <span style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
-                {dmsSent}
+                {totalRepliesUsed}
               </span>
               <span style={{ fontSize: '13px', color: 'var(--text-light)', fontWeight: 500 }}>
-                / {dmsLimit}
+                / {monthlyLimit === -1 ? 'Unlimited' : monthlyLimit.toLocaleString()}
               </span>
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <span>Monthly: {dmsLimit === -1 ? 'Unlimited' : `${dmsLimit.toLocaleString()} DMs`}</span>
-              <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>Daily: {dailyLimit === -1 ? 'Unlimited' : `${dailyLimit.toLocaleString()} DMs/day`}</span>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              <span>
+                <strong>Monthly:</strong> {totalRepliesUsed} used • {monthlyRemaining === -1 || monthlyRemaining === 999999 ? 'Unlimited' : `${monthlyRemaining.toLocaleString()} remaining`}
+              </span>
+              <span style={{ fontSize: '11.5px', color: 'var(--text-light)' }}>
+                <strong>Today:</strong> {dailyRepliesUsed} used • {dailyLimit === -1 || dailyRemaining === 999999 ? 'Unlimited' : `${dailyRemaining.toLocaleString()} left today`}
+              </span>
+              <span style={{ fontSize: '11px', color: '#6366f1', fontWeight: 600 }}>
+                Combined Quota: {dmsSent} DMs + {commentsRepliedCount || commentsReplied} Comments
+              </span>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '6px' }}>
               Resets in {daysUntilReset} days
@@ -546,7 +559,7 @@ export default function DashboardView({
               fontWeight: 700,
               color: 'var(--text-main)',
             }}>
-              {dmPercent}%
+              {usagePercent}%
             </div>
           </div>
         </div>
@@ -685,6 +698,88 @@ export default function DashboardView({
           </div>
         </div>
       </div>
+
+      {/* 2b. Connected Instagram Accounts Shared Quota Breakdown (visible when multiple accounts exist) */}
+      {((stats?.accountsBreakdown && stats.accountsBreakdown.length > 1) || (accounts && accounts.length > 1)) && (
+        <div className="card" style={{
+          padding: '20px',
+          borderRadius: '16px',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-light)',
+          boxShadow: 'var(--shadow-card)',
+          marginBottom: '24px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', letterSpacing: '0.06em' }}>
+                SHARED SUBSCRIPTION QUOTA ALLOCATION
+              </div>
+              <h3 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', margin: '2px 0 0 0' }}>
+                Connected Instagram Accounts Breakdown
+              </h3>
+            </div>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#6366f1', background: 'rgba(99, 102, 241, 0.1)', padding: '4px 10px', borderRadius: '20px' }}>
+              {(stats?.accountsBreakdown || accounts).length} Connected Accounts
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+            {(stats?.accountsBreakdown && stats.accountsBreakdown.length > 0 ? stats.accountsBreakdown : accounts).map((acc) => (
+              <div
+                key={acc.id}
+                style={{
+                  padding: '14px',
+                  borderRadius: '12px',
+                  background: 'var(--bg-subtle, #f8fafc)',
+                  border: '1px solid var(--border-subtle, #e2e8f0)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #f09433, #dc2743)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                  }}>
+                    {acc.profile_picture_url ? (
+                      <img src={acc.profile_picture_url} alt={acc.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <Instagram size={18} />
+                    )}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>
+                      @{acc.username || 'account'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {acc.full_name || 'Active Channel'}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
+                    {acc.total !== undefined ? acc.total : '—'} <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>replies</span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {acc.dms_sent !== undefined ? `${acc.dms_sent} DMs • ${acc.comments_replied} Cmts` : 'Active'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 3. Middle Row (Message Activity 50%, Quick Actions 25%, Account Status 25%) */}
       <div style={{

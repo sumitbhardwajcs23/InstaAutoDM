@@ -169,28 +169,50 @@ router.get('/overview', async (req, res) => {
     let estimatedMrr = 0;
     let activePaidSubscriptions = 0;
     try {
+      const planPrices = {};
+      const plans = await db.prepare("SELECT id, name, monthly_price FROM pricing_plans").all().catch(() => []);
+      (plans || []).forEach(pl => {
+        if (pl.id) planPrices[pl.id.toLowerCase()] = Number(pl.monthly_price || 0);
+        if (pl.name) planPrices[pl.name.toLowerCase()] = Number(pl.monthly_price || 0);
+      });
+      if (!planPrices.pro) planPrices.pro = 1499;
+      if (!planPrices.agency) planPrices.agency = 3999;
+      if (!planPrices.enterprise) planPrices.enterprise = 7999;
+
       const payingSubs = await db.prepare(`
         SELECT s.plan, s.gateway_subscription_id 
         FROM subscriptions s
         JOIN users u ON s.user_id = u.id
-        WHERE s.status = 'active' AND s.plan != 'free' AND (u.role != 'admin' OR s.gateway_subscription_id IS NOT NULL)
+        WHERE s.status IN ('active', 'trialing') AND s.plan != 'free' AND (u.role != 'admin' OR s.gateway_subscription_id IS NOT NULL)
       `).all() || [];
       activePaidSubscriptions = payingSubs.length;
       payingSubs.forEach(s => {
         const p = (s.plan || 'free').toLowerCase();
-        if (p === 'pro') estimatedMrr += 1499;
-        else if (p === 'agency') estimatedMrr += 3999;
-        else if (p === 'enterprise') estimatedMrr += 7999;
+        estimatedMrr += (planPrices[p] || 0);
       });
     } catch (e) {}
 
-    // Plan breakdown of non-admin platform users
-    const plansRows = await db.prepare("SELECT plan, COUNT(*) as count FROM users WHERE role != 'admin' GROUP BY plan").all().catch(() => []);
-    const planBreakdown = { free: 0, pro: 0, agency: 0, enterprise: 0 };
-    (plansRows || []).forEach(row => {
-      const p = (row.plan || 'free').toLowerCase();
-      if (planBreakdown[p] !== undefined) planBreakdown[p] = parseInt(row.count, 10);
-    });
+    // Plan breakdown derived from active subscriptions and users
+    const planBreakdown = { free: 0, starter: 0, pro: 0, agency: 0, enterprise: 0 };
+    try {
+      const subCounts = await db.prepare(`
+        SELECT s.plan, COUNT(DISTINCT s.user_id) as count
+        FROM subscriptions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.status IN ('active', 'trialing') AND u.role != 'admin'
+        GROUP BY s.plan
+      `).all() || [];
+      let totalPaidUsers = 0;
+      (subCounts || []).forEach(r => {
+        const p = (r.plan || 'free').toLowerCase();
+        const c = parseInt(r.count, 10);
+        if (planBreakdown[p] !== undefined) planBreakdown[p] = c;
+        if (p !== 'free') totalPaidUsers += c;
+      });
+      const totalNonAdminRow = await db.prepare("SELECT COUNT(*) as count FROM users WHERE role != 'admin'").get().catch(() => ({ count: 0 }));
+      const totalNonAdmin = parseInt(totalNonAdminRow?.count || 0, 10);
+      planBreakdown.free = Math.max(0, totalNonAdmin - totalPaidUsers);
+    } catch (e) {}
 
     // 6. Privacy-masked Recent Signups (100% REAL DB DATA)
     const rawRecent = await db.prepare(`
@@ -229,6 +251,22 @@ router.get('/overview', async (req, res) => {
     // 8. 100% Real Growth Timeline from DB
     const growthTimeline = await buildPlatformGrowthTimeline();
 
+    // 9. Real data deletion requests count
+    let dataRequests = { deletionRequests: 0, exportRequests: 0, completedDeletions: 0 };
+    try {
+      const pool = db.getPgPool ? db.getPgPool() : null;
+      if (pool) {
+        const delRes = await pool.query(`
+          SELECT
+            COUNT(*) AS total_del,
+            COUNT(*) FILTER (WHERE status = 'completed') AS completed_del
+          FROM data_deletion_requests
+        `).catch(() => ({ rows: [] }));
+        dataRequests.deletionRequests = Number(delRes.rows[0]?.total_del || 0);
+        dataRequests.completedDeletions = Number(delRes.rows[0]?.completed_del || 0);
+      }
+    } catch (_) {}
+
     res.json({
       totalUsers,
       activeWorkspaces,
@@ -243,11 +281,7 @@ router.get('/overview', async (req, res) => {
       recentUsers,
       recentActivity,
       growthTimeline,
-      dataRequests: {
-        deletionRequests: 0,
-        exportRequests: 0,
-        completedDeletions: 0
-      },
+      dataRequests,
       securityPrivacy: {
         dataEncryption: true,
         oauthTokenProtection: true,
@@ -331,21 +365,48 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
     const invoicesAggByUser = {};
 
     if (userIds.length > 0) {
-      // 1. Batched Instagram Accounts
+      // 1. Batched Instagram Accounts (from both direct ownership and connections)
       try {
         const igPlaceholders = userIds.map(() => '?').join(',');
         const igRows = await db.prepare(`
-          SELECT id, user_id, username, ig_user_id, followers_count, status 
-          FROM instagram_accounts 
-          WHERE user_id IN (${igPlaceholders})
-        `).all(...userIds);
+          SELECT DISTINCT
+            COALESCE(c.user_id, ig.user_id) AS user_id,
+            ig.id,
+            ig.username,
+            ig.full_name,
+            ig.ig_user_id,
+            ig.followers_count,
+            COALESCE(c.status, ig.status) AS status,
+            ig.profile_picture_url
+          FROM instagram_accounts ig
+          LEFT JOIN instagram_account_connections c ON c.instagram_account_id = ig.id
+          WHERE (c.user_id IN (${igPlaceholders}) AND c.status = 'active')
+             OR (ig.user_id IN (${igPlaceholders}) AND ig.status = 'connected')
+        `).all(...userIds, ...userIds);
         for (const ig of (igRows || [])) {
           if (!igAccountsByUser[ig.user_id]) igAccountsByUser[ig.user_id] = [];
-          igAccountsByUser[ig.user_id].push(ig);
+          if (!igAccountsByUser[ig.user_id].some(a => a.id === ig.id)) {
+            igAccountsByUser[ig.user_id].push(ig);
+          }
         }
       } catch (igErr) {
         console.error('[Admin] Batched IG accounts query error:', igErr.message);
       }
+
+      // 1b. Batched Last Active Timestamp from user_sessions
+      const sessionsByUser = {};
+      try {
+        const sessPlaceholders = userIds.map(() => '?').join(',');
+        const sessRows = await db.prepare(`
+          SELECT user_id, MAX(last_active_at) as last_active_at
+          FROM user_sessions
+          WHERE user_id IN (${sessPlaceholders}) AND is_revoked = 0
+          GROUP BY user_id
+        `).all(...userIds);
+        for (const s of (sessRows || [])) {
+          sessionsByUser[s.user_id] = s.last_active_at;
+        }
+      } catch (_) {}
 
       // 2. Batched Authoritative Active Subscriptions
       try {
@@ -394,10 +455,6 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
       const usageCountersByUser = {};
       try {
         const cntPlaceholders = userIds.map(() => '?').join(',');
-        // SUM across all usage_counters rows for this user (handles both:
-        //   - legacy rows: instagram_account_id IS NULL, keyed by user_id
-        //   - Migration 012 rows: keyed by (instagram_account_id, subscription_id)
-        // This gives the authoritative subscription-level total.
         const cntRows = await db.prepare(`
           SELECT user_id,
                  COALESCE(SUM(dms_sent), 0)          AS dms_sent,
@@ -427,11 +484,13 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
       const cnt = usageCountersByUser ? usageCountersByUser[u.id] : null;
       const dmsSent = Number(cnt?.dms_sent || 0);
       const commentsReplied = Number(cnt?.comments_replied || 0);
-      // Use the pre-aggregated total if available (SUM query), else derive from components
       const totalRepliesUsed = cnt ? (Number(cnt.total_replies || 0) || (dmsSent + commentsReplied)) : Number(u.dm_usage_this_period || 0);
+      const remainingQuota = monthlyLimit === -1 ? 999999 : Math.max(0, monthlyLimit - totalRepliesUsed);
+      const lastActiveAt = sessionsByUser[u.id] || u.updated_at || u.created_at;
 
       return {
         ...u,
+        user_id: u.id,
         plan: effectivePlan,
         effective_plan: effectivePlan,
         subscription_status: activeSub ? activeSub.status : (u.subscription_status || 'none'),
@@ -439,6 +498,8 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
         monthly_limit: monthlyLimit,
         daily_limit: dailyLimit,
         dmLimit: monthlyLimit,
+        remaining_quota: remainingQuota,
+        last_active_at: lastActiveAt,
         igLimit: igLimitFor(effectivePlan, u.custom_ig_limit),
         rulesLimit: rulesLimitFor(effectivePlan, u.custom_rules_limit),
         custom_dm_limit: u.custom_dm_limit,
@@ -452,7 +513,7 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
         total_paid: invAgg.total_paid,
         latest_payment_amount: invAgg.latest_payment_amount,
         latest_coupon_code: invAgg.latest_coupon_code,
-        connected_accounts_count: instagram_accounts.length || parseInt(u.connected_accounts_count || 0, 10),
+        connected_accounts_count: instagram_accounts.length,
         rules_count: parseInt(u.rules_count || 0, 10),
         instagram_accounts
       };
@@ -684,54 +745,7 @@ router.post('/users/:id/reset-password', async (req, res) => {
   });
 });
 
-// ── GET /api/admin/settings ──────────────────────────────────────────
-router.get('/settings', requirePermission('cms:manage'), async (req, res) => {
-  try {
-    const rows = await db.prepare('SELECT key, value FROM site_settings').all();
-    const settingsMap = {};
-    (rows || []).forEach(r => {
-      try {
-        settingsMap[r.key] = JSON.parse(r.value);
-      } catch (e) {
-        settingsMap[r.key] = r.value;
-      }
-    });
 
-    // Merge with defaults (env prioritized for contact details)
-    const finalSettings = mergeSettingsWithEnvDefaults(settingsMap);
-    res.json({ settings: finalSettings });
-  } catch (err) {
-    console.error('[Admin] Get settings error:', err);
-    res.status(500).json({ error: 'Failed to fetch site settings' });
-  }
-});
-
-// ── PUT /api/admin/settings ──────────────────────────────────────────
-router.put('/settings', requirePermission('cms:manage'), async (req, res) => {
-  try {
-    const settings = req.body;
-    if (!settings || typeof settings !== 'object') {
-      return res.status(400).json({ error: 'Settings payload must be an object' });
-    }
-
-    for (const [key, val] of Object.entries(settings)) {
-      const serialized = typeof val === 'string' ? JSON.stringify(val) : JSON.stringify(val);
-      // Upsert into site_settings
-      const existing = await db.prepare('SELECT key FROM site_settings WHERE key = ?').get(key);
-      if (existing) {
-        await db.prepare('UPDATE site_settings SET value = ?, updated_at = to_char(NOW(), \'YYYY-MM-DD HH24:MI:SS\') WHERE key = ?').run(serialized, key);
-      } else {
-        await db.prepare('INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, to_char(NOW(), \'YYYY-MM-DD HH24:MI:SS\'))').run(key, serialized);
-      }
-    }
-
-    await logAuditEvent(req.user?.id, req.user?.email, 'Updated Website Customization', 'Site Settings');
-    res.json({ message: 'Website customization settings saved successfully' });
-  } catch (err) {
-    console.error('[Admin] Save settings error:', err);
-    res.status(500).json({ error: 'Failed to save site settings' });
-  }
-});
 
 // ── DELETE /api/admin/users/:id ──────────────────────────────────────
 router.delete('/users/:id', requirePermission('users:delete'), async (req, res) => {
@@ -1647,26 +1661,48 @@ router.delete('/templates/:id', requirePermission('cms:manage'), async (req, res
 });
 
 // ── GET /api/admin/workspaces ─────────────────────────────────────────
-router.get('/workspaces', requirePermission('workspaces:manage'), async (_req, res) => {
+router.get('/workspaces', requirePermission('workspaces:manage'), async (req, res) => {
   try {
-    // 1. Fetch real workspace records if table exists
+    const { search = '', status = '' } = req.query;
+
+    // 1. Fetch active subscriptions mapping
+    const activeSubs = await db.prepare(`
+      SELECT user_id, plan FROM subscriptions WHERE status IN ('active', 'trialing') ORDER BY created_at DESC
+    `).all().catch(() => []) || [];
+    const subMap = {};
+    activeSubs.forEach(s => { if (!subMap[s.user_id]) subMap[s.user_id] = s.plan; });
+
+    // 2. Fetch connected accounts count per user from connections & direct ownership
+    const accountsCountMap = {};
+    try {
+      const igCounts = await db.prepare(`
+        SELECT DISTINCT COALESCE(c.user_id, ig.user_id) AS uid, ig.id
+        FROM instagram_accounts ig
+        LEFT JOIN instagram_account_connections c ON c.instagram_account_id = ig.id
+        WHERE (c.status = 'active') OR (ig.status = 'connected')
+      `).all() || [];
+      igCounts.forEach(r => {
+        if (r.uid) {
+          accountsCountMap[r.uid] = (accountsCountMap[r.uid] || 0) + 1;
+        }
+      });
+    } catch (_) {}
+
+    // 3. Fetch real workspace records if table exists
     let rawWorkspaces = [];
     try {
       rawWorkspaces = await db.prepare(`
-        SELECT w.id, w.name, w.owner_id, w.status, w.created_at, u.email as owner_email
+        SELECT w.id, w.name, w.owner_id, w.status, w.created_at, u.email as owner_email, u.plan as owner_plan, u.name as owner_name
         FROM workspaces w
         LEFT JOIN users u ON u.id = w.owner_id
         ORDER BY w.created_at DESC
       `).all() || [];
     } catch (e) {}
 
-    // 2. Fetch all real users to map user workspaces dynamically
+    // 4. Fetch all real users
     const users = await db.prepare(`
-      SELECT u.id, u.name, u.email, u.status, u.created_at,
-             COUNT(ig.id) AS connected_accounts
+      SELECT u.id, u.name, u.email, u.status, u.plan, u.created_at
       FROM users u
-      LEFT JOIN instagram_accounts ig ON ig.user_id = u.id
-      GROUP BY u.id
       ORDER BY u.created_at DESC
     `).all() || [];
 
@@ -1678,27 +1714,47 @@ router.get('/workspaces', requirePermission('workspaces:manage'), async (_req, r
     if (rawWorkspaces.length > 0) {
       workspaces = rawWorkspaces.map(w => {
         const owner = userMap[w.owner_id] || {};
+        const effectivePlan = (subMap[w.owner_id] || owner.plan || w.owner_plan || 'free').toLowerCase();
         return {
           id: w.id,
           name: w.name || (owner.name ? `${owner.name}'s Growth Hub` : 'User Workspace'),
           owner_id: w.owner_id,
+          owner: w.owner_email || owner.email || 'Owner',
           owner_email_masked: maskEmail(w.owner_email || owner.email),
+          plan: effectivePlan,
+          subscription_badge: badgeFor(effectivePlan),
           status: w.status || owner.status || 'active',
-          connected_accounts: parseInt(owner.connected_accounts || 0, 10),
+          connected_accounts: accountsCountMap[w.owner_id] || 0,
           created_at: w.created_at ? (w.created_at.includes('T') ? new Date(w.created_at).toLocaleDateString() : w.created_at) : 'Active'
         };
       });
     } else {
       // Derive 1 workspace per real registered user in DB
-      workspaces = users.map(u => ({
-        id: `ws-${u.id.slice(0, 8)}`,
-        name: u.name ? `${u.name}'s Growth Hub` : 'Creator Workspace',
-        owner_id: u.id,
-        owner_email_masked: maskEmail(u.email),
-        status: u.status || 'active',
-        connected_accounts: parseInt(u.connected_accounts || 0, 10),
-        created_at: u.created_at ? new Date(u.created_at).toLocaleDateString() : 'Active'
-      }));
+      workspaces = users.map(u => {
+        const effectivePlan = (subMap[u.id] || u.plan || 'free').toLowerCase();
+        return {
+          id: `ws-${u.id.slice(0, 8)}`,
+          name: u.name ? `${u.name}'s Growth Hub` : 'Creator Workspace',
+          owner_id: u.id,
+          owner: u.email || 'Creator',
+          owner_email_masked: maskEmail(u.email),
+          plan: effectivePlan,
+          subscription_badge: badgeFor(effectivePlan),
+          status: u.status || 'active',
+          connected_accounts: accountsCountMap[u.id] || 0,
+          created_at: u.created_at ? new Date(u.created_at).toLocaleDateString() : 'Active'
+        };
+      });
+    }
+
+    // Filter by search & status if provided
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      workspaces = workspaces.filter(w => (w.name && w.name.toLowerCase().includes(q)) || (w.owner && w.owner.toLowerCase().includes(q)) || (w.id && w.id.toLowerCase().includes(q)));
+    }
+    if (status.trim()) {
+      const s = status.toLowerCase().trim();
+      workspaces = workspaces.filter(w => w.status === s);
     }
 
     res.json({ workspaces });
@@ -1957,6 +2013,26 @@ router.get('/safeguards', requirePermission('safeguards:manage'), async (_req, r
     const rulesRow = await db.prepare('SELECT COUNT(*) as count FROM automation_rules').get();
     const totalRules = parseInt(rulesRow?.count || 0, 10);
 
+    // Real kill switch status from abuseDetection service
+    let isGlobalPaused = false;
+    try {
+      const activeSwitches = await abuseDetection.getKillSwitchStatus();
+      isGlobalPaused = (activeSwitches || []).some(k => k.scope === 'global' && (k.is_active === 1 || k.is_active === true));
+    } catch (_) {}
+
+    // Real failed DMs in last 24 hours
+    let failedCount = 0;
+    try {
+      const pool = db.getPgPool ? db.getPgPool() : null;
+      if (pool) {
+        const fRes = await pool.query(`
+          SELECT COUNT(*) as count FROM messages
+          WHERE status = 'failed' AND created_at >= to_char(NOW() - INTERVAL '24 hours', 'YYYY-MM-DD HH24:MI:SS')
+        `);
+        failedCount = Number(fRes.rows[0]?.count || 0);
+      }
+    } catch (_) {}
+
     res.json({
       rateLimits: {
         maxDmsPerHour: 250,
@@ -1964,11 +2040,11 @@ router.get('/safeguards', requirePermission('safeguards:manage'), async (_req, r
         messagingWindowHours: 24,
         enforceWindow: true
       },
-      killswitchActive: false,
+      killswitchActive: isGlobalPaused,
       activeRulesCount: totalRules,
       healthMetrics: {
         queueLatency: '12ms',
-        failedDmsLast24h: 2,
+        failedDmsLast24h: failedCount,
         spamProtectionStatus: 'Active & Shielded',
         metaRateLimitQuotaUsed: '14%'
       }
@@ -1983,15 +2059,38 @@ router.get('/safeguards', requirePermission('safeguards:manage'), async (_req, r
 router.get('/analytics', requirePermission('analytics:view'), async (_req, res) => {
   try {
     const usersCount = parseInt((await db.prepare('SELECT COUNT(*) as c FROM users').get())?.c || 0, 10);
-    const igCount = parseInt((await db.prepare('SELECT COUNT(*) as c FROM instagram_accounts').get())?.c || 0, 10);
-    const usageRow = await db.prepare('SELECT SUM(dm_usage_this_period) as total FROM users').get();
-    const totalDms = parseInt(usageRow?.total || 0, 10);
+    const igCount = parseInt((await db.prepare("SELECT COUNT(*) as c FROM instagram_accounts WHERE status = 'connected'").get())?.c || 0, 10);
 
-    const plansRows = await db.prepare('SELECT plan, COUNT(*) as count FROM users GROUP BY plan').all();
-    const planDistribution = {};
-    (plansRows || []).forEach(r => {
-      planDistribution[r.plan || 'free'] = parseInt(r.count, 10);
-    });
+    // Authoritative total replies from usage_counters SSOT
+    let totalDms = 0;
+    try {
+      const ucRow = await db.prepare(`
+        SELECT COALESCE(SUM(dms_sent + comments_replied), 0) AS total
+        FROM usage_counters
+      `).get();
+      totalDms = parseInt(ucRow?.total || 0, 10);
+    } catch (e) {}
+
+    // Authoritative plan distribution from active subscriptions + users
+    const planDistribution = { free: 0, starter: 0, pro: 0, agency: 0, enterprise: 0 };
+    try {
+      const subPlans = await db.prepare(`
+        SELECT s.plan, COUNT(DISTINCT s.user_id) as count
+        FROM subscriptions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.status IN ('active', 'trialing') AND u.role != 'admin'
+        GROUP BY s.plan
+      `).all() || [];
+      let totalPaid = 0;
+      (subPlans || []).forEach(r => {
+        const p = (r.plan || 'free').toLowerCase();
+        const c = parseInt(r.count, 10);
+        planDistribution[p] = (planDistribution[p] || 0) + c;
+        if (p !== 'free') totalPaid += c;
+      });
+      const nonAdminUsers = parseInt((await db.prepare("SELECT COUNT(*) as count FROM users WHERE role != 'admin'").get())?.count || 0, 10);
+      planDistribution.free = Math.max(0, nonAdminUsers - totalPaid);
+    } catch (_) {}
 
     res.json({
       totals: {

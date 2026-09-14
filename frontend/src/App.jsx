@@ -151,15 +151,26 @@ export default function App() {
       if (statsRes.ok) {
         const d = await statsRes.json();
         setStats({
-          dmsSent: d.totalDmsSent ?? 0,
-          dmsLimit: d.dmLimit ?? 1000,
-          dmRemaining: d.dmRemaining ?? Math.max(0, (d.dmLimit || 1000) - (d.totalDmsSent || 0)),
+          dmsSent: d.dmsSent ?? 0,
+          commentsRepliedCount: d.commentsRepliedCount ?? 0,
+          totalRepliesUsed: d.totalRepliesUsed ?? (d.totalDmsSent ?? 0),
+          dmsLimit: d.monthlyLimit ?? (d.dmLimit ?? 1000),
+          monthlyLimit: d.monthlyLimit ?? (d.dmLimit ?? 1000),
+          dailyLimit: d.dailyLimit ?? Math.ceil((d.monthlyLimit || 1000) / 30),
+          dailyRepliesUsed: d.dailyRepliesUsed ?? (d.usedToday ?? 0),
+          usedToday: d.usedToday ?? (d.dailyRepliesUsed ?? 0),
+          remainingToday: d.remainingToday ?? (d.dailyRemaining ?? 0),
+          dailyRemaining: d.dailyRemaining ?? (d.remainingToday ?? 0),
+          dmRemaining: d.dmRemaining ?? (d.remaining ?? 0),
+          remaining: d.remaining ?? (d.dmRemaining ?? 0),
           commentsReplied: d.commentsReplied ?? 0,
           commentsRepliedChange: d.commentsRepliedChange ?? 0,
           activeRules: d.activeRules ?? 0,
           totalRules: d.totalRules ?? 0,
           usagePercent: d.usagePercent ?? 0,
           accountHealthy: d.accountHealthy ?? false,
+          subscriptionBadge: d.subscriptionBadge || 'FREE',
+          accountsBreakdown: d.accountsBreakdown || [],
           recentConversations: d.recent_conversations || [],
         });
         setAccount(prev => {
