@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS password_resets (
 
 CREATE TABLE IF NOT EXISTS instagram_accounts (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED,
   ig_user_id TEXT UNIQUE NOT NULL,
   username TEXT,
   account_type TEXT DEFAULT 'Business Account',
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS instagram_accounts (
   token_type TEXT DEFAULT 'ig_long_lived',
   last_auth_error TEXT,
   token_revoked_at TEXT,
-  status TEXT DEFAULT 'connected',
+  status TEXT DEFAULT 'connected' CHECK (status IN ('connected', 'disconnected', 'error', 'revoked')),
   disclosure_message TEXT DEFAULT '⚡ [Automated Response] ',
   followers_count INTEGER DEFAULT 0,
   full_name TEXT,
@@ -312,6 +312,33 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
   updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
+
+-- ── Canonical Instagram Account Connections ─────────────────────────────────
+-- Sole authoritative source of which user is currently operating which
+-- Instagram account. NEVER delete rows; mark as 'disconnected' or 'transferred'.
+CREATE TABLE IF NOT EXISTS instagram_account_connections (
+  id                  TEXT        PRIMARY KEY,
+  instagram_account_id TEXT       NOT NULL REFERENCES instagram_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  user_id             TEXT        NOT NULL REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  subscription_id     TEXT        REFERENCES subscriptions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  status              TEXT        NOT NULL DEFAULT 'active'
+                                  CHECK (status IN ('active', 'disconnected', 'transferred')),
+  connected_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  disconnected_at     TIMESTAMPTZ,
+  transfer_reason     TEXT,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- Guarantees exactly ONE active connection per Instagram account at any time
+CREATE UNIQUE INDEX IF NOT EXISTS unq_active_ig_connection
+  ON instagram_account_connections(instagram_account_id)
+  WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_ig_connections_user_status
+  ON instagram_account_connections(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_ig_connections_sub_status
+  ON instagram_account_connections(subscription_id, status);
+CREATE INDEX IF NOT EXISTS idx_ig_connections_ig_account
+  ON instagram_account_connections(instagram_account_id, status, connected_at DESC);
 
 CREATE TABLE IF NOT EXISTS invoices (
   id TEXT PRIMARY KEY,
@@ -532,31 +559,58 @@ CREATE TABLE IF NOT EXISTS coupon_redemptions (
 );
 CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_user ON coupon_redemptions(user_id);
 
+-- ── Authoritative Usage Ledger ──────────────────────────────────────────────
+-- One row per (instagram_account_id, subscription_id, period_start).
+-- Quota usage is attributed to the SUBSCRIPTION that incurred it.
+-- Disconnecting an account or moving it to a new subscription NEVER
+-- mutates historical rows — they remain permanently attached to their
+-- original subscription context.
 CREATE TABLE IF NOT EXISTS usage_counters (
-  id TEXT PRIMARY KEY,
-  user_id TEXT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  period_start TEXT NOT NULL,
-  dms_sent INTEGER NOT NULL DEFAULT 0,
-  comments_replied INTEGER NOT NULL DEFAULT 0,
-  updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+  id                   TEXT        PRIMARY KEY,
+  user_id              TEXT        NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  instagram_account_id TEXT        REFERENCES instagram_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  subscription_id      TEXT        REFERENCES subscriptions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  period_start         TEXT        NOT NULL,
+  period_end           TEXT,
+  dms_sent             INTEGER     NOT NULL DEFAULT 0,
+  comments_replied     INTEGER     NOT NULL DEFAULT 0,
+  updated_at           TEXT        DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
+-- Account+subscription+period unique (for account-level rows after Migration 012)
+CREATE UNIQUE INDEX IF NOT EXISTS unq_usage_account_sub_period
+  ON usage_counters(instagram_account_id, subscription_id, period_start)
+  WHERE instagram_account_id IS NOT NULL AND subscription_id IS NOT NULL;
+-- Legacy user-only unique (for rows that predate Migration 012)
+CREATE UNIQUE INDEX IF NOT EXISTS unq_usage_user_period_legacy
+  ON usage_counters(user_id, period_start)
+  WHERE instagram_account_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_usage_counters_user ON usage_counters(user_id);
+CREATE INDEX IF NOT EXISTS idx_usage_counters_acc ON usage_counters(instagram_account_id);
+CREATE INDEX IF NOT EXISTS idx_usage_counters_sub ON usage_counters(subscription_id);
 
+-- ── Quota Reservation Ledger ────────────────────────────────────────────────
+-- In-flight reply reservations: RESERVED → COMMITTED or ROLLED_BACK.
+-- Keyed per instagram_account_id so the FOR UPDATE lock targets the exact
+-- account row in usage_counters, preventing cross-account lock contention.
 CREATE TABLE IF NOT EXISTS quota_reservations (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  reply_type TEXT NOT NULL CHECK (reply_type IN ('dm', 'comment')),
-  idempotency_key TEXT UNIQUE,
-  status TEXT NOT NULL CHECK (status IN ('RESERVED', 'COMMITTED', 'ROLLED_BACK')),
-  expires_at TIMESTAMPTZ NOT NULL,
-  committed_at TIMESTAMPTZ,
-  rolled_back_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id                   TEXT        PRIMARY KEY,
+  user_id              TEXT        NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  instagram_account_id TEXT        REFERENCES instagram_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  subscription_id      TEXT        REFERENCES subscriptions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  reply_type           TEXT        NOT NULL CHECK (reply_type IN ('dm', 'comment')),
+  idempotency_key      TEXT        UNIQUE,
+  status               TEXT        NOT NULL CHECK (status IN ('RESERVED', 'COMMITTED', 'ROLLED_BACK')),
+  expires_at           TIMESTAMPTZ NOT NULL,
+  committed_at         TIMESTAMPTZ,
+  rolled_back_at       TIMESTAMPTZ,
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_quota_reservations_user_status ON quota_reservations(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_quota_reservations_idempotency ON quota_reservations(idempotency_key);
 CREATE INDEX IF NOT EXISTS idx_quota_reservations_expires ON quota_reservations(expires_at) WHERE status = 'RESERVED';
+CREATE INDEX IF NOT EXISTS idx_quota_res_ig_status ON quota_reservations(instagram_account_id, status) WHERE instagram_account_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_quota_res_sub_status ON quota_reservations(subscription_id, status) WHERE subscription_id IS NOT NULL;
 `;
 
 module.exports = {

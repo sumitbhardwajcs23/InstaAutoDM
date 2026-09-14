@@ -295,7 +295,7 @@ async function verifyGoogleIdToken(token) {
 /**
  * Create secure authenticated user session & JWT token
  */
-async function createUserSession(user, req = {}) {
+async function createUserSession(user, req = {}, options = {}) {
   const sessionId = uuidv4();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
   const ipAddress = (req.ip || (req.headers && req.headers['x-forwarded-for']) || '127.0.0.1').toString();
@@ -318,6 +318,16 @@ async function createUserSession(user, req = {}) {
     } catch (e) {}
   }
 
+  // STRICT TOKEN TYPE SEPARATION
+  // Tokens are classified at mint-time. Once classified, they cannot be reclassified.
+  // The middleware (requireAdmin) enforces this at every admin route access.
+  const isAdminSession = Boolean(
+    options.forceAdmin ||          // Explicitly forced by admin-login route
+    user.role === 'admin' ||
+    adminRole                       // Has an actual admin_users role
+  );
+  const tokenType = isAdminSession ? 'admin' : 'customer';
+
   const payload = {
     id: user.id,
     email: user.email,
@@ -328,6 +338,7 @@ async function createUserSession(user, req = {}) {
     permissions: permissions,
     session_id: sessionId,
     status: user.status || 'active',
+    token_type: tokenType,  // 'admin' | 'customer' — enforced in requireAdmin middleware
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
@@ -349,6 +360,7 @@ async function createUserSession(user, req = {}) {
     permissions: permissions,
     status: user.status,
     email_verified: user.email_verified || 0,
+    token_type: tokenType,
   };
 
   return { token, user: userData, sessionId };

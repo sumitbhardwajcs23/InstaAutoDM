@@ -93,6 +93,16 @@ async function requireAdmin(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized: authentication required' });
   }
 
+  // STRICT TOKEN-TYPE SEPARATION
+  // Admin routes must ONLY be accessible via tokens explicitly minted for admin sessions
+  // (token_type: 'admin'). Customer tokens (token_type: 'customer') are permanently
+  // rejected regardless of any role field, preventing privilege escalation via user panel.
+  if (req.user.token_type === 'customer') {
+    return res.status(403).json({
+      error: 'Forbidden: Customer session tokens cannot access administrator resources. Please log in via the Admin portal.'
+    });
+  }
+
   const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || '')
     .toLowerCase()
     .split(',')
@@ -100,7 +110,7 @@ async function requireAdmin(req, res, next) {
     .filter(Boolean);
 
   const isEmailAdmin = req.user.email && adminEmails.includes(req.user.email.toLowerCase().trim());
-  let isRoleAdmin = req.user.role === 'admin' || req.user.admin_role;
+  let isRoleAdmin = req.user.role === 'admin' || req.user.admin_role || req.user.token_type === 'admin';
 
   // Check admin_users table in DB if not determined by token
   try {

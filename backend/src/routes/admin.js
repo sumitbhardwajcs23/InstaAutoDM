@@ -136,16 +136,26 @@ router.get('/overview', async (req, res) => {
       activeWorkspaces = totalUsers;
     }
 
-    // 3. Connected Instagram Accounts (REAL DB COUNT)
-    const igAccountsRow = await db.prepare('SELECT COUNT(*) as count FROM instagram_accounts').get();
-    const totalIgAccounts = parseInt(igAccountsRow?.count || 0, 10);
+    // 3. Connected Instagram Accounts (REAL DB COUNT — active connections only)
+    let totalIgAccounts = 0;
+    try {
+      const igAccountsRow = await db.prepare(`SELECT COUNT(*) as count FROM instagram_accounts WHERE status = 'connected'`).get();
+      totalIgAccounts = parseInt(igAccountsRow?.count || 0, 10);
+    } catch (e) {
+      const igAccountsRow = await db.prepare('SELECT COUNT(*) as count FROM instagram_accounts').get();
+      totalIgAccounts = parseInt(igAccountsRow?.count || 0, 10);
+    }
 
-    // 4. Activity & Messages Processed (REAL DB SUM)
+    // 4. Total Replies Processed — AUTHORITATIVE SUM from usage_counters
+    // usage_counters is the SSOT (Single Source of Truth) for all committed reply usage.
+    // This avoids the double-counting and inconsistency of mixing activity_log + users.dm_usage_this_period.
     let totalDmsSent = 0;
     try {
-      const activityRow = await db.prepare('SELECT SUM(dms_sent) as total_dms FROM activity_log').get();
-      const userUsageRow = await db.prepare('SELECT SUM(dm_usage_this_period) as total_dms FROM users').get();
-      totalDmsSent = parseInt(activityRow?.total_dms || 0, 10) + parseInt(userUsageRow?.total_dms || 0, 10);
+      const ucRow = await db.prepare(`
+        SELECT COALESCE(SUM(dms_sent), 0) + COALESCE(SUM(comments_replied), 0) AS total_replies
+        FROM usage_counters
+      `).get();
+      totalDmsSent = parseInt(ucRow?.total_replies || 0, 10);
     } catch (e) {}
 
     // 5. MRR & Revenue (100% REAL FROM ACTUAL PAID INVOICES & ACTIVE CUSTOMER SUBSCRIPTIONS)
@@ -384,10 +394,18 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
       const usageCountersByUser = {};
       try {
         const cntPlaceholders = userIds.map(() => '?').join(',');
+        // SUM across all usage_counters rows for this user (handles both:
+        //   - legacy rows: instagram_account_id IS NULL, keyed by user_id
+        //   - Migration 012 rows: keyed by (instagram_account_id, subscription_id)
+        // This gives the authoritative subscription-level total.
         const cntRows = await db.prepare(`
-          SELECT user_id, dms_sent, comments_replied
+          SELECT user_id,
+                 COALESCE(SUM(dms_sent), 0)          AS dms_sent,
+                 COALESCE(SUM(comments_replied), 0)  AS comments_replied,
+                 COALESCE(SUM(dms_sent + comments_replied), 0) AS total_replies
           FROM usage_counters
           WHERE user_id IN (${cntPlaceholders})
+          GROUP BY user_id
         `).all(...userIds);
         for (const cnt of (cntRows || [])) {
           usageCountersByUser[cnt.user_id] = cnt;
@@ -409,7 +427,8 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
       const cnt = usageCountersByUser ? usageCountersByUser[u.id] : null;
       const dmsSent = Number(cnt?.dms_sent || 0);
       const commentsReplied = Number(cnt?.comments_replied || 0);
-      const totalRepliesUsed = cnt ? (dmsSent + commentsReplied) : Number(u.dm_usage_this_period || 0);
+      // Use the pre-aggregated total if available (SUM query), else derive from components
+      const totalRepliesUsed = cnt ? (Number(cnt.total_replies || 0) || (dmsSent + commentsReplied)) : Number(u.dm_usage_this_period || 0);
 
       return {
         ...u,

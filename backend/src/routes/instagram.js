@@ -45,7 +45,8 @@ async function getUserId(req) {
   return null;
 }
 
-// Check if user has exceeded their connected Instagram accounts limit
+// // Check if user has exceeded their connected Instagram accounts limit
+// Uses instagram_account_connections as the authoritative source of active connections.
 async function checkUserIgLimit(userId) {
   const user = await db.prepare('SELECT id, plan, subscription_status, custom_ig_limit FROM users WHERE id = ?').get(userId);
   if (!user) return { allowed: true };
@@ -54,16 +55,33 @@ async function checkUserIgLimit(userId) {
   const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus) && subStatus !== 'reconciliation_required';
   const effectivePlan = isEntitled ? (user.plan || 'free') : 'free';
 
-  const currentCountRow = await db.prepare('SELECT COUNT(*) as count FROM instagram_accounts WHERE user_id = ?').get(userId);
-  const currentCount = parseInt(currentCountRow?.count || 0, 10);
+  // Count active connections from instagram_account_connections (authoritative after Migration 012)
+  // Fall back to instagram_accounts for pre-migration environments
+  let currentCount = 0;
+  const pool = db.getPgPool ? db.getPgPool() : null;
+  if (pool) {
+    try {
+      const connRes = await pool.query(
+        `SELECT COUNT(*) AS count FROM instagram_account_connections WHERE user_id = $1 AND status = 'active'`,
+        [userId]
+      );
+      currentCount = parseInt(connRes.rows[0]?.count || 0, 10);
+    } catch (_) {
+      const row = await db.prepare(`SELECT COUNT(*) as count FROM instagram_accounts WHERE user_id = ? AND status = 'connected'`).get(userId);
+      currentCount = parseInt(row?.count || 0, 10);
+    }
+  } else {
+    const row = await db.prepare(`SELECT COUNT(*) as count FROM instagram_accounts WHERE user_id = ? AND status = 'connected'`).get(userId);
+    currentCount = parseInt(row?.count || 0, 10);
+  }
 
   let planIgLimit = null;
   try {
     const plansSetting = await db.prepare("SELECT value FROM site_settings WHERE key = 'custom_pricing_plans'").get();
     if (plansSetting?.value) {
       const plansList = JSON.parse(plansSetting.value);
-      const matchedPlan = (plansList || []).find(p => 
-        (p.slug || '').toLowerCase() === effectivePlan.toLowerCase() || 
+      const matchedPlan = (plansList || []).find(p =>
+        (p.slug || '').toLowerCase() === effectivePlan.toLowerCase() ||
         (p.name || '').toLowerCase() === effectivePlan.toLowerCase()
       );
       if (matchedPlan && matchedPlan.igLimit) planIgLimit = Number(matchedPlan.igLimit);
@@ -266,13 +284,62 @@ router.get('/stories', async (req, res) => {
   }
 });
 
-// DELETE /api/instagram/accounts/:id — disconnect/remove a specific account
+// DELETE /api/instagram/accounts/:id — soft-disconnect: preserves canonical identity & historical usage
+// IMPORTANT: We NEVER hard-delete instagram_accounts rows because usage_counters and
+// quota_reservations reference them as permanent ledger entries.
+// Instead we mark the operational connection as 'disconnected' and clear sensitive tokens.
 router.delete('/accounts/:id', async (req, res) => {
   const uid = await getUserId(req);
-  const target = await db.prepare('SELECT id FROM instagram_accounts WHERE id = ? AND user_id = ?').get(req.params.id, uid);
-  if (!target) return res.status(404).json({ error: 'Account not found' });
-  await db.prepare('DELETE FROM instagram_accounts WHERE id = ?').run(target.id);
-  res.json({ success: true, deletedId: target.id });
+  const target = await db.prepare(`SELECT id FROM instagram_accounts WHERE id = ? AND user_id = ? AND status = 'connected'`).get(req.params.id, uid);
+  if (!target) return res.status(404).json({ error: 'Account not found or already disconnected' });
+
+  const pool = db.getPgPool ? db.getPgPool() : null;
+  if (pool) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 1. Mark active connection as 'disconnected' in instagram_account_connections
+      await client.query(`
+        UPDATE instagram_account_connections
+        SET status = 'disconnected',
+            disconnected_at = NOW(),
+            updated_at = NOW()
+        WHERE instagram_account_id = $1 AND user_id = $2 AND status = 'active'
+      `, [target.id, uid]);
+
+      // 2. Soft-disconnect the canonical instagram_accounts row:
+      //    Clear sensitive tokens but NEVER delete the row.
+      await client.query(`
+        UPDATE instagram_accounts
+        SET status = 'disconnected',
+            access_token_enc = '',
+            page_access_token_enc = '',
+            long_lived_token_enc = '',
+            token_revoked_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+        WHERE id = $1 AND user_id = $2
+      `, [target.id, uid]);
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error('[Instagram] Soft-disconnect error:', err.message);
+      return res.status(500).json({ error: 'Failed to disconnect account' });
+    } finally {
+      client.release();
+    }
+  } else {
+    // Legacy: just mark disconnected (no hard delete)
+    await db.prepare(`
+      UPDATE instagram_accounts
+      SET status = 'disconnected', access_token_enc = '', page_access_token_enc = '', long_lived_token_enc = '',
+          token_revoked_at = datetime('now'), updated_at = datetime('now')
+      WHERE id = ? AND user_id = ?
+    `).run(target.id, uid);
+  }
+
+  res.json({ success: true, disconnectedId: target.id });
 });
 
 // POST /api/instagram/connect-token — direct real Meta Graph API token resolution
@@ -335,35 +402,77 @@ router.post('/connect-token', async (req, res) => {
 
     if (db.getPgPool && db.getPgPool()) {
       try {
-        await db.getPgPool().query(`
-          INSERT INTO instagram_accounts (
-            id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
-            access_token_enc, page_access_token_enc, long_lived_token_enc,
-            token_expires_at, status, disclosure_message, followers_count, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'connected', '⚡ [Automated DM] ', $14, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-          ON CONFLICT (ig_user_id) DO UPDATE SET
-            user_id = EXCLUDED.user_id,
-            username = EXCLUDED.username,
-            full_name = EXCLUDED.full_name,
-            profile_picture_url = EXCLUDED.profile_picture_url,
-            page_id = EXCLUDED.page_id,
-            fb_page_name = EXCLUDED.fb_page_name,
-            fb_user_id = EXCLUDED.fb_user_id,
-            access_token_enc = EXCLUDED.access_token_enc,
-            page_access_token_enc = EXCLUDED.page_access_token_enc,
-            long_lived_token_enc = EXCLUDED.long_lived_token_enc,
-            token_expires_at = EXCLUDED.token_expires_at,
-            status = 'connected',
-            followers_count = EXCLUDED.followers_count,
-            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-        `, [
-          accountId, uid, tokenInfo.ig_user_id, tokenInfo.username, fullName, profilePicUrl,
-          tokenInfo.page_id, tokenInfo.page_name, tokenInfo.fb_user_id,
-          encPageToken, encPageToken, encLongToken,
-          expiresAt, tokenInfo.followers_count || 0
-        ]);
+        const pgPool = db.getPgPool();
+        const pgClient = await pgPool.connect();
+        try {
+          await pgClient.query('BEGIN');
+
+          // Upsert canonical instagram_accounts row
+          await pgClient.query(`
+            INSERT INTO instagram_accounts (
+              id, user_id, ig_user_id, username, full_name, profile_picture_url, page_id, fb_page_name, fb_user_id,
+              access_token_enc, page_access_token_enc, long_lived_token_enc,
+              token_expires_at, status, disclosure_message, followers_count, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'connected', '⚡ [Automated DM] ', $14, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+            ON CONFLICT (ig_user_id) DO UPDATE SET
+              user_id = EXCLUDED.user_id,
+              username = EXCLUDED.username,
+              full_name = EXCLUDED.full_name,
+              profile_picture_url = EXCLUDED.profile_picture_url,
+              page_id = EXCLUDED.page_id,
+              fb_page_name = EXCLUDED.fb_page_name,
+              fb_user_id = EXCLUDED.fb_user_id,
+              access_token_enc = EXCLUDED.access_token_enc,
+              page_access_token_enc = EXCLUDED.page_access_token_enc,
+              long_lived_token_enc = EXCLUDED.long_lived_token_enc,
+              token_expires_at = EXCLUDED.token_expires_at,
+              status = 'connected',
+              followers_count = EXCLUDED.followers_count,
+              updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          `, [
+            accountId, uid, tokenInfo.ig_user_id, tokenInfo.username, fullName, profilePicUrl,
+            tokenInfo.page_id, tokenInfo.page_name, tokenInfo.fb_user_id,
+            encPageToken, encPageToken, encLongToken,
+            expiresAt, tokenInfo.followers_count || 0
+          ]);
+
+          // ── Atomic Connection Transfer ──────────────────────────────────────────
+          // Resolve subscription for this user
+          const subRow = await pgClient.query(`
+            SELECT id FROM subscriptions
+            WHERE user_id = $1 AND status IN ('active', 'trialing')
+            ORDER BY created_at DESC LIMIT 1
+          `, [uid]);
+          const subscriptionId = subRow.rows[0]?.id || null;
+
+          // Deactivate any previous active connection for this Instagram account
+          await pgClient.query(`
+            UPDATE instagram_account_connections
+            SET status = 'transferred',
+                disconnected_at = NOW(),
+                transfer_reason = 'new_connect_token',
+                updated_at = NOW()
+            WHERE instagram_account_id = $1 AND status = 'active'
+          `, [accountId]);
+
+          // Insert new active connection
+          const newConnId = `conn_${accountId.slice(0, 8)}_${Date.now()}`;
+          await pgClient.query(`
+            INSERT INTO instagram_account_connections
+              (id, instagram_account_id, user_id, subscription_id, status, connected_at, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, 'active', NOW(), NOW(), NOW())
+            ON CONFLICT DO NOTHING
+          `, [newConnId, accountId, uid, subscriptionId]);
+
+          await pgClient.query('COMMIT');
+        } catch (pgErr) {
+          await pgClient.query('ROLLBACK').catch(() => {});
+          console.warn('[ConnectToken] PostgreSQL transaction notice:', pgErr.message);
+        } finally {
+          pgClient.release();
+        }
       } catch (pgErr) {
-        console.warn('[ConnectToken] PostgreSQL sync notice:', pgErr.message);
+        console.warn('[ConnectToken] PostgreSQL pool notice:', pgErr.message);
       }
     }
 

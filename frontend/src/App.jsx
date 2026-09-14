@@ -583,9 +583,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'admin' && checkIsAdmin(user) && (
-            <AdminView user={user} />
-          )}
+          {/* Admin panel is accessed exclusively via the /admin portal — not via customer app tabs */}
         </main>
       </div>
 

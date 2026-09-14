@@ -102,7 +102,15 @@ router.get('/stats', async (req, res) => {
           commentsLastMonthRow,
           rawConversations
         ] = await Promise.all([
-          db.prepare("SELECT dms_sent, comments_replied FROM usage_counters WHERE user_id = ? LIMIT 1").get(userId).catch(() => null),
+          // SUM across all usage_counters rows for this user (legacy + Migration 012 account-level rows)
+          db.prepare(`
+            SELECT
+              COALESCE(SUM(dms_sent), 0) AS dms_sent,
+              COALESCE(SUM(comments_replied), 0) AS comments_replied,
+              COALESCE(SUM(dms_sent + comments_replied), 0) AS total_replies
+            FROM usage_counters
+            WHERE user_id = ?
+          `).get(userId).catch(() => null),
           db.prepare("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_active = 1) as active FROM automation_rules WHERE instagram_account_id = ?").get(account.id).catch(() => ({ total: 0, active: 0 })),
           db.prepare(`
             SELECT COUNT(*) as count FROM comment_replies 
@@ -123,9 +131,12 @@ router.get('/stats', async (req, res) => {
           `).all(account.id).catch(() => [])
         ]);
 
-        const dmsSent = counterRow?.dms_sent !== undefined ? Number(counterRow.dms_sent) : (user.dm_usage_this_period || 0);
+        const dmsSent = Number(counterRow?.dms_sent !== undefined ? counterRow.dms_sent : (user.dm_usage_this_period || 0));
         const commentsReplied = Number(counterRow?.comments_replied || 0);
-        const totalRepliesUsed = dmsSent + commentsReplied;
+        // total_replies = authoritative SUM(dms_sent + comments_replied) from usage_counters SSOT
+        const totalRepliesUsed = counterRow?.total_replies !== undefined
+          ? Number(counterRow.total_replies)
+          : (dmsSent + commentsReplied);
         const commentsThisMonth = commentsThisMonthRow?.count || 0;
         const commentsLastMonth = commentsLastMonthRow?.count || 0;
         const changePercent = commentsLastMonth > 0

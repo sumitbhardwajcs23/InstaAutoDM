@@ -147,8 +147,8 @@ router.post('/admin-login', authLimiter, async (req, res) => {
     user.admin_role = adminRecord.role;
     user.permissions = parsedPermissions;
 
-    // Create session bundle
-    const sessionBundle = await createUserSession(user, req);
+    // Create session bundle — force token_type: 'admin' for all admin-login sessions
+    const sessionBundle = await createUserSession(user, req, { forceAdmin: true });
 
     // Also record in admin_sessions table for governance and session tracking
     try {

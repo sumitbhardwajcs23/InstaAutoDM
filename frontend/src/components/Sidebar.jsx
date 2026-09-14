@@ -45,16 +45,9 @@ export default function Sidebar({
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
-  const isAdmin = Boolean(user?.role === 'admin' || user?.admin_role || user?.is_root);
-  if (isAdmin) {
-    navItems.push({
-      id: 'admin',
-      label: 'Admin Panel',
-      icon: Shield,
-      badge: 'STAFF',
-      action: onOpenAdmin || (() => { window.location.hash = '#admin-dashboard'; }),
-    });
-  }
+  // Admin Panel is accessed exclusively through the dedicated /admin portal.
+  // It is NOT surfaced in the customer sidebar to enforce strict session separation.
+  // Admins who are also using the customer app must navigate to /admin separately.
 
   return (
     <aside className="sidebar">
