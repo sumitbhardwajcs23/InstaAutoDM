@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const billingService = require('../services/billingService');
 const { dmLimitFor, dailyLimitFor, badgeFor } = require('../constants/planLimits');
+const quotaService = require('../services/quotaService');
 
 // Plan pricing definitions — static fallback (overridden by admin-configured plans from DB)
 const PLAN_PRICES_FALLBACK = {
@@ -132,8 +133,8 @@ router.get('/subscription', async (req, res) => {
     const plan = isEntitled ? (subscription?.plan || user?.plan || 'free') : 'free';
     const limit = dmLimitFor(plan, user?.custom_dm_limit);
     const dailyLimit = dailyLimitFor(plan, user?.custom_daily_limit, user?.custom_dm_limit);
-    const subBadge = badgeFor(plan);
-    const usage = user?.dm_usage_this_period || 0;
+    const usageData = await quotaService.getAuthoritativeUsage(userId);
+    const usage = usageData.total_replies_used;
 
     res.json({
       success: true,
@@ -152,12 +153,14 @@ router.get('/subscription', async (req, res) => {
         subscription_badge: subBadge
       },
       usage: {
-        dms_sent: usage,
+        dms_sent: usageData.dms_sent,
+        comments_replied: usageData.comments_replied,
+        total_replies_used: usageData.total_replies_used,
         dm_limit: limit,
         monthly_limit: limit,
         daily_limit: dailyLimit,
-        remaining: Math.max(0, limit - usage),
-        percent: Math.min(100, Math.round((usage / (limit || 1)) * 100)),
+        remaining: usageData.remaining,
+        percent: usageData.percent_used,
         period_start: user?.usage_period_start
       }
     });

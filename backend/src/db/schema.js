@@ -541,6 +541,22 @@ CREATE TABLE IF NOT EXISTS usage_counters (
   updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
 CREATE INDEX IF NOT EXISTS idx_usage_counters_user ON usage_counters(user_id);
+
+CREATE TABLE IF NOT EXISTS quota_reservations (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  reply_type TEXT NOT NULL CHECK (reply_type IN ('dm', 'comment')),
+  idempotency_key TEXT UNIQUE,
+  status TEXT NOT NULL CHECK (status IN ('RESERVED', 'COMMITTED', 'ROLLED_BACK')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  committed_at TIMESTAMPTZ,
+  rolled_back_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_quota_reservations_user_status ON quota_reservations(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_quota_reservations_idempotency ON quota_reservations(idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_quota_reservations_expires ON quota_reservations(expires_at) WHERE status = 'RESERVED';
 `;
 
 module.exports = {

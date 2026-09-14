@@ -102,7 +102,7 @@ router.get('/stats', async (req, res) => {
           commentsLastMonthRow,
           rawConversations
         ] = await Promise.all([
-          db.prepare("SELECT dms_sent FROM usage_counters WHERE user_id = ? LIMIT 1").get(userId).catch(() => null),
+          db.prepare("SELECT dms_sent, comments_replied FROM usage_counters WHERE user_id = ? LIMIT 1").get(userId).catch(() => null),
           db.prepare("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE is_active = 1) as active FROM automation_rules WHERE instagram_account_id = ?").get(account.id).catch(() => ({ total: 0, active: 0 })),
           db.prepare(`
             SELECT COUNT(*) as count FROM comment_replies 
@@ -123,7 +123,9 @@ router.get('/stats', async (req, res) => {
           `).all(account.id).catch(() => [])
         ]);
 
-        const totalDmsSent = counterRow?.dms_sent !== undefined ? Number(counterRow.dms_sent) : (user.dm_usage_this_period || 0);
+        const dmsSent = counterRow?.dms_sent !== undefined ? Number(counterRow.dms_sent) : (user.dm_usage_this_period || 0);
+        const commentsReplied = Number(counterRow?.comments_replied || 0);
+        const totalRepliesUsed = dmsSent + commentsReplied;
         const commentsThisMonth = commentsThisMonthRow?.count || 0;
         const commentsLastMonth = commentsLastMonthRow?.count || 0;
         const changePercent = commentsLastMonth > 0
@@ -132,7 +134,7 @@ router.get('/stats', async (req, res) => {
 
         const activeRules = Number(rulesAgg?.active || 0);
         const totalRules = Number(rulesAgg?.total || 0);
-        const usagePercent = Math.min(100, Math.round((totalDmsSent / (userPlanLimit || 1)) * 100));
+        const usagePercent = Math.min(100, Math.round((totalRepliesUsed / (userPlanLimit || 1)) * 100));
 
         const recent_conversations = (rawConversations || []).map(c => {
           const lastUserTime = new Date(c.last_user_message_at || c.updated_at).getTime();
@@ -184,11 +186,17 @@ router.get('/stats', async (req, res) => {
           maxRules: 5,
           accountHealthy: account.status === 'connected',
           stats: {
-            dms_sent_period: totalDmsSent,
+            dms_sent_period: totalRepliesUsed,
+            dms_sent: dmsSent,
+            comments_replied_period: commentsReplied,
+            total_replies_used: totalRepliesUsed,
             dms_limit: userPlanLimit,
+            monthly_limit: userPlanLimit,
             dms_daily_limit: dailyPlanLimit,
+            daily_limit: dailyPlanLimit,
             subscription_badge: subscriptionBadge,
             dm_percent: usagePercent,
+            percent_used: usagePercent,
             comments_replied: commentsThisMonth,
             active_rules: activeRules,
             total_rules: totalRules

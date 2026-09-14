@@ -4,6 +4,7 @@ const router = express.Router();
 const db = require('../db');
 const queue = require('../services/queue');
 const { dmLimitFor, dailyLimitFor, badgeFor } = require('../constants/planLimits');
+const quotaService = require('../services/quotaService');
 
 const redisClient = require('../services/redisClient');
 const inflightUsage = new Map();
@@ -55,20 +56,7 @@ router.get('/', async (req, res) => {
       const totalSentReplies = account ? (await db.prepare("SELECT COUNT(*) as c FROM comment_replies WHERE status='sent' AND instagram_account_id=?").get(account.id))?.c || 0 : 0;
       const totalSentDMs = account ? (await db.prepare("SELECT COUNT(*) as c FROM messages WHERE direction='outbound' AND status='sent' AND conversation_id IN (SELECT id FROM conversations WHERE instagram_account_id=?)").get(account.id))?.c || 0 : 0;
       
-      let counter = null;
-      try {
-        counter = await db.prepare("SELECT dms_sent, period_start, period_end FROM usage_counters WHERE user_id = ? LIMIT 1").get(userId);
-      } catch (_) {}
-
-      const subStatus = user?.subscription_status || 'active';
-      const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus) && subStatus !== 'reconciliation_required';
-      const effectivePlan = isEntitled ? (user?.plan || 'free') : 'free';
-
-      const planLimit = dmLimitFor(effectivePlan, user?.custom_dm_limit);
-      const dailyLimit = dailyLimitFor(effectivePlan, user?.custom_daily_limit, user?.custom_dm_limit);
-      const subBadge = badgeFor(effectivePlan);
-      const usageCount = counter?.dms_sent !== undefined ? Number(counter.dms_sent) : (user?.dm_usage_this_period || 0);
-      const usagePercent = Math.min(100, Math.round((usageCount / (planLimit || 1)) * 100));
+      const usage = await quotaService.getAuthoritativeUsage(userId);
 
       const slidingWindows = account ? queue.getRateLimitStatus(account.id) : {
         private_replies_last_hour: 0,
@@ -78,18 +66,21 @@ router.get('/', async (req, res) => {
       };
 
       const result = {
-        plan: effectivePlan,
-        subscription_badge: subBadge,
-        dms_sent: usageCount,
-        dm_usage_this_period: usageCount,
-        dm_limit: planLimit,
-        monthly_limit: planLimit,
-        daily_limit: dailyLimit,
-        percent_used: usagePercent,
-        usage_percent: usagePercent,
-        usage_period_start: user.usage_period_start,
-        is_capped: usageCount >= planLimit,
-        dm_remaining: Math.max(0, planLimit - usageCount),
+        plan: usage.effectivePlan,
+        subscription_badge: usage.subscription_badge,
+        dms_sent: usage.dms_sent,
+        comments_replied: usage.comments_replied,
+        total_replies_used: usage.total_replies_used,
+        dm_usage_this_period: usage.total_replies_used,
+        dm_limit: usage.monthly_limit,
+        monthly_limit: usage.monthly_limit,
+        daily_limit: usage.daily_limit,
+        percent_used: usage.percent_used,
+        usage_percent: usage.percent_used,
+        usage_period_start: usage.usage_period_start,
+        is_capped: usage.is_capped,
+        remaining: usage.remaining,
+        dm_remaining: usage.remaining,
         sliding_windows: slidingWindows,
         stats: { total_sent_replies: totalSentReplies, total_sent_dms: totalSentDMs, total_all_sent: totalSentReplies + totalSentDMs }
       };

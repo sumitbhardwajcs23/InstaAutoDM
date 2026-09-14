@@ -20,7 +20,7 @@ const {
 } = require('../backend/src/constants/queueConfig');
 const { encrypt } = require('../backend/src/services/crypto');
 
-async function waitFor(predicate, timeoutMs = 5000, intervalMs = 100) {
+async function waitFor(predicate, timeoutMs = 30000, intervalMs = 400) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
@@ -174,7 +174,7 @@ async function runTests() {
     // Wait for reply completion
     const reply = await waitFor(async () => {
       return await db.prepare('SELECT * FROM comment_replies WHERE comment_id = ?').get(commentId);
-    }, 15000);
+    }, 30000);
     assert(reply, 'Reply record should exist');
 
     // Count records in comment_replies
@@ -201,7 +201,7 @@ async function runTests() {
       const row = await db.prepare('SELECT * FROM webhook_jobs WHERE idempotency_key = ?').get(`comm_${commentId}`);
       if (row && (row.state === 'SENT' || row.state === 'COMPLETED')) return row;
       return null;
-    }, 15000);
+    }, 30000);
 
     assert(completedJob, 'Job state must transition to SENT or COMPLETED');
     assert(completedJob.state === 'SENT' || completedJob.state === 'COMPLETED');

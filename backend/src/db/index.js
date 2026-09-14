@@ -154,6 +154,23 @@ if (pgPool) {
           CREATE INDEX IF NOT EXISTS idx_automation_rules_acc_active ON automation_rules(instagram_account_id, is_active);
         `).catch(() => {});
         await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS quota_reservations (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            reply_type TEXT NOT NULL CHECK (reply_type IN ('dm', 'comment')),
+            idempotency_key TEXT UNIQUE,
+            status TEXT NOT NULL CHECK (status IN ('RESERVED', 'COMMITTED', 'ROLLED_BACK')),
+            expires_at TIMESTAMPTZ NOT NULL,
+            committed_at TIMESTAMPTZ,
+            rolled_back_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+          );
+          CREATE INDEX IF NOT EXISTS idx_quota_reservations_user_status ON quota_reservations(user_id, status);
+          CREATE INDEX IF NOT EXISTS idx_quota_reservations_idempotency ON quota_reservations(idempotency_key);
+          CREATE INDEX IF NOT EXISTS idx_quota_reservations_expires ON quota_reservations(expires_at) WHERE status = 'RESERVED';
+        `).catch(() => {});
+        await pgPool.query(`
           CREATE TABLE IF NOT EXISTS site_settings (
             key TEXT PRIMARY KEY,
             value TEXT,

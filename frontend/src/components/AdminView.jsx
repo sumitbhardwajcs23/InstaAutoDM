@@ -2193,6 +2193,9 @@ export default function AdminView({ user, onBackToApp }) {
               subscription_badge: u.subscription_badge || (u.plan || 'free').toUpperCase(),
               monthly_limit: u.monthly_limit !== undefined ? u.monthly_limit : (u.dmLimit || 1000),
               daily_limit: u.daily_limit !== undefined ? u.daily_limit : Math.ceil((u.dmLimit || 1000) / 30),
+              total_replies_used: Number(u.total_replies_used !== undefined ? u.total_replies_used : (u.dm_usage_this_period || 0)),
+              dms_sent: Number(u.dms_sent || 0),
+              comments_replied: Number(u.comments_replied || 0),
               total_paid: Number(u.total_paid || 0),
               latest_coupon_code: u.latest_coupon_code || '—',
               status: u.status === 'suspended' ? 'inactive' : 'active',
@@ -2313,10 +2316,10 @@ export default function AdminView({ user, onBackToApp }) {
                           <td>
                             <div style={{ fontSize: '12px', lineHeight: 1.3 }}>
                               <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                                {u.monthly_limit === -1 ? 'Unlimited' : `${u.monthly_limit.toLocaleString()} / mo`}
+                                {u.monthly_limit === -1 ? 'Unlimited' : `${u.total_replies_used} / ${u.monthly_limit.toLocaleString()} mo`}
                               </div>
                               <div style={{ fontSize: '11px', color: '#64748b' }}>
-                                {u.daily_limit === -1 ? 'Unlimited / day' : `${u.daily_limit.toLocaleString()} / day`}
+                                {`DMs: ${u.dms_sent} • Comments: ${u.comments_replied}`}
                               </div>
                             </div>
                           </td>

@@ -5,6 +5,7 @@ const db = require('../db');
 const { decrypt } = require('../services/crypto');
 const profileCache = require('../services/profileCache');
 const { dmLimitFor } = require('../constants/planLimits');
+const quotaService = require('../services/quotaService');
 
 // KNOWN_TESTERS is now part of profileCache — no need to duplicate here
 const KNOWN_TESTERS = profileCache.KNOWN_USERS;
@@ -302,18 +303,11 @@ router.post('/:id/reply', async (req, res) => {
     });
   }
 
-  // Authoritative entitlement check
-  const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus);
-  const effectivePlan = isEntitled ? (sub?.plan || user?.plan || 'free') : 'free';
-  const planLimit = dmLimitFor(effectivePlan);
-
-  // Authoritative usage counter check (compare max of usage_counters and users)
-  const counter = await db.prepare('SELECT dms_sent FROM usage_counters WHERE user_id = ?').get(req.user.id);
-  const currentUsage = Math.max(counter?.dms_sent || 0, user?.dm_usage_this_period || 0);
-
-  if (planLimit !== -1 && currentUsage >= planLimit) {
+  // Authoritative combined quota reservation
+  const reserve = await quotaService.reserveReplyQuota(req.user.id, 'dm');
+  if (!reserve.allowed) {
     return res.status(403).json({
-      error: `Monthly DM limit reached for your plan (${effectivePlan}: ${planLimit}). Upgrade your plan to send more messages.`,
+      error: `Monthly reply limit reached for your plan (${reserve.effectivePlan}: ${reserve.monthlyLimit}). Upgrade your plan to send more messages.`,
       code: 'QUOTA_EXCEEDED'
     });
   }
@@ -333,9 +327,11 @@ router.post('/:id/reply', async (req, res) => {
       accessToken: decrypt(conversation.access_token_enc)
     });
     metaMessageId = resp?.message_id || null;
+    await quotaService.commitReplyQuota(reserve.reservationId);
   } catch (err) {
     status = 'failed';
     errorMsg = err.message;
+    await quotaService.rollbackReplyQuota(reserve.reservationId);
   }
 
   const msgId = uuidv4();
@@ -346,41 +342,6 @@ router.post('/:id/reply', async (req, res) => {
   await db.prepare("UPDATE conversations SET last_message = ?, last_message_direction = 'outbound', status = 'replied', updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?").run(
     text, conversation.id
   );
-
-  // Meter outbound DM usage atomically across usage_counters (SSOT) and users (cache)
-  if (status === 'sent') {
-    const pool = db.getPgPool();
-    if (pool) {
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        const resCnt = await client.query(`
-          INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, updated_at)
-          VALUES ($1, $2, NOW(), NOW() + INTERVAL '30 days', 1, NOW())
-          ON CONFLICT (user_id) DO UPDATE SET
-            dms_sent = usage_counters.dms_sent + 1,
-            updated_at = NOW()
-          RETURNING dms_sent
-        `, [`cnt_${req.user.id}`, req.user.id]);
-
-        const authoritativeCount = resCnt.rows[0]?.dms_sent || (currentUsage + 1);
-        await client.query(`
-          UPDATE users SET
-            dm_usage_this_period = $1,
-            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-          WHERE id = $2
-        `, [authoritativeCount, req.user.id]);
-        await client.query('COMMIT');
-      } catch (incErr) {
-        await client.query('ROLLBACK').catch(() => {});
-        console.error('[Conversations] Failed to increment authoritative usage:', incErr.message);
-      } finally {
-        client.release();
-      }
-    } else {
-      await db.prepare("UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1, updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS') WHERE id = ?").run(req.user.id);
-    }
-  }
 
   res.json({ success: true, messageId: msgId, status, error: errorMsg });
 });

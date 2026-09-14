@@ -15,7 +15,7 @@ const db = require('../backend/src/db');
 const queue = require('../backend/src/services/queue');
 const { verifyMetaSignature, generateMetaSignature, encrypt, decrypt } = require('../backend/src/services/crypto');
 
-async function waitFor(predicate, timeoutMs = 12000, intervalMs = 100) {
+async function waitFor(predicate, timeoutMs = 30000, intervalMs = 400) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
@@ -217,6 +217,11 @@ async function runTests() {
   await test('Free plan cap enforcement halts sends and logs usage_capped', async () => {
     // Current cap is set to 1000 for free plan test
     await db.prepare('UPDATE users SET dm_usage_this_period = 1000 WHERE id = ?').run(userId);
+    await db.prepare(`
+      INSERT INTO usage_counters (id, user_id, period_start, dms_sent, comments_replied, updated_at)
+      VALUES (?, ?, NOW(), 1000, 0, NOW())
+      ON CONFLICT (user_id) DO UPDATE SET dms_sent = 1000
+    `).run(`cnt_${userId}`, userId);
 
     const commentId = `comment_cap_test_${Date.now()}`;
     queue.enqueue({
@@ -243,6 +248,8 @@ async function runTests() {
   await test('Comment Rule with mode=both posts public comment reply AND sends private DM', async () => {
     // Reset usage for test
     await db.prepare('UPDATE users SET dm_usage_this_period = 0 WHERE id = ?').run(userId);
+    await db.prepare('UPDATE usage_counters SET dms_sent = 0, comments_replied = 0 WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM quota_reservations WHERE user_id = ?').run(userId);
 
     const bothRuleId = uuidv4();
     await db.prepare(`

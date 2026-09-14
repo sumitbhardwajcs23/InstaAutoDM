@@ -7,6 +7,7 @@ const profileCache = require('./profileCache');
 const loopDetection = require('./loopDetection');
 const { abuseDetection } = require('./abuseDetection');
 const { dmLimitFor } = require('../constants/planLimits');
+const quotaService = require('./quotaService');
 const {
   QUEUE_CONFIG,
   calculateRandomDelayMs,
@@ -680,9 +681,9 @@ class EventQueueWorker {
 
     const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus);
     const effectivePlan = isEntitled ? (user.plan || 'free') : 'free';
-    const dmLimit = dmLimitFor(effectivePlan);
-    if (shouldSendDm && dmLimit !== -1 && user.dm_usage_this_period >= dmLimit) {
-      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', 'usage_capped', `Plan limit reached (${effectivePlan}: ${dmLimit})`);
+    const usage = await quotaService.getAuthoritativeUsage(user.id);
+    if (usage.is_capped) {
+      await db.prepare('INSERT INTO comment_replies (id, comment_id, automation_rule_id, instagram_account_id, commenter_username, comment_text, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), commentId, rule.id, account.id, commenterUsername || 'user', text || '', 'usage_capped', `Plan limit reached (${usage.plan}: ${usage.monthly_limit})`);
       return;
     }
 
@@ -700,7 +701,7 @@ class EventQueueWorker {
     let dmError = null;
     let commentError = null;
 
-    const isSimulated = commentId && (String(commentId).startsWith('c_') || String(commentId).startsWith('sim_') || String(commentId).startsWith('test_'));
+    const isSimulated = process.env.META_MOCK_MODE === 'true' || (commentId && (String(commentId).startsWith('c_') || String(commentId).startsWith('sim_') || String(commentId).startsWith('test_') || String(commentId).startsWith('comment_')));
 
     // --- FOLLOWER CHECK (Follow-to-Unlock) GATE ---
     let followerStatus = 'follower';
@@ -813,21 +814,30 @@ class EventQueueWorker {
     if (shouldReplyComment) {
       const rawComm = commentTextTemplate;
       commentReplyMsg = rawComm.replace(/@?\{username\}/gi, commenterUsername ? `@${commenterUsername}` : 'there');
-      if (isSimulated) {
-        metaCommentReplyId = `sim_comm_${uuidv4().slice(0, 8)}`;
-        console.log(`[Worker] 🧪 [Simulation] Public reply generated for comment ${commentId}: "${commentReplyMsg}"`);
+      
+      const commReserve = await quotaService.reserveReplyQuota(user.id, 'comment', `comm_reply_${commentId}`);
+      if (!commReserve.allowed) {
+        commentError = `Plan limit reached (${commReserve.effectivePlan}: ${commReserve.monthlyLimit})`;
       } else {
-        try {
-          const commResp = await metaClient.sendPublicCommentReply({
-            commentId,
-            messageText: commentReplyMsg,
-            accessToken: token
-          });
-          metaCommentReplyId = commResp?.id || null;
-          console.log(`[Worker] ✅ Public reply posted to comment ${commentId} by @${commenterUsername || 'user'}`);
-        } catch (err) {
-          commentError = err.message;
-          console.warn(`[Worker] ⚠️ Public comment reply error for ${commentId}:`, err.message);
+        if (isSimulated) {
+          metaCommentReplyId = `sim_comm_${uuidv4().slice(0, 8)}`;
+          await quotaService.commitReplyQuota(commReserve.reservationId);
+          console.log(`[Worker] 🧪 [Simulation] Public reply generated for comment ${commentId}: "${commentReplyMsg}"`);
+        } else {
+          try {
+            const commResp = await metaClient.sendPublicCommentReply({
+              commentId,
+              messageText: commentReplyMsg,
+              accessToken: token
+            });
+            metaCommentReplyId = commResp?.id || null;
+            await quotaService.commitReplyQuota(commReserve.reservationId);
+            console.log(`[Worker] ✅ Public reply posted to comment ${commentId} by @${commenterUsername || 'user'}`);
+          } catch (err) {
+            commentError = err.message;
+            await quotaService.rollbackReplyQuota(commReserve.reservationId);
+            console.warn(`[Worker] ⚠️ Public comment reply error for ${commentId}:`, err.message);
+          }
         }
       }
     }
@@ -857,34 +867,40 @@ class EventQueueWorker {
           button_url: rule.card_button_url || undefined
         } : null;
 
-        if (isSimulated) {
-          metaMessageId = `sim_dm_${uuidv4().slice(0, 8)}`;
-          await this.recordDmUsage(user.id);
-          const cId = await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
-          await loopDetection.recordAutomatedDmSent(cId);
-          if (cardPayload) {
-            console.log(`[Worker] 🧪 [Simulation] Rich Instagram DM Card sent for comment ${commentId}: "${cardPayload.title}" (Image: ${cardPayload.image_url || 'none'}, CTA: [${cardPayload.button_text}])`);
-          } else {
-            console.log(`[Worker] 🧪 [Simulation] Private DM generated for comment ${commentId}: "${dmMsg}"`);
-          }
+        const dmReserve = await quotaService.reserveReplyQuota(user.id, 'dm', `comm_dm_${commentId}`);
+        if (!dmReserve.allowed) {
+          dmError = `Plan limit reached (${dmReserve.effectivePlan}: ${dmReserve.monthlyLimit})`;
         } else {
-          try {
-            const dmResp = await metaClient.sendPrivateCommentReply({
-              pageId: account.page_id,
-              commentId,
-              messageText: dmMsg,
-              accessToken: token,
-              card: cardPayload
-            });
-            metaMessageId = dmResp?.message_id || null;
-            await this.recordDmUsage(user.id);
+          if (isSimulated) {
+            metaMessageId = `sim_dm_${uuidv4().slice(0, 8)}`;
+            await quotaService.commitReplyQuota(dmReserve.reservationId);
             const cId = await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
             await loopDetection.recordAutomatedDmSent(cId);
-            console.log(`[Worker] ✅ Private DM ${cardPayload ? 'Card ' : ''}sent for comment ${commentId} to @${commenterUsername || 'user'}`);
-          } catch (err) {
-            dmError = err.message;
-            console.warn(`[Worker] ⚠️ Private DM reply error for comment ${commentId}:`, err.message);
-            if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
+            if (cardPayload) {
+              console.log(`[Worker] 🧪 [Simulation] Rich Instagram DM Card sent for comment ${commentId}: "${cardPayload.title}" (Image: ${cardPayload.image_url || 'none'}, CTA: [${cardPayload.button_text}])`);
+            } else {
+              console.log(`[Worker] 🧪 [Simulation] Private DM generated for comment ${commentId}: "${dmMsg}"`);
+            }
+          } else {
+            try {
+              const dmResp = await metaClient.sendPrivateCommentReply({
+                pageId: account.page_id,
+                commentId,
+                messageText: dmMsg,
+                accessToken: token,
+                card: cardPayload
+              });
+              metaMessageId = dmResp?.message_id || null;
+              await quotaService.commitReplyQuota(dmReserve.reservationId);
+              const cId = await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
+              await loopDetection.recordAutomatedDmSent(cId);
+              console.log(`[Worker] ✅ Private DM ${cardPayload ? 'Card ' : ''}sent for comment ${commentId} to @${commenterUsername || 'user'}`);
+            } catch (err) {
+              dmError = err.message;
+              await quotaService.rollbackReplyQuota(dmReserve.reservationId);
+              console.warn(`[Worker] ⚠️ Private DM reply error for comment ${commentId}:`, err.message);
+              if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
+            }
           }
         }
       }
@@ -1047,22 +1063,35 @@ class EventQueueWorker {
             button_url: pendingRule.card_button_url || undefined
           } : null;
 
+          const rewardReserve = await quotaService.reserveReplyQuota(user.id, 'dm', `follow_reward_${convId}_${eventTime}`);
+          if (!rewardReserve.allowed) {
+            console.warn(`[Worker] Quota capped for follower reward for user ${user.id}`);
+            return;
+          }
+
           let resp;
-          if (isSimulated) {
-            resp = { message_id: `sim_dm_${uuidv4().slice(0, 8)}` };
-            if (rewardCard) {
-              console.log(`[Worker] 🧪 [Simulation] Unlocked Rich Card DM generated: "${rewardCard.title}" (CTA: [${rewardCard.button_text}])`);
+          try {
+            if (isSimulated) {
+              resp = { message_id: `sim_dm_${uuidv4().slice(0, 8)}` };
+              if (rewardCard) {
+                console.log(`[Worker] 🧪 [Simulation] Unlocked Rich Card DM generated: "${rewardCard.title}" (CTA: [${rewardCard.button_text}])`);
+              } else {
+                console.log(`[Worker] 🧪 [Simulation] Unlocked reward DM generated: "${unlockMsg}"`);
+              }
             } else {
-              console.log(`[Worker] 🧪 [Simulation] Unlocked reward DM generated: "${unlockMsg}"`);
+              resp = await metaClient.sendDirectMessage({
+                pageId: account.page_id,
+                igScopedUserId: senderId,
+                messageText: unlockMsg,
+                accessToken: token,
+                card: rewardCard
+              });
             }
-          } else {
-            resp = await metaClient.sendDirectMessage({
-              pageId: account.page_id,
-              igScopedUserId: senderId,
-              messageText: unlockMsg,
-              accessToken: token,
-              card: rewardCard
-            });
+            await quotaService.commitReplyQuota(rewardReserve.reservationId);
+          } catch (rewardErr) {
+            await quotaService.rollbackReplyQuota(rewardReserve.reservationId);
+            console.warn('[Worker] Follower reward send error:', rewardErr.message);
+            return;
           }
 
           // Clear pending follow gate on conversation
@@ -1072,7 +1101,6 @@ class EventQueueWorker {
           await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
             uuidv4(), convId, 'outbound', unlockMsg, 'sent', resp.message_id, outboundCreatedAt
           );
-          await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(user.id);
           await db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(pendingRule.id);
           await this.updateActivityLog(account.id, 'dm');
           await this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, unlockMsg, 'outbound', 'replied', new Date().toISOString());
@@ -1148,10 +1176,10 @@ class EventQueueWorker {
 
     const isEntitled = ['active', 'trialing', 'grace_period'].includes(subStatus);
     const effectivePlan = isEntitled ? (user.plan || 'free') : 'free';
-    const dmLimit = dmLimitFor(effectivePlan);
-    if (dmLimit !== -1 && user.dm_usage_this_period >= dmLimit) {
+    const dmUsage = await quotaService.getAuthoritativeUsage(user.id);
+    if (dmUsage.is_capped) {
       const cappedOutTs = new Date(eventTime + 1000).toISOString();
-      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped', `Plan limit reached (${effectivePlan}: ${dmLimit})`, cappedOutTs);
+      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped', `Plan limit reached (${dmUsage.plan}: ${dmUsage.monthly_limit})`, cappedOutTs);
       return;
     }
 
@@ -1162,7 +1190,7 @@ class EventQueueWorker {
     const cleanFirstName = realName ? realName.split(' ')[0].trim() : (realUsername ? realUsername.replace(/^@/, '') : '');
     const greetingName = cleanFirstName && cleanFirstName.toLowerCase() !== 'user' ? cleanFirstName : 'there';
     const msg = rawMsg.replace(/\{username\}/gi, greetingName);
-    const isSimulated = (senderId && String(senderId).startsWith('uid_')) || (messageId && String(messageId).startsWith('mid_'));
+    const isSimulated = process.env.META_MOCK_MODE === 'true' || (senderId && String(senderId).startsWith('uid_')) || (messageId && (String(messageId).startsWith('mid_') || String(messageId).startsWith('sim_')));
 
     const ruleCard = (rule.card_enabled == 1 && rule.card_title) ? {
       title: rule.card_title.replace(/\{username\}/gi, greetingName),
@@ -1191,6 +1219,17 @@ class EventQueueWorker {
       return;
     }
 
+    // Atomically reserve 1 DM quota unit
+    const reserve = await quotaService.reserveReplyQuota(user.id, 'dm', `msg_reply_${messageId || convId + '_' + eventTime}`);
+    if (!reserve.allowed) {
+      const cappedOutTs = new Date(eventTime + 1000).toISOString();
+      await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+        uuidv4(), convId, 'outbound', rule.reply_message, 'usage_capped',
+        `Plan limit reached (${reserve.effectivePlan}: ${reserve.monthlyLimit})`, cappedOutTs
+      );
+      return;
+    }
+
     try {
       let resp;
       if (isSimulated) {
@@ -1210,16 +1249,17 @@ class EventQueueWorker {
           card: ruleCard
         });
       }
+      await quotaService.commitReplyQuota(reserve.reservationId);
       // Outbound auto-reply timestamp: 1 second after the inbound event to ensure correct ordering
       const outboundCreatedAt = new Date(eventTime + 1000).toISOString();
       await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'sent', resp.message_id, outboundCreatedAt);
-      await this.recordDmUsage(user.id);
       await db.prepare('UPDATE automation_rules SET fire_count = fire_count + 1 WHERE id = ?').run(rule.id);
       await loopDetection.recordAutomatedDmSent(convId);
       await this.updateActivityLog(account.id, 'dm');
       await this.upsertConversation(account.id, senderId, finalUsername, realName, profilePic, msg, 'outbound', 'replied', new Date().toISOString());
       console.log(`[Worker] ✅ DM auto-reply sent to ${realName || finalUsername} (Rule: "${rule.trigger_keyword}")`);
     } catch (err) {
+      await quotaService.rollbackReplyQuota(reserve.reservationId);
       const outboundFailCreatedAt = new Date(eventTime + 1000).toISOString();
       await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'failed', err.message, outboundFailCreatedAt);
       if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
@@ -1261,14 +1301,10 @@ class EventQueueWorker {
   async recordDmUsage(userId) {
     if (!userId) return;
     try {
-      await db.prepare('UPDATE users SET dm_usage_this_period = dm_usage_this_period + 1 WHERE id = ?').run(userId);
-      await db.prepare(`
-        INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, updated_at)
-        VALUES (?, ?, NOW(), NOW() + INTERVAL '30 days', 1, NOW())
-        ON CONFLICT (user_id) DO UPDATE SET
-          dms_sent = usage_counters.dms_sent + 1,
-          updated_at = NOW()
-      `).run(`cnt_${userId}`, userId);
+      const res = await quotaService.reserveReplyQuota(userId, 'dm');
+      if (res.allowed) {
+        await quotaService.commitReplyQuota(res.reservationId);
+      }
     } catch (err) {
       console.warn('[Queue] DM usage recording notice:', err.message);
     }

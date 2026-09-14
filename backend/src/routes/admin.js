@@ -379,6 +379,22 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
       } catch (invErr) {
         console.error('[Admin] Batched Invoices query error:', invErr.message);
       }
+
+      // 4. Batched Usage Counters (dms_sent, comments_replied)
+      const usageCountersByUser = {};
+      try {
+        const cntPlaceholders = userIds.map(() => '?').join(',');
+        const cntRows = await db.prepare(`
+          SELECT user_id, dms_sent, comments_replied
+          FROM usage_counters
+          WHERE user_id IN (${cntPlaceholders})
+        `).all(...userIds);
+        for (const cnt of (cntRows || [])) {
+          usageCountersByUser[cnt.user_id] = cnt;
+        }
+      } catch (cntErr) {
+        console.error('[Admin] Batched UsageCounters query error:', cntErr.message);
+      }
     }
 
     // Enrich users with authoritative limits, badge, and payment visibility
@@ -390,6 +406,10 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
       const subscriptionBadge = badgeFor(effectivePlan);
       const invAgg = invoicesAggByUser[u.id] || { total_paid: 0, latest_payment_amount: 0, latest_coupon_code: null };
       const instagram_accounts = igAccountsByUser[u.id] || [];
+      const cnt = usageCountersByUser ? usageCountersByUser[u.id] : null;
+      const dmsSent = Number(cnt?.dms_sent || 0);
+      const commentsReplied = Number(cnt?.comments_replied || 0);
+      const totalRepliesUsed = cnt ? (dmsSent + commentsReplied) : Number(u.dm_usage_this_period || 0);
 
       return {
         ...u,
@@ -406,6 +426,10 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
         custom_daily_limit: u.custom_daily_limit,
         custom_ig_limit: u.custom_ig_limit,
         custom_rules_limit: u.custom_rules_limit,
+        dms_sent: dmsSent,
+        comments_replied: commentsReplied,
+        total_replies_used: totalRepliesUsed,
+        dm_usage_this_period: totalRepliesUsed,
         total_paid: invAgg.total_paid,
         latest_payment_amount: invAgg.latest_payment_amount,
         latest_coupon_code: invAgg.latest_coupon_code,
