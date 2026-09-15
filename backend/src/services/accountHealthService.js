@@ -980,7 +980,9 @@ class AccountHealthService {
 
   /**
    * Admin Panel Health Overview (Rule 15).
-   * 100% Real Database Queries with pagination and status filtering.
+   * Authoritative population: Instagram accounts having an active connection
+   * (instagram_account_connections.status = 'active').
+   * Airvix internal operational/observed-risk score (0–100) and traffic pacing control.
    */
   async listAllAccountsHealth({
     statusFilter = null,
@@ -991,27 +993,67 @@ class AccountHealthService {
     limit = 50,
     offset = 0
   }) {
+    if (db.ready) await db.ready();
     const pool = db.getPgPool();
     try {
+      const baseScore = HEALTH_CONFIG?.WEIGHTS?.BASE_SCORE || 100;
+      const defaultMode = HEALTH_CONFIG?.STATUS_TO_MODE_MAP?.HEALTHY?.mode || 'NORMAL';
+      const defaultRisk = HEALTH_CONFIG?.STATUS_TO_MODE_MAP?.HEALTHY?.riskLevel || 'low';
+
+      // 1. Auto-initialize missing health_state records for any active connection without fabricating events or snapshots
+      if (pool) {
+        await pool.query(`
+          INSERT INTO instagram_account_health_state (
+            instagram_account_id, health_score, health_status, automation_mode, observed_risk_level,
+            consecutive_failures, rolling_24h_successes, rolling_24h_failures, recent_error_rate,
+            score_reasons, last_calculated_at, updated_at
+          )
+          SELECT 
+            c.instagram_account_id, $1, 'HEALTHY', $2, $3,
+            0, 0, 0, 0.00,
+            '["Initial baseline health state created"]'::jsonb, NOW(), NOW()
+          FROM instagram_account_connections c
+          WHERE c.status = 'active'
+          ON CONFLICT (instagram_account_id) DO NOTHING;
+        `, [baseScore, defaultMode, defaultRisk]);
+      } else {
+        await db.prepare(`
+          INSERT INTO instagram_account_health_state (
+            instagram_account_id, health_score, health_status, automation_mode, observed_risk_level,
+            consecutive_failures, rolling_24h_successes, rolling_24h_failures, recent_error_rate,
+            score_reasons, last_calculated_at, updated_at
+          )
+          SELECT 
+            c.instagram_account_id, ?, 'HEALTHY', ?, ?,
+            0, 0, 0, 0.00,
+            ?, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'), to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          FROM instagram_account_connections c
+          WHERE c.status = 'active'
+          ON CONFLICT (instagram_account_id) DO NOTHING;
+        `).run(baseScore, defaultMode, defaultRisk, JSON.stringify(['Initial baseline health state created']));
+      }
+
       const allowedSorts = ['health_score', 'recent_error_rate', 'observed_rate_limit_count', 'updated_at', 'username'];
       const safeSort = allowedSorts.includes(sortBy) ? sortBy : 'health_score';
       const safeOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
+      // Authoritative Population: instagram_account_connections with status = 'active'
       let baseQuery = `
-        FROM instagram_accounts ig
+        FROM instagram_account_connections c
+        JOIN instagram_accounts ig ON c.instagram_account_id = ig.id
         LEFT JOIN instagram_account_health_state hs ON ig.id = hs.instagram_account_id
-        LEFT JOIN users u ON ig.user_id = u.id
-        WHERE ig.status != 'disconnected'
+        LEFT JOIN users u ON c.user_id = u.id
+        WHERE c.status = 'active'
       `;
       const params = [];
       let pIdx = 1;
 
       if (statusFilter && statusFilter !== 'all') {
-        baseQuery += ` AND hs.health_status = $${pIdx++}`;
+        baseQuery += ` AND COALESCE(hs.health_status, 'HEALTHY') = $${pIdx++}`;
         params.push(statusFilter.toUpperCase());
       }
       if (modeFilter && modeFilter !== 'all') {
-        baseQuery += ` AND hs.automation_mode = $${pIdx++}`;
+        baseQuery += ` AND COALESCE(hs.automation_mode, '${defaultMode}') = $${pIdx++}`;
         params.push(modeFilter.toUpperCase());
       }
       if (search && search.trim()) {
@@ -1020,8 +1062,14 @@ class AccountHealthService {
         pIdx++;
       }
 
-      const countRes = await pool.query(`SELECT COUNT(*) as total ${baseQuery}`, params);
-      const total = parseInt(countRes.rows[0]?.total || 0, 10);
+      const countRes = pool 
+        ? await pool.query(`SELECT COUNT(DISTINCT c.instagram_account_id) as total ${baseQuery}`, params)
+        : await db.prepare(`SELECT COUNT(DISTINCT c.instagram_account_id) as total ${baseQuery}`).get(...params);
+      const total = parseInt((pool ? countRes.rows[0]?.total : countRes?.total) || 0, 10);
+
+      const orderClause = safeSort === 'health_score' 
+        ? `COALESCE(hs.health_score, ${baseScore}) ${safeOrder}` 
+        : `${safeSort} ${safeOrder}`;
 
       const dataQuery = `
         SELECT 
@@ -1029,14 +1077,15 @@ class AccountHealthService {
           ig.username,
           ig.full_name,
           ig.profile_picture_url,
+          c.status as connection_status,
           ig.status as ig_status,
-          ig.user_id,
+          c.user_id,
           u.email as user_email,
           u.plan as user_plan,
-          COALESCE(hs.health_score, 100) as health_score,
+          COALESCE(hs.health_score, ${baseScore}) as health_score,
           COALESCE(hs.health_status, 'HEALTHY') as health_status,
-          COALESCE(hs.automation_mode, 'NORMAL') as automation_mode,
-          COALESCE(hs.observed_risk_level, 'low') as observed_risk_level,
+          COALESCE(hs.automation_mode, '${defaultMode}') as automation_mode,
+          COALESCE(hs.observed_risk_level, '${defaultRisk}') as observed_risk_level,
           COALESCE(hs.consecutive_failures, 0) as consecutive_failures,
           COALESCE(hs.rolling_24h_successes, 0) as rolling_24h_successes,
           COALESCE(hs.rolling_24h_failures, 0) as rolling_24h_failures,
@@ -1047,35 +1096,43 @@ class AccountHealthService {
           hs.last_incident_type,
           hs.updated_at as last_health_update
         ${baseQuery}
-        ORDER BY ${safeSort} ${safeOrder}
+        ORDER BY ${orderClause}
         LIMIT $${pIdx++} OFFSET $${pIdx++}
       `;
-      params.push(limit, offset);
+      const dataParams = [...params, limit, offset];
 
-      const accountsRes = await pool.query(dataQuery, params);
+      const accountsRes = pool
+        ? await pool.query(dataQuery, dataParams)
+        : await db.prepare(dataQuery).all(...dataParams);
+      const accounts = pool ? accountsRes.rows : (accountsRes || []);
 
-      // Aggregate Summary KPIs across all connected accounts
-      const kpiRes = await pool.query(`
+      // Aggregate Summary KPIs across all authoritatively active connections
+      const kpiSql = `
         SELECT 
-          COUNT(*) as total_accounts,
-          COUNT(CASE WHEN COALESCE(hs.health_status, 'HEALTHY') = 'HEALTHY' THEN 1 END) as healthy_count,
-          COUNT(CASE WHEN hs.health_status = 'CAUTION' THEN 1 END) as caution_count,
-          COUNT(CASE WHEN hs.health_status = 'ELEVATED_RISK' THEN 1 END) as protection_count,
-          COUNT(CASE WHEN hs.automation_mode = 'PAUSED' OR hs.health_status = 'CRITICAL' THEN 1 END) as paused_count
-        FROM instagram_accounts ig
+          COUNT(DISTINCT c.instagram_account_id) as total_accounts,
+          COUNT(DISTINCT CASE WHEN COALESCE(hs.health_status, 'HEALTHY') = 'HEALTHY' THEN c.instagram_account_id END) as healthy_count,
+          COUNT(DISTINCT CASE WHEN hs.health_status = 'CAUTION' THEN c.instagram_account_id END) as caution_count,
+          COUNT(DISTINCT CASE WHEN hs.health_status = 'ELEVATED_RISK' THEN c.instagram_account_id END) as protection_count,
+          COUNT(DISTINCT CASE WHEN hs.automation_mode = 'PAUSED' OR hs.health_status = 'CRITICAL' THEN c.instagram_account_id END) as paused_count
+        FROM instagram_account_connections c
+        JOIN instagram_accounts ig ON c.instagram_account_id = ig.id
         LEFT JOIN instagram_account_health_state hs ON ig.id = hs.instagram_account_id
-        WHERE ig.status != 'disconnected'
-      `);
+        WHERE c.status = 'active'
+      `;
+      const kpiRes = pool 
+        ? await pool.query(kpiSql)
+        : await db.prepare(kpiSql).get();
+      const kpiRow = pool ? kpiRes.rows[0] : kpiRes;
 
       return {
         total,
-        accounts: accountsRes.rows,
+        accounts,
         kpis: {
-          totalAccounts: parseInt(kpiRes.rows[0]?.total_accounts || 0, 10),
-          healthy: parseInt(kpiRes.rows[0]?.healthy_count || 0, 10),
-          caution: parseInt(kpiRes.rows[0]?.caution_count || 0, 10),
-          protection: parseInt(kpiRes.rows[0]?.protection_count || 0, 10),
-          paused: parseInt(kpiRes.rows[0]?.paused_count || 0, 10)
+          totalAccounts: parseInt(kpiRow?.total_accounts || 0, 10),
+          healthy: parseInt(kpiRow?.healthy_count || 0, 10),
+          caution: parseInt(kpiRow?.caution_count || 0, 10),
+          protection: parseInt(kpiRow?.protection_count || 0, 10),
+          paused: parseInt(kpiRow?.paused_count || 0, 10)
         }
       };
     } catch (err) {

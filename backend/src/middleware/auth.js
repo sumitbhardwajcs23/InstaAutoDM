@@ -186,7 +186,10 @@ async function requireAdmin(req, res, next) {
  */
 function requirePermission(permissionKey) {
   return async (req, res, next) => {
-    requireAdmin(req, res, () => {
+    const checkPerms = () => {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized: Admin privileges required' });
+      }
       const userRole = req.user.admin_role || (req.user.role === 'admin' ? 'superadmin' : null);
       let permissions = req.user.permissions || [];
       if (typeof permissions === 'string') {
@@ -209,7 +212,13 @@ function requirePermission(permissionKey) {
       return res.status(403).json({ 
         error: `Forbidden: You do not have permission to access this resource. Required power: [${permissionKey}]. Please contact your Super Admin.` 
       });
-    });
+    };
+
+    if (req.user && req.user.token_type !== 'customer') {
+      return checkPerms();
+    }
+
+    await requireAdmin(req, res, checkPerms);
   };
 }
 
@@ -219,7 +228,10 @@ function requirePermission(permissionKey) {
  */
 function requireAdminRole(...allowedRoles) {
   return async (req, res, next) => {
-    requireAdmin(req, res, () => {
+    const checkRole = () => {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized: Admin privileges required' });
+      }
       const userRole = req.user.admin_role || (req.user.role === 'admin' ? 'superadmin' : 'support');
       
       // Superadmin has full access across all operations
@@ -229,12 +241,18 @@ function requireAdminRole(...allowedRoles) {
 
       if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
         return res.status(403).json({ 
-          error: `Forbidden: Requires one of roles: [${allowedRoles.join(', ')}]. Current role: ${userRole}` 
+          error: `Forbidden: This operation requires one of the following roles: [${allowedRoles.join(', ')}]. Your current role is: [${userRole}].` 
         });
       }
 
       next();
-    });
+    };
+
+    if (req.user && req.user.token_type !== 'customer') {
+      return checkRole();
+    }
+
+    await requireAdmin(req, res, checkRole);
   };
 }
 

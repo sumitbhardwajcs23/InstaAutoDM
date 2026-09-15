@@ -453,6 +453,9 @@ export default function AdminView({ user, onBackToApp }) {
   const [userSearch, setUserSearch] = useState('');
   const [userPlanFilter, setUserPlanFilter] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState('');
+  const [userPage, setUserPage] = useState(1);
+  const [userLimit, setUserLimit] = useState(50);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null);
   
@@ -756,12 +759,14 @@ export default function AdminView({ user, onBackToApp }) {
 
   // 2. Fetch Users Data
   const loadUsers = useCallback(async () => {
+    setUsersLoading(true);
     try {
       const params = new URLSearchParams();
       if (userSearch) params.set('search', userSearch);
       if (userPlanFilter) params.set('plan', userPlanFilter);
       if (userStatusFilter) params.set('status', userStatusFilter);
-      params.set('limit', '50');
+      params.set('page', String(userPage));
+      params.set('limit', String(userLimit));
 
       const res = await apiFetch(`/admin/users?${params.toString()}`);
       if (res.ok) {
@@ -771,8 +776,10 @@ export default function AdminView({ user, onBackToApp }) {
       }
     } catch (err) {
       console.error('Failed to load users:', err);
+    } finally {
+      setUsersLoading(false);
     }
-  }, [userSearch, userPlanFilter, userStatusFilter]);
+  }, [userSearch, userPlanFilter, userStatusFilter, userPage, userLimit]);
 
   // Fetch Single User Details (Inspect Modal)
   const loadUserDetail = async (userId) => {
@@ -1293,6 +1300,7 @@ export default function AdminView({ user, onBackToApp }) {
         break;
       case 'safeguards':
         loadSafeguards();
+        fetchAdminHealth();
         break;
       case 'analytics':
         loadAnalytics();
@@ -1329,7 +1337,7 @@ export default function AdminView({ user, onBackToApp }) {
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [activeTab, userSearch, userPlanFilter, userStatusFilter, loadUsers]);
+  }, [activeTab, userSearch, userPlanFilter, userStatusFilter, userPage, userLimit, loadUsers]);
 
 
   // Update User Handler
@@ -1847,7 +1855,7 @@ export default function AdminView({ user, onBackToApp }) {
           <div className="admin-top-actions-right">
             <button type="button" className="admin-date-picker-btn">
               <Calendar size={13} />
-              <span>Sep 1, 2026 - Sep 8, 2026</span>
+              <span>All time (Directory)</span>
               <ChevronDown size={13} />
             </button>
 
@@ -2091,19 +2099,19 @@ export default function AdminView({ user, onBackToApp }) {
                     </div>
 
                     <div className="admin-health-list">
-                      {[
-                        { name: 'API Services', status: 'Operational', uptime: '99.8%' },
-                        { name: 'Automation Engine', status: 'Operational', uptime: '99.9%' },
-                        { name: 'Database', status: 'Operational', uptime: '99.7%' },
-                        { name: 'Instagram API', status: 'Operational', uptime: '99.9%' },
-                        { name: 'Background Jobs', status: 'Operational', uptime: '99.8%' }
-                      ].map((svc, idx) => (
+                      {(overview?.systemHealth?.services || [
+                        { name: 'API Services', status: overview?.systemHealth?.apiServices?.status || 'Operational', uptime: overview?.systemHealth?.apiServices?.uptime || '100% uptime' },
+                        { name: 'Automation Engine', status: overview?.systemHealth?.automationEngine?.status || 'Operational', uptime: overview?.systemHealth?.automationEngine?.uptime || '100% uptime' },
+                        { name: 'Database', status: overview?.systemHealth?.database?.status || 'Operational', uptime: overview?.systemHealth?.database?.uptime || '100% uptime' },
+                        { name: 'Instagram API', status: overview?.systemHealth?.instagramApi?.status || 'Operational', uptime: overview?.systemHealth?.instagramApi?.uptime || '100% uptime' },
+                        { name: 'Background Jobs', status: overview?.systemHealth?.backgroundJobs?.status || 'Operational', uptime: overview?.systemHealth?.backgroundJobs?.uptime || '100% uptime' }
+                      ]).map((svc, idx) => (
                         <div key={idx} className="admin-health-row">
                           <div className="admin-health-row-left">
-                            <span className="dot-green" />
+                            <span className={svc.status === 'Operational' ? "dot-green" : "dot-yellow"} />
                             <span>{svc.name}</span>
                           </div>
-                          <span className="admin-health-uptime">{svc.uptime} uptime</span>
+                          <span className="admin-health-uptime">{svc.uptime?.includes('uptime') ? svc.uptime : `${svc.uptime} uptime`}</span>
                         </div>
                       ))}
                     </div>
@@ -2353,7 +2361,7 @@ export default function AdminView({ user, onBackToApp }) {
                     <select
                       className="admin-select-input"
                       value={userStatusFilter}
-                      onChange={(e) => setUserStatusFilter(e.target.value)}
+                      onChange={(e) => { setUserStatusFilter(e.target.value); setUserPage(1); }}
                     >
                       <option value="">All Users</option>
                       <option value="active">Active Users</option>
@@ -2363,7 +2371,7 @@ export default function AdminView({ user, onBackToApp }) {
                     <select
                       className="admin-select-input"
                       value={userPlanFilter}
-                      onChange={(e) => setUserPlanFilter(e.target.value)}
+                      onChange={(e) => { setUserPlanFilter(e.target.value); setUserPage(1); }}
                     >
                       <option value="">All Plans</option>
                       <option value="free">Free Starter</option>
@@ -2380,7 +2388,7 @@ export default function AdminView({ user, onBackToApp }) {
                       type="text"
                       placeholder="Search by name, email, user ID, or @instagram..."
                       value={userSearch}
-                      onChange={(e) => setUserSearch(e.target.value)}
+                      onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
                       className="admin-search-box-input"
                     />
                   </div>
@@ -2537,9 +2545,62 @@ export default function AdminView({ user, onBackToApp }) {
 
                 {/* Pagination Footer */}
                 <div className="admin-pagination-footer">
-                  <span>Showing {filteredUsers.length} of {totalUsers || filteredUsers.length} users</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span>
+                      {totalUsers === 0 ? 'Showing 0 of 0 users' : (
+                        `Showing ${(userPage - 1) * userLimit + 1} - ${Math.min(totalUsers, (userPage - 1) * userLimit + filteredUsers.length)} of ${totalUsers} users`
+                      )}
+                    </span>
+                    <select
+                      className="admin-select-input"
+                      style={{ padding: '2px 8px', fontSize: '11.5px', height: '26px' }}
+                      value={userLimit}
+                      onChange={(e) => {
+                        setUserLimit(Number(e.target.value));
+                        setUserPage(1);
+                      }}
+                    >
+                      <option value={25}>25 / page</option>
+                      <option value={50}>50 / page</option>
+                      <option value={100}>100 / page</option>
+                    </select>
+                  </div>
                   <div className="admin-pagination-controls">
-                    <button type="button" className="admin-pagination-btn active">1</button>
+                    <button
+                      type="button"
+                      className="admin-pagination-btn"
+                      disabled={userPage <= 1 || usersLoading}
+                      onClick={() => setUserPage(p => Math.max(1, p - 1))}
+                      style={{ cursor: userPage <= 1 ? 'not-allowed' : 'pointer', opacity: userPage <= 1 ? 0.5 : 1 }}
+                    >
+                      Prev
+                    </button>
+                    {Array.from({ length: Math.ceil(totalUsers / userLimit) || 1 }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === Math.ceil(totalUsers / userLimit) || Math.abs(p - userPage) <= 1)
+                      .map((p, idx, arr) => {
+                        const prev = arr[idx - 1];
+                        return (
+                          <React.Fragment key={p}>
+                            {prev && p - prev > 1 && <span style={{ padding: '0 4px', color: '#94a3b8' }}>...</span>}
+                            <button
+                              type="button"
+                              className={`admin-pagination-btn ${userPage === p ? 'active' : ''}`}
+                              onClick={() => setUserPage(p)}
+                            >
+                              {p}
+                            </button>
+                          </React.Fragment>
+                        );
+                      })}
+                    <button
+                      type="button"
+                      className="admin-pagination-btn"
+                      disabled={userPage >= Math.ceil(totalUsers / userLimit) || usersLoading}
+                      onClick={() => setUserPage(p => Math.min(Math.ceil(totalUsers / userLimit), p + 1))}
+                      style={{ cursor: userPage >= Math.ceil(totalUsers / userLimit) ? 'not-allowed' : 'pointer', opacity: userPage >= Math.ceil(totalUsers / userLimit) ? 0.5 : 1 }}
+                    >
+                      Next
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2554,6 +2615,8 @@ export default function AdminView({ user, onBackToApp }) {
               id: ws.id,
               name: ws.name || 'Personal Workspace',
               owner: ws.owner_email_masked || ws.owner_email || 'Workspace Owner',
+              owner_name: ws.owner_name || 'Workspace Owner',
+              owner_id: ws.owner_id || '',
               accounts: ws.connected_accounts || 0,
               plan: (ws.plan || 'free').toLowerCase(),
               subscription_badge: ws.subscription_badge || (ws.plan || 'free').toUpperCase(),
@@ -2565,8 +2628,9 @@ export default function AdminView({ user, onBackToApp }) {
                 const term = workspaceSearch.toLowerCase().trim();
                 const matchesName = ws.name && ws.name.toLowerCase().includes(term);
                 const matchesOwner = ws.owner && ws.owner.toLowerCase().includes(term);
+                const matchesOwnerName = ws.owner_name && ws.owner_name.toLowerCase().includes(term);
                 const matchesId = ws.id && ws.id.toLowerCase().includes(term);
-                if (!matchesName && !matchesOwner && !matchesId) return false;
+                if (!matchesName && !matchesOwner && !matchesOwnerName && !matchesId) return false;
               }
               if (workspaceStatusFilter && ws.status.toLowerCase() !== workspaceStatusFilter.toLowerCase()) return false;
               return true;
@@ -2633,8 +2697,18 @@ export default function AdminView({ user, onBackToApp }) {
                       {filteredWorkspaces.length > 0 ? (
                         filteredWorkspaces.map((ws, idx) => (
                           <tr key={ws.id || idx}>
-                            <td style={{ fontWeight: 700, color: '#0f172a' }}>{ws.name}</td>
-                            <td style={{ color: '#475569' }}>{ws.owner}</td>
+                            <td>
+                              <div style={{ fontWeight: 700, color: '#0f172a' }}>{ws.name}</div>
+                              <div style={{ display: 'inline-block', marginTop: '2px', fontSize: '10.5px', fontFamily: 'monospace', color: '#6366f1', background: '#eef2ff', padding: '1px 6px', borderRadius: '4px', border: '1px solid #c7d2fe' }}>
+                                {ws.id}
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 600, color: '#334155', fontSize: '13px' }}>{ws.owner_name}</div>
+                              <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                                {ws.owner} {ws.owner_id ? <span style={{ fontFamily: 'monospace', fontSize: '10px', color: '#94a3b8' }}>({ws.owner_id.slice(0, 8)})</span> : null}
+                              </div>
+                            </td>
                             <td style={{ fontWeight: 600, color: '#0f172a' }}>{ws.accounts}</td>
                             <td>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -3273,8 +3347,8 @@ export default function AdminView({ user, onBackToApp }) {
             <div className="admin-card">
               <div className="admin-card-header" style={{ marginBottom: '16px' }}>
                 <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>System Status</h2>
-                <div className="admin-badge-status-active" style={{ fontSize: '12px', padding: '4px 10px' }}>
-                  All systems operational
+                <div className={systemStatusData?.allOperational !== false ? "admin-badge-status-active" : "admin-badge-status-warning"} style={{ fontSize: '12px', padding: '4px 10px' }}>
+                  {systemStatusData?.allOperational !== false ? "All systems operational" : "System degraded"}
                 </div>
               </div>
 
@@ -3288,27 +3362,38 @@ export default function AdminView({ user, onBackToApp }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      { name: 'API Services', status: 'Operational', uptime: '99.9% uptime', icon: Server },
-                      { name: 'Automation Engine', status: 'Operational', uptime: '99.8% uptime', icon: Zap },
-                      { name: 'Database', status: 'Operational', uptime: '99.9% uptime', icon: Layers },
-                      { name: 'Instagram API', status: 'Operational', uptime: '99.7% uptime', icon: Film },
-                      { name: 'Background Jobs', status: 'Operational', uptime: '99.9% uptime', icon: Activity },
-                      { name: 'Web App', status: 'Operational', uptime: '99.9% uptime', icon: Globe }
-                    ].map((svc, idx) => (
-                      <tr key={idx}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '9px', fontWeight: 600, color: '#0f172a' }}>
-                            <svc.icon size={15} color="#64748b" />
-                            <span>{svc.name}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="admin-badge-status-active">{svc.status}</span>
-                        </td>
-                        <td style={{ color: '#059669', fontWeight: 600, fontSize: '12.5px' }}>{svc.uptime}</td>
-                      </tr>
-                    ))}
+                    {(systemStatusData?.services || [
+                      { name: 'API Services', status: 'Operational', uptime: '100% uptime' },
+                      { name: 'Automation Engine', status: 'Operational', uptime: '100% uptime' },
+                      { name: 'Database (PostgreSQL)', status: 'Operational', uptime: '100% uptime' },
+                      { name: 'Instagram Graph API', status: 'Operational', uptime: '100% uptime' },
+                      { name: 'Background Queue Jobs', status: 'Operational', uptime: '100% uptime' },
+                      { name: 'Webhook Ingestion Pipeline', status: 'Operational', uptime: '100% uptime' }
+                    ]).map((svc, idx) => {
+                      const getIcon = (name) => {
+                        if (name.includes('API')) return Server;
+                        if (name.includes('Engine')) return Zap;
+                        if (name.includes('Database')) return Layers;
+                        if (name.includes('Instagram')) return Film;
+                        if (name.includes('Queue') || name.includes('Jobs')) return Activity;
+                        return Globe;
+                      };
+                      const SvcIcon = getIcon(svc.name);
+                      return (
+                        <tr key={idx}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px', fontWeight: 600, color: '#0f172a' }}>
+                              <SvcIcon size={15} color="#64748b" />
+                              <span>{svc.name}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={svc.status === 'Operational' ? "admin-badge-status-active" : "admin-badge-status-warning"}>{svc.status}</span>
+                          </td>
+                          <td style={{ color: svc.status === 'Operational' ? '#059669' : '#d97706', fontWeight: 600, fontSize: '12.5px' }}>{svc.uptime}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -4989,7 +5074,7 @@ export default function AdminView({ user, onBackToApp }) {
                     <Activity size={20} color="#6366f1" /> Instagram Account Health &amp; Automation Risk Monitoring
                   </h2>
                   <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
-                    Internal Airvix operational traffic control, rate-limit backpressure, and progressive health degradation.
+                    Airvix internal operational/observed-risk score, rate-limit backpressure buffers, and progressive traffic pacing control.
                   </p>
                 </div>
 
@@ -5017,7 +5102,7 @@ export default function AdminView({ user, onBackToApp }) {
                     <span className="admin-stat-label">Monitored Accounts</span>
                   </div>
                   <div className="admin-stat-val">{healthKpis.totalAccounts}</div>
-                  <span className="admin-stat-pill admin-stat-pill-up">Active Accounts</span>
+                  <span className="admin-stat-pill admin-stat-pill-up">Active Connections</span>
                 </div>
 
                 <div className="admin-stat-card">
@@ -5110,7 +5195,7 @@ export default function AdminView({ user, onBackToApp }) {
                       <tr>
                         <th>Account</th>
                         <th>Owner</th>
-                        <th>Health Score</th>
+                        <th title="Airvix internal operational/observed-risk score (0–100)">Airvix Health Score</th>
                         <th>Traffic Mode</th>
                         <th>24h Activity</th>
                         <th>Error Rate</th>
@@ -5263,6 +5348,36 @@ export default function AdminView({ user, onBackToApp }) {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Automation Health Pagination Footer */}
+                <div className="admin-pagination-footer">
+                  <span>
+                    {healthTotal === 0 ? 'Showing 0 of 0 accounts' : (
+                      `Showing ${(healthPage - 1) * 25 + 1} - ${Math.min(healthTotal, (healthPage - 1) * 25 + healthAccounts.length)} of ${healthTotal} accounts`
+                    )}
+                  </span>
+                  <div className="admin-pagination-controls">
+                    <button
+                      type="button"
+                      className="admin-pagination-btn"
+                      disabled={healthPage <= 1 || healthLoading}
+                      onClick={() => setHealthPage(p => Math.max(1, p - 1))}
+                      style={{ cursor: healthPage <= 1 ? 'not-allowed' : 'pointer', opacity: healthPage <= 1 ? 0.5 : 1 }}
+                    >
+                      Prev
+                    </button>
+                    <button type="button" className="admin-pagination-btn active">{healthPage}</button>
+                    <button
+                      type="button"
+                      className="admin-pagination-btn"
+                      disabled={healthPage >= Math.ceil(healthTotal / 25) || healthLoading}
+                      onClick={() => setHealthPage(p => p + 1)}
+                      style={{ cursor: healthPage >= Math.ceil(healthTotal / 25) ? 'not-allowed' : 'pointer', opacity: healthPage >= Math.ceil(healthTotal / 25) ? 0.5 : 1 }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -5284,7 +5399,11 @@ export default function AdminView({ user, onBackToApp }) {
 
                 <button type="button" className="admin-date-picker-btn">
                   <Calendar size={13} />
-                  <span>Sep 1, 2026 - Sep 8, 2026</span>
+                  <span>
+                    {overview?.growthTimeline?.growth7d?.length > 0
+                      ? `${overview.growthTimeline.growth7d[0].date} - ${overview.growthTimeline.growth7d[overview.growthTimeline.growth7d.length - 1].date}`
+                      : 'Last 7 Days'}
+                  </span>
                   <ChevronDown size={13} />
                 </button>
               </div>
@@ -5316,7 +5435,7 @@ export default function AdminView({ user, onBackToApp }) {
                     <span className="admin-stat-label">Delivery Success</span>
                   </div>
                   <div className="admin-stat-val">
-                    {analyticsData?.performance?.deliverySuccessRate || '99.9%'}
+                    {analyticsData?.performance?.deliverySuccessRate || '100%'}
                   </div>
                   <span className="admin-stat-pill admin-stat-pill-up">Optimal</span>
                 </div>
@@ -5385,14 +5504,15 @@ export default function AdminView({ user, onBackToApp }) {
 
                   {/* X Axis Labels */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
-                    <span>Sep 1</span>
-                    <span>Sep 2</span>
-                    <span>Sep 3</span>
-                    <span>Sep 4</span>
-                    <span>Sep 5</span>
-                    <span>Sep 6</span>
-                    <span>Sep 7</span>
-                    <span>Sep 8</span>
+                    {(overview?.growthTimeline?.growth7d || []).length > 0 ? (
+                      overview.growthTimeline.growth7d.map((item, idx) => (
+                        <span key={idx}>{item.date}</span>
+                      ))
+                    ) : (
+                      ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'].map((d, idx) => (
+                        <span key={idx}>{d}</span>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
