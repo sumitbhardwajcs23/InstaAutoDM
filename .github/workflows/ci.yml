@@ -87,8 +87,8 @@ jobs:
       META_WEBHOOK_VERIFY_TOKEN: ci-mock-verify-token
       RAZORPAY_WEBHOOK_SECRET: ci-mock-razorpay-webhook-secret
       STRIPE_WEBHOOK_SECRET: ci-mock-stripe-webhook-secret
-      REDIS_URL: redis://localhost:6379
-      DATABASE_URL: postgresql://postgres@localhost:5432/airvix_test
+      REDIS_URL: redis://127.0.0.1:6379
+      DATABASE_URL: postgresql://postgres@127.0.0.1:5432/airvix_test
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -102,11 +102,11 @@ jobs:
       - name: Install Root Dependencies
         run: npm ci
 
-      - name: Run Backup & Recovery Unit Tests
-        run: node tests/backupRecovery.test.js
-
       - name: Run Database Migration Unit Tests
         run: node tests/migrator.test.js
+
+      - name: Run Backup & Recovery Unit Tests
+        run: node tests/backupRecovery.test.js
 
       - name: Run Multi-Tenant Security Tests
         run: node tests/multiTenantSecurity.test.js

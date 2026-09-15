@@ -208,6 +208,25 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
 
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  plan TEXT NOT NULL DEFAULT 'free',
+  status TEXT NOT NULL DEFAULT 'active',
+  billing_cycle TEXT NOT NULL DEFAULT 'monthly',
+  current_period_start TEXT NOT NULL,
+  current_period_end TEXT NOT NULL,
+  cancel_at_period_end INTEGER DEFAULT 0,
+  canceled_at TEXT,
+  trial_ends_at TEXT,
+  grace_period_ends_at TEXT,
+  gateway TEXT DEFAULT 'razorpay',
+  gateway_subscription_id TEXT,
+  gateway_customer_id TEXT,
+  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
+  updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+);
+
 CREATE TABLE IF NOT EXISTS activity_log (
   id TEXT PRIMARY KEY,
   instagram_account_id TEXT REFERENCES instagram_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -302,25 +321,6 @@ CREATE TABLE IF NOT EXISTS dead_letter_queue (
   resolved_at TEXT,
   failed_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
   created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
-);
-
-CREATE TABLE IF NOT EXISTS subscriptions (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
-  plan TEXT NOT NULL DEFAULT 'free',
-  status TEXT NOT NULL DEFAULT 'active',
-  billing_cycle TEXT NOT NULL DEFAULT 'monthly',
-  current_period_start TEXT NOT NULL,
-  current_period_end TEXT NOT NULL,
-  cancel_at_period_end INTEGER DEFAULT 0,
-  canceled_at TEXT,
-  trial_ends_at TEXT,
-  grace_period_ends_at TEXT,
-  gateway TEXT DEFAULT 'razorpay',
-  gateway_subscription_id TEXT,
-  gateway_customer_id TEXT,
-  created_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'),
-  updated_at TEXT DEFAULT to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
 );
 
 -- ── Canonical Instagram Account Connections ─────────────────────────────────
