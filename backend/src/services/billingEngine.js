@@ -393,16 +393,32 @@ async function processPaymentWebhookProduction(gateway, arg2, arg3, arg4, arg5) 
 
       // 4. Update usage counter (exactly-once per recognized billing transition)
       const durationInterval = (finalCycle === 'yearly' || finalCycle === 'annual') ? '1 year' : '1 month';
-      await client.query(`
-        INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, comments_replied, updated_at)
-        VALUES ($1, $2, NOW(), NOW() + $3::interval, 0, 0, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-        ON CONFLICT (user_id) DO UPDATE SET
-          dms_sent = 0,
-          comments_replied = 0,
-          period_start = EXCLUDED.period_start,
-          period_end = EXCLUDED.period_end,
-          updated_at = EXCLUDED.updated_at
-      `, [`cnt_${user.id}`, user.id, durationInterval]);
+      const existingCounter = await client.query(
+        'SELECT id FROM usage_counters WHERE user_id = $1 AND instagram_account_id IS NULL ORDER BY period_start DESC LIMIT 1',
+        [user.id]
+      );
+      if (existingCounter.rows.length > 0) {
+        await client.query(`
+          UPDATE usage_counters SET
+            dms_sent = 0,
+            comments_replied = 0,
+            period_start = NOW(),
+            period_end = NOW() + $1::interval,
+            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          WHERE id = $2
+        `, [durationInterval, existingCounter.rows[0].id]);
+      } else {
+        await client.query(`
+          INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, comments_replied, updated_at)
+          VALUES ($1, $2, NOW(), NOW() + $3::interval, 0, 0, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+          ON CONFLICT (id) DO UPDATE SET
+            dms_sent = 0,
+            comments_replied = 0,
+            period_start = EXCLUDED.period_start,
+            period_end = EXCLUDED.period_end,
+            updated_at = EXCLUDED.updated_at
+        `, [`cnt_${user.id}`, user.id, durationInterval]);
+      }
 
       // 5. Create invoice with coupon tracking
       let rawAmount = paymentEntity.amount !== undefined ? paymentEntity.amount : (payload.amount || PLAN_PRICES[finalPlan]?.[finalCycle] || 1499);
@@ -688,16 +704,32 @@ async function processSubscriptionExpiriesProduction(pool, explicitSubId = null)
         const currentComments = cntRes.rows[0]?.comments_replied || 0;
 
         // Synchronize usage_counters with recovered subscription period
-        await client.query(`
-          INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, comments_replied, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-          ON CONFLICT (user_id) DO UPDATE SET
-            period_start = EXCLUDED.period_start,
-            period_end = EXCLUDED.period_end,
-            dms_sent = EXCLUDED.dms_sent,
-            comments_replied = EXCLUDED.comments_replied,
-            updated_at = EXCLUDED.updated_at
-        `, [`cnt_${sub.user_id}`, sub.user_id, recoveredPeriodStart, extendedPeriodEnd, currentDmsSent, currentComments]);
+        const existingSubCounter = await client.query(
+          'SELECT id FROM usage_counters WHERE user_id = $1 AND instagram_account_id IS NULL ORDER BY period_start DESC LIMIT 1',
+          [sub.user_id]
+        );
+        if (existingSubCounter.rows.length > 0) {
+          await client.query(`
+            UPDATE usage_counters SET
+              period_start = $1::timestamptz,
+              period_end = $2::timestamptz,
+              dms_sent = $3,
+              comments_replied = $4,
+              updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+            WHERE id = $5
+          `, [recoveredPeriodStart, extendedPeriodEnd, currentDmsSent, currentComments, existingSubCounter.rows[0].id]);
+        } else {
+          await client.query(`
+            INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, comments_replied, updated_at)
+            VALUES ($1, $2, $3::timestamptz, $4::timestamptz, $5, $6, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+            ON CONFLICT (id) DO UPDATE SET
+              period_start = EXCLUDED.period_start,
+              period_end = EXCLUDED.period_end,
+              dms_sent = EXCLUDED.dms_sent,
+              comments_replied = EXCLUDED.comments_replied,
+              updated_at = EXCLUDED.updated_at
+          `, [`cnt_${sub.user_id}`, sub.user_id, recoveredPeriodStart, extendedPeriodEnd, currentDmsSent, currentComments]);
+        }
 
         // Update users cache: strictly preserves dm_usage_this_period = usage_counters.dms_sent
         await client.query(`
@@ -738,16 +770,32 @@ async function processSubscriptionExpiriesProduction(pool, explicitSubId = null)
           updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
         WHERE id = $2
       `, [terminalStatus, sub.user_id]);
-      await client.query(`
-        INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, comments_replied, updated_at)
-        VALUES ($1, $2, NOW(), NOW() + INTERVAL '30 days', 0, 0, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
-        ON CONFLICT (user_id) DO UPDATE SET
-          period_start = EXCLUDED.period_start,
-          period_end = EXCLUDED.period_end,
-          dms_sent = 0,
-          comments_replied = 0,
-          updated_at = EXCLUDED.updated_at
-      `, [`cnt_${sub.user_id}`, sub.user_id]);
+      const existingTermCounter = await client.query(
+        'SELECT id FROM usage_counters WHERE user_id = $1 AND instagram_account_id IS NULL ORDER BY period_start DESC LIMIT 1',
+        [sub.user_id]
+      );
+      if (existingTermCounter.rows.length > 0) {
+        await client.query(`
+          UPDATE usage_counters SET
+            period_start = NOW(),
+            period_end = NOW() + INTERVAL '30 days',
+            dms_sent = 0,
+            comments_replied = 0,
+            updated_at = to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS')
+          WHERE id = $1
+        `, [existingTermCounter.rows[0].id]);
+      } else {
+        await client.query(`
+          INSERT INTO usage_counters (id, user_id, period_start, period_end, dms_sent, comments_replied, updated_at)
+          VALUES ($1, $2, NOW(), NOW() + INTERVAL '30 days', 0, 0, to_char(NOW(), 'YYYY-MM-DD HH24:MI:SS'))
+          ON CONFLICT (id) DO UPDATE SET
+            period_start = EXCLUDED.period_start,
+            period_end = EXCLUDED.period_end,
+            dms_sent = 0,
+            comments_replied = 0,
+            updated_at = EXCLUDED.updated_at
+        `, [`cnt_${sub.user_id}`, sub.user_id]);
+      }
 
       await client.query('COMMIT');
       lastResult = { transitioned: true, terminalStatus, subId: sub.id, userId: sub.user_id };

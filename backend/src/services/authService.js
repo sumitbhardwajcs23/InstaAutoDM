@@ -114,7 +114,7 @@ async function findOrCreateCanonicalUser({ email, name, password, emailVerified 
     await db.prepare(`
       INSERT INTO usage_counters (id, user_id, period_start, dms_sent, comments_replied, updated_at)
       VALUES (?, ?, ?, 0, 0, ?)
-      ON CONFLICT (user_id) DO NOTHING
+      ON CONFLICT (id) DO NOTHING
     `).run(`uc_${userId}`, userId, todayStr, nowStr).catch(() => {});
 
     const subId = `sub_${userId.replace(/-/g, '').slice(0, 12)}`;

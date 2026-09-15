@@ -25,6 +25,8 @@ async function getAccountForUser(userId, accountId) {
         SELECT * FROM instagram_accounts WHERE user_id = $1 AND id = $2 LIMIT 1
       `, [userId, accountId]).catch(() => null);
       if (legacy?.rows?.[0]) return legacy.rows[0];
+
+      return null;
     }
 
     // Default: find latest actively connected account
@@ -174,7 +176,7 @@ router.get('/stats', async (req, res) => {
               comments_replied: 0,
               active_rules: 0,
               total_rules: 0,
-              accounts_breakdown: enrichedAccountsBreakdown
+              accounts_breakdown: accountsBreakdown
             },
             recent_conversations: []
           };

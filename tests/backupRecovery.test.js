@@ -146,6 +146,8 @@ async function runTests() {
   console.log(`\n🏁 Test Run Completed: ${passed} passed, ${failed} failed.`);
   if (failed > 0) {
     process.exit(1);
+  } else {
+    process.exit(0);
   }
 }
 
