@@ -61,7 +61,8 @@ import {
   Download,
   Percent,
   CheckCircle,
-  RefreshCcw
+  RefreshCcw,
+  Instagram
 } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import LandingPageEditor from './LandingPageEditor';
