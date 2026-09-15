@@ -133,6 +133,7 @@ router.get('/subscription', async (req, res) => {
     const plan = isEntitled ? (subscription?.plan || user?.plan || 'free') : 'free';
     const limit = dmLimitFor(plan, user?.custom_dm_limit);
     const dailyLimit = dailyLimitFor(plan, user?.custom_daily_limit, user?.custom_dm_limit);
+    const subBadge = badgeFor(plan);
     const usageData = await quotaService.getAuthoritativeUsage(userId);
     const usage = usageData.total_replies_used;
 
