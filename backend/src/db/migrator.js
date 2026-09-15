@@ -136,6 +136,13 @@ class Migrator {
       const start = Date.now();
       try {
         console.log(`[Migrator]   ▶ Applying ${m.version}: ${m.name}...`);
+
+        // Execute pre-transaction hook if present (e.g. concurrent index building / preparatory DDL)
+        if (typeof m.module.beforeTransaction === 'function') {
+          console.log(`[Migrator]     ⚙️ Running beforeTransaction hook for ${m.version}...`);
+          await m.module.beforeTransaction(client);
+        }
+
         await client.query('BEGIN');
         await m.module.up(client);
         const duration = Date.now() - start;
@@ -150,6 +157,19 @@ class Migrator {
         `, [m.version, m.name, m.checksum, duration]);
 
         await client.query('COMMIT');
+
+        // Execute post-transaction hook if present (e.g. concurrent FK index creation)
+        if (typeof m.module.afterTransaction === 'function') {
+          console.log(`[Migrator]     ⚙️ Running afterTransaction hook for ${m.version}...`);
+          await m.module.afterTransaction(client);
+        }
+
+        // Execute validation hook if present
+        if (typeof m.module.validate === 'function') {
+          console.log(`[Migrator]     🔎 Running validate hook for ${m.version}...`);
+          await m.module.validate(client);
+        }
+
         console.log(`[Migrator]   ✅ Completed ${m.version} in ${duration}ms.`);
         executed.push({ version: m.version, name: m.name, duration });
       } catch (err) {

@@ -41,6 +41,16 @@ module.exports = {
   async beforeTransaction(client) {
     console.log('\n[Migration 008] ── Phase 1: Safe unique index swap ──────────────────');
 
+    // Idempotency check: if idx_uq_user_active_sub already covers grace_period, skip swap
+    const existingIndex = await client.query(`
+      SELECT indexdef FROM pg_indexes
+      WHERE tablename = 'subscriptions' AND indexname = 'idx_uq_user_active_sub'
+    `);
+    if (existingIndex.rowCount > 0 && existingIndex.rows[0].indexdef.includes('grace_period')) {
+      console.log('  ℹ️ idx_uq_user_active_sub already covers grace_period. Skipping swap.');
+      return;
+    }
+
     // ── Step A: Build new index under a different name ──────────────────────
     console.log('[Migration 008] [Phase 1/A] Building new unique index CONCURRENTLY...');
     await client.query(`
@@ -870,10 +880,10 @@ module.exports = {
     await client.query(`DROP TRIGGER IF EXISTS trg_invoice_sub_user_check ON invoices`);
     await client.query(`DROP FUNCTION IF EXISTS check_invoice_subscription_user()`);
 
-    // Restore original index (without grace_period) — CONCURRENTLY avoids lock
-    await client.query(`DROP INDEX CONCURRENTLY IF EXISTS idx_uq_user_active_sub`);
+    // Restore original index (without grace_period)
+    await client.query(`DROP INDEX IF EXISTS idx_uq_user_active_sub`);
     await client.query(`
-      CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_uq_user_active_sub
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_user_active_sub
       ON subscriptions (user_id)
       WHERE status IN ('active', 'trialing', 'past_due')
     `);
@@ -893,7 +903,7 @@ module.exports = {
       'idx_tenant_api_usage_account_fk','idx_tenant_api_usage_user_fk','idx_password_resets_user'
     ];
     for (const idx of dropFkIdx) {
-      await client.query(`DROP INDEX CONCURRENTLY IF EXISTS ${idx}`).catch(() => {});
+      await client.query(`DROP INDEX IF EXISTS ${idx}`).catch(() => {});
     }
 
     await client.query(`DROP TABLE IF EXISTS migration_008_mutation_log`);

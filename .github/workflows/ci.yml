@@ -62,16 +62,16 @@ jobs:
           POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: airvix_test
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
       redis:
         image: redis:7-alpine
         ports:
-          - 6379:6379
+          - 6380:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -87,11 +87,16 @@ jobs:
       META_WEBHOOK_VERIFY_TOKEN: ci-mock-verify-token
       RAZORPAY_WEBHOOK_SECRET: ci-mock-razorpay-webhook-secret
       STRIPE_WEBHOOK_SECRET: ci-mock-stripe-webhook-secret
-      REDIS_URL: redis://127.0.0.1:6379
-      DATABASE_URL: postgresql://postgres@127.0.0.1:5432/airvix_test
+      REDIS_URL: redis://127.0.0.1:6380
+      DATABASE_URL: postgresql://postgres@127.0.0.1:5433/airvix_test
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Stop Pre-installed Host Services
+        run: |
+          sudo systemctl stop postgresql || true
+          sudo systemctl stop redis-server || true
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -101,6 +106,20 @@ jobs:
 
       - name: Install Root Dependencies
         run: npm ci
+
+      - name: Verify Service Connectivity
+        run: |
+          node -e "
+            const { Pool } = require('pg');
+            const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+            pool.query('SELECT 1').then(() => {
+              console.log('✅ PostgreSQL service connected at ' + process.env.DATABASE_URL);
+              process.exit(0);
+            }).catch(err => {
+              console.error('❌ PostgreSQL connection failed:', err.message);
+              process.exit(1);
+            });
+          "
 
       - name: Run Database Migration Unit Tests
         run: node tests/migrator.test.js
