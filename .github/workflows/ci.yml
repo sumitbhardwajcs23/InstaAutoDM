@@ -80,6 +80,7 @@ jobs:
     env:
       NODE_ENV: test
       JWT_SECRET: ci-test-jwt-secret-minimum-32-chars-long-security
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
       TOKEN_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       BACKUP_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       META_APP_SECRET: ci-mock-meta-app-secret-1234567890
@@ -87,7 +88,7 @@ jobs:
       RAZORPAY_WEBHOOK_SECRET: ci-mock-razorpay-webhook-secret
       STRIPE_WEBHOOK_SECRET: ci-mock-stripe-webhook-secret
       REDIS_URL: redis://localhost:6379
-      DATABASE_URL: ${{ secrets.DATABASE_URL_TEST || secrets.DATABASE_URL || 'postgresql://postgres:testpassword123@localhost:5432/airvix_test' }}
+      DATABASE_URL: postgresql://postgres:testpassword123@localhost:5432/airvix_test
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

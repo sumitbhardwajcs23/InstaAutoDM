@@ -12,7 +12,12 @@ try {
 const { Pool } = require('pg');
 const { CREATE_TABLES_PG_SQL } = require('./schema');
 
-const PG_URL = process.env.DATABASE_URL;
+let PG_URL = process.env.DATABASE_URL;
+
+if ((!PG_URL || PG_URL === 'true' || PG_URL === 'false') && process.env.NODE_ENV === 'test') {
+  PG_URL = 'postgresql://postgres:testpassword123@localhost:5432/airvix_test';
+  process.env.DATABASE_URL = PG_URL;
+}
 
 if (!PG_URL) {
   console.error('[PostgreSQL] ❌ FATAL: DATABASE_URL environment variable is missing! Airvix runs exclusively on PostgreSQL.');
