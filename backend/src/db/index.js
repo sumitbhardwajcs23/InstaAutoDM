@@ -19,8 +19,9 @@ if (!PG_URL) {
 }
 
 const isRenderInternal = PG_URL && PG_URL.includes('dpg-') && !PG_URL.includes('.render.com');
+const isLocalhost = PG_URL && (PG_URL.includes('localhost') || PG_URL.includes('127.0.0.1'));
 let sslOption = false;
-if (PG_URL && !isRenderInternal) {
+if (PG_URL && !isRenderInternal && !isLocalhost && process.env.DATABASE_SSL !== 'false') {
   sslOption = {
     rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'true',
     ...(process.env.PG_CA_CERT ? { ca: process.env.PG_CA_CERT } : {})
