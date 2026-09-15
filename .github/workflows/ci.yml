@@ -122,28 +122,60 @@ jobs:
           "
 
       - name: Run Database Migration Unit Tests
-        run: node tests/migrator.test.js
+        run: |
+          node tests/migrator.test.js 2>&1 | tee /tmp/migrator.log || {
+            echo "::error title=MigratorTestFailure::$(tail -n 25 /tmp/migrator.log | tr '\n' ' | ')"
+            exit 1
+          }
 
       - name: Run Backup & Recovery Unit Tests
-        run: node tests/backupRecovery.test.js
+        run: |
+          node tests/backupRecovery.test.js 2>&1 | tee /tmp/backup.log || {
+            echo "::error title=BackupTestFailure::$(tail -n 25 /tmp/backup.log | tr '\n' ' | ')"
+            exit 1
+          }
 
       - name: Run Multi-Tenant Security Tests
-        run: node tests/multiTenantSecurity.test.js
+        run: |
+          node tests/multiTenantSecurity.test.js 2>&1 | tee /tmp/multitenant.log || {
+            echo "::error title=MultiTenantTestFailure::$(tail -n 25 /tmp/multitenant.log | tr '\n' ' | ')"
+            exit 1
+          }
 
       - name: Run Webhook Reliability & DLQ Tests
-        run: node tests/webhookReliability.test.js
+        run: |
+          node tests/webhookReliability.test.js 2>&1 | tee /tmp/webhook.log || {
+            echo "::error title=WebhookTestFailure::$(tail -n 25 /tmp/webhook.log | tr '\n' ' | ')"
+            exit 1
+          }
 
       - name: Run Billing & Subscription Tests
-        run: node tests/billingAndSubscription.test.js
+        run: |
+          node tests/billingAndSubscription.test.js 2>&1 | tee /tmp/billing.log || {
+            echo "::error title=BillingTestFailure::$(tail -n 25 /tmp/billing.log | tr '\n' ' | ')"
+            exit 1
+          }
 
       - name: Run Admin Security & MFA Tests
-        run: node tests/adminSecurity.test.js
+        run: |
+          node tests/adminSecurity.test.js 2>&1 | tee /tmp/admin.log || {
+            echo "::error title=AdminTestFailure::$(tail -n 25 /tmp/admin.log | tr '\n' ' | ')"
+            exit 1
+          }
 
       - name: Run Observability & Telemetry Tests
-        run: node tests/observability.test.js
+        run: |
+          node tests/observability.test.js 2>&1 | tee /tmp/observability.log || {
+            echo "::error title=ObservabilityTestFailure::$(tail -n 25 /tmp/observability.log | tr '\n' ' | ')"
+            exit 1
+          }
 
       - name: Run Account Health & Automation Risk Monitoring Tests
-        run: node tests/accountHealthAndRiskMonitoring.test.js
+        run: |
+          node tests/accountHealthAndRiskMonitoring.test.js 2>&1 | tee /tmp/accounthealth.log || {
+            echo "::error title=AccountHealthTestFailure::$(tail -n 25 /tmp/accounthealth.log | tr '\n' ' | ')"
+            exit 1
+          }
 
   build-check:
     name: Frontend Build & Compilation Check

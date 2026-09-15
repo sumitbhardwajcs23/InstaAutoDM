@@ -164,12 +164,6 @@ class Migrator {
           await m.module.afterTransaction(client);
         }
 
-        // Execute validation hook if present
-        if (typeof m.module.validate === 'function') {
-          console.log(`[Migrator]     🔎 Running validate hook for ${m.version}...`);
-          await m.module.validate(client);
-        }
-
         console.log(`[Migrator]   ✅ Completed ${m.version} in ${duration}ms.`);
         executed.push({ version: m.version, name: m.name, duration });
       } catch (err) {
