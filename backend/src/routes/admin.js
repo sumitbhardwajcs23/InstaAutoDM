@@ -400,6 +400,8 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
     const igAccountsByUser = {};
     const activeSubsByUser = {};
     const invoicesAggByUser = {};
+    const sessionsByUser = {};
+    const usageCountersByUser = {};
 
     if (userIds.length > 0) {
       // 1. Batched Instagram Accounts (from both direct ownership and connections)
@@ -431,13 +433,12 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
       }
 
       // 1b. Batched Last Active Timestamp from user_sessions
-      const sessionsByUser = {};
       try {
         const sessPlaceholders = userIds.map(() => '?').join(',');
         const sessRows = await db.prepare(`
           SELECT user_id, MAX(last_active_at) as last_active_at
           FROM user_sessions
-          WHERE user_id IN (${sessPlaceholders}) AND is_revoked = 0
+          WHERE user_id IN (${sessPlaceholders})
           GROUP BY user_id
         `).all(...userIds);
         for (const s of (sessRows || [])) {
@@ -489,7 +490,6 @@ router.get('/users', requirePermission('users:view'), async (req, res) => {
       }
 
       // 4. Batched Usage Counters (dms_sent, comments_replied)
-      const usageCountersByUser = {};
       try {
         const cntPlaceholders = userIds.map(() => '?').join(',');
         const cntRows = await db.prepare(`
