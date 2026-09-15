@@ -85,7 +85,7 @@ export default function RulesView({
         border: '1px solid var(--border-light)',
       }}>
         {/* Search */}
-        <div style={{ position: 'relative', width: '320px' }}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: '320px' }}>
           <Search
             size={16}
             style={{
@@ -115,7 +115,7 @@ export default function RulesView({
         </div>
 
         {/* Filter Buttons */}
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch', paddingBottom: '2px' }}>
           {[
             { id: 'all', label: 'All Rules' },
             { id: 'comment', label: 'Comment Triggers' },

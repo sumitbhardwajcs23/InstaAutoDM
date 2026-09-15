@@ -1,6 +1,18 @@
 // frontend/src/components/Topbar.jsx
 import React, { useState } from 'react';
-import { Search, Bell, Crown, ChevronDown, User, LogOut, Settings as SettingsIcon, Instagram, Plus, Shield } from 'lucide-react';
+import {
+  Search,
+  Bell,
+  Crown,
+  ChevronDown,
+  User,
+  LogOut,
+  Settings as SettingsIcon,
+  Instagram,
+  Plus,
+  Shield,
+  Menu,
+} from 'lucide-react';
 
 export default function Topbar({
   user,
@@ -13,6 +25,7 @@ export default function Topbar({
   onOpenAdmin,
   onLogout,
   onSearch,
+  onMenuToggle,
 }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
@@ -30,81 +43,65 @@ export default function Topbar({
     if (onSearch) onSearch(e.target.value);
   };
 
+  // Close dropdowns when clicking elsewhere
+  const handleOutsideClick = () => {
+    setShowUserMenu(false);
+    setShowAccountMenu(false);
+  };
+
   return (
-    <header className="topbar" style={{
-      height: '68px',
-      background: 'var(--bg-sidebar)',
-      borderBottom: '1px solid var(--border-light)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0 28px',
-      position: 'sticky',
-      top: 0,
-      zIndex: 40,
-    }}>
-      {/* Search Input (Centered / Left) */}
-      <div style={{ position: 'relative', width: '380px' }}>
+    <header
+      className="topbar"
+      style={{
+        height: '68px',
+        background: 'var(--bg-sidebar)',
+        borderBottom: '1px solid var(--border-light)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        position: 'sticky',
+        top: 0,
+        zIndex: 40,
+        boxSizing: 'border-box',
+        width: '100%',
+      }}
+    >
+      {/* Hamburger Menu Button (mobile only — CSS controls visibility) */}
+      <button
+        type="button"
+        className="hamburger-btn"
+        onClick={onMenuToggle}
+        aria-label="Open navigation menu"
+        aria-haspopup="true"
+      >
+        <Menu size={20} />
+      </button>
+
+      {/* Search Input — CSS class controls width/visibility */}
+      <div className="topbar-search-wrap">
         <Search
           size={17}
-          style={{
-            position: 'absolute',
-            left: '14px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--text-light)',
-          }}
+          className="topbar-search-icon"
         />
         <input
-          type="text"
+          type="search"
+          className="topbar-search-input"
           value={searchValue}
           onChange={handleSearchChange}
           placeholder="Search conversations, rules, or keywords..."
-          style={{
-            width: '100%',
-            padding: '10px 65px 10px 40px',
-            borderRadius: '12px',
-            border: '1px solid var(--border-subtle)',
-            background: 'var(--bg-subtle)',
-            fontSize: '13px',
-            color: 'var(--text-main)',
-            outline: 'none',
-            transition: 'border-color 0.2s, background 0.2s',
-          }}
-          onFocus={(e) => {
-            e.target.style.borderColor = 'var(--primary)';
-            e.target.style.background = '#ffffff';
-          }}
-          onBlur={(e) => {
-            e.target.style.borderColor = 'var(--border-subtle)';
-            e.target.style.background = 'var(--bg-subtle)';
-          }}
+          aria-label="Search"
         />
-        <span style={{
-          position: 'absolute',
-          right: '12px',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          fontSize: '11px',
-          fontWeight: 600,
-          color: 'var(--text-light)',
-          background: 'var(--bg-sidebar)',
-          padding: '2px 6px',
-          borderRadius: '6px',
-          border: '1px solid var(--border-light)',
-          pointerEvents: 'none',
-        }}>
-          ⌘K
-        </span>
+        <span className="topbar-search-kbd" aria-hidden="true">⌘K</span>
       </div>
 
       {/* Right Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+      <div className="topbar-right-controls">
         {/* Account Selector / Switcher */}
         <div style={{ position: 'relative' }}>
           <button
             type="button"
-            onClick={() => setShowAccountMenu(!showAccountMenu)}
+            onClick={() => { setShowAccountMenu(!showAccountMenu); setShowUserMenu(false); }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -117,153 +114,192 @@ export default function Topbar({
               fontSize: '12.5px',
               fontWeight: 600,
               cursor: 'pointer',
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent',
+              maxWidth: '180px',
+              overflow: 'hidden',
             }}
+            aria-label="Switch Instagram account"
+            aria-expanded={showAccountMenu}
+            aria-haspopup="true"
           >
             {account?.profile_picture_url ? (
               <img
                 src={account.profile_picture_url}
                 alt={account.username || 'Account'}
-                style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }}
+                style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
               />
             ) : (
-              <Instagram size={15} color="#e1306c" />
+              <Instagram size={15} color="#e1306c" style={{ flexShrink: 0 }} />
             )}
-            <span>{account?.username ? `@${account.username}` : 'Connect Account'}</span>
-            <ChevronDown size={13} color="var(--text-light)" />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>
+              {account?.username ? `@${account.username}` : 'Connect Account'}
+            </span>
+            <ChevronDown size={13} color="var(--text-light)" style={{ flexShrink: 0 }} />
           </button>
 
           {showAccountMenu && (
-            <div style={{
-              position: 'absolute',
-              top: 'calc(100% + 6px)',
-              right: 0,
-              width: '230px',
-              background: 'var(--bg-card)',
-              borderRadius: '12px',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
-              border: '1px solid var(--border-light)',
-              padding: '6px',
-              zIndex: 100,
-            }}>
-              <div style={{ padding: '6px 10px', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', letterSpacing: '0.05em' }}>
-                INSTAGRAM ACCOUNTS
-              </div>
-              {accounts && accounts.length > 0 ? (
-                accounts.map(acc => {
-                  const isSelected = account?.id === acc.id;
-                  return (
-                    <div
-                      key={acc.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '2px 6px',
-                        borderRadius: '8px',
-                        background: isSelected ? 'var(--bg-subtle)' : 'transparent',
-                        marginBottom: '2px',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (onSelectAccount) onSelectAccount(acc.id);
-                          setShowAccountMenu(false);
-                        }}
+            <>
+              {/* Invisible overlay to close menu */}
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                onClick={() => setShowAccountMenu(false)}
+                aria-hidden="true"
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: '230px',
+                  background: 'var(--bg-card)',
+                  borderRadius: '12px',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
+                  border: '1px solid var(--border-light)',
+                  padding: '6px',
+                  zIndex: 100,
+                }}
+                role="menu"
+              >
+                <div style={{ padding: '6px 10px', fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', letterSpacing: '0.05em' }}>
+                  INSTAGRAM ACCOUNTS
+                </div>
+                {accounts && accounts.length > 0 ? (
+                  accounts.map((acc) => {
+                    const isSelected = account?.id === acc.id;
+                    return (
+                      <div
+                        key={acc.id}
                         style={{
-                          flex: 1,
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
-                          padding: '6px 4px',
-                          border: 'none',
-                          background: 'transparent',
-                          color: 'var(--text-main)',
-                          fontSize: '12.5px',
-                          fontWeight: isSelected ? 700 : 500,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          justifyContent: 'space-between',
+                          padding: '2px 6px',
+                          borderRadius: '8px',
+                          background: isSelected ? 'var(--bg-subtle)' : 'transparent',
+                          marginBottom: '2px',
                         }}
                       >
-                        {acc.profile_picture_url ? (
-                          <img
-                            src={acc.profile_picture_url}
-                            alt={acc.username}
-                            style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                          />
-                        ) : (
-                          <Instagram size={14} color={isSelected ? '#e1306c' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
-                        )}
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          @{acc.username}
-                        </span>
-                        {isSelected && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', flexShrink: 0, marginLeft: 'auto', marginRight: '6px' }} />}
-                      </button>
-
-                      {onDisconnectAccount && (
                         <button
                           type="button"
-                          title={`Disconnect @${acc.username}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          role="menuitem"
+                          onClick={() => {
+                            if (onSelectAccount) onSelectAccount(acc.id);
                             setShowAccountMenu(false);
-                            onDisconnectAccount(acc.id);
                           }}
                           style={{
-                            background: 'none',
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '6px 4px',
                             border: 'none',
-                            color: 'var(--text-light)',
+                            background: 'transparent',
+                            color: 'var(--text-main)',
+                            fontSize: '12.5px',
+                            fontWeight: isSelected ? 700 : 500,
                             cursor: 'pointer',
-                            padding: '4px 6px',
-                            fontSize: '13px',
-                            lineHeight: 1,
-                            borderRadius: '4px',
-                            transition: 'color 0.2s',
+                            textAlign: 'left',
+                            overflow: 'hidden',
+                            minWidth: 0,
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-light)'; }}
                         >
-                          ✕
+                          {acc.profile_picture_url ? (
+                            <img
+                              src={acc.profile_picture_url}
+                              alt={acc.username}
+                              style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                            />
+                          ) : (
+                            <Instagram size={14} color={isSelected ? '#e1306c' : 'var(--text-muted)'} style={{ flexShrink: 0 }} />
+                          )}
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            @{acc.username}
+                          </span>
+                          {isSelected && (
+                            <span
+                              style={{
+                                width: '6px',
+                                height: '6px',
+                                borderRadius: '50%',
+                                background: '#10b981',
+                                flexShrink: 0,
+                                marginLeft: 'auto',
+                                marginRight: '6px',
+                              }}
+                            />
+                          )}
                         </button>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div style={{ padding: '8px 10px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                  No connected accounts
-                </div>
-              )}
 
-              <div style={{ height: '1px', background: 'var(--border-light)', margin: '6px 0' }} />
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAccountMenu(false);
-                  if (onOpenConnect) onOpenConnect();
-                }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 10px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'var(--primary)',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-              >
-                <Plus size={14} /> Connect Another Account
-              </button>
-            </div>
+                        {onDisconnectAccount && (
+                          <button
+                            type="button"
+                            title={`Disconnect @${acc.username}`}
+                            aria-label={`Disconnect @${acc.username}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowAccountMenu(false);
+                              onDisconnectAccount(acc.id);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-light)',
+                              cursor: 'pointer',
+                              padding: '4px 6px',
+                              fontSize: '13px',
+                              lineHeight: 1,
+                              borderRadius: '4px',
+                              transition: 'color 0.2s',
+                              minWidth: '28px',
+                              minHeight: '28px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-light)'; }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div style={{ padding: '8px 10px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    No connected accounts
+                  </div>
+                )}
+
+                <div style={{ height: '1px', background: 'var(--border-light)', margin: '6px 0' }} />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setShowAccountMenu(false);
+                    if (onOpenConnect) onOpenConnect();
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--primary)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <Plus size={14} /> Connect Another Account
+                </button>
+              </div>
+            </>
           )}
         </div>
 
@@ -271,6 +307,7 @@ export default function Topbar({
         <button
           type="button"
           aria-label="Notifications"
+          className="notif-btn"
           style={{
             position: 'relative',
             width: '40px',
@@ -284,23 +321,32 @@ export default function Topbar({
             justifyContent: 'center',
             cursor: 'pointer',
             transition: 'background 0.15s',
+            flexShrink: 0,
+            touchAction: 'manipulation',
           }}
-          onClick={() => alert('Notifications:\n• Airvix Engine is online\n• Webhook endpoints active\n• Connected account monitored')}
+          onClick={() =>
+            alert(
+              'Notifications:\n• Airvix Engine is online\n• Webhook endpoints active\n• Connected account monitored'
+            )
+          }
         >
           <Bell size={18} />
-          <span style={{
-            position: 'absolute',
-            top: '8px',
-            right: '8px',
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            background: '#ef4444',
-            border: '2px solid var(--bg-sidebar)',
-          }} />
+          <span
+            aria-label="Unread notifications"
+            style={{
+              position: 'absolute',
+              top: '8px',
+              right: '8px',
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: '#ef4444',
+              border: '2px solid var(--bg-sidebar)',
+            }}
+          />
         </button>
 
-        {/* Upgrade Pill Button */}
+        {/* Upgrade Pill Button — text hidden on small screens via CSS */}
         <button
           type="button"
           onClick={onOpenUpgrade}
@@ -317,17 +363,22 @@ export default function Topbar({
             fontWeight: 700,
             cursor: 'pointer',
             transition: 'transform 0.15s',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
           }}
+          aria-label="Upgrade your plan"
         >
           <Crown size={15} color="#d97706" />
-          <span>Upgrade</span>
+          <span className="topbar-upgrade-text">Upgrade</span>
         </button>
 
         {/* User Profile Dropdown */}
         <div style={{ position: 'relative' }}>
           <button
             type="button"
-            onClick={() => setShowUserMenu(!showUserMenu)}
+            onClick={() => { setShowUserMenu(!showUserMenu); setShowAccountMenu(false); }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -337,116 +388,101 @@ export default function Topbar({
               border: '1px solid var(--border-light)',
               background: 'var(--bg-sidebar)',
               cursor: 'pointer',
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent',
             }}
+            aria-label="User menu"
+            aria-expanded={showUserMenu}
+            aria-haspopup="true"
           >
-            {/* Avatar D */}
-            <div style={{
-              width: '34px',
-              height: '34px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 700,
-              fontSize: '14px',
-            }}>
+            {/* Avatar */}
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '14px',
+                flexShrink: 0,
+              }}
+            >
               {initial}
             </div>
 
-            <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+            {/* User name + plan — hidden on small screens via CSS class */}
+            <div className="topbar-user-meta" style={{ textAlign: 'left', lineHeight: 1.2 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--text-main)',
+                    maxWidth: '120px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {displayName}
                 </span>
-                <span style={{
-                  fontSize: '9px',
-                  fontWeight: 800,
-                  padding: '2px 6px',
-                  borderRadius: '6px',
-                  background: isPaid ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25))' : 'rgba(148, 163, 184, 0.15)',
-                  color: isPaid ? '#6366f1' : '#64748b',
-                  border: isPaid ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(148, 163, 184, 0.3)',
-                  letterSpacing: '0.4px'
-                }}>
+                <span
+                  style={{
+                    fontSize: '9px',
+                    fontWeight: 800,
+                    padding: '2px 6px',
+                    borderRadius: '6px',
+                    background: isPaid
+                      ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(168, 85, 247, 0.25))'
+                      : 'rgba(148, 163, 184, 0.15)',
+                    color: isPaid ? '#6366f1' : '#64748b',
+                    border: isPaid
+                      ? '1px solid rgba(99, 102, 241, 0.4)'
+                      : '1px solid rgba(148, 163, 184, 0.3)',
+                    letterSpacing: '0.4px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {badge}
                 </span>
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                {displayPlan}
-              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{displayPlan}</div>
             </div>
 
-            <ChevronDown size={14} color="var(--text-light)" />
+            <ChevronDown size={14} color="var(--text-light)" style={{ flexShrink: 0 }} />
           </button>
 
           {/* User Popover Menu */}
           {showUserMenu && (
-            <div style={{
-              position: 'absolute',
-              top: 'calc(100% + 6px)',
-              right: 0,
-              width: '180px',
-              background: 'var(--bg-sidebar)',
-              borderRadius: '12px',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-              border: '1px solid var(--border-light)',
-              padding: '6px',
-              zIndex: 100,
-            }}>
-              <button
-                type="button"
-                onClick={() => { setShowUserMenu(false); }}
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                onClick={() => setShowUserMenu(false)}
+                aria-hidden="true"
+              />
+              <div
                 style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '8px 12px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'var(--text-main)',
-                  fontSize: '13px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: '180px',
+                  background: 'var(--bg-sidebar)',
+                  borderRadius: '12px',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                  border: '1px solid var(--border-light)',
+                  padding: '6px',
+                  zIndex: 100,
                 }}
+                role="menu"
               >
-                <User size={15} />
-                <span>My Profile</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setShowUserMenu(false); onOpenUpgrade(); }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '8px 12px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'var(--text-main)',
-                  fontSize: '13px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-              >
-                <Crown size={15} color="#d97706" />
-                <span>Billing & Plans</span>
-              </button>
-
-              {(user?.role === 'admin' || user?.admin_role || user?.is_root) && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    if (onOpenAdmin) onOpenAdmin();
-                    else window.location.hash = '#admin';
-                  }}
+                  role="menuitem"
+                  onClick={() => { setShowUserMenu(false); }}
                   style={{
                     width: '100%',
                     display: 'flex',
@@ -455,43 +491,96 @@ export default function Topbar({
                     padding: '8px 12px',
                     border: 'none',
                     background: 'transparent',
-                    color: '#6366f1',
-                    fontWeight: 600,
+                    color: 'var(--text-main)',
                     fontSize: '13px',
                     borderRadius: '8px',
                     cursor: 'pointer',
                     textAlign: 'left',
                   }}
                 >
-                  <Shield size={15} color="#6366f1" />
-                  <span>Admin Control Center</span>
+                  <User size={15} />
+                  <span>My Profile</span>
                 </button>
-              )}
 
-              <div style={{ height: '1px', background: 'var(--border-light)', margin: '4px 0' }} />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setShowUserMenu(false); onOpenUpgrade(); }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 12px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-main)',
+                    fontSize: '13px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <Crown size={15} color="#d97706" />
+                  <span>Billing & Plans</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => { setShowUserMenu(false); onLogout(); }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '8px 12px',
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#ef4444',
-                  fontSize: '13px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-              >
-                <LogOut size={15} />
-                <span>Sign Out</span>
-              </button>
-            </div>
+                {(user?.role === 'admin' || user?.admin_role || user?.is_root) && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      if (onOpenAdmin) onOpenAdmin();
+                      else window.location.hash = '#admin';
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#6366f1',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <Shield size={15} color="#6366f1" />
+                    <span>Admin Control Center</span>
+                  </button>
+                )}
+
+                <div style={{ height: '1px', background: 'var(--border-light)', margin: '4px 0' }} />
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setShowUserMenu(false); onLogout(); }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 12px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#ef4444',
+                    fontSize: '13px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <LogOut size={15} />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </>
           )}
         </div>
       </div>

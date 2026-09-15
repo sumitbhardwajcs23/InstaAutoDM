@@ -361,6 +361,8 @@ async function createUserSession(user, req = {}, options = {}) {
     status: user.status,
     email_verified: user.email_verified || 0,
     token_type: tokenType,
+    created_at: user.created_at || null,
+    usage_period_start: user.usage_period_start || null,
   };
 
   return { token, user: userData, sessionId };

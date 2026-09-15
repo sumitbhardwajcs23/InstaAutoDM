@@ -24,6 +24,7 @@ export default function App() {
   const [user, setUser] = useState(getCurrentUser());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Determine admin access dynamically from database role & permissions
   const checkIsAdmin = (u) => Boolean(u?.role === 'admin' || u?.admin_role || u?.is_root);
@@ -453,18 +454,21 @@ export default function App() {
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         unreadCount={conversations.length}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
-      {/* Main Content Pane */}
+      {/* Main Content Pane — CSS controls margin-left, media queries remove it on mobile */}
       <div
         className="main-viewport"
         style={{
-          marginLeft: 'var(--sidebar-width)',
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,
           background: 'var(--bg-body)',
+          marginLeft: 'var(--sidebar-width)',
+          transition: 'margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
         {/* Topbar */}
@@ -479,6 +483,7 @@ export default function App() {
           onOpenAdmin={() => handleNavigate('admin')}
           onLogout={handleLogout}
           onSearch={(q) => console.log('Searching for:', q)}
+          onMenuToggle={() => setSidebarOpen((prev) => !prev)}
         />
 
         {/* Global OAuth / Alert Toast Banner */}

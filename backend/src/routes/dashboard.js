@@ -86,10 +86,10 @@ router.get('/stats', async (req, res) => {
         try {
           const pool = db.getPgPool ? db.getPgPool() : null;
           if (pool) {
-            const uRes = await pool.query('SELECT id, email, name, plan, subscription_status, custom_dm_limit, custom_daily_limit FROM users WHERE id = $1', [userId]);
+            const uRes = await pool.query('SELECT id, email, name, plan, subscription_status, custom_dm_limit, custom_daily_limit, created_at, usage_period_start FROM users WHERE id = $1', [userId]);
             user = uRes.rows[0];
           } else {
-            user = await db.prepare('SELECT id, email, name, plan, subscription_status, custom_dm_limit, custom_daily_limit FROM users WHERE id = ?').get(userId);
+            user = await db.prepare('SELECT id, email, name, plan, subscription_status, custom_dm_limit, custom_daily_limit, created_at, usage_period_start FROM users WHERE id = ?').get(userId);
           }
         } catch (_) {}
 

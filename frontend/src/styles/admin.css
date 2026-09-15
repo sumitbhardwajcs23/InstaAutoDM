@@ -2903,5 +2903,219 @@
   align-items: center !important;
   gap: 8px !important;
 }
+/* =========================================================================
+   AIRVIX ADMIN PANEL — COMPREHENSIVE RESPONSIVE SYSTEM
+   ========================================================================= */
 
+/* Admin Mobile Hamburger Button */
+.admin-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  touch-action: manipulation;
+  flex-shrink: 0;
+}
 
+.admin-sidebar-close-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.admin-sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 99;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.admin-sidebar-overlay.active {
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.admin-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+
+/* ── Tablet / Small Laptop Breakpoint: 1024px ── */
+@media (max-width: 1024px) {
+  .admin-hamburger {
+    display: flex !important;
+  }
+
+  .admin-sidebar-close-btn {
+    display: flex !important;
+  }
+
+  .admin-layout-wrapper {
+    position: relative;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .admin-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    height: 100% !important;
+    width: 270px !important;
+    z-index: 100 !important;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: none;
+  }
+
+  .admin-sidebar.open {
+    transform: translateX(0) !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25) !important;
+  }
+
+  .admin-main-container {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .admin-top-header {
+    padding: 12px 16px !important;
+    gap: 12px !important;
+  }
+}
+
+/* ── Standard Tablet Breakpoint: 768px ── */
+@media (max-width: 768px) {
+  .admin-stats-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .admin-growth-health-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .admin-top-actions-right {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .admin-content-pane {
+    padding: 14px !important;
+  }
+
+  .admin-card {
+    padding: 14px !important;
+  }
+
+  .admin-card-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  .admin-table {
+    min-width: 600px !important;
+  }
+
+  .admin-modal-overlay {
+    padding: 12px !important;
+    align-items: center !important;
+  }
+
+  .admin-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 90dvh !important;
+    overflow-y: auto !important;
+    border-radius: 12px !important;
+  }
+
+  .admin-profile-pill {
+    padding: 4px 8px !important;
+  }
+
+  .admin-profile-name {
+    display: none !important;
+  }
+}
+
+/* ── Mobile Breakpoint: 480px ── */
+@media (max-width: 480px) {
+  .admin-stats-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-header-page-title {
+    font-size: 17px !important;
+  }
+
+  .admin-content-pane {
+    padding: 10px !important;
+  }
+
+  .admin-stat-card {
+    padding: 12px !important;
+  }
+
+  .admin-segmented-controls {
+    overflow-x: auto !important;
+    max-width: 100% !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-date-picker-btn span {
+    display: none;
+  }
+
+  .admin-modal {
+    max-height: 95dvh !important;
+    padding: 14px !important;
+  }
+}
+
+/* ── Small Mobile Breakpoint: 360px ── */
+@media (max-width: 360px) {
+  .admin-content-pane {
+    padding: 6px !important;
+  }
+
+  .admin-card {
+    padding: 10px !important;
+  }
+
+  .admin-top-header {
+    padding: 8px 10px !important;
+  }
+}

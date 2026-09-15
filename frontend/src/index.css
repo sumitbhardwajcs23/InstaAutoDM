@@ -48,6 +48,12 @@
   
   --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
   --shadow-hover: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+
+  /* iOS / Mobile Safe Area Insets */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
 }
 
 [data-theme="dark"] {
@@ -96,7 +102,14 @@ html, body {
   z-index: 50;
   overflow-y: auto;
   overflow-x: hidden;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Close button inside sidebar — hidden on desktop, shown on mobile */
+.sidebar-close-btn {
+  display: none !important;
+}
+
 
 .sidebar-logo {
   padding: 22px 20px 18px;
@@ -1618,15 +1631,569 @@ html, body {
   background: var(--bg-hover);
 }
 
-/* Responsive */
-@media (max-width: 1200px) {
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
-  .middle-row { grid-template-columns: 1fr; }
-  .bottom-row { grid-template-columns: 1fr; }
+/* ================= MOBILE SIDEBAR DRAWER ================= */
+
+/* Overlay backdrop when sidebar is open on mobile */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  z-index: 49;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
-@media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); }
-  .main-wrapper { margin-left: 0; width: 100%; max-width: 100%; }
-  .stats-row { grid-template-columns: 1fr; }
+/* Hamburger / mobile menu toggle button */
+.hamburger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-sidebar);
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
+
+.hamburger-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.hamburger-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Topbar responsive classes */
+.topbar-search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 380px;
+  min-width: 0;
+}
+
+.topbar-search-input {
+  width: 100%;
+  padding: 10px 65px 10px 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  font-size: 13px;
+  color: var(--text-main);
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.topbar-search-input:focus {
+  border-color: var(--primary);
+  background: var(--bg-card);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.topbar-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-light);
+  pointer-events: none;
+}
+
+.topbar-search-kbd {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-light);
+  background: var(--bg-sidebar);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.topbar-right-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* ================= TABLE SCROLL WRAPPER ================= */
+.table-scroll-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+}
+
+.table-scroll-wrapper::-webkit-scrollbar {
+  height: 4px;
+}
+
+.table-scroll-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+
+/* ================= TOAST MOBILE ================= */
+.toast {
+  max-width: min(360px, calc(100vw - 32px));
+}
+
+/* ================= MODAL SAFE HEIGHT ================= */
+.modal-overlay {
+  padding: env(safe-area-inset-top, 16px) env(safe-area-inset-right, 16px)
+    env(safe-area-inset-bottom, 16px) env(safe-area-inset-left, 16px);
+  padding: max(16px, env(safe-area-inset-top, 16px))
+    max(16px, env(safe-area-inset-right, 16px))
+    max(16px, env(safe-area-inset-bottom, 16px))
+    max(16px, env(safe-area-inset-left, 16px));
+}
+
+.modal {
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+
+/* ================= FOCUS VISIBLE ================= */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ================= TOUCH TARGETS ================= */
+.notif-btn,
+.modal-close,
+.action-dots-btn,
+.hamburger-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ================= REDUCED MOTION ================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ================= SAFE AREA INSETS ================= */
+.topbar {
+  padding-top: env(safe-area-inset-top, 0);
+  padding-left: max(28px, calc(28px + env(safe-area-inset-left, 0px)));
+  padding-right: max(28px, calc(28px + env(safe-area-inset-right, 0px)));
+}
+
+.sidebar {
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.toast-container {
+  bottom: max(24px, calc(24px + env(safe-area-inset-bottom, 0px)));
+  right: max(24px, calc(24px + env(safe-area-inset-right, 0px)));
+}
+
+/* ================= LONG TEXT PROTECTION ================= */
+.account-username,
+.trigger-title-bold,
+.conv-user-handle,
+.reply-preview-cell {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.kpi-data-block .number {
+  font-size: clamp(22px, 4vw, 30px);
+}
+
+.page-title {
+  font-size: clamp(18px, 4vw, 24px);
+}
+
+/* ================= RESPONSIVE BREAKPOINTS ================= */
+
+/* ── 1280px: slight sidebar-aware adjustments ── */
+@media (max-width: 1280px) {
+  .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── 1100px: 3-col → 2-col for mid-laptop ── */
+@media (max-width: 1100px) {
+  .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .middle-row {
+    grid-template-columns: 1fr;
+  }
+
+  .bottom-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── 1024px: tablet-landscape territory ── */
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 210px;
+  }
+
+  .page-content {
+    padding: 20px 20px 32px;
+  }
+
+  .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .topbar {
+    padding: 0 20px;
+    padding-left: max(20px, calc(20px + env(safe-area-inset-left, 0px)));
+    padding-right: max(20px, calc(20px + env(safe-area-inset-right, 0px)));
+  }
+}
+
+/* ── 900px: show hamburger, start hiding topbar elements ── */
+@media (max-width: 900px) {
+  /* Show hamburger button */
+  .hamburger-btn {
+    display: flex;
+  }
+
+  /* Sidebar becomes drawer */
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 200;
+    box-shadow: none;
+    width: min(280px, 80vw);
+  }
+
+  .sidebar.sidebar-is-open {
+    transform: translateX(0);
+    box-shadow: 0 0 0 100vmax rgba(15, 23, 42, 0.4);
+  }
+
+  /* Show overlay when sidebar is open */
+  .sidebar-overlay.active {
+    display: block;
+  }
+
+  /* Show close button inside sidebar on mobile */
+  .sidebar-close-btn {
+    display: flex !important;
+  }
+
+  /* Main content takes full width */
+  .main-wrapper,
+  .main-viewport {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .topbar-search-wrap {
+    display: none;
+  }
+
+  .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .page-content {
+    padding: 16px 16px 28px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .header-controls {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}
+
+/* ── 768px: tablet-portrait ── */
+@media (max-width: 768px) {
+  .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .topbar {
+    padding: 0 16px;
+    padding-left: max(16px, calc(16px + env(safe-area-inset-left, 0px)));
+    padding-right: max(16px, calc(16px + env(safe-area-inset-right, 0px)));
+  }
+
+  .topbar-right-controls {
+    gap: 8px;
+  }
+
+  /* Hide upgrade button text, show icon-only */
+  .topbar-upgrade-text {
+    display: none;
+  }
+
+  /* Hide user meta on small topbar */
+  .topbar-user-meta {
+    display: none;
+  }
+
+  .section-card {
+    padding: 16px;
+  }
+
+  .stat-card {
+    padding: 14px 16px;
+    min-height: 120px;
+  }
+}
+
+/* ── 640px: large phone / small tablet ── */
+@media (max-width: 640px) {
+  .stats-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .page-content {
+    padding: 12px 12px 24px;
+  }
+
+  .page-footer-bar {
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px 12px;
+    text-align: center;
+  }
+
+  .footer-links {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* Tables become horizontally scrollable on small screens */
+  .full-table,
+  .rules-table-clean {
+    min-width: 540px;
+  }
+
+  /* Modal bottom-sheet pattern on small phones */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal {
+    border-radius: 20px 20px 0 0;
+    max-width: 100%;
+    max-height: 90vh;
+    max-height: 90dvh;
+    margin: 0;
+  }
+
+  .quick-actions-2x2 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .action-tile {
+    padding: 12px 10px;
+  }
+}
+
+/* ── 480px: most phones in portrait ── */
+@media (max-width: 480px) {
+  :root {
+    --radius-lg: 12px;
+    --radius-md: 8px;
+  }
+
+  .topbar {
+    height: 56px;
+  }
+
+  .page-content {
+    padding: 10px 10px 20px;
+  }
+
+  .section-card {
+    padding: 14px 12px;
+  }
+
+  .stat-card {
+    padding: 12px 14px;
+    min-height: 110px;
+  }
+
+  .kpi-split-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .donut-chart-wrap {
+    display: none;
+  }
+
+  .card-header-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .quick-actions-2x2 {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-header {
+    padding: 14px 16px;
+  }
+
+  .modal-body {
+    padding: 16px;
+  }
+
+  .modal-footer {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .modal-footer .btn-primary,
+  .modal-footer .btn-secondary {
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .page-title {
+    font-size: clamp(16px, 5vw, 22px);
+  }
+
+  .usage-sub-meta {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+/* ── 390px: iPhone 14 / standard small phone ── */
+@media (max-width: 390px) {
+  .page-content {
+    padding: 8px 8px 16px;
+  }
+
+  .topbar-right-controls {
+    gap: 6px;
+  }
+
+  .stat-card {
+    padding: 10px 12px;
+  }
+}
+
+/* ── 360px: smallest common Android ── */
+@media (max-width: 360px) {
+  .page-content {
+    padding: 6px 6px 12px;
+  }
+
+  .section-card {
+    padding: 10px;
+  }
+}
+
+/* ── Large desktop: 1600px+ ── */
+@media (min-width: 1600px) {
+  :root {
+    --sidebar-width: 240px;
+  }
+
+  .page-content {
+    padding: 28px 36px 48px;
+  }
+}
+
+/* ─── Landscape phone overrides ─── */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+  .sidebar {
+    width: min(240px, 70vw);
+  }
+
+  .modal {
+    max-height: 95dvh;
+    border-radius: 12px;
+  }
+
+  .modal-overlay {
+    align-items: center;
+    padding: 8px;
+  }
+}
+
+/* ─── Safe Area Support for Notched / Home Indicator Devices ─── */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .topbar {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .sidebar {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .page-content {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+}
+

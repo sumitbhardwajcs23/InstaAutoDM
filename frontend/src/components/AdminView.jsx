@@ -62,7 +62,8 @@ import {
   Percent,
   CheckCircle,
   RefreshCcw,
-  Instagram
+  Instagram,
+  Menu
 } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import LandingPageEditor from './LandingPageEditor';
@@ -274,6 +275,7 @@ export default function AdminView({ user, onBackToApp }) {
 
   // Navigation Tabs: 'overview' | 'users' | 'workspaces' | 'plans' | 'landing_cms' | 'integrations' | 'safeguards' | 'analytics' | 'support' | 'security' | 'audit' | 'status' | 'subadmins'
   const [activeTab, setActiveTab] = useState(getDefaultTab);
+  const [adminSidebarOpen, setAdminSidebarOpen] = useState(false);
 
   // Auto-switch to authorized tab if activeTab becomes invalid or is unauthorized
   useEffect(() => {
@@ -1637,18 +1639,34 @@ export default function AdminView({ user, onBackToApp }) {
         </div>
       )}
 
+      {/* Mobile Drawer Overlay */}
+      <div
+        className={`admin-sidebar-overlay ${adminSidebarOpen ? 'active' : ''}`}
+        onClick={() => setAdminSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
       {/* =========================================================================
           AIRVIX LEFT SIDEBAR
       ========================================================================= */}
-      <aside className="admin-sidebar">
+      <aside className={`admin-sidebar ${adminSidebarOpen ? 'open' : ''}`}>
         {/* Header Brand */}
-        <div className="admin-sidebar-header">
+        <div className="admin-sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <a href="#admin" className="admin-sidebar-logo-brand">
             <div className="admin-airvix-icon">
               <Send size={18} />
             </div>
             <h1 className="admin-airvix-title">Airvix</h1>
           </a>
+
+          <button
+            type="button"
+            className="admin-sidebar-close-btn"
+            onClick={() => setAdminSidebarOpen(false)}
+            aria-label="Close navigation"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Navigation Items */}
@@ -1834,7 +1852,15 @@ export default function AdminView({ user, onBackToApp }) {
         {/* Top Header Navbar */}
         <header className="admin-top-header">
           {/* Active View Page Title */}
-          <div className="admin-header-title-wrap">
+          <div className="admin-header-title-wrap" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button
+              type="button"
+              className="admin-hamburger"
+              onClick={() => setAdminSidebarOpen(prev => !prev)}
+              aria-label="Toggle admin navigation"
+            >
+              <Menu size={20} />
+            </button>
             <h1 className="admin-header-page-title">
               {activeTab === 'overview' && 'Overview (Dashboard)'}
               {activeTab === 'users' && 'Users'}
