@@ -296,7 +296,6 @@ class QuotaService {
       client.release();
     }
   }
-  }
 
   /**
    * Legacy fallback: getAuthoritativeUsage for non-pool (SQLite/fallback) environments.
