@@ -91,6 +91,7 @@ export default function DashboardView({
   const commentsRepliedCount = stats?.commentsRepliedCount ?? 0;
   const totalRepliesUsed = stats?.totalRepliesUsed ?? (dmsSent + commentsRepliedCount);
   const monthlyLimit = stats?.monthlyLimit ?? stats?.dmsLimit ?? 1000;
+  const dmsLimit = monthlyLimit;
   const dailyLimit = stats?.dailyLimit || user?.daily_limit || (monthlyLimit === -1 ? -1 : Math.ceil(monthlyLimit / 30));
   const dailyRepliesUsed = stats?.dailyRepliesUsed ?? stats?.usedToday ?? 0;
   const dailyRemaining = stats?.dailyRemaining ?? stats?.remainingToday ?? (dailyLimit === -1 ? 999999 : Math.max(0, dailyLimit - dailyRepliesUsed));
@@ -1439,7 +1440,7 @@ export default function DashboardView({
               Plan Usage
             </h2>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px', marginBottom: '16px' }}>
-              Free Plan limits
+              {(user?.plan || stats?.plan || 'Starter').toUpperCase()} Plan limits (Combined Replies)
             </p>
 
             {/* Progress Bar */}
@@ -1461,10 +1462,10 @@ export default function DashboardView({
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
               <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-                {dmsSent} / {dmsLimit} DMs
+                {monthlyLimit === -1 ? `${totalRepliesUsed.toLocaleString()} Replies / Unlimited` : `${totalRepliesUsed.toLocaleString()} / ${monthlyLimit.toLocaleString()} Replies`}
               </span>
               <span style={{ color: 'var(--text-muted)' }}>
-                {dmsLimit - dmsSent} remaining
+                {monthlyLimit === -1 ? 'Unlimited' : `${monthlyRemaining.toLocaleString()} remaining`}
               </span>
             </div>
 
