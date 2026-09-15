@@ -16,6 +16,18 @@ class AccountHealthService {
     this.memoryModes = new Map();
     this.recalcDebounceTimers = new Map();
     this.DEBOUNCE_MS = 500;
+
+    // Aggregated batch metrics for successful sends (avoids per-send PostgreSQL state UPDATEs)
+    this.pendingSuccessCounts = new Map(); // accountId -> number
+    this.activeFlushPromises = new Map();  // accountId -> Promise
+    this.FLUSH_INTERVAL_MS = 30000;       // Periodic flush every 30 seconds
+    this.FLUSH_BATCH_THRESHOLD = 100;     // Buffer up to 100 sends in memory before threshold batch flush
+    this.flushTimer = setInterval(() => {
+      this.flushPendingMetrics().catch(err => {
+        logger.error('[AccountHealth] Periodic metrics flush error:', err.message);
+      });
+    }, this.FLUSH_INTERVAL_MS);
+    if (this.flushTimer.unref) this.flushTimer.unref();
   }
 
   /**
@@ -63,9 +75,10 @@ class AccountHealthService {
 
   /**
    * Records a normal successful send.
-   * KEY ARCHITECTURAL CORRECTION (Rule 4):
-   * Does NOT insert individual PostgreSQL rows for normal successes to prevent write amplification.
-   * Increments fast sliding counters in Redis/Memory and updates rolling 24h totals.
+   * ZERO WRITE AMPLIFICATION GUARANTEE:
+   * Normal successful sends do NOT perform an individual PostgreSQL UPDATE per send.
+   * Increments fast sliding counters in Redis/Memory and buffers pending counts in-memory.
+   * Aggregated metrics are flushed periodically or upon batch threshold.
    */
   async recordSuccess(accountId, userId = null, subscriptionId = null) {
     if (!accountId) return;
@@ -80,34 +93,74 @@ class AccountHealthService {
       this.memorySuccessCounters.set(accountId, current + 1);
     }
 
-    // Reset consecutive failures on success
-    try {
-      const pool = db.getPgPool();
-      if (pool) {
-        await pool.query(`
-          UPDATE instagram_account_health_state
-          SET consecutive_failures = 0,
-              rolling_24h_successes = rolling_24h_successes + 1,
-              updated_at = NOW()
-          WHERE instagram_account_id = $1
-        `, [accountId]);
-      } else {
-        await db.prepare(`
-          UPDATE instagram_account_health_state
-          SET consecutive_failures = 0,
-              rolling_24h_successes = rolling_24h_successes + 1,
-              updated_at = datetime('now')
-          WHERE instagram_account_id = ?
-        `).run(accountId);
-      }
-    } catch (e) {
-      // Non-blocking
+    // Buffer in memory — ZERO PostgreSQL UPDATE on individual send
+    const pending = (this.pendingSuccessCounts.get(accountId) || 0) + 1;
+    this.pendingSuccessCounts.set(accountId, pending);
+
+    // Flush asynchronously if accumulated batch threshold is reached
+    if (pending >= this.FLUSH_BATCH_THRESHOLD) {
+      this.flushAccountSuccessMetrics(accountId).catch(() => {});
     }
 
     // Schedule debounced recalculation if account is currently in CAUTION or PROTECTION to evaluate sustained recovery
     const currentMode = this.memoryModes.get(accountId) || 'NORMAL';
     if (currentMode !== 'NORMAL') {
       this.scheduleRecalculation(accountId);
+    }
+  }
+
+  /**
+   * Flushes aggregated success counts for a specific account to PostgreSQL in a single batch query.
+   */
+  async flushAccountSuccessMetrics(accountId) {
+    if (!accountId) return;
+    if (this.activeFlushPromises.has(accountId)) {
+      await this.activeFlushPromises.get(accountId);
+    }
+    const count = this.pendingSuccessCounts.get(accountId) || 0;
+    if (count <= 0) return;
+    this.pendingSuccessCounts.set(accountId, 0);
+
+    const flushPromise = (async () => {
+      try {
+        const pool = db.getPgPool();
+        if (pool) {
+          await pool.query(`
+            UPDATE instagram_account_health_state
+            SET consecutive_failures = 0,
+                rolling_24h_successes = rolling_24h_successes + $2,
+                updated_at = NOW()
+            WHERE instagram_account_id = $1
+          `, [accountId, count]);
+        } else {
+          await db.prepare(`
+            UPDATE instagram_account_health_state
+            SET consecutive_failures = 0,
+                rolling_24h_successes = rolling_24h_successes + ?,
+                updated_at = datetime('now')
+            WHERE instagram_account_id = ?
+          `).run(count, accountId);
+        }
+      } catch (e) {
+        // Re-add to pending on error to ensure metric durability
+        const current = this.pendingSuccessCounts.get(accountId) || 0;
+        this.pendingSuccessCounts.set(accountId, current + count);
+      } finally {
+        this.activeFlushPromises.delete(accountId);
+      }
+    })();
+
+    this.activeFlushPromises.set(accountId, flushPromise);
+    await flushPromise;
+  }
+
+  /**
+   * Periodically flushes all pending success counters across all accounts.
+   */
+  async flushPendingMetrics() {
+    const accountIds = Array.from(this.pendingSuccessCounts.keys());
+    for (const accId of accountIds) {
+      await this.flushAccountSuccessMetrics(accId);
     }
   }
 
@@ -227,6 +280,7 @@ class AccountHealthService {
    */
   async calculateHealthScore(accountId) {
     if (!accountId) return null;
+    await this.flushAccountSuccessMetrics(accountId);
     const pool = db.getPgPool();
     const now = Date.now();
 
@@ -617,7 +671,18 @@ class AccountHealthService {
     });
 
     if (pool) {
-      await pool.query(`
+      const execWithRetry = async (sql, params) => {
+        try {
+          return await pool.query(sql, params);
+        } catch (err) {
+          if (err.message && (err.message.includes('Connection terminated') || err.message.includes('closed') || err.message.includes('ECONNRESET'))) {
+            return await pool.query(sql, params);
+          }
+          throw err;
+        }
+      };
+
+      await execWithRetry(`
         UPDATE instagram_account_health_state SET
           automation_mode = $1,
           health_status = $2,
@@ -627,7 +692,7 @@ class AccountHealthService {
         WHERE instagram_account_id = $4
       `, [targetMode, targetStatus, targetScore, accountId]);
 
-      await pool.query(`
+      await execWithRetry(`
         INSERT INTO instagram_account_health_events (
           id, instagram_account_id, user_id, event_type, severity, source, metadata, occurred_at, created_at
         ) VALUES ($1, $2, $3, 'CONTROLLED_RECOVERY_STEP', 'info', 'manual_action', $4::jsonb, NOW(), NOW())
@@ -764,10 +829,42 @@ class AccountHealthService {
   }
 
   /**
+   * Initializes baseline health state row for a newly connected account.
+   */
+  async initializeAccountState(accountId) {
+    if (!accountId) return;
+    try {
+      const pool = db.getPgPool();
+      if (pool) {
+        await pool.query(`
+          INSERT INTO instagram_account_health_state (
+            instagram_account_id, health_score, health_status, automation_mode, observed_risk_level,
+            consecutive_failures, rolling_24h_successes, rolling_24h_failures, observed_rate_limit_count,
+            recent_error_rate, score_reasons, last_calculated_at, updated_at
+          ) VALUES ($1, 100, 'HEALTHY', 'NORMAL', 'low', 0, 0, 0, 0, 0.00, '["Initial baseline health state created"]'::jsonb, NOW(), NOW())
+          ON CONFLICT (instagram_account_id) DO NOTHING
+        `, [accountId]);
+      } else {
+        await db.prepare(`
+          INSERT INTO instagram_account_health_state (
+            instagram_account_id, health_score, health_status, automation_mode, observed_risk_level,
+            consecutive_failures, rolling_24h_successes, rolling_24h_failures, observed_rate_limit_count,
+            recent_error_rate, score_reasons, last_calculated_at, updated_at
+          ) VALUES (?, 100, 'HEALTHY', 'NORMAL', 'low', 0, 0, 0, 0, 0.00, ?, datetime('now'), datetime('now'))
+        `).run(accountId, JSON.stringify(['Initial baseline health state created']));
+      }
+      this.memoryModes.set(accountId, 'NORMAL');
+    } catch (err) {
+      logger.error(`[AccountHealth] Failed to initialize account state for ${accountId}:`, err.message);
+    }
+  }
+
+  /**
    * Retrieves single account health state + explainable reasons.
    */
   async getAccountHealth(accountId) {
     if (!accountId) return null;
+    await this.flushAccountSuccessMetrics(accountId);
     const pool = db.getPgPool();
     try {
       let state = null;

@@ -121,7 +121,7 @@ flowchart TD
 ### 3.4 Data Lifecycle & Privacy Governance
 - **`backend/src/services/dataRetention.js`**: Runs scheduled daily TTL cleanup jobs to purge expired webhooks, resolved DLQ entries, and error traces.
   - **GDPR Article 20**: Exports portable JSON representation of user data with token redaction.
-  - **GDPR Article 17**: Executes cascading erasure of all tenant data with an immutable confirmation code.
+  - **GDPR Article 17-compatible data erasure behavior**: Executes cascading erasure of all tenant data with an immutable confirmation code.
 - **`backend/src/scripts/backupDb.js` / `restoreDb.js`**: AES-256-GCM encrypted database dumps with PBKDF2 key derivation and tamper verification.
 
 ---

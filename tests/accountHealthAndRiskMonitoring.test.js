@@ -71,10 +71,11 @@ async function runTests() {
   async function createSyntheticAccount(accId, userId, username, igUserId) {
     syntheticAccounts.push(accId);
     const now = new Date().toISOString();
+    const uniqueIgUserId = `${igUserId || 'ig_uid'}_${uuidv4().slice(0, 8)}`;
     await db.prepare(`
       INSERT INTO instagram_accounts (id, user_id, username, ig_user_id, page_id, access_token_enc, status, created_at, updated_at)
       VALUES (?, ?, ?, ?, 'page_test_123', 'dummy_enc_token', 'connected', ?, ?)
-    `).run(accId, userId, username, igUserId, now, now);
+    `).run(accId, userId, username, uniqueIgUserId, now, now);
 
     await accountHealthService.initializeAccountState(accId);
     return accId;
@@ -156,20 +157,28 @@ async function runTests() {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // TEST 3: Zero Write Amplification on Successful Sends
+    // TEST 3: Zero Write Amplification & Aggregated Flushing
     // ─────────────────────────────────────────────────────────────────────────
-    await test('3. Zero Write Amplification: 50 successful sends increment metrics with ZERO event rows inserted', async () => {
+    await test('3. Zero Write Amplification: sends buffer in memory with zero per-send DB write and zero event rows', async () => {
       const initialEvents = await accountHealthService.getAccountHealthEvents(testAccountId1, 100);
       const initialEventCount = initialEvents.length;
 
-      // Simulate 50 successful sends
-      for (let i = 0; i < 50; i++) {
+      // 1. Simulate 10 successful sends - verify they are buffered in memory without immediate per-send DB flush
+      for (let i = 0; i < 10; i++) {
+        await accountHealthService.recordSuccess(testAccountId1, testUserId1, 'sub_test_1');
+      }
+      assert.strictEqual(accountHealthService.pendingSuccessCounts.get(testAccountId1), 10, 'Sends 1-10 must buffer in memory without per-send DB write');
+
+      // 2. Simulate remaining 40 successful sends (total 50)
+      for (let i = 0; i < 40; i++) {
         await accountHealthService.recordSuccess(testAccountId1, testUserId1, 'sub_test_1');
       }
 
+      // Reading health state flushes the aggregated batch to DB
       const postHealth = await accountHealthService.getAccountHealth(testAccountId1);
       assert.strictEqual(postHealth.rolling_24h_successes, 50, 'Rolling 24h successes should be 50');
       assert.strictEqual(postHealth.consecutive_failures, 0, 'Consecutive failures should be 0');
+      assert.strictEqual(accountHealthService.pendingSuccessCounts.get(testAccountId1), 0, 'Pending counts must be flushed');
 
       const postEvents = await accountHealthService.getAccountHealthEvents(testAccountId1, 100);
       assert.strictEqual(postEvents.length, initialEventCount, 'Zero durable rows should be inserted for normal successful sends');
@@ -370,7 +379,7 @@ async function runTests() {
     // ─────────────────────────────────────────────────────────────────────────
     // TEST 9: Queue Traffic Pacing, Paused Job Holding & Idempotency
     // ─────────────────────────────────────────────────────────────────────────
-    await test('9. Queue Behavior: PAUSED mode safely holds and reschedules job without dropping or duplicate dispatch', async () => {
+    await test('9. Queue Behavior: PAUSED mode safely holds and reschedules job with zero quota churn and no duplicate dispatch', async () => {
       // Force Account 1 into PAUSED mode
       await accountHealthService.adminOverrideMode({
         accountId: testAccountId1,
@@ -386,6 +395,9 @@ async function runTests() {
       assert.strictEqual(throttleCheck.reason, 'account_health_paused');
       assert.strictEqual(throttleCheck.waitMs, HEALTH_CONFIG.PACING_DELAYS.PAUSED_CHECK_INTERVAL_MS || 30000);
 
+      // Baseline quota usage before job enqueue
+      const quotaBefore = await quotaService.getAuthoritativeUsage(testUserId1);
+
       // Create a candidate job for this account
       const mockEvent = {
         type: 'comment',
@@ -398,15 +410,27 @@ async function runTests() {
       assert.ok(job, 'Job should be enqueued');
       const originalScheduledAt = job.scheduledAt;
 
-      // When processNext encounters this candidate, it will update scheduledAt and keep it in queue
+      // When processNext encounters this candidate over multiple worker cycles:
+      // It must reschedule candidate forward WITHOUT invoking executeJob, WITHOUT creating/rolling back quota reservations
       const initialQueueLen = queue.queue.length;
-      await queue.processNext();
+      for (let cycle = 0; cycle < 3; cycle++) {
+        await queue.processNext();
+      }
 
       // Verify job was NOT dropped from queue
       assert.strictEqual(queue.queue.length, initialQueueLen, 'Job must NOT be spliced or dropped when throttled');
       const queuedJob = queue.queue.find(j => j.id === job.id);
       assert.ok(queuedJob, 'Job must still exist in memory queue');
       assert.ok(queuedJob.scheduledAt > originalScheduledAt, 'scheduledAt must be pushed forward by wait interval');
+
+      // Verify ZERO quota reservation or rollback churn occurred during hold
+      const quotaAfter = await quotaService.getAuthoritativeUsage(testUserId1);
+      assert.strictEqual(quotaAfter.committed_usage, quotaBefore.committed_usage, 'Held job must not commit quota');
+      assert.strictEqual(quotaAfter.pending_reservations, quotaBefore.pending_reservations, 'Held job must not leave pending reservations');
+
+      // Verify Idempotency: Attempting to enqueue duplicate event must be discarded
+      const dupJob = queue.enqueue(mockEvent);
+      assert.strictEqual(dupJob, null, 'Duplicate event must be ignored by idempotency key');
 
       // Clean up queue
       queue.queue = queue.queue.filter(j => j.id !== job.id);
@@ -442,9 +466,9 @@ async function runTests() {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // TEST 11: GDPR Erasure and Retention Policy Compatibility
+    // TEST 11: GDPR Article 17-Compatible Data Erasure Behavior
     // ─────────────────────────────────────────────────────────────────────────
-    await test('11. GDPR Compatibility: user erasure anonymizes health events metadata without cascade failure', async () => {
+    await test('11. GDPR Article 17-compatible data erasure behavior: user erasure anonymizes health events metadata without cascade failure', async () => {
       // Create a temporary user with health events
       const gdprUserId = `u_gdpr_${uuidv4().slice(0, 8)}`;
       const gdprAccId = `ig_gdpr_${uuidv4().slice(0, 8)}`;

@@ -40,12 +40,17 @@ class EventQueueWorker {
   }
 
   getIdempotencyKey(event) {
-    const { type, data } = event || {};
-    if (type === 'comments' && data?.commentId) {
-      return `comm_${data.commentId}`;
+    if (event?.idempotencyKey) {
+      return event.idempotencyKey;
     }
-    if (type === 'messages' && data?.messageId) {
-      return `msg_${data.messageId}`;
+    const { type, data } = event || {};
+    const commentId = data?.commentId || event?.commentId;
+    if ((type === 'comments' || type === 'comment') && commentId) {
+      return `comm_${commentId}`;
+    }
+    const messageId = data?.messageId || event?.messageId;
+    if ((type === 'messages' || type === 'message') && messageId) {
+      return `msg_${messageId}`;
     }
     return `evt_${uuidv4()}`;
   }
