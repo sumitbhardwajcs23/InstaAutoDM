@@ -136,12 +136,13 @@ export default function DashboardView({
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const dateRangeLabel = `${startOfMonth} – ${endOfMonth}`;
 
-  // Dynamic token validity text
+  // Dynamic Meta OAuth token validity (Meta Graph API standard is 60-day token lifetime)
   let tokenValidityText = 'Active (60d)';
+  let tokenDaysLeft = 60;
   if (account?.token_expires_at) {
     const msLeft = new Date(account.token_expires_at).getTime() - Date.now();
-    const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-    tokenValidityText = daysLeft > 0 ? `${daysLeft} days left` : 'Expired';
+    tokenDaysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+    tokenValidityText = tokenDaysLeft > 0 ? `${tokenDaysLeft} days left` : 'Expired';
   }
 
   // Dynamic last sync text
@@ -519,7 +520,7 @@ export default function DashboardView({
               </span>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '6px' }}>
-              Resets in {daysUntilReset} days
+              1-Month Plan • Resets in {daysUntilReset} {daysUntilReset === 1 ? 'day' : 'days'} ({resetDateStr})
             </div>
           </div>
 
@@ -1167,16 +1168,41 @@ export default function DashboardView({
                 <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#059669' }}>Active</span>
               </div>
 
-              {/* Item 2 */}
+              {/* Item 2: Plan Validity (Monthly 30-day cycle) */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Calendar size={15} color="#6366f1" />
+                  <div>
+                    <span style={{ fontSize: '12.5px', color: 'var(--text-main)', display: 'block', lineHeight: 1.2 }}>Plan Validity</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>1-Month cycle (30 days)</span>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-main)' }}>
+                    {daysUntilReset} {daysUntilReset === 1 ? 'day' : 'days'} left
+                  </span>
+                  <span style={{ display: 'block', fontSize: '10px', color: '#6366f1' }}>Resets {resetDateStr}</span>
+                </div>
+              </div>
+
+              {/* Item 3: Meta API Token Validity (60-day Meta OAuth Token) */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Clock size={15} color="#10b981" />
-                  <span style={{ fontSize: '12.5px', color: 'var(--text-main)' }}>Token Validity</span>
+                  <div>
+                    <span style={{ fontSize: '12.5px', color: 'var(--text-main)', display: 'block', lineHeight: 1.2 }}>Meta API Token</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Instagram OAuth (60d cycle)</span>
+                  </div>
                 </div>
-                <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{tokenValidityText}</span>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: tokenDaysLeft > 0 ? '#059669' : '#ef4444' }}>
+                    {tokenValidityText}
+                  </span>
+                  <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-muted)' }}>Auto-refreshed</span>
+                </div>
               </div>
 
-              {/* Item 3 */}
+              {/* Item 4 */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Activity size={15} color="#10b981" />
@@ -1187,7 +1213,7 @@ export default function DashboardView({
                 </span>
               </div>
 
-              {/* Item 4 */}
+              {/* Item 5 */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <ShieldCheck size={15} color="#6366f1" />
@@ -1470,7 +1496,7 @@ export default function DashboardView({
             </div>
 
             <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '6px' }}>
-              Resets on {resetDateStr}
+              1-Month Plan • Resets on {resetDateStr} ({daysUntilReset} {daysUntilReset === 1 ? 'day' : 'days'} left)
             </div>
           </div>
 
