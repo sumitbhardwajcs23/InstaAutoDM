@@ -345,6 +345,108 @@ export default function AdminView({ user, onBackToApp }) {
   // System Status State
   const [systemStatusData, setSystemStatusData] = useState(null);
 
+  // Account Health & Risk Management State
+  const [healthAccounts, setHealthAccounts] = useState([]);
+  const [healthKpis, setHealthKpis] = useState({ totalAccounts: 0, healthy: 0, caution: 0, protection: 0, paused: 0 });
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthSearch, setHealthSearch] = useState('');
+  const [healthStatusFilter, setHealthStatusFilter] = useState('all');
+  const [healthModeFilter, setHealthModeFilter] = useState('all');
+  const [healthPage, setHealthPage] = useState(1);
+  const [healthTotal, setHealthTotal] = useState(0);
+
+  // Health Detail Drawer / Modal
+  const [inspectingHealthAccount, setInspectingHealthAccount] = useState(null);
+  const [inspectingEvents, setInspectingEvents] = useState([]);
+  const [inspectingHistory, setInspectingHistory] = useState([]);
+  const [overrideMode, setOverrideMode] = useState('NORMAL');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [submittingOverride, setSubmittingOverride] = useState(false);
+  const [overrideFeedback, setOverrideFeedback] = useState(null);
+
+  const fetchAdminHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(healthPage),
+        limit: '25',
+        search: healthSearch,
+        status: healthStatusFilter,
+        mode: healthModeFilter,
+      });
+      const res = await apiFetch(`/admin/instagram-health?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setHealthAccounts(data.accounts || []);
+        setHealthKpis(data.kpis || { totalAccounts: 0, healthy: 0, caution: 0, protection: 0, paused: 0 });
+        setHealthTotal(data.total || 0);
+      }
+    } catch (err) {
+      console.error('[Admin] Failed to fetch account health:', err);
+    } finally {
+      setHealthLoading(false);
+    }
+  }, [healthPage, healthSearch, healthStatusFilter, healthModeFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'safeguards') {
+      fetchAdminHealth();
+    }
+  }, [activeTab, fetchAdminHealth]);
+
+  const handleOpenInspectHealth = async (acc) => {
+    setInspectingHealthAccount(acc);
+    setOverrideMode(acc.automation_mode || 'NORMAL');
+    setOverrideReason('');
+    setOverrideFeedback(null);
+    try {
+      const res = await apiFetch(`/admin/instagram-health/${acc.account_id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setInspectingEvents(data.events || []);
+        setInspectingHistory(data.history || []);
+      }
+    } catch (_) {}
+  };
+
+  const handleAdminModeOverride = async (e) => {
+    if (e) e.preventDefault();
+    if (!inspectingHealthAccount) return;
+    if (!overrideReason.trim()) {
+      setOverrideFeedback({ success: false, message: 'A justification reason is required for administrative mode overrides.' });
+      return;
+    }
+    setSubmittingOverride(true);
+    setOverrideFeedback(null);
+    try {
+      const res = await apiFetch(`/admin/instagram-health/${inspectingHealthAccount.account_id}/mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newMode: overrideMode,
+          reason: overrideReason.trim()
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setOverrideFeedback({ success: true, message: `Account mode updated to ${overrideMode}` });
+        fetchAdminHealth();
+        setInspectingHealthAccount(prev => ({
+          ...prev,
+          automation_mode: overrideMode,
+          health_status: data.healthStatus,
+          health_score: data.healthScore
+        }));
+      } else {
+        setOverrideFeedback({ success: false, message: data.error || 'Failed to update mode' });
+      }
+    } catch (err) {
+      setOverrideFeedback({ success: false, message: err.message || 'Network error' });
+    } finally {
+      setSubmittingOverride(false);
+    }
+  };
+
   // Users State & Access Control
   const [usersList, setUsersList] = useState([]);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -4883,101 +4985,280 @@ export default function AdminView({ user, onBackToApp }) {
               {/* Header */}
               <div className="admin-card-header" style={{ marginBottom: '16px' }}>
                 <div>
-                  <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0 }}>Automation Health</h2>
+                  <h2 className="admin-card-title" style={{ fontSize: '18px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Activity size={20} color="#6366f1" /> Instagram Account Health &amp; Automation Risk Monitoring
+                  </h2>
                   <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
-                    Monitor your automation systems and performance.
+                    Internal Airvix operational traffic control, rate-limit backpressure, and progressive health degradation.
                   </p>
                 </div>
 
-                <select className="admin-select-input">
-                  <option>Last 24 hours</option>
-                  <option>Last 7 days</option>
-                  <option>Last 30 days</option>
-                </select>
+                <button
+                  type="button"
+                  className="admin-btn-secondary"
+                  onClick={fetchAdminHealth}
+                  disabled={healthLoading}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12.5px' }}
+                >
+                  <RefreshCw size={13} className={healthLoading ? 'spin' : ''} />
+                  <span>{healthLoading ? 'Refreshing...' : 'Refresh Health'}</span>
+                </button>
               </div>
 
-              {/* 4 Stat Cards */}
-              <div className="admin-stats-grid">
+              {/* 5 KPI Stat Cards */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '14px',
+                marginBottom: '20px'
+              }}>
                 <div className="admin-stat-card">
                   <div className="admin-stat-header">
-                    <span className="admin-stat-label">Messages Processed</span>
+                    <span className="admin-stat-label">Monitored Accounts</span>
                   </div>
-                  <div className="admin-stat-val">
-                    {overview?.messagesProcessedFormatted || '0'}
-                  </div>
-                  <span className="admin-stat-pill admin-stat-pill-up">Live</span>
+                  <div className="admin-stat-val">{healthKpis.totalAccounts}</div>
+                  <span className="admin-stat-pill admin-stat-pill-up">Active Accounts</span>
                 </div>
 
                 <div className="admin-stat-card">
                   <div className="admin-stat-header">
-                    <span className="admin-stat-label">Success Rate</span>
+                    <span className="admin-stat-label">🟢 Healthy</span>
                   </div>
-                  <div className="admin-stat-val">99.9%</div>
-                  <span className="admin-stat-pill admin-stat-pill-up">Optimal</span>
+                  <div className="admin-stat-val" style={{ color: '#059669' }}>{healthKpis.healthy}</div>
+                  <span className="admin-stat-pill admin-stat-pill-up">Normal Speed</span>
                 </div>
 
                 <div className="admin-stat-card">
                   <div className="admin-stat-header">
-                    <span className="admin-stat-label">Active Automation Rules</span>
+                    <span className="admin-stat-label">🟡 Caution</span>
                   </div>
-                  <div className="admin-stat-val">
-                    {safeguardsData?.activeRulesCount != null ? String(safeguardsData.activeRulesCount) : '0'}
-                  </div>
-                  <span className="admin-stat-pill admin-stat-pill-up">Active</span>
+                  <div className="admin-stat-val" style={{ color: '#b45309' }}>{healthKpis.caution}</div>
+                  <span className="admin-stat-pill" style={{ background: '#fefce8', color: '#b45309' }}>+4s Operational Pacing</span>
                 </div>
 
                 <div className="admin-stat-card">
                   <div className="admin-stat-header">
-                    <span className="admin-stat-label">Min Natural Delay</span>
+                    <span className="admin-stat-label">🟠 Protection</span>
                   </div>
-                  <div className="admin-stat-val">
-                    {safeguardsData?.rateLimits?.minDelaySeconds ? `${safeguardsData.rateLimits.minDelaySeconds}s` : '0.8s'}
+                  <div className="admin-stat-val" style={{ color: '#c2410c' }}>{healthKpis.protection}</div>
+                  <span className="admin-stat-pill" style={{ background: '#fff7ed', color: '#c2410c' }}>+12s Pacing • 1-Worker</span>
+                </div>
+
+                <div className="admin-stat-card">
+                  <div className="admin-stat-header">
+                    <span className="admin-stat-label">🔴 Paused</span>
                   </div>
-                  <span className="admin-stat-pill admin-stat-pill-up">Meta Safe</span>
+                  <div className="admin-stat-val" style={{ color: '#dc2626' }}>{healthKpis.paused}</div>
+                  <span className="admin-stat-pill" style={{ background: '#fef2f2', color: '#dc2626' }}>Safety Hold Active</span>
                 </div>
               </div>
 
-              {/* Recent Automation Events */}
+              {/* Search & Filter Controls */}
+              <div className="admin-card" style={{ padding: '16px 20px', marginBottom: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+                    <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    <input
+                      type="text"
+                      className="admin-form-input"
+                      placeholder="Search @username, user email, or account ID..."
+                      value={healthSearch}
+                      onChange={(e) => { setHealthSearch(e.target.value); setHealthPage(1); }}
+                      style={{ paddingLeft: '34px', fontSize: '13px' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Status:</label>
+                    <select
+                      className="admin-select-input"
+                      value={healthStatusFilter}
+                      onChange={(e) => { setHealthStatusFilter(e.target.value); setHealthPage(1); }}
+                      style={{ fontSize: '12.5px' }}
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="HEALTHY">HEALTHY (90–100)</option>
+                      <option value="CAUTION">CAUTION (70–89)</option>
+                      <option value="ELEVATED_RISK">ELEVATED_RISK (40–69)</option>
+                      <option value="CRITICAL">CRITICAL (0–39)</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Mode:</label>
+                    <select
+                      className="admin-select-input"
+                      value={healthModeFilter}
+                      onChange={(e) => { setHealthModeFilter(e.target.value); setHealthPage(1); }}
+                      style={{ fontSize: '12.5px' }}
+                    >
+                      <option value="all">All Modes</option>
+                      <option value="NORMAL">NORMAL</option>
+                      <option value="CAUTION">CAUTION</option>
+                      <option value="PROTECTION">PROTECTION</option>
+                      <option value="PAUSED">PAUSED</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Accounts Health Table */}
               <div className="admin-card">
-                <div className="admin-card-header">
-                  <h3 className="admin-card-title">Recent Automation Events</h3>
-                  <a href="#audit" onClick={(e) => { e.preventDefault(); setActiveTab('audit'); }} style={{ fontSize: '12px', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>
-                    View audit log →
-                  </a>
-                </div>
-
                 <div style={{ overflowX: 'auto' }}>
                   <table className="admin-clean-table">
                     <thead>
                       <tr>
-                        <th>Time</th>
-                        <th>Event</th>
-                        <th>Status</th>
-                        <th>Details</th>
+                        <th>Account</th>
+                        <th>Owner</th>
+                        <th>Health Score</th>
+                        <th>Traffic Mode</th>
+                        <th>24h Activity</th>
+                        <th>Error Rate</th>
+                        <th>Last Incident</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(auditLogsList && auditLogsList.length > 0) ? (
-                        auditLogsList.slice(0, 5).map((log, idx) => (
-                          <tr key={log.id || idx}>
-                            <td style={{ color: '#64748b', fontSize: '12px' }}>
-                              {log.created_at ? (log.created_at.includes('T') ? new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : log.created_at) : 'Recent'}
-                            </td>
-                            <td style={{ fontWeight: 600, color: '#0f172a' }}>{log.action || 'Automation Action'}</td>
-                            <td>
-                              <span className="admin-badge-status-active">
-                                Success
-                              </span>
-                            </td>
-                            <td style={{ color: '#64748b', fontSize: '12.5px' }}>{log.details || log.actor_email || 'Processed verified trigger'}</td>
-                          </tr>
-                        ))
-                      ) : (
+                      {healthLoading && healthAccounts.length === 0 ? (
                         <tr>
-                          <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '13px' }}>
-                            No automation errors or incidents recorded. Systems operating cleanly.
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                            Loading Instagram account health telemetry...
                           </td>
                         </tr>
+                      ) : healthAccounts.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                            No Instagram accounts found matching your filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        healthAccounts.map((acc) => {
+                          const score = acc.health_score ?? 100;
+                          const status = acc.health_status || 'HEALTHY';
+                          const mode = acc.automation_mode || 'NORMAL';
+
+                          let statusBg = '#ecfdf5';
+                          let statusColor = '#059669';
+                          if (status === 'CAUTION') { statusBg = '#fefce8'; statusColor = '#b45309'; }
+                          else if (status === 'ELEVATED_RISK') { statusBg = '#fff7ed'; statusColor = '#c2410c'; }
+                          else if (status === 'CRITICAL' || mode === 'PAUSED') { statusBg = '#fef2f2'; statusColor = '#dc2626'; }
+
+                          let modeBg = 'rgba(16, 185, 129, 0.1)';
+                          let modeColor = '#059669';
+                          if (mode === 'CAUTION') { modeBg = 'rgba(217, 119, 6, 0.1)'; modeColor = '#b45309'; }
+                          else if (mode === 'PROTECTION') { modeBg = 'rgba(234, 88, 12, 0.1)'; modeColor = '#c2410c'; }
+                          else if (mode === 'PAUSED') { modeBg = 'rgba(220, 38, 38, 0.1)'; modeColor = '#dc2626'; }
+
+                          return (
+                            <tr key={acc.account_id}>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <div style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '8px',
+                                    background: 'linear-gradient(135deg, #f09433, #dc2743)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#fff',
+                                    overflow: 'hidden',
+                                    flexShrink: 0
+                                  }}>
+                                    {acc.profile_picture_url ? (
+                                      <img src={acc.profile_picture_url} alt={acc.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                      <Instagram size={16} />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '13px' }}>
+                                      @{acc.username || 'unknown'}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                      {acc.full_name || acc.account_id}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ fontSize: '12.5px', color: '#334155' }}>
+                                  {acc.user_email || '—'}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'capitalize' }}>
+                                  Plan: {acc.user_plan || 'free'}
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                                    {score}
+                                  </span>
+                                  <span style={{
+                                    padding: '2px 8px',
+                                    borderRadius: '99px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    background: statusBg,
+                                    color: statusColor
+                                  }}>
+                                    {status}
+                                  </span>
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{
+                                  padding: '3px 10px',
+                                  borderRadius: '99px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  background: modeBg,
+                                  color: modeColor,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  <Zap size={11} /> {mode}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ fontSize: '12px', color: '#0f172a', fontWeight: 600 }}>
+                                  {acc.rolling_24h_successes ?? 0} sent
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                  {acc.observed_rate_limit_count ?? 0} 429s • {acc.rolling_24h_failures ?? 0} errs
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{
+                                  fontSize: '12.5px',
+                                  fontWeight: 700,
+                                  color: Number(acc.recent_error_rate || 0) > 10 ? '#dc2626' : '#0f172a'
+                                }}>
+                                  {acc.recent_error_rate != null ? `${Number(acc.recent_error_rate).toFixed(1)}%` : '0.0%'}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ fontSize: '12px', fontWeight: 600, color: acc.last_incident_type ? '#dc2626' : '#64748b' }}>
+                                  {acc.last_incident_type || 'None'}
+                                </div>
+                                <div style={{ fontSize: '10.5px', color: '#94a3b8' }}>
+                                  {acc.last_incident_at ? new Date(acc.last_incident_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Nominal'}
+                                </div>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <button
+                                  type="button"
+                                  className="admin-btn-secondary"
+                                  onClick={() => handleOpenInspectHealth(acc)}
+                                  style={{ padding: '4px 10px', fontSize: '11.5px', fontWeight: 600 }}
+                                >
+                                  Inspect &amp; Override
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -4985,6 +5266,7 @@ export default function AdminView({ user, onBackToApp }) {
               </div>
             </div>
           )}
+
 
           {/* =========================================================================
               TAB 10: ANALYTICS (Matches Panel 8)
@@ -6838,6 +7120,214 @@ export default function AdminView({ user, onBackToApp }) {
           </div>
         </div>
       )}
+      {/* Inspection & Administrative Mode Override Modal */}
+      {inspectingHealthAccount && (
+        <div className="admin-modal-overlay">
+          <div className="admin-modal-card" style={{ maxWidth: '680px' }}>
+            <div className="admin-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 className="admin-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={18} color="#6366f1" /> Account Health Inspection
+                </h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                  @{inspectingHealthAccount.username} • {inspectingHealthAccount.user_email}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="admin-modal-close"
+                onClick={() => setInspectingHealthAccount(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="admin-modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
+              {/* Score & Mode summary */}
+              <div style={{
+                padding: '14px 18px',
+                borderRadius: '12px',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '16px'
+              }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>HEALTH SCORE</div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>
+                    {inspectingHealthAccount.health_score ?? 100} / 100
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>STATUS</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+                    {inspectingHealthAccount.health_status || 'HEALTHY'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>CURRENT MODE</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#6366f1', marginTop: '2px' }}>
+                    {inspectingHealthAccount.automation_mode || 'NORMAL'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Score Reasons */}
+              <div style={{ marginBottom: '16px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+                  Diagnostic Factors &amp; Score Reasons
+                </h4>
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  fontSize: '12px',
+                  color: '#334155'
+                }}>
+                  {(() => {
+                    let reasons = inspectingHealthAccount.score_reasons;
+                    if (typeof reasons === 'string') {
+                      try { reasons = JSON.parse(reasons); } catch (_) { reasons = [reasons]; }
+                    }
+                    if (!Array.isArray(reasons) || reasons.length === 0) {
+                      reasons = ['Account operating normally. No active rate limits or penalties.'];
+                    }
+                    return reasons.map((r, i) => (
+                      <div key={i} style={{ marginBottom: '4px', display: 'flex', gap: '6px' }}>
+                        <span style={{ color: '#6366f1' }}>•</span>
+                        <span>{r}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              {/* Recent Audit Events */}
+              <div style={{ marginBottom: '18px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>
+                  Recent Health &amp; Rate-Limit Events
+                </h4>
+                {inspectingEvents && inspectingEvents.length > 0 ? (
+                  <div style={{ borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden', maxHeight: '140px', overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                          <th style={{ padding: '6px 10px', color: '#64748b' }}>Time</th>
+                          <th style={{ padding: '6px 10px', color: '#64748b' }}>Event</th>
+                          <th style={{ padding: '6px 10px', color: '#64748b' }}>Severity</th>
+                          <th style={{ padding: '6px 10px', color: '#64748b' }}>Code</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {inspectingEvents.map((ev) => (
+                          <tr key={ev.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '6px 10px', color: '#64748b' }}>
+                              {ev.occurred_at ? new Date(ev.occurred_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                            </td>
+                            <td style={{ padding: '6px 10px', fontWeight: 600, color: '#0f172a' }}>{ev.event_type}</td>
+                            <td style={{ padding: '6px 10px' }}>
+                              <span style={{
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                background: ev.severity === 'high' || ev.severity === 'critical' ? '#fee2e2' : '#f1f5f9',
+                                color: ev.severity === 'high' || ev.severity === 'critical' ? '#dc2626' : '#475569'
+                              }}>
+                                {ev.severity}
+                              </span>
+                            </td>
+                            <td style={{ padding: '6px 10px', color: '#64748b' }}>{ev.status_code || ev.error_code || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#64748b', textAlign: 'center' }}>
+                    No incident events recorded.
+                  </div>
+                )}
+              </div>
+
+              {/* Administrative Mode Override Form */}
+              <form onSubmit={handleAdminModeOverride} style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ShieldAlert size={15} color="#ea580c" /> Administrative Mode Override
+                </h4>
+                <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 12px 0' }}>
+                  Forces this account into an explicit automation mode. This action will be permanently logged to PostgreSQL audit logs with your admin ID.
+                </p>
+
+                <div className="admin-form-group" style={{ marginBottom: '12px' }}>
+                  <label className="admin-form-label">Target Automation Mode *</label>
+                  <select
+                    className="admin-select-input"
+                    value={overrideMode}
+                    onChange={(e) => setOverrideMode(e.target.value)}
+                    style={{ width: '100%', fontSize: '13px' }}
+                  >
+                    <option value="NORMAL">NORMAL (Standard delivery, 0s extra pacing)</option>
+                    <option value="CAUTION">CAUTION (+4s operational pacing)</option>
+                    <option value="PROTECTION">PROTECTION (+12s operational pacing, serialized)</option>
+                    <option value="PAUSED">PAUSED (Hold automation jobs safely in queue)</option>
+                  </select>
+                </div>
+
+                <div className="admin-form-group" style={{ marginBottom: '14px' }}>
+                  <label className="admin-form-label">Justification Reason (Required for Audit Log) *</label>
+                  <input
+                    type="text"
+                    required
+                    className="admin-form-input"
+                    placeholder="e.g. Account recovered after manual review / High 429 spike observed"
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    style={{ fontSize: '13px' }}
+                  />
+                </div>
+
+                {overrideFeedback && (
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    marginBottom: '12px',
+                    background: overrideFeedback.success ? '#ecfdf5' : '#fef2f2',
+                    color: overrideFeedback.success ? '#059669' : '#dc2626',
+                    border: `1px solid ${overrideFeedback.success ? '#10b981' : '#ef4444'}40`
+                  }}>
+                    {overrideFeedback.message}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button
+                    type="button"
+                    className="admin-btn-secondary"
+                    onClick={() => setInspectingHealthAccount(null)}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingOverride || !overrideReason.trim()}
+                    className="admin-btn-primary"
+                    style={{ background: overrideMode === 'PAUSED' ? '#dc2626' : 'var(--primary)' }}
+                  >
+                    {submittingOverride ? 'Applying...' : `Set Mode to ${overrideMode}`}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

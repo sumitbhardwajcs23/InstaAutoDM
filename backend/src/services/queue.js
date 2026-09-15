@@ -8,6 +8,8 @@ const loopDetection = require('./loopDetection');
 const { abuseDetection } = require('./abuseDetection');
 const { dmLimitFor } = require('../constants/planLimits');
 const quotaService = require('./quotaService');
+const { accountHealthService } = require('./accountHealthService');
+const { HEALTH_CONFIG } = require('../constants/healthConfig');
 const {
   QUEUE_CONFIG,
   calculateRandomDelayMs,
@@ -271,9 +273,20 @@ class EventQueueWorker {
       return { throttled: true, reason: 'account_backoff', waitMs: backoffUntil - now };
     }
 
-    // 2. Concurrency limit per account
+    // 1b. Check Account Health Automation Mode
+    const healthMode = accountHealthService.memoryModes.get(accountId) || 'NORMAL';
+    if (healthMode === 'PAUSED') {
+      return { 
+        throttled: true, 
+        reason: 'account_health_paused', 
+        waitMs: HEALTH_CONFIG.PACING_DELAYS.PAUSED_CHECK_INTERVAL_MS || 30000 
+      };
+    }
+
+    // 2. Concurrency limit per account (Protection mode restricts to single serialization)
     const activeForAcc = this.activePerAccount.get(accountId) || 0;
-    if (activeForAcc >= QUEUE_CONFIG.ACCOUNT_MAX_CONCURRENT) {
+    const maxConcurrent = healthMode === 'PROTECTION' ? 1 : QUEUE_CONFIG.ACCOUNT_MAX_CONCURRENT;
+    if (activeForAcc >= maxConcurrent) {
       return { throttled: true, reason: 'concurrency_limit', waitMs: 500 };
     }
 
@@ -286,6 +299,23 @@ class EventQueueWorker {
       const oldest = timestamps[0];
       const waitMs = Math.max(500, 60000 - (now - oldest));
       return { throttled: true, reason: 'rate_limit', waitMs };
+    }
+
+    // 4. Internal operational pacing delay for CAUTION or PROTECTION modes (traffic-control buffers)
+    if (healthMode === 'PROTECTION' && timestamps.length > 0) {
+      const lastSend = timestamps[timestamps.length - 1];
+      const elapsed = now - lastSend;
+      const requiredPadding = HEALTH_CONFIG.PACING_DELAYS.PROTECTION_PADDING_MS || 12000;
+      if (elapsed < requiredPadding) {
+        return { throttled: true, reason: 'health_protection_pacing', waitMs: requiredPadding - elapsed };
+      }
+    } else if (healthMode === 'CAUTION' && timestamps.length > 0) {
+      const lastSend = timestamps[timestamps.length - 1];
+      const elapsed = now - lastSend;
+      const requiredPadding = HEALTH_CONFIG.PACING_DELAYS.CAUTION_PADDING_MS || 4000;
+      if (elapsed < requiredPadding) {
+        return { throttled: true, reason: 'health_caution_pacing', waitMs: requiredPadding - elapsed };
+      }
     }
 
     return { throttled: false };
@@ -834,6 +864,7 @@ class EventQueueWorker {
         if (isSimulated) {
           metaCommentReplyId = `sim_comm_${uuidv4().slice(0, 8)}`;
           await quotaService.commitReplyQuota(commReserve.reservationId);
+          accountHealthService.recordSuccess(account.id, user.id, commReserve.subscriptionId).catch(() => {});
           console.log(`[Worker] 🧪 [Simulation] Public reply generated for comment ${commentId}: "${commentReplyMsg}"`);
         } else {
           try {
@@ -844,10 +875,23 @@ class EventQueueWorker {
             });
             metaCommentReplyId = commResp?.id || null;
             await quotaService.commitReplyQuota(commReserve.reservationId);
+            accountHealthService.recordSuccess(account.id, user.id, commReserve.subscriptionId).catch(() => {});
             console.log(`[Worker] ✅ Public reply posted to comment ${commentId} by @${commenterUsername || 'user'}`);
           } catch (err) {
             commentError = err.message;
             await quotaService.rollbackReplyQuota(commReserve.reservationId);
+            const is429 = err.statusCode === 429 || (err.message && err.message.toLowerCase().includes('rate limit'));
+            const isAuth = err.statusCode === 401 || (err.message && err.message.toLowerCase().includes('token'));
+            accountHealthService.recordIncident({
+              accountId: account.id,
+              userId: user.id,
+              subscriptionId: commReserve.subscriptionId,
+              eventType: is429 ? 'RATE_LIMIT_429' : (isAuth ? 'AUTH_ERROR' : 'API_ERROR'),
+              severity: is429 ? 'high' : (isAuth ? 'high' : 'medium'),
+              statusCode: err.statusCode || 500,
+              errorCode: err.metaError?.code || err.code || null,
+              metadata: { action: 'sendPublicCommentReply', error: err.message }
+            }).catch(() => {});
             console.warn(`[Worker] ⚠️ Public comment reply error for ${commentId}:`, err.message);
           }
         }
@@ -886,6 +930,7 @@ class EventQueueWorker {
           if (isSimulated) {
             metaMessageId = `sim_dm_${uuidv4().slice(0, 8)}`;
             await quotaService.commitReplyQuota(dmReserve.reservationId);
+            accountHealthService.recordSuccess(account.id, user.id, dmReserve.subscriptionId).catch(() => {});
             const cId = await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
             await loopDetection.recordAutomatedDmSent(cId);
             if (cardPayload) {
@@ -904,12 +949,25 @@ class EventQueueWorker {
               });
               metaMessageId = dmResp?.message_id || null;
               await quotaService.commitReplyQuota(dmReserve.reservationId);
+              accountHealthService.recordSuccess(account.id, user.id, dmReserve.subscriptionId).catch(() => {});
               const cId = await this.upsertConversation(account.id, commenterId || uuidv4(), commenterUsername || 'user', null, null, text, 'inbound', 'replied');
               await loopDetection.recordAutomatedDmSent(cId);
               console.log(`[Worker] ✅ Private DM ${cardPayload ? 'Card ' : ''}sent for comment ${commentId} to @${commenterUsername || 'user'}`);
             } catch (err) {
               dmError = err.message;
               await quotaService.rollbackReplyQuota(dmReserve.reservationId);
+              const is429 = err.statusCode === 429 || (err.message && err.message.toLowerCase().includes('rate limit'));
+              const isAuth = err.statusCode === 401 || (err.message && err.message.toLowerCase().includes('token'));
+              accountHealthService.recordIncident({
+                accountId: account.id,
+                userId: user.id,
+                subscriptionId: dmReserve.subscriptionId,
+                eventType: is429 ? 'RATE_LIMIT_429' : (isAuth ? 'AUTH_ERROR' : 'API_ERROR'),
+                severity: is429 ? 'high' : (isAuth ? 'high' : 'medium'),
+                statusCode: err.statusCode || 500,
+                errorCode: err.metaError?.code || err.code || null,
+                metadata: { action: 'sendPrivateCommentReply', error: err.message }
+              }).catch(() => {});
               console.warn(`[Worker] ⚠️ Private DM reply error for comment ${commentId}:`, err.message);
               if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;
             }
@@ -1262,6 +1320,7 @@ class EventQueueWorker {
         });
       }
       await quotaService.commitReplyQuota(reserve.reservationId);
+      accountHealthService.recordSuccess(account.id, user.id, reserve.subscriptionId).catch(() => {});
       // Outbound auto-reply timestamp: 1 second after the inbound event to ensure correct ordering
       const outboundCreatedAt = new Date(eventTime + 1000).toISOString();
       await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, meta_message_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'sent', resp.message_id, outboundCreatedAt);
@@ -1272,6 +1331,18 @@ class EventQueueWorker {
       console.log(`[Worker] ✅ DM auto-reply sent to ${realName || finalUsername} (Rule: "${rule.trigger_keyword}")`);
     } catch (err) {
       await quotaService.rollbackReplyQuota(reserve.reservationId);
+      const is429 = err.statusCode === 429 || (err.message && err.message.toLowerCase().includes('rate limit'));
+      const isAuth = err.statusCode === 401 || (err.message && err.message.toLowerCase().includes('token'));
+      accountHealthService.recordIncident({
+        accountId: account.id,
+        userId: user.id,
+        subscriptionId: reserve.subscriptionId,
+        eventType: is429 ? 'RATE_LIMIT_429' : (isAuth ? 'AUTH_ERROR' : 'API_ERROR'),
+        severity: is429 ? 'high' : (isAuth ? 'high' : 'medium'),
+        statusCode: err.statusCode || 500,
+        errorCode: err.metaError?.code || err.code || null,
+        metadata: { action: 'sendDirectMessage', error: err.message }
+      }).catch(() => {});
       const outboundFailCreatedAt = new Date(eventTime + 1000).toISOString();
       await db.prepare('INSERT INTO messages (id, conversation_id, direction, content, status, error_message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), convId, 'outbound', msg, 'failed', err.message, outboundFailCreatedAt);
       if (err.statusCode >= 400 && err.statusCode < 500) err.isPermanent = true;

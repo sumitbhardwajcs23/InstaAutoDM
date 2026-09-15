@@ -15,7 +15,9 @@ const RETENTION_WINDOWS = {
   error_events_days: parseInt(process.env.RETENTION_DAYS_ERROR_EVENTS || '30', 10),
   resolved_dlq_days: parseInt(process.env.RETENTION_DAYS_RESOLVED_DLQ || '7', 10),
   audit_logs_days: parseInt(process.env.RETENTION_DAYS_AUDIT_LOGS || '1825', 10), // 5 years
-  tenant_api_usage_days: parseInt(process.env.RETENTION_DAYS_API_USAGE || '90', 10)
+  tenant_api_usage_days: parseInt(process.env.RETENTION_DAYS_API_USAGE || '90', 10),
+  health_events_days: parseInt(process.env.RETENTION_DAYS_HEALTH_EVENTS || '365', 10), // 1 year
+  health_snapshots_days: parseInt(process.env.RETENTION_DAYS_HEALTH_SNAPSHOTS || '90', 10) // 90 days
 };
 
 class DataRetentionService {
@@ -71,6 +73,20 @@ class DataRetentionService {
         WHERE created_at < to_char(NOW() - INTERVAL '${RETENTION_WINDOWS.tenant_api_usage_days} days', 'YYYY-MM-DD HH24:MI:SS')
       `);
       results.tenant_api_usage = resUsage.rowCount || 0;
+
+      // 6. Account Health incident events (e.g. 365 days)
+      const resHealthEvents = await client.query(`
+        DELETE FROM instagram_account_health_events 
+        WHERE created_at < NOW() - INTERVAL '${RETENTION_WINDOWS.health_events_days} days'
+      `).catch(() => ({ rowCount: 0 }));
+      results.health_events = resHealthEvents.rowCount || 0;
+
+      // 7. Account Health snapshots (e.g. 90 days)
+      const resHealthSnapshots = await client.query(`
+        DELETE FROM instagram_account_health_snapshots 
+        WHERE snapshot_at < NOW() - INTERVAL '${RETENTION_WINDOWS.health_snapshots_days} days'
+      `).catch(() => ({ rowCount: 0 }));
+      results.health_snapshots = resHealthSnapshots.rowCount || 0;
 
       await client.query('COMMIT');
 
@@ -175,7 +191,30 @@ class DataRetentionService {
       // Generate confirmation code
       const confirmationCode = `DEL-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
 
-      // Delete user - cascades to instagram_accounts, rules, subscriptions, invoices, workspaces
+      // GDPR Article 17: Scrub PII from historical health audit events before user deletion
+      await client.query(`
+        UPDATE instagram_account_health_events
+        SET metadata = '{}'::jsonb
+        WHERE user_id = $1
+      `, [userId]);
+
+      // Cascaded cleanup of user's Instagram accounts, connections, rules & messages
+      // (Respects ON DELETE RESTRICT on instagram_accounts.user_id and instagram_account_connections.user_id)
+      const accRes = await client.query('SELECT id FROM instagram_accounts WHERE user_id = $1', [userId]);
+      const accIds = (accRes.rows || []).map(r => r.id);
+
+      if (accIds.length > 0) {
+        await client.query('DELETE FROM comment_replies WHERE instagram_account_id = ANY($1)', [accIds]);
+        await client.query('DELETE FROM conversations WHERE instagram_account_id = ANY($1)', [accIds]);
+        await client.query('DELETE FROM automation_rules WHERE instagram_account_id = ANY($1)', [accIds]);
+        await client.query('DELETE FROM activity_log WHERE instagram_account_id = ANY($1)', [accIds]);
+        await client.query('DELETE FROM instagram_account_connections WHERE instagram_account_id = ANY($1) OR user_id = $2', [accIds, userId]);
+        await client.query('DELETE FROM instagram_accounts WHERE user_id = $1', [userId]);
+      } else {
+        await client.query('DELETE FROM instagram_account_connections WHERE user_id = $1', [userId]);
+      }
+
+      // Delete user - cascades to subscriptions, invoices, workspaces, user_sessions, etc.
       await client.query('DELETE FROM users WHERE id = $1', [userId]);
 
       // Record deletion request record

@@ -46,6 +46,75 @@ export default function DashboardView({
   const [savingHandle, setSavingHandle] = useState(false);
   const [handleError, setHandleError] = useState(null);
 
+  // Account Health State
+  const [showHealthModal, setShowHealthModal] = useState(false);
+  const [healthData, setHealthData] = useState(null);
+  const [healthHistory, setHealthHistory] = useState([]);
+  const [healthEvents, setHealthEvents] = useState([]);
+  const [loadingHealth, setLoadingHealth] = useState(false);
+  const [resumingHealth, setResumingHealth] = useState(false);
+  const [healthResumeResult, setHealthResumeResult] = useState(null);
+
+  const fetchFullHealthDetails = async (accId) => {
+    const targetId = accId || account?.id;
+    if (!targetId) return;
+    setLoadingHealth(true);
+    setHealthResumeResult(null);
+    try {
+      const [hRes, histRes, evRes] = await Promise.all([
+        apiFetch(`/instagram/accounts/${targetId}/health`),
+        apiFetch(`/instagram/accounts/${targetId}/health/history?limit=24`),
+        apiFetch(`/instagram/accounts/${targetId}/health/events?limit=15`)
+      ]);
+      if (hRes.ok) {
+        const d = await hRes.json();
+        setHealthData(d.health);
+      }
+      if (histRes.ok) {
+        const d = await histRes.json();
+        setHealthHistory(d.history || []);
+      }
+      if (evRes.ok) {
+        const d = await evRes.json();
+        setHealthEvents(d.events || []);
+      }
+    } catch (_) {}
+    finally {
+      setLoadingHealth(false);
+    }
+  };
+
+  const handleOpenHealthModal = () => {
+    setShowHealthModal(true);
+    fetchFullHealthDetails(account?.id);
+  };
+
+  const handleRequestResume = async (accId) => {
+    const targetId = accId || account?.id;
+    if (!targetId) return;
+    setResumingHealth(true);
+    setHealthResumeResult(null);
+    try {
+      const res = await apiFetch(`/instagram/accounts/${targetId}/health/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Creator requested manual resume from dashboard' })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setHealthResumeResult({ success: true, message: data.message });
+        await fetchFullHealthDetails(targetId);
+        if (onRefresh) onRefresh();
+      } else {
+        setHealthResumeResult({ success: false, message: data.error || 'Unable to resume at this time' });
+      }
+    } catch (err) {
+      setHealthResumeResult({ success: false, message: err.message || 'Error requesting resume' });
+    } finally {
+      setResumingHealth(false);
+    }
+  };
+
   const isFallbackHandle = !!(account?.username && account.username.startsWith('user_'));
 
   const handleSaveRealHandle = async (e) => {
@@ -701,6 +770,255 @@ export default function DashboardView({
         </div>
       </div>
 
+      {/* 2a. Instagram Account Health & Operational Risk Status Card */}
+      {isConnected && (
+        <div className="card" style={{
+          padding: '20px',
+          borderRadius: '16px',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-light)',
+          boxShadow: 'var(--shadow-card)',
+          marginBottom: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', letterSpacing: '0.06em' }}>
+                  OPERATIONAL RISK &amp; TRAFFIC CONTROL
+                </span>
+                <span style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  padding: '2px 8px',
+                  borderRadius: '99px',
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  color: '#6366f1',
+                  border: '1px solid rgba(99, 102, 241, 0.2)'
+                }}>
+                  Airvix Risk Model v1.0
+                </span>
+              </div>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-main)', margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Instagram Account Health
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: 'var(--text-muted)'
+                }}>
+                  (@{account?.username || 'account'})
+                </span>
+              </h3>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {/* Health Status Badge */}
+              {(() => {
+                const status = stats?.accountHealth?.health_status || 'HEALTHY';
+                const score = stats?.accountHealth?.health_score ?? 100;
+                let bg = '#ecfdf5';
+                let fg = '#059669';
+                let label = 'Healthy';
+                let icon = '🟢';
+                if (status === 'CAUTION') {
+                  bg = '#fefce8'; fg = '#b45309'; label = 'Caution'; icon = '🟡';
+                } else if (status === 'ELEVATED_RISK') {
+                  bg = '#fff7ed'; fg = '#c2410c'; label = 'Elevated Risk'; icon = '🟠';
+                } else if (status === 'CRITICAL' || stats?.accountHealth?.automation_mode === 'PAUSED') {
+                  bg = '#fef2f2'; fg = '#dc2626'; label = 'Critical / Paused'; icon = '🔴';
+                }
+                return (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '5px 12px',
+                    borderRadius: '99px',
+                    background: bg,
+                    color: fg,
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    border: `1px solid ${fg}20`
+                  }}>
+                    <span>{icon}</span> {label} ({score}/100)
+                  </span>
+                );
+              })()}
+
+              {/* Automation Mode Badge */}
+              {(() => {
+                const mode = stats?.accountHealth?.automation_mode || 'NORMAL';
+                let bg = 'rgba(16, 185, 129, 0.1)';
+                let fg = '#059669';
+                let label = 'Normal Speed';
+                if (mode === 'CAUTION') {
+                  bg = 'rgba(217, 119, 6, 0.1)'; fg = '#b45309'; label = 'Caution (+4s pacing)';
+                } else if (mode === 'PROTECTION') {
+                  bg = 'rgba(234, 88, 12, 0.1)'; fg = '#c2410c'; label = 'Protection (+12s, 1-worker)';
+                } else if (mode === 'PAUSED') {
+                  bg = 'rgba(220, 38, 38, 0.1)'; fg = '#dc2626'; label = 'Automation Paused';
+                }
+                return (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '5px 12px',
+                    borderRadius: '99px',
+                    background: bg,
+                    color: fg,
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                  }}>
+                    <Zap size={12} /> {label}
+                  </span>
+                );
+              })()}
+
+              <button
+                type="button"
+                onClick={handleOpenHealthModal}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '9px',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-subtle, #f8fafc)',
+                  color: 'var(--text-main)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Activity size={13} /> View Breakdown
+              </button>
+            </div>
+          </div>
+
+          {/* Critical / Paused Banner if applicable */}
+          {(stats?.accountHealth?.automation_mode === 'PAUSED' || stats?.accountHealth?.health_status === 'CRITICAL') && (
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: '10px',
+              background: 'rgba(220, 38, 38, 0.08)',
+              border: '1px solid rgba(220, 38, 38, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🛑</span> Automation is currently paused for this account
+                </div>
+                <div style={{ fontSize: '12px', color: '#7f1d1d', marginTop: '2px' }}>
+                  Triggered by observed upstream Meta rate-limits or repeated delivery errors. Outbound jobs are safely queued and held without dropping.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRequestResume(account?.id)}
+                disabled={resumingHealth}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  background: '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: resumingHealth ? 'wait' : 'pointer',
+                  opacity: resumingHealth ? 0.7 : 1
+                }}
+              >
+                {resumingHealth ? 'Evaluating...' : 'Resume Automation (Safety Evaluated)'}
+              </button>
+            </div>
+          )}
+
+          {/* 4 Observed Telemetry Metrics */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: '12px',
+          }}>
+            <div style={{
+              padding: '10px 14px',
+              borderRadius: '10px',
+              background: 'var(--bg-subtle, #f8fafc)',
+              border: '1px solid var(--border-subtle, #e2e8f0)',
+            }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>
+                24h Deliveries
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
+                {stats?.accountHealth?.rolling_24h_successes?.toLocaleString() ?? 0}
+              </div>
+              <div style={{ fontSize: '10.5px', color: '#059669', fontWeight: 600, marginTop: '2px' }}>
+                Committed sends
+              </div>
+            </div>
+
+            <div style={{
+              padding: '10px 14px',
+              borderRadius: '10px',
+              background: 'var(--bg-subtle, #f8fafc)',
+              border: '1px solid var(--border-subtle, #e2e8f0)',
+            }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>
+                Observed Rate Limits (429)
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: (stats?.accountHealth?.observed_rate_limit_count || 0) > 0 ? '#ea580c' : 'var(--text-main)', marginTop: '2px' }}>
+                {stats?.accountHealth?.observed_rate_limit_count ?? 0}
+              </div>
+              <div style={{ fontSize: '10.5px', color: 'var(--text-light)', marginTop: '2px' }}>
+                Rolling 24-hr window
+              </div>
+            </div>
+
+            <div style={{
+              padding: '10px 14px',
+              borderRadius: '10px',
+              background: 'var(--bg-subtle, #f8fafc)',
+              border: '1px solid var(--border-subtle, #e2e8f0)',
+            }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>
+                Observed API Errors
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: (stats?.accountHealth?.rolling_24h_failures || 0) > 0 ? '#dc2626' : 'var(--text-main)', marginTop: '2px' }}>
+                {stats?.accountHealth?.rolling_24h_failures ?? 0}
+              </div>
+              <div style={{ fontSize: '10.5px', color: 'var(--text-light)', marginTop: '2px' }}>
+                Consecutive: {stats?.accountHealth?.consecutive_failures ?? 0}
+              </div>
+            </div>
+
+            <div style={{
+              padding: '10px 14px',
+              borderRadius: '10px',
+              background: 'var(--bg-subtle, #f8fafc)',
+              border: '1px solid var(--border-subtle, #e2e8f0)',
+            }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-light)', fontWeight: 600 }}>
+                Recent Error Rate
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: Number(stats?.accountHealth?.recent_error_rate || 0) > 10 ? '#dc2626' : 'var(--text-main)', marginTop: '2px' }}>
+                {stats?.accountHealth?.recent_error_rate != null ? `${Number(stats.accountHealth.recent_error_rate).toFixed(1)}%` : '0.0%'}
+              </div>
+              <div style={{ fontSize: '10.5px', color: 'var(--text-light)', marginTop: '2px' }}>
+                Pacing delay: +{stats?.accountHealth?.pacing_delay_ms ? (stats.accountHealth.pacing_delay_ms / 1000).toFixed(0) : 0}s
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 2b. Connected Instagram Accounts Shared Quota Breakdown (visible when multiple accounts exist) */}
       {((stats?.accountsBreakdown && stats.accountsBreakdown.length > 1) || (accounts && accounts.length > 1)) && (
         <div className="card" style={{
@@ -770,6 +1088,19 @@ export default function DashboardView({
                 </div>
 
                 <div style={{ textAlign: 'right' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', marginBottom: '4px' }}>
+                    {(() => {
+                      const hStatus = acc.health_status || 'HEALTHY';
+                      if (hStatus === 'CAUTION') {
+                        return <span style={{ background: '#fefce8', color: '#b45309', fontSize: '10px', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>🟡 Caution</span>;
+                      } else if (hStatus === 'ELEVATED_RISK') {
+                        return <span style={{ background: '#fff7ed', color: '#c2410c', fontSize: '10px', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>🟠 Protection</span>;
+                      } else if (hStatus === 'CRITICAL' || acc.automation_mode === 'PAUSED') {
+                        return <span style={{ background: '#fef2f2', color: '#dc2626', fontSize: '10px', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>🔴 Paused</span>;
+                      }
+                      return <span style={{ background: '#ecfdf5', color: '#059669', fontSize: '10px', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>🟢 Healthy</span>;
+                    })()}
+                  </div>
                   <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-main)' }}>
                     {acc.total !== undefined ? acc.total : '—'} <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>replies</span>
                   </div>
@@ -1711,6 +2042,280 @@ export default function DashboardView({
           </div>
         </div>
       )}
+      {/* Health Breakdown & Safety Audit Modal */}
+      {showHealthModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: '20px',
+            maxWidth: '680px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            padding: '28px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid var(--border-light)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={20} color="#6366f1" /> Account Health &amp; Risk Report
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                  Internal operational diagnostics and traffic-control pacing for @{account?.username || 'account'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHealthModal(false)}
+                style={{
+                  background: 'var(--bg-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {loadingHealth && !healthData ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                Loading health telemetry...
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Score & Status Hero Banner */}
+                <div style={{
+                  padding: '18px 20px',
+                  borderRadius: '14px',
+                  background: 'var(--bg-subtle, #f8fafc)',
+                  border: '1px solid var(--border-subtle, #e2e8f0)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '16px'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', letterSpacing: '0.06em' }}>
+                      CURRENT OPERATIONAL STATUS
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '4px' }}>
+                      <span style={{ fontSize: '32px', fontWeight: 900, color: 'var(--text-main)' }}>
+                        {healthData?.health_score ?? stats?.accountHealth?.health_score ?? 100}
+                      </span>
+                      <span style={{ fontSize: '14px', color: 'var(--text-light)', fontWeight: 600 }}>/ 100</span>
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '99px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        background: (healthData?.health_status === 'HEALTHY' || (!healthData && stats?.accountHealth?.health_status === 'HEALTHY')) ? '#ecfdf5' : '#fefce8',
+                        color: (healthData?.health_status === 'HEALTHY' || (!healthData && stats?.accountHealth?.health_status === 'HEALTHY')) ? '#059669' : '#b45309'
+                      }}>
+                        {healthData?.health_status || stats?.accountHealth?.health_status || 'HEALTHY'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', letterSpacing: '0.06em' }}>
+                      AUTOMATION TRAFFIC MODE
+                    </span>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#6366f1', marginTop: '4px' }}>
+                      {healthData?.automation_mode || stats?.accountHealth?.automation_mode || 'NORMAL'}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {healthData?.pacing_description || 'Standard delivery (no additional traffic pacing)'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Score Reasons List */}
+                <div>
+                  <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '10px' }}>
+                    Diagnostic Factors &amp; Score Reasons
+                  </h4>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    maxHeight: '140px',
+                    overflowY: 'auto',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    background: 'var(--bg-subtle, #f8fafc)',
+                    border: '1px solid var(--border-subtle, #e2e8f0)'
+                  }}>
+                    {(healthData?.score_reasons || stats?.accountHealth?.score_reasons || ['Operational health normal — all delivery signals nominal']).map((reason, idx) => (
+                      <div key={idx} style={{ fontSize: '12px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: '#6366f1' }}>•</span>
+                        <span>{reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recent Incident Audit Log */}
+                <div>
+                  <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)', marginBottom: '10px' }}>
+                    Recent Health &amp; Rate-Limit Events
+                  </h4>
+                  {healthEvents && healthEvents.length > 0 ? (
+                    <div style={{
+                      borderRadius: '10px',
+                      overflow: 'hidden',
+                      border: '1px solid var(--border-subtle, #e2e8f0)',
+                      maxHeight: '160px',
+                      overflowY: 'auto'
+                    }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                        <thead>
+                          <tr style={{ background: 'var(--bg-subtle, #f8fafc)', borderBottom: '1px solid var(--border-subtle, #e2e8f0)', textAlign: 'left' }}>
+                            <th style={{ padding: '8px 10px', color: 'var(--text-light)' }}>Time</th>
+                            <th style={{ padding: '8px 10px', color: 'var(--text-light)' }}>Event</th>
+                            <th style={{ padding: '8px 10px', color: 'var(--text-light)' }}>Severity</th>
+                            <th style={{ padding: '8px 10px', color: 'var(--text-light)' }}>Code</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {healthEvents.map((ev) => (
+                            <tr key={ev.id} style={{ borderBottom: '1px solid var(--border-subtle, #f1f5f9)' }}>
+                              <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>
+                                {ev.occurred_at ? new Date(ev.occurred_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                              </td>
+                              <td style={{ padding: '6px 10px', fontWeight: 600, color: 'var(--text-main)' }}>
+                                {ev.event_type}
+                              </td>
+                              <td style={{ padding: '6px 10px' }}>
+                                <span style={{
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  background: ev.severity === 'high' || ev.severity === 'critical' ? '#fee2e2' : '#f1f5f9',
+                                  color: ev.severity === 'high' || ev.severity === 'critical' ? '#dc2626' : '#475569'
+                                }}>
+                                  {ev.severity}
+                                </span>
+                              </td>
+                              <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>
+                                {ev.status_code || ev.error_code || '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '16px',
+                      borderRadius: '10px',
+                      background: 'var(--bg-subtle, #f8fafc)',
+                      border: '1px solid var(--border-subtle, #e2e8f0)',
+                      fontSize: '12px',
+                      color: 'var(--text-muted)',
+                      textAlign: 'center'
+                    }}>
+                      No critical error or rate-limit incidents logged in recent activity.
+                    </div>
+                  )}
+                </div>
+
+                {/* Resume Status Feedback Alert */}
+                {healthResumeResult && (
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    background: healthResumeResult.success ? '#ecfdf5' : '#fef2f2',
+                    color: healthResumeResult.success ? '#059669' : '#dc2626',
+                    border: `1px solid ${healthResumeResult.success ? '#10b981' : '#ef4444'}40`
+                  }}>
+                    {healthResumeResult.message}
+                  </div>
+                )}
+
+                {/* Disclaimer Box */}
+                <div style={{
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  background: 'rgba(99, 102, 241, 0.05)',
+                  border: '1px solid rgba(99, 102, 241, 0.15)',
+                  fontSize: '11.5px',
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.5
+                }}>
+                  <strong>Operational Notice:</strong> Airvix Account Health is an internal application traffic-control layer designed to avoid burst concurrency and reduce upstream API errors based on observed HTTP responses. Pacing delays and mode adjustments are internal queue safeguards, not platform guarantees.
+                </div>
+
+                {/* Modal Footer Actions */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowHealthModal(false)}
+                    style={{
+                      padding: '9px 18px',
+                      borderRadius: '9px',
+                      border: '1px solid var(--border-subtle)',
+                      background: 'var(--bg-subtle)',
+                      color: 'var(--text-main)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Close
+                  </button>
+
+                  {(healthData?.automation_mode === 'PAUSED' || stats?.accountHealth?.automation_mode === 'PAUSED' || healthData?.automation_mode === 'PROTECTION' || stats?.accountHealth?.automation_mode === 'PROTECTION') && (
+                    <button
+                      type="button"
+                      onClick={() => handleRequestResume(account?.id)}
+                      disabled={resumingHealth}
+                      style={{
+                        padding: '9px 20px',
+                        borderRadius: '9px',
+                        border: 'none',
+                        background: 'var(--primary)',
+                        color: '#fff',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: resumingHealth ? 'wait' : 'pointer',
+                        opacity: resumingHealth ? 0.7 : 1,
+                      }}
+                    >
+                      {resumingHealth ? 'Evaluating cool-down...' : 'Request Controlled Step-Up'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

@@ -12,6 +12,8 @@ const cryptoService = require('../services/crypto');
 const totp = require('../services/totp');
 const { abuseDetection } = require('../services/abuseDetection');
 const integrationService = require('../services/integrationService');
+const { accountHealthService } = require('../services/accountHealthService');
+const { HEALTH_CONFIG } = require('../constants/healthConfig');
 
 // All endpoints in this router require authentication and admin privileges
 router.use(requireAuth);
@@ -2727,6 +2729,122 @@ router.post('/change-password', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ACCOUNT HEALTH & AUTOMATION RISK MONITORING (Admin Endpoints)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/instagram-health — List all accounts with health state, metrics & KPIs
+router.get('/instagram-health', async (req, res) => {
+  try {
+    const {
+      status,
+      mode,
+      search = '',
+      sortBy = 'health_score',
+      sortOrder = 'ASC',
+      page = 1,
+      limit = 50
+    } = req.query;
+
+    const parsedLimit = Math.min(parseInt(limit, 10) || 50, 100);
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const offset = (parsedPage - 1) * parsedLimit;
+
+    const result = await accountHealthService.listAllAccountsHealth({
+      statusFilter: status,
+      modeFilter: mode,
+      search,
+      sortBy,
+      sortOrder,
+      limit: parsedLimit,
+      offset
+    });
+
+    res.json({
+      success: true,
+      page: parsedPage,
+      limit: parsedLimit,
+      total: result.total,
+      kpis: result.kpis,
+      accounts: result.accounts
+    });
+  } catch (err) {
+    console.error('[Admin] Error listing account health:', err);
+    res.status(500).json({ error: 'Failed to retrieve account health records: ' + err.message });
+  }
+});
+
+// GET /api/admin/instagram-health/:id — Detailed account health inspection
+router.get('/instagram-health/:id', async (req, res) => {
+  try {
+    const accountId = req.params.id;
+    const accountHealth = await accountHealthService.getAccountHealth(accountId);
+    if (!accountHealth) {
+      return res.status(404).json({ error: 'Account health record not found' });
+    }
+
+    const [events, history] = await Promise.all([
+      accountHealthService.getAccountHealthEvents(accountId, 50),
+      accountHealthService.getAccountHealthHistory(accountId, 48)
+    ]);
+
+    res.json({
+      success: true,
+      account: accountHealth,
+      events,
+      history
+    });
+  } catch (err) {
+    console.error('[Admin] Error retrieving account health details:', err);
+    res.status(500).json({ error: 'Failed to retrieve health details: ' + err.message });
+  }
+});
+
+// POST /api/admin/instagram-health/:id/mode — Administrative automation mode override
+router.post('/instagram-health/:id/mode', async (req, res) => {
+  try {
+    const accountId = req.params.id;
+    const { newMode, reason } = req.body;
+
+    if (!newMode || !['NORMAL', 'CAUTION', 'PROTECTION', 'PAUSED'].includes(newMode)) {
+      return res.status(400).json({ error: 'Invalid mode. Must be one of: NORMAL, CAUTION, PROTECTION, PAUSED' });
+    }
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: 'A justification reason is required for administrative mode overrides' });
+    }
+
+    const result = await accountHealthService.adminOverrideMode({
+      accountId,
+      newMode,
+      reason: reason.trim(),
+      adminId: req.user.id,
+      adminEmail: req.user.email
+    });
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    await logAuditEvent(
+      req.user.id,
+      req.user.email,
+      'instagram_health_mode_override',
+      accountId,
+      `Changed mode from ${result.previousMode} to ${result.newMode}. Reason: ${reason.trim()}`
+    );
+
+    res.json({
+      success: true,
+      ...result,
+      message: `Account automation mode successfully updated to ${newMode}`
+    });
+  } catch (err) {
+    console.error('[Admin] Error overriding account mode:', err);
+    res.status(500).json({ error: 'Failed to override automation mode: ' + err.message });
+  }
+});
+
 module.exports = router;
+
 
 

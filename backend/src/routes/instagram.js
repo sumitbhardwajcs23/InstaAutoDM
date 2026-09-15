@@ -9,6 +9,8 @@ const instagramProfileService = require('../services/instagramProfileService');
 const { encrypt, decrypt, parseSignedRequest } = require('../services/crypto');
 const { JWT_SECRET } = require('../middleware/auth');
 const { igLimitFor } = require('../constants/planLimits');
+const { accountHealthService } = require('../services/accountHealthService');
+const { HEALTH_CONFIG } = require('../constants/healthConfig');
 
 // Helper to strip sensitive encryption tokens before returning accounts to clients
 function sanitizeAccount(account) {
@@ -148,6 +150,96 @@ router.get('/accounts', async (req, res) => {
   if (!uid) return res.json({ accounts: [] });
   const accounts = await db.prepare("SELECT * FROM instagram_accounts WHERE user_id = ? AND status = 'connected' ORDER BY updated_at DESC").all(uid);
   res.json({ accounts: (accounts || []).map(sanitizeAccount) });
+});
+
+// GET /api/instagram/accounts/:id/health — Get detailed account operational health state
+router.get('/accounts/:id/health', async (req, res) => {
+  const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+  const accountId = req.params.id;
+  const account = await db.prepare('SELECT id, username, user_id FROM instagram_accounts WHERE id = ?').get(accountId);
+  if (!account || (account.user_id !== uid && req.user?.role !== 'admin' && req.user?.role !== 'owner')) {
+    return res.status(404).json({ error: 'Instagram account not found' });
+  }
+
+  const health = await accountHealthService.getAccountHealth(accountId);
+  if (!health) return res.status(404).json({ error: 'Health state not found' });
+
+  const mode = health.automation_mode || 'NORMAL';
+  const pacingDelayMs = mode === 'PROTECTION'
+    ? HEALTH_CONFIG.PACING_DELAYS.PROTECTION_PADDING_MS
+    : (mode === 'CAUTION' ? HEALTH_CONFIG.PACING_DELAYS.CAUTION_PADDING_MS : 0);
+
+  const pacingDesc = mode === 'PAUSED'
+    ? 'Automation held due to elevated error/rate-limit signals'
+    : (mode === 'PROTECTION'
+      ? `High protective traffic pacing (+${(pacingDelayMs / 1000).toFixed(0)}s operational buffer, serialized single-worker)`
+      : (mode === 'CAUTION'
+        ? `Moderate traffic pacing (+${(pacingDelayMs / 1000).toFixed(0)}s operational buffer)`
+        : 'Standard delivery (no additional traffic pacing)'));
+
+  res.json({
+    success: true,
+    health: {
+      ...health,
+      pacing_delay_ms: pacingDelayMs,
+      pacing_description: pacingDesc
+    }
+  });
+});
+
+// GET /api/instagram/accounts/:id/health/history — 7-day trend snapshots for charts
+router.get('/accounts/:id/health/history', async (req, res) => {
+  const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+  const accountId = req.params.id;
+  const account = await db.prepare('SELECT id, user_id FROM instagram_accounts WHERE id = ?').get(accountId);
+  if (!account || (account.user_id !== uid && req.user?.role !== 'admin' && req.user?.role !== 'owner')) {
+    return res.status(404).json({ error: 'Instagram account not found' });
+  }
+
+  const limit = Math.min(parseInt(req.query.limit, 10) || 48, 100);
+  const history = await accountHealthService.getAccountHealthHistory(accountId, limit);
+  res.json({ success: true, history });
+});
+
+// GET /api/instagram/accounts/:id/health/events — Raw audit events log
+router.get('/accounts/:id/health/events', async (req, res) => {
+  const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+  const accountId = req.params.id;
+  const account = await db.prepare('SELECT id, user_id FROM instagram_accounts WHERE id = ?').get(accountId);
+  if (!account || (account.user_id !== uid && req.user?.role !== 'admin' && req.user?.role !== 'owner')) {
+    return res.status(404).json({ error: 'Instagram account not found' });
+  }
+
+  const limit = Math.min(parseInt(req.query.limit, 10) || 30, 50);
+  const events = await accountHealthService.getAccountHealthEvents(accountId, limit);
+  res.json({ success: true, events });
+});
+
+// POST /api/instagram/accounts/:id/health/resume — Guarded manual resume
+router.post('/accounts/:id/health/resume', async (req, res) => {
+  const uid = await getUserId(req);
+  if (!uid) return res.status(401).json({ error: 'Unauthorized' });
+
+  const accountId = req.params.id;
+  const account = await db.prepare('SELECT id, user_id FROM instagram_accounts WHERE id = ?').get(accountId);
+  if (!account || (account.user_id !== uid && req.user?.role !== 'admin' && req.user?.role !== 'owner')) {
+    return res.status(404).json({ error: 'Instagram account not found' });
+  }
+
+  const reason = req.body?.reason || 'User requested manual resume';
+  const role = (req.user?.role === 'admin' || req.user?.role === 'owner') ? 'admin' : 'customer';
+  const result = await accountHealthService.requestResume(accountId, uid, role, reason);
+
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
 });
 
 // GET /api/instagram/media — list top media items (Reels, Posts) with pagination and rule associations

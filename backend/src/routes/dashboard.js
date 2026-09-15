@@ -4,6 +4,8 @@ const router = express.Router();
 const db = require('../db');
 const redisClient = require('../services/redisClient');
 const quotaService = require('../services/quotaService');
+const { accountHealthService } = require('../services/accountHealthService');
+const { HEALTH_CONFIG } = require('../constants/healthConfig');
 
 async function getAccountForUser(userId, accountId) {
   if (!userId) return null;
@@ -172,7 +174,7 @@ router.get('/stats', async (req, res) => {
               comments_replied: 0,
               active_rules: 0,
               total_rules: 0,
-              accounts_breakdown: accountsBreakdown
+              accounts_breakdown: enrichedAccountsBreakdown
             },
             recent_conversations: []
           };
@@ -248,8 +250,40 @@ router.get('/stats', async (req, res) => {
           };
         });
 
+        const enrichedAccountsBreakdown = await Promise.all(
+          accountsBreakdown.map(async (acc) => {
+            const h = await accountHealthService.getAccountHealth(acc.account_id);
+            return {
+              ...acc,
+              health_status: h?.health_status || 'HEALTHY',
+              health_score: h?.health_score ?? 100,
+              automation_mode: h?.automation_mode || 'NORMAL',
+              observed_risk_level: h?.observed_risk_level || 'low'
+            };
+          })
+        );
+
+        const accountHealth = account ? await accountHealthService.getAccountHealth(account.id) : null;
+
         const responsePayload = {
           connected: true,
+          accountHealth: accountHealth ? {
+            health_score: accountHealth.health_score,
+            health_status: accountHealth.health_status,
+            automation_mode: accountHealth.automation_mode,
+            observed_risk_level: accountHealth.observed_risk_level,
+            consecutive_failures: accountHealth.consecutive_failures,
+            rolling_24h_successes: accountHealth.rolling_24h_successes,
+            rolling_24h_failures: accountHealth.rolling_24h_failures,
+            observed_rate_limit_count: accountHealth.observed_rate_limit_count,
+            recent_error_rate: accountHealth.recent_error_rate,
+            score_reasons: accountHealth.score_reasons,
+            last_incident_at: accountHealth.last_incident_at,
+            last_incident_type: accountHealth.last_incident_type,
+            pacing_delay_ms: accountHealth.automation_mode === 'PROTECTION'
+              ? HEALTH_CONFIG.PACING_DELAYS.PROTECTION_PADDING_MS
+              : (accountHealth.automation_mode === 'CAUTION' ? HEALTH_CONFIG.PACING_DELAYS.CAUTION_PADDING_MS : 0)
+          } : null,
           account: {
             id: account.id,
             username: account.username,
@@ -291,7 +325,7 @@ router.get('/stats', async (req, res) => {
           dmRemaining: availableQuota,
           remaining: availableQuota,
           usagePercent,
-          accountsBreakdown,
+          accountsBreakdown: enrichedAccountsBreakdown,
           // Operational metrics
           commentsReplied: commentsThisMonth,
           commentsRepliedChange: changePercent,
