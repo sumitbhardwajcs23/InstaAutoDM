@@ -59,7 +59,7 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: testpassword123
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: airvix_test
         ports:
           - 5432:5432
@@ -88,7 +88,7 @@ jobs:
       RAZORPAY_WEBHOOK_SECRET: ci-mock-razorpay-webhook-secret
       STRIPE_WEBHOOK_SECRET: ci-mock-stripe-webhook-secret
       REDIS_URL: redis://localhost:6379
-      DATABASE_URL: postgresql://postgres:testpassword123@localhost:5432/airvix_test
+      DATABASE_URL: postgresql://postgres@localhost:5432/airvix_test
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

@@ -15,7 +15,7 @@ const { CREATE_TABLES_PG_SQL } = require('./schema');
 let PG_URL = process.env.DATABASE_URL;
 
 if ((!PG_URL || PG_URL === 'true' || PG_URL === 'false') && process.env.NODE_ENV === 'test') {
-  PG_URL = 'postgresql://postgres:testpassword123@localhost:5432/airvix_test';
+  PG_URL = 'postgresql://postgres@localhost:5432/airvix_test';
   process.env.DATABASE_URL = PG_URL;
 }
 
